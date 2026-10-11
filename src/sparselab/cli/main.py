@@ -2087,29 +2087,6 @@ def _research_portability_report(args: argparse.Namespace) -> None:
     )
 
 
-def _research_portability_probe_byte(args: argparse.Namespace) -> None:
-    from sparselab.address_hash import byte_scheme
-    from sparselab.data.byte_hash import table_address
-
-    raw = args.text.encode("utf-8")
-    terminal = raw[-args.ngram_size :]
-    print(
-        json.dumps(
-            {
-                "normalization": "raw-utf8-v1",
-                "hashing": byte_scheme(args.table_size),
-                "utf8_byte_length": len(raw),
-                "ngram_size": args.ngram_size,
-                "terminal_bytes_hex": terminal.hex(),
-                "table_size": args.table_size,
-                "address": table_address(terminal, args.table_size),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    )
-
-
 def _learn_list(args: argparse.Namespace) -> None:
     from sparselab.research.catalog import list_lessons
 
@@ -3664,12 +3641,6 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     portability_report = portability_commands.add_parser("report")
     portability_report.add_argument("--campaign-root", required=True)
     portability_report.set_defaults(handler=_research_portability_report)
-    portability_probe = portability_commands.add_parser("probe-byte")
-    portability_probe.add_argument("text")
-    portability_probe.add_argument("--ngram-size", type=int, default=32)
-    portability_probe.add_argument("--table-size", type=int, default=8192)
-    portability_probe.set_defaults(handler=_research_portability_probe_byte)
-
     review = commands.add_parser(
         "review", help="Create blinded human-review bundles and validate judgments."
     )

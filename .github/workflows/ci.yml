@@ -71,6 +71,7 @@ jobs:
             tests/test_research_lint.py::test_changed_legacy_bytes_are_rejected \
             tests/test_research_lint.py::test_same_legacy_bytes_at_different_path_are_rejected \
             tests/test_research_lint.py::test_additional_unapproved_legacy_artifact_is_rejected \
+            tests/test_research_launch_surface.py \
             tests/test_preparation_commands.py \
             tests/test_verification_adapters.py \
             tests/test_spot_safety.py \

@@ -385,22 +385,9 @@ export SPARSELAB_WORK_DIR="$WORK"
 | `$WORK/runs/`, `$WORK/receipt.json` | Mutable runs, checkpoints, and submission receipt |
 | `$WORK/local-reports/` | Local collected reports before deliberate publication |
 
-## First: exercise one mechanism without a campaign
-
-```sh
-{_acquisition_commands(data, command)}\
-{command} sparselab tokenizer train tokenizer.yaml
-{command} sparselab data prepare configs/{first["config_sha256"]}.yaml
-{command} sparselab inspect configs/{first["config_sha256"]}.yaml --json
-{command} sparselab workspace preflight configs/{first["config_sha256"]}.yaml
-{command} sparselab stage configs/{first["config_sha256"]}.yaml --through smoke --output "$WORK/staging/one-arm"
-{command} sparselab learn probe configs/{first["config_sha256"]}.yaml --prompt \"A learner asks a short question.\"
-{command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
-{command} sparselab checkpoint verify "$WORK/runs/one-arm/checkpoints/latest.json" --json
-{command} sparselab eval one-arm --runs-dir "$WORK/runs"
-{command} sparselab generate one-arm --runs-dir "$WORK/runs" --prompt \"A learner asks\" --max-new-tokens 8
-{command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm-resumed --runs-dir "$WORK/runs" --resume "$WORK/runs/one-arm/checkpoints/latest.json" --stop-after-step 3
-```
+For a standalone mechanism walkthrough, use the
+[lesson guide](https://github.com/supernovae/tiny-sparse-lab/blob/main/docs/research/lesson-paths.md).
+This study's preparation and matched-coordinate commands are below.
 
 ## Fixed data, scale, and runtime
 
@@ -417,9 +404,10 @@ export SPARSELAB_WORK_DIR="$WORK"
 
 ## Prepare explicitly, then plan or train
 
-For snapshot profiles, complete the one-time source lock and snapshot commands above first.
+Acquisition precedes tokenizer fitting and preparation for snapshot profiles:
 
 ```sh
+{_acquisition_commands(data, command)}\
 {command} sparselab tokenizer train tokenizer.yaml
 {prep}
 {command} sparselab study plan study.yaml
@@ -431,7 +419,23 @@ Exported standalone configurations:
 |---|---|
 {coordinate_rows}
 
-The config files use full scientific SHA-256 names; labels never become paths. To run an arm directly, train any listed config with `--run-id YOUR_ID --runs-dir "$WORK/runs"`. To dispatch the complete study, use an explicit store and worker:
+The config files use full scientific SHA-256 names; labels never become paths.
+After preparation, an independent arm and its explicit continuation use the
+native trainer. Choose a listed config; this example uses the first coordinate.
+Before training directly, run `inspect` and `workspace preflight` on that listed
+config, then `stage` it with `--through smoke` and a fresh output under
+`$WORK/staging/`; see the
+[iteration guide](https://github.com/supernovae/tiny-sparse-lab/blob/main/docs/iteration.md#check-the-actual-proposed-configuration)
+for syntax, runtime selection and what each check establishes. Staging performs
+a disposable pilot on the configured runtime.
+
+```sh
+{command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
+{command} sparselab checkpoint verify "$WORK/runs/one-arm/checkpoints/latest.json" --json
+{command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm-resumed --runs-dir "$WORK/runs" --resume "$WORK/runs/one-arm/checkpoints/latest.json" --stop-after-step 3
+```
+
+To dispatch the complete study, use an explicit store and worker:
 
 ```sh
 {command} sparselab worker register research-{backend} --backend {backend} --store "$WORK/runs"

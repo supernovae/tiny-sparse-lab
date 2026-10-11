@@ -5,7 +5,6 @@
 Matched controls and separate LM/card reporting are the catalog convention. Use router entropy, maximum-expert fraction, and mean top-k probability as mechanism diagnostics; no-memory arms do not manufacture Engram metrics. Module construction RNG, router/optimizer-state changes, tokenizer addresses, finite offline repetition, capacity-dependent optimization, scale ranges, and educational overhead confound interpretation.
 
 ```sh
-sparselab learn scaffold moe --scale smoke --data offline --backend cpu --output experiments/learn-moe
 sparselab research scaffold engram-moe-capacity-v1 --scale smoke --data offline --backend cpu --output experiments/moe-memory
 sparselab study plan experiments/moe-memory/study.yaml
 ```

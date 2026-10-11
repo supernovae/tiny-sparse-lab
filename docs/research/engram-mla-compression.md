@@ -5,7 +5,6 @@
 Route-local tokenizer/data packing, matched seeds, backbone dimensions unless declared, optimizer, runtime, budget, evaluator, and endpoint policy are fixed. Held-out LM loss remains distinct from the three alias/override cards. Cache bytes must be calculated from this implementation: it stores expanded keys and latent values, and has no fused compressed-cache claim. Other confounders include construction RNG, tokenizer-specific lookup addresses, finite offline repetition, optimization differences, approximate scale ranges, and educational kernel overhead.
 
 ```sh
-sparselab learn scaffold mla --scale smoke --data offline --backend cpu --output experiments/learn-mla
 sparselab research scaffold engram-mla-compression-v1 --scale smoke --data offline --backend cpu --output experiments/mla-memory
 sparselab study plan experiments/mla-memory/study.yaml
 ```

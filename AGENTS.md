@@ -119,7 +119,11 @@ authority for new release work.
 
 Reuse native dispatch, renderers, verifiers and monitors described in
 [the iteration guide](docs/iteration.md); `try`/`report` are the native lab
-path. Keep one current public command/schema path; update callers together
+path. For research launchers, consult the
+[contract audit](docs/research/launcher-contracts.md) before replacing a specialized
+protocol with generic dispatch. Mechanism lessons live in `learn`; research
+scaffolds emit native study declarations. Keep one current public command/schema
+path; update callers together
 instead of adding executable version forks, compatibility aliases or a second
 runner. Necessary historical readers belong in private, read-only compatibility
 code. Do not reimplement hashing, checkpoint selection, accounting or workflow

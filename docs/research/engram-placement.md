@@ -5,7 +5,6 @@
 The recipe varies `model.memory` and `model.memory_injection`: no memory, final injection, and embedding injection. It fixes tokenizer/data packing within a chosen route, seed-matched width/depth/heads, optimizer, runtime, budget, evaluator, and endpoint policy. It reports held-out language-model loss separately from `chat-alias-retention-v1`, `chat-alias-recall-v1`, and `chat-context-override-v1`; these are respectively training-format acquisition, held-out wording (not unseen facts), and instruction/context stress on offline data. On TinyStories, all three are out-of-domain stress, while held-out cross-entropy is the LM measurement.
 
 ```sh
-sparselab learn scaffold lexical-engram --scale smoke --data offline --backend cpu --output experiments/learn-lexical
 sparselab research scaffold engram-placement-v1 --scale smoke --data offline --backend cpu --output experiments/placement
 sparselab study plan experiments/placement/study.yaml
 ```

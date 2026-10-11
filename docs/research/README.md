@@ -15,7 +15,7 @@ The runnable scales are `smoke`, `nano`, `micro`, and `tiny`; `offline`, `tinyst
 
 FineWeb-Edu is pinned to revision `87f09149ef4734204d70ed1d046ddc9ca3f2b8f9` and attributed under ODC-BY 1.0. It is web-crawled: database licensing does not resolve independent source-content rights or terms. The bounded sample is one reported source in SmolLM2-135M's multi-source 2T mixture, not an official 2T reproduction. Its chat capability cards are out-of-domain stress, not FineWeb-quality tests. Nemotron-CC is intentionally excluded from this public reproducible route because its NVIDIA Data Agreement is restrictive.
 
-A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `study.yaml`, hashed standalone configs, and metadata. It does **not** execute them. Follow the generated README to train the tokenizer, prepare each required config's data, inspect/probe/train, or explicitly submit and collect a study. See [lesson paths](lesson-paths.md), [the experiment learning cycle](experiment-learning-cycle.md), [the catalog notes](engram-ffn-substitution.md), [evidence and reporting](evidence-and-reporting.md), and [dashboard browsing](dashboard.md).
+A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `study.yaml`, hashed standalone configs, and metadata. It does **not** execute them. Follow the generated README to train the tokenizer, prepare each required config's data, check a listed config before training an arm directly, or explicitly submit and collect a study. See [lesson paths](lesson-paths.md), [the experiment learning cycle](experiment-learning-cycle.md), [the catalog notes](engram-ffn-substitution.md), [evidence and reporting](evidence-and-reporting.md), and [dashboard browsing](dashboard.md).
 
 If you are unsure what to run next, start with the [experiment learning cycle](experiment-learning-cycle.md). It explains how to move from a known-good reference to the cheapest useful follow-up, distinguish broken evidence from a negative result, keep soft limitations from becoming retroactive gates, and decide when to stop, replicate, scale, branch, or promote.
 
@@ -99,3 +99,6 @@ The explicit `research portability` runner binds generated worlds, direct token/
 The **active source-learned Experiment A** is separate: [executable learned-portability protocol](learned-engram-portability.md). It trains a source byte table with DenseLM SGD and tests independent width-64/128 recipients; compiled-world artifacts and the MiniLM pilot are historical evidence, not substitutes.
 
 Staged documentation-only definitions: [compiled knowledge Engrams](compiled-knowledge-engram-v1.md) and [compiled Engram initialization](compiled-engram-initialization-v1.md). Neither has a runnable recipe or catalog entry.
+
+See the [research launcher contract audit](launcher-contracts.md) for retained
+operations, the removed byte diagnostic wrapper and consolidation boundaries.

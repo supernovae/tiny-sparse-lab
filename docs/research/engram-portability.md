@@ -26,14 +26,12 @@ uv run --locked sparselab research portability plan \
 
 The builder separates recipient-preparation conversations, adapter-eligible training facts, development observations, and final replacement worlds. A/B worlds share lookup addresses but assign different values. Token assets pin the complete tokenizer file identity; byte assets pin raw UTF-8 normalization, terminal polynomial hashing, table dimensions, and tensor digest. Semantic assets pin the pack and encoder contract.
 
-Inspect artifact hashes in `assets/memory_assets.json` and address records in `assets/address_observations.json`. Probe exact raw-byte behavior without training:
-
-```sh
-uv run --locked sparselab research portability probe-byte \
-  'Recipient adapter training association: report NODE value.'
-```
-
-The probe reports the UTF-8 terminal bytes and polynomial table address; it does not imply equivalent token addresses or useful recipient behavior.
+Inspect artifact hashes in `assets/memory_assets.json` and exact raw-byte
+address records in `assets/address_observations.json`. These builder outputs bind
+the raw-UTF-8 hashing scheme, byte order and per-fact table addresses to the
+declared world without training. For the hashing mechanism and UTF-8 boundary checks, see
+[byte addressing](../byte-addressing.md). Address equality does not imply
+equivalent token addresses or useful recipient behavior.
 
 **Acceptance checkpoint B:** source/preparation/training/evaluation permissions are disjoint; each asset descriptor verifies; no cross-key collision is silently accepted; A/B assignments differ while addresses remain bound.
 
