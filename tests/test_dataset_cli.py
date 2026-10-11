@@ -9,7 +9,9 @@ import yaml
 from sparselab.cli.main import build_parser, main
 
 
-@pytest.mark.parametrize("command", ["train", "stage", "run", "data", "tokenizer"])
+@pytest.mark.parametrize(
+    "command", ["train", "stage", "experiment submit", "data", "tokenizer"]
+)
 def test_retired_direct_source_rejected_before_side_effects(
     tmp_path, monkeypatch, command
 ):
@@ -22,7 +24,7 @@ def test_retired_direct_source_rejected_before_side_effects(
     path = tmp_path / filename
     path.write_text(yaml.safe_dump(config))
     work = tmp_path / "work"
-    argv = ["sparselab", "--work-dir", str(work), command]
+    argv = ["sparselab", "--work-dir", str(work), *command.split()]
     if command == "data":
         argv.append("prepare")
     elif command == "tokenizer":

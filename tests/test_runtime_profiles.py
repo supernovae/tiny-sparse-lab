@@ -107,7 +107,7 @@ def test_mlx_namespace_package_probe_uses_loaded_core_identity(tmp_path, monkeyp
     assert result["torch_path"] is None
 
 
-@pytest.mark.parametrize("command", ["train", "stage", "run"])
+@pytest.mark.parametrize("command", ["train", "stage", "experiment submit"])
 def test_accelerator_cli_rejects_before_workdir(tmp_path, monkeypatch, command):
     config = training_config(tmp_path)
     value = config.model_dump(mode="json")
@@ -116,7 +116,9 @@ def test_accelerator_cli_rejects_before_workdir(tmp_path, monkeypatch, command):
     path.write_text(yaml.safe_dump(value))
     work = tmp_path / "must-not-exist"
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(work))
-    args = ["sparselab", command, str(path)]
+    args = ["sparselab", *command.split(), str(path)]
+    if command == "experiment submit":
+        args += ["--wait"]
     if command == "stage":
         args += ["--output", str(tmp_path / "stage")]
     monkeypatch.setattr(sys, "argv", args)

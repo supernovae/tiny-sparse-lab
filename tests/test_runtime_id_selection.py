@@ -65,7 +65,7 @@ def _command_args(tmp_path, command):
             str(runs),
         ],
         "serve": ["serve", "sample", "--runs-dir", str(runs)],
-        "run": ["run", str(config)],
+        "experiment submit": ["experiment", "submit", str(config), "--wait"],
         "experiment bind": ["experiment", "bind", str(tmp_path / "lock")],
         "experiment run": ["experiment", "run", str(tmp_path / "lock")],
         "evaluation suite run": [
@@ -93,7 +93,7 @@ def _command_args(tmp_path, command):
         "generate",
         "chat",
         "serve",
-        "run",
+        "experiment submit",
         "experiment bind",
         "experiment run",
         "evaluation suite run",
@@ -118,7 +118,7 @@ def test_runtime_id_excludes_file_profile_at_parser(tmp_path, command):
 @pytest.mark.parametrize(
     ("command", "conflict"),
     [
-        ("run", "--worker"),
+        ("experiment submit", "--worker"),
         ("experiment bind", "--worker"),
         ("experiment run", "--worker"),
         ("experiment run", "--binding"),
@@ -144,7 +144,7 @@ def test_runtime_id_excludes_worker_and_binding(tmp_path, command, conflict):
         "generate",
         "chat",
         "serve",
-        "run",
+        "experiment submit",
         "experiment bind",
         "experiment run",
         "evaluation suite run",
@@ -230,7 +230,8 @@ def test_stage_inspect_resolves_id_passively_and_preserves_file_profile(
 
 
 @pytest.mark.parametrize(
-    "command", ["train", "stage", "eval", "generate", "chat", "serve", "run"]
+    "command",
+    ["train", "stage", "eval", "generate", "chat", "serve", "experiment submit"],
 )
 def test_registered_cpu_id_freshly_authorizes_direct_execution(
     tmp_path, registered_cpu, command
@@ -247,15 +248,18 @@ def test_registered_cpu_id_freshly_authorizes_direct_execution(
 
 
 @pytest.mark.parametrize(
-    "command", ["train", "stage", "eval", "generate", "chat", "serve", "run"]
+    "command",
+    ["train", "stage", "eval", "generate", "chat", "serve", "experiment submit"],
 )
 def test_cpu_id_cannot_authorize_accelerator_config_before_workdir(
     tmp_path, monkeypatch, registered_cpu, command
 ):
     args = _command_args(tmp_path, command)
     config_path = (
-        Path(args[1])
-        if command in {"train", "stage", "run"}
+        Path(args[2])
+        if command == "experiment submit"
+        else Path(args[1])
+        if command in {"train", "stage"}
         else tmp_path / "runs/sample/resolved_config.yaml"
     )
     value = training_config(tmp_path).model_dump(mode="json")

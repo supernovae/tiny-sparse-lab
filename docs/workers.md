@@ -44,7 +44,27 @@ sparselab experiment resume RUN_ID --worker cpu-one --store "$WORK/runs"
 
 `--worker NAME` is a hard binding. Without one, queued submissions use eligible idle registered workers; a preferred worker is only a tie-breaker. Eligibility checks engine, backend, features, tested precision, required schema/codecs, source identity, and measured memory requirements. Unknown capacity never satisfies a numeric minimum. No eligible worker means `QUEUED` with a reason, not a silently changed configuration.
 
-For a single composed local experiment, `sparselab run CONFIG --store ROOT` registers a controller-scoped local endpoint and drives the same queue, isolated smoke/warmup, training, and ingestion path. `run CONFIG --worker NAME` targets an existing worker. If another controller owns the store lock, `run` observes it rather than competing for assignments. `train CONFIG` remains the direct single-host entry point and does not silently run staging pilots.
+Use `try DELTA.yaml --vs BASELINE.yaml` for a local comparison. For advanced
+queue dispatch, `experiment submit CONFIG --store ROOT` queues work for a
+registered worker; add `--worker NAME` to select one explicitly. Use
+`experiment submit CONFIG --wait --store ROOT` to drive or observe the queue
+through terminal artifact ingestion. With `--wait` and no worker selection it
+registers a controller-scoped local endpoint; `--runtime ID` or
+`--runtime-profile PROFILE` selects an authorized local interpreter. Runtime
+selection also supports submission without waiting. If another controller owns
+the store lock, waiting observes it rather than competing for assignments.
+Single-config submissions accept resource envelopes, tokenizer batch limits
+and transfer deadlines. Matrix submissions retain their declared worker
+requirements and atomic submission; waiting and these single-config options
+are not supported for matrices.
+
+Ctrl-C while waiting disconnects the observer without cancelling the worker.
+Use the printed `experiment collect` or `experiment cancel` command to reconcile
+or explicitly cancel it. Completion waits for artifact ingestion; a failed,
+cancelled, interrupted or unresolved Colab outcome exits nonzero. `train CONFIG`
+provides direct checkpoint transitions without silently running staging pilots.
+See [launch contracts](launch-contracts.md) for the distinct release and
+preparation interfaces.
 
 `controller run` and composed `run` accept `--transfer-timeout SECONDS` (default 1800). It is a finite per-RPC deadline for bundle and artifact transfers, including hashing and transmission; increase it explicitly for a slow link or large input. Metadata requests have shorter bounded deadlines. Killing the controller never authorizes re-execution of an assigned optimizer attempt.
 
