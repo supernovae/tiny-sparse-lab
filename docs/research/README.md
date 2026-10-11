@@ -99,3 +99,6 @@ The explicit `research portability` runner binds generated worlds, direct token/
 The **active source-learned Experiment A** is separate: [executable learned-portability protocol](learned-engram-portability.md). It trains a source byte table with DenseLM SGD and tests independent width-64/128 recipients; compiled-world artifacts and the MiniLM pilot are historical evidence, not substitutes.
 
 Staged documentation-only definitions: [compiled knowledge Engrams](compiled-knowledge-engram-v1.md) and [compiled Engram initialization](compiled-engram-initialization-v1.md). Neither has a runnable recipe or catalog entry.
+
+See the [research launcher contract audit](launcher-contracts.md) for retained
+operations, the removed byte diagnostic wrapper and consolidation boundaries.

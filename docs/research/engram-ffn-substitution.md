@@ -5,7 +5,6 @@
 The fixed controls are tokenizer/data packing per route, matched seed, backbone dimensions apart from FFN width, optimizer, runtime, budget, evaluator, and endpoint policy. Held-out LM loss and the three cards—training-format alias retention, held-out-wording alias recall, and context override—remain separate. Recall/completion might survive while composition or override behavior declines. Confounders include changed module inventories/initialization draws, tokenizer-specific addresses, the finite offline curriculum, capacity-dependent optimization, approximate scale ranges, and educational runtime overhead.
 
 ```sh
-sparselab learn scaffold ffn --scale smoke --data offline --backend cpu --output experiments/learn-ffn
 sparselab research scaffold engram-ffn-substitution-v1 --scale smoke --data offline --backend cpu --output experiments/ffn-memory
 sparselab study plan experiments/ffn-memory/study.yaml
 ```

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -43,6 +45,14 @@ from sparselab.workers.models import AttemptReceipt, WorkerDefinition
 
 @pytest.fixture
 def sealed_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # Native preparation redirects process scratch. Restore it after this fixture
+    # renames the source so subsequent snapshot verifiers do not use a dead path.
+    monkeypatch.setattr(tempfile, "tempdir", tempfile.tempdir)
+    for name in ("TMPDIR", "TEMP", "TMP"):
+        if name in os.environ:
+            monkeypatch.setenv(name, os.environ[name])
+        else:
+            monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
     source = tmp_path / "source"
     source.mkdir()

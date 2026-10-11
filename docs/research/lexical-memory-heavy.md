@@ -5,7 +5,6 @@
 The reduced neural backbone is fixed within a selected scale, while data/tokenizer packing, seed matching, optimizer, runtime, budget, evaluator, and endpoint policy are controlled. Report LM loss and the three card categories separately, along with lookup/reuse/collision, gate/norm, and table-byte accounting. Larger tables can alter recall while revealing wording, collision, chat, or override failures. Addressing is tokenizer-specific; finite offline repetition, module/RNG changes, capacity-dependent optimization, approximate scale bands, and reference overhead are confounders.
 
 ```sh
-sparselab learn scaffold lexical-engram --scale smoke --data offline --backend cpu --output experiments/learn-lexical
 sparselab research scaffold lexical-memory-heavy-v1 --scale smoke --data offline --backend cpu --output experiments/lexical-heavy
 sparselab study plan experiments/lexical-heavy/study.yaml
 ```
