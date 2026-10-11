@@ -6,24 +6,54 @@
 parent process. Python imports ``sitecustomize`` at startup only from
 ``sys.path``; this directory is never there outside pytest, so shipped code
 always measures real RAM (``host_capacity.measure_memory`` has no override).
+
+The pin is applied lazily, when a child first imports
+``sparselab.host_capacity``, so children that never touch SparseLab pay no
+startup cost.
 """
 
 from __future__ import annotations
 
+import importlib.abc
+import importlib.machinery
 import os
+import sys
 
+_MODULE = "sparselab.host_capacity"
 _PINNED = os.environ.get("SPARSELAB_TEST_HOST_RAM")
 
+
+def _pin(module: object) -> None:
+    total, _, available = str(_PINNED).partition(":")
+    measure = module.measure_memory  # type: ignore[attr-defined]
+
+    def pinned_measure_memory() -> object:
+        return measure()._replace(total=int(total), available=int(available))
+
+    module.measure_memory = pinned_measure_memory  # type: ignore[attr-defined]
+
+
+class _PinningLoader(importlib.abc.Loader):
+    def __init__(self, loader: importlib.abc.Loader) -> None:
+        self._loader = loader
+
+    def create_module(self, spec):
+        return self._loader.create_module(spec)
+
+    def exec_module(self, module) -> None:
+        self._loader.exec_module(module)
+        _pin(module)
+
+
+class _PinningFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name != _MODULE:
+            return None
+        spec = importlib.machinery.PathFinder.find_spec(name, path, target)
+        if spec is not None and spec.loader is not None:
+            spec.loader = _PinningLoader(spec.loader)
+        return spec
+
+
 if _PINNED:
-    try:
-        from sparselab import host_capacity
-    except ImportError:  # child that does not run SparseLab code
-        pass
-    else:
-        _total, _, _available = _PINNED.partition(":")
-        _measure = host_capacity.measure_memory
-
-        def _pinned_measure_memory() -> object:
-            return _measure()._replace(total=int(_total), available=int(_available))
-
-        host_capacity.measure_memory = _pinned_measure_memory
+    sys.meta_path.insert(0, _PinningFinder())
