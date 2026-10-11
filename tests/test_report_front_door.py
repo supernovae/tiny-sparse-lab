@@ -226,19 +226,27 @@ def test_invalid_triage_shape_stays_visible(tmp_path, monkeypatch, capsys):
     "bug", [TypeError("unexpected reader bug"), KeyError("unexpected reader bug")]
 )
 @pytest.mark.parametrize("boundary", ["reader", "cli_helper", "run_report"])
-def test_unexpected_triage_reader_bugs_propagate(tmp_path, monkeypatch, bug, boundary):
+@pytest.mark.parametrize("source", ["_json", "read_manifest", "_checkpoint_metadata"])
+def test_unexpected_triage_reader_bugs_propagate(
+    tmp_path, monkeypatch, bug, boundary, source
+):
     from test_post_train_triage import _triage_shape_fixture, _write_triage_shape
 
     from sparselab.evaluation import post_train_triage as triage
 
-    path = _write_triage_shape(tmp_path, _triage_shape_fixture(tmp_path))
-    (path.parent.parent / "manifest.json").write_text("{}")
+    if source == "_checkpoint_metadata":
+        from test_post_train_triage import _triage_pass_fixture
+
+        path, _, _ = _triage_pass_fixture(tmp_path)
+    else:
+        path = _write_triage_shape(tmp_path, _triage_shape_fixture(tmp_path))
+        (path.parent.parent / "manifest.json").write_text("{}")
     before = _snapshot(tmp_path)
 
     def broken(*args):
         raise bug
 
-    monkeypatch.setattr(triage, "_json", broken)
+    monkeypatch.setattr(triage, source, broken)
     monkeypatch.setattr(
         cli, "experiment_evidence", lambda path: {"quality_observations": []}
     )
@@ -258,6 +266,55 @@ def test_unexpected_triage_reader_bugs_propagate(tmp_path, monkeypatch, bug, bou
                 str(tmp_path),
                 "--json",
             )
+    assert _snapshot(tmp_path) == before
+    assert not (tmp_path / "absent-work").exists()
+
+
+@pytest.mark.parametrize("manifest", [[], "scalar", 42, None, True])
+@pytest.mark.parametrize("json_output", [True, False])
+def test_nonobject_manifest_renders_invalid_evidence_and_unknown_triage(
+    tmp_path, monkeypatch, capsys, manifest, json_output
+):
+    from test_post_train_triage import _triage_shape_fixture, _write_triage_shape
+
+    from sparselab.engines.pytorch import PyTorchEngine
+    from sparselab.evaluation import post_train_triage as triage
+    from sparselab.training import trainer
+    from sparselab.training.metrics import ExperimentStore
+
+    path = _write_triage_shape(tmp_path, _triage_shape_fixture(tmp_path))
+    (path.parent.parent / "manifest.json").write_text(json.dumps(manifest))
+    before = _snapshot(tmp_path)
+
+    def no_compute(*args, **kwargs):
+        pytest.fail("report attempted compute or opened a store")
+
+    monkeypatch.setattr(trainer, "train", no_compute)
+    monkeypatch.setattr(PyTorchEngine, "__init__", no_compute)
+    monkeypatch.setattr(ExperimentStore, "__init__", no_compute)
+    monkeypatch.setattr(triage, "generate_with_token_ids", no_compute)
+    with pytest.raises(SystemExit) as error:
+        _report(
+            monkeypatch,
+            tmp_path / "absent-work",
+            "run",
+            "--kind",
+            "run",
+            "--runs-dir",
+            str(tmp_path),
+            *(["--json"] if json_output else []),
+        )
+    assert error.value.code == 1
+    output = capsys.readouterr().out
+    if json_output:
+        result = json.loads(output)
+        assert result["evidence"]["status"] == "invalid_evidence"
+        assert result["triage"]["status"] == "UNKNOWN"
+        assert "manifest.json" in result["triage"]["reason"]
+    else:
+        assert "invalid_evidence" in output
+        assert "UNKNOWN" in output
+        assert "manifest.json" in output
     assert _snapshot(tmp_path) == before
     assert not (tmp_path / "absent-work").exists()
 

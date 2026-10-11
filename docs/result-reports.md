@@ -45,7 +45,11 @@ observations, rejected checkpoint/report digests and missing reports remain in
 the native evidence payload. Missing or invalid triage stays `UNKNOWN` with its
 reason; it never becomes a pass. Malformed artifact shapes raise `ValueError`
 at the reader boundary; unexpected reader `TypeError`/`KeyError` bugs propagate
-instead of becoming `UNKNOWN`. If the run evidence reader cannot read its
+instead of becoming `UNKNOWN`. The triage boundary checks manifest container
+shapes before delegating to native manifest verification, leaving other
+`read_manifest` callers and their error contracts unchanged. Checkpoint PASS
+bindings require nonnegative integer step/target counters. If the run evidence
+reader cannot read its
 inputs, the envelope reports `missing_evidence` or `invalid_evidence` and exits
 1 after rendering. A rejected individual observation remains visible in the
 native `rejected_reports` list. Triage advice is not a release decision.

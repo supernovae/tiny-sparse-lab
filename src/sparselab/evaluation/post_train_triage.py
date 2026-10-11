@@ -28,7 +28,12 @@ from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.model.inspection import parameter_inventory
 from sparselab.runtime_profile import RuntimeAuthorization
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
+from sparselab.training.manifest import (
+    IDENTITY_VERSION,
+    canonical_json,
+    read_manifest,
+    sha256_file,
+)
 
 FORMAT = "sparselab_post_train_triage_v1"
 MAX_BYTES = 256 * 1024
@@ -1413,6 +1418,35 @@ def _triage_choice(value: object, choices: Collection[str]) -> bool:
     return isinstance(value, str) and value in choices
 
 
+def _triage_manifest(path: Path) -> dict[str, Any]:
+    """Reject serialized shape errors locally, then retain native identity verification.
+
+    Other manifest callers keep their TypeError contract. No reader exceptions
+    are caught here: an unexpected TypeError/KeyError in native verification
+    still propagates after these explicit artifact shape checks.
+    """
+    data = _json(path)
+    if data.get("identity_version") == IDENTITY_VERSION:
+        requested, effective = (
+            data.get("requested_config"),
+            data.get("effective_config"),
+        )
+        if not isinstance(requested, dict) or not isinstance(effective, dict):
+            raise ValueError("post-train triage manifest requires config mappings")
+        model = effective.get("model", effective)
+        if not isinstance(model, dict) or not isinstance(
+            effective.get("attention", {}), dict
+        ):
+            raise ValueError(
+                "post-train triage manifest requires model/attention mappings"
+            )
+        if not isinstance(model.get("memory", "none"), str):
+            raise ValueError("post-train triage manifest requires a memory kind string")
+        if not isinstance(data.get("artifacts"), list):
+            raise ValueError("post-train triage manifest artifacts must be an array")
+    return read_manifest(path)
+
+
 def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
     """Read one verified run-local immutable report; never choose between conflicts."""
     run = _run_path(run_id, runs_dir)
@@ -1535,7 +1569,7 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
         ):
             raise ValueError("post-train triage malformed recommendation")
     manifest = _owned(run, "manifest.json")
-    if identity.get("manifest_sha256") != _sha(read_manifest(manifest)):
+    if identity.get("manifest_sha256") != _sha(_triage_manifest(manifest)):
         raise ValueError("post-train triage manifest binding mismatch")
     progress = _json(_owned(run, "progress.json"))
     if (
@@ -1552,6 +1586,14 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
         latest = progress.get("latest")
         if (
             checkpoint is None
+            or type(checkpoint["step"]) is not int
+            or checkpoint["step"] < 0
+            or type(checkpoint["tokens_seen"]) is not int
+            or checkpoint["tokens_seen"] < 0
+            or type(progress.get("step")) is not int
+            or progress["step"] < 0
+            or type(progress.get("tokens_seen")) is not int
+            or progress["tokens_seen"] < 0
             or checkpoint["digest"] != endpoint.get("generation_manifest_sha256")
             or endpoint.get("generation_manifest_sha256")
             != identity.get("generation_manifest_sha256")
