@@ -185,7 +185,7 @@ REFERENCE_SUGGESTION = (
 )
 REFERENCE_RERUN_SUGGESTION = (
     "Reference evaluation is incomplete: fix the cause (missing extras, memory) "
-    "and re-run `sparselab probe ref:NAME --tier full` before placing results "
+    "and re-run `sparselab probe ref:NAME --config full` before placing results "
     "on this reference."
 )
 
@@ -228,23 +228,23 @@ NOT_COMPARABLE_SUGGESTION = (
 
 FINAL_REPORT_SUGGESTION = (
     "Final verdict on the held-back split ({status}): report this result as it "
-    "is. It is terminal: do not change the idea, re-tune or re-run --final. A "
+    "is. It is terminal: do not change the idea, re-tune or re-run the final declaration. A "
     "new idea starts again with `sparselab try` on the held-out split."
 )
 FINAL_RERUN_SUGGESTION = (
     "Final verdict incomplete: fix the missing evidence ({missing}) and re-run "
-    "the same --final unchanged (same candidate, baseline and tier). Do not "
+    "the same final declaration unchanged (same candidate, baseline and tier). Do not "
     "read the partial final scores."
 )
 
 
 def final_verdict(verdict: Mapping[str, Any]) -> dict[str, Any]:
-    """Terminal form of a ``--final`` verdict, or an unchanged re-run.
+    """Terminal form of a final verdict, or an unchanged re-run.
 
     The choice follows the evidence, not the status: any requested check that
     produced no evidence (``missing``: unavailable, error, not comparable, a
     cancel/resource/OOM stop) makes the final battery ``incomplete`` with
-    action ``rerun`` (the same ``--final``, unchanged), whatever status
+    action ``rerun`` (the same final declaration, unchanged), whatever status
     ``decide`` gave it (e.g. ``info`` without a baseline, or a soft ``fail``).
     Only a decisive failure (``abandon``: a NaN/inf loss or a hard probe
     failure) is terminal despite gaps. A complete battery keeps its status and
@@ -434,7 +434,7 @@ def decide(
                 status,
                 "escalate",
                 reasons,
-                f"Promising: run `--tier {next_tier}` ("
+                f"Promising: run `--config {next_tier}` ("
                 + NEXT_TIER_CHECKS.get(next_tier, "the next tier")
                 + ") before a longer run."
                 + SEED_CAVEAT,

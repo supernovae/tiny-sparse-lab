@@ -50,6 +50,7 @@ def run_probe(
     lm_eval_tasks: list[str] | None = None,
     lm_eval_limit: int | None = None,
     final: bool = False,
+    request: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """Run the battery and publish ``LAB/probes/<id>/probe.json`` (sealed).
 
@@ -72,12 +73,12 @@ def run_probe(
         reference_for(target_spec)  # unknown names fail before any work
         if tier != "full":
             raise ValueError(
-                "reference models are scored on lm-eval tasks only: use --tier full"
+                "reference models are scored on lm-eval tasks only: use --config full"
             )
         require_reference_extras()
     if final and tier == "fast":
         raise ValueError(
-            "--final scores the held-back text probes: use --tier standard or full"
+            "final evaluation scores the held-back text probes: use --config final or final-full"
         )
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     probe_id = f"probe-{stamp}-{secrets.token_hex(4)}"
@@ -133,7 +134,14 @@ def run_probe(
         # Signals are only noted from here on, so the record is always written.
         context.finalizing = True
         path = folder / "probe.json"
-        sealed = write_sealed(path, {**result, "probe_id": probe_id})
+        sealed = write_sealed(
+            path,
+            {
+                **result,
+                "probe_id": probe_id,
+                **({"request": request} if request is not None else {}),
+            },
+        )
     finally:
         context.restore()
     if context.signals or result["stop"]["kind"] == "interrupted":

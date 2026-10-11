@@ -221,7 +221,7 @@ def experiments_page(lab_dir: Path) -> None:
             "or probe an existing run against a baseline.",
             [
                 "sparselab try DELTA.yaml --vs BASELINE.yaml",
-                "sparselab probe RUN --vs BASELINE_RUN --tier standard",
+                "sparselab probe RUN --vs BASELINE_RUN --config standard",
             ],
         )
         _unprobed_tries(snap)
@@ -525,7 +525,7 @@ def models_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
             st.caption(
                 "Plain `sparselab train` runs that no try or probe has scored, so "
                 "they are missing from the catalog and the Pareto view. Probe one "
-                "to place it (add `--tier full` for lm-eval accuracy next to the "
+                "to place it (add `--config full` for lm-eval accuracy next to the "
                 "references):"
             )
             for run in runs:
@@ -576,7 +576,7 @@ def _references(snap: lab_data.LabSnapshot) -> None:
         "never appear on our held-out loss. The needle probe is text-level "
         "(fixed character lengths) from suite v4 on, so a re-scored reference "
         "is comparable on needle too. Re-score one yourself "
-        "with `sparselab probe ref:NAME --tier full` (reference + lmeval extras).",
+        "with `sparselab probe ref:NAME --config full` (reference + lmeval extras).",
         expanded=False,
     )
 
@@ -597,7 +597,7 @@ def behaviors_page(lab_dir: Path) -> None:
             "No behavior evidence yet",
             "Generations, recall misses and calibration come from the standard "
             "probe tier.",
-            ["sparselab probe RUN --tier standard"],
+            ["sparselab probe RUN --config standard"],
         )
         return
     entry = _result_picker(snap.entries, "behaviors_result")
@@ -767,7 +767,7 @@ def _recall(entry: ProbeEntry) -> None:
         empty_state(
             "No fact-recall evidence in this result",
             "Fact recall runs in the standard tier.",
-            [f"sparselab probe {target} --tier standard"],
+            [f"sparselab probe {target} --config standard"],
         )
 
 
@@ -778,7 +778,7 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
             "No needle results yet",
             "The needle probe (standard tier) hides a fact at growing distances "
             "in the context and asks for it at the end.",
-            ["sparselab probe RUN --tier standard"],
+            ["sparselab probe RUN --config standard"],
         )
         return
     # Only one item group (same items and lengths) is drawn at a time.

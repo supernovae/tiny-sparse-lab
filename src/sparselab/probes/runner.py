@@ -796,9 +796,9 @@ def lm_eval_spec(
         return spec
     chosen = list(tasks) if tasks is not None else list(spec.params["tasks"])
     if not chosen or len(set(chosen)) != len(chosen):
-        raise ValueError("--lm-eval-tasks needs distinct task names")
+        raise ValueError("lm_eval_tasks needs distinct task names")
     if limit is not None and limit < 1:
-        raise ValueError("--lm-eval-limit must be at least 1")
+        raise ValueError("lm_eval_limit must be at least 1")
     known = spec.params["chance"]
     return dataclasses.replace(
         spec,
@@ -850,7 +850,7 @@ def run_battery(
     ``final=True`` is the final verdict on an already chosen candidate: text
     probes, agreement and generations read the ``final`` split instead of
     ``heldout`` (held-out loss stays on the run's validation split). Only
-    ``sparselab probe --final`` passes it; ``try`` and ordinary probes never
+    ``sparselab probe --config final`` passes it; ``try`` and ordinary probes never
     do, so no selection loop reads the held-back items.
     """
     if not final:

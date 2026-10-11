@@ -92,7 +92,7 @@ def _verdict_banner(result: dict[str, Any]) -> None:
         f'<div class="pb-banner" style="background:{STATUS_COLOR.get(status, "#0969da")}">'
         f"<h3>{STATUS_ICON.get(status, '?')} {html.escape(status.upper())} · "
         f"next: {html.escape(str(action))}"
-        + (f" (--tier {html.escape(next_tier)})" if next_tier else "")
+        + (f" (--config {html.escape(next_tier)})" if next_tier else "")
         + "</h3>"
         f"<p>{html.escape(str(verdict.get('suggestion', '')))}</p>"
         f"<p style='font-size:.85rem'>Guard: {html.escape(guard_text)} · "

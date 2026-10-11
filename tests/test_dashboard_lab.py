@@ -183,8 +183,7 @@ def test_activity_and_next_steps_are_verdict_first(lab: Path) -> None:
     assert steps[-1]["command"] == "sparselab explore lab-try-1"
     with_runs = lab_data.next_steps(snap, [lab / "runs"])
     assert any(
-        s["command"] == f"sparselab probe plain-run --runs-dir {lab / 'runs'}"
-        for s in with_runs
+        s["command"] == f"sparselab probe {lab / 'runs/plain-run'}" for s in with_runs
     )
     empty = lab_data.next_steps(lab_data.snapshot(lab / "nowhere"))
     assert empty[0]["command"].startswith("sparselab try")
@@ -199,9 +198,7 @@ def test_catalog_unscored_runs_and_behaviors(lab: Path) -> None:
     assert any(r["kind"] == "reference" for r in catalog.values())
     unscored = lab_data.unscored_runs([lab / "runs"], snap.points)
     assert [u["run_id"] for u in unscored] == ["plain-run"]
-    assert (
-        unscored[0]["command"] == f"sparselab probe plain-run --runs-dir {lab / 'runs'}"
-    )
+    assert unscored[0]["command"] == f"sparselab probe {lab / 'runs/plain-run'}"
     entry = snap.entries[0]
     assert lab_data.generations(entry) == [
         {"prompt": "One day", "candidate": " the the bird", "baseline": " 1 1 1 1"}
@@ -284,7 +281,7 @@ def _text(test: AppTest) -> str:
         ("home", "sparselab try DELTA.yaml --vs BASELINE.yaml"),
         ("experiments", "sparselab try DELTA.yaml --vs BASELINE.yaml"),
         ("models", "sparselab try DELTA.yaml --vs BASELINE.yaml"),
-        ("behaviors", "sparselab probe RUN --tier standard"),
+        ("behaviors", "sparselab probe RUN --config standard"),
         ("explorer", "sparselab explore RUN"),
     ],
 )
@@ -320,7 +317,7 @@ def test_models_page_lists_catalog_references_and_unscored_runs(lab: Path) -> No
     test = _render("models", lab)
     assert len(test.dataframe) >= 2  # catalog + references
     text = _text(test)
-    assert "sparselab probe plain-run --runs-dir" in text
+    assert f"sparselab probe {lab / 'runs/plain-run'}" in text
 
 
 def test_behaviors_page_shows_generations_misses_and_reliability(lab: Path) -> None:

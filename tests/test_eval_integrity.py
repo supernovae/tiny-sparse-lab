@@ -91,7 +91,7 @@ def test_final_split_is_deterministic_and_disjoint_from_selection_splits() -> No
 
 
 def test_selection_paths_never_open_the_final_split() -> None:
-    """Only the probe CLI's --final path may open the held-back split.
+    """Only the probe CLI's final-declaration path may open the held-back split.
 
     `final_verdict_access` is entered only in suite.py (digest) and the
     run_battery wrapper; `final=` is passed only by the probe CLI. try/lab
@@ -384,7 +384,7 @@ def _final_probe(target: str, baseline: str, score: float) -> dict[str, Any]:
 
 @pytest.fixture
 def final_lab(tmp_path: Path) -> Path:
-    """Ordinary fast tries A and B, then `probe --final` records for both."""
+    """Ordinary fast tries A and B, then `probe --config final` records for both."""
     from sparselab.lab_records import write_sealed
 
     for name, loss in (("aaa", 3.2), ("bbb", 3.3)):
@@ -556,7 +556,7 @@ def test_completed_final_verdict_is_report_only(improved: bool) -> None:
     assert out["action"] == "report" and out["next_tier"] is None
     assert out["status"] == ordinary["status"]
     assert out["reasons"][: len(ordinary["reasons"])] == ordinary["reasons"]
-    for selecting in ("Promising", "--tier", "bolder", "longer run", "paired seeds"):
+    for selecting in ("Promising", "--config", "bolder", "longer run", "paired seeds"):
         assert selecting not in out["suggestion"]
     assert "report" in out["suggestion"] and "terminal" in out["suggestion"]
 
@@ -633,7 +633,7 @@ def test_soft_fail_with_missing_evidence_is_rerun_but_decisive_failures_report()
 def test_no_baseline_final_battery_without_lm_eval(
     monkeypatch: pytest.MonkeyPatch, nan_loss: bool
 ) -> None:
-    """`probe RUN --tier full --final --no-fast-fail` without --vs or lm-eval."""
+    """a full final declaration with fast_fail: false without --vs or lm-eval."""
     real_judge = runner._judge
 
     def measure(spec: Any, loaded: Any, arm: Any, protocol: Any) -> dict[str, Any]:

@@ -14,7 +14,7 @@ values printed by `try` or `report`.
 ```sh
 uv run --locked --extra cpu sparselab try DELTA.yaml --vs BASELINE.yaml
 uv run --locked --extra cpu sparselab report TRY_ID
-uv run --locked --extra cpu sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --tier standard
+uv run --locked --extra cpu sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config standard
 uv run --locked --extra cpu sparselab compare TRY_ID --references
 uv run --locked --extra cpu sparselab explore CANDIDATE_RUN
 uv run --locked --extra cpu sparselab dashboard
@@ -24,9 +24,9 @@ uv run --locked --extra cpu sparselab dashboard
 and `compare` read sealed records only. The dashboard reads saved lab results
 and exposes on-demand explorer computation. A **run ID** identifies weights;
 a **try/probe ID** identifies a result record. `probe` and `explore` search
-`WORK_DIR/lab/runs`. For other saved runs, `probe` accepts `--runs-dir`;
-`explore` takes the root from the `runs_dir` field of its
-[declaration](explore-config.md). Both also accept an explicit run path.
+`WORK_DIR/lab/runs`. For other saved runs, both commands accept an explicit run path or the
+`runs_dir` field in their declarations ([probe](probe-config.md),
+[explore](explore-config.md)).
 `report` and `compare` accept sealed result paths as well as record IDs.
 
 `probe` and `explore` also accept try/probe record IDs or paths, selecting the

@@ -47,11 +47,11 @@ it, **Next steps** turns the lab's state into commands, each with a reason:
 
 - the latest verdict, when it names a command (escalate, compare, rerun);
 - candidate checkpoints that have held-out loss but no fact-recall or needle
-  evidence yet (`sparselab probe RUN --tier standard`);
+  evidence yet (`sparselab probe RUN --config standard`);
 - no lab checkpoint has lm-eval accuracy yet, so none sits on the reference
-  curve (`--tier full`);
+  curve (`--config full`);
 - plain `sparselab train` runs that no lab record has scored
-  (`sparselab probe RUN --runs-dir DIR`);
+  (`sparselab probe DIR/RUN`);
 - runs nobody has looked inside yet (`sparselab explore RUN`).
 
 At most four steps are shown, in this order.
@@ -109,7 +109,7 @@ never our held-out loss). Details: [probe battery](probe-battery.md#dashboard).
 **Reference models** lists the pinned public checkpoints and their packaged
 scores, and explains what they can and cannot tell you. **Not yet scored**
 lists plain `sparselab train` runs in the run directories that no try or probe
-has measured, each with the `sparselab probe RUN --runs-dir DIR` command that
+has measured, each with the `sparselab probe DIR/RUN` command that
 places it in the catalog and on the frontier.
 
 ## Behaviors

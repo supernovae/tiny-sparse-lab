@@ -249,7 +249,7 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
         )
         + "  next → "
         + _paint(action, "1", color)
-        + (f" (--tier {verdict['next_tier']})" if verdict.get("next_tier") else "")
+        + (f" (--config {verdict['next_tier']})" if verdict.get("next_tier") else "")
     )
     lines.append(f"  {verdict['suggestion']}")
     for gap in verdict.get("missing") or []:

@@ -13,7 +13,7 @@ fast-fail) and what a failure suggests. Prompt items come in two disjoint splits
 * ``final``: the held-back final evaluation set. Deterministic, disjoint items
   that no selection loop reads: :func:`require_split` refuses ``final`` unless
   the caller is inside :func:`final_verdict_access`, which only
-  ``sparselab probe --final`` enters. Use it once, for the final verdict on a
+  ``sparselab probe --config final`` enters. Use it once, for the final verdict on a
   chosen candidate, never to pick between candidates.
 
 The suite digest covers declarations, thresholds and all three splits (a
@@ -36,7 +36,7 @@ from sparselab.data.withheld_facts import _FACTS, diagnostic_manifest, split_fac
 SUITE_NAME = "sparselab-probe-battery"
 SUITE_VERSION = 4
 SPLITS = ("dev", "heldout", "final")
-# Splits a selection loop (``try``, ``probe`` without ``--final``) may read.
+# Splits a selection loop (``try``, ``probe`` without a final declaration) may read.
 SELECTION_SPLITS = ("dev", "heldout")
 TIERS = ("fast", "standard", "full")
 Mode = Literal["delta_rel", "delta_abs", "value_min"]
@@ -335,7 +335,7 @@ class FinalSplitLocked(PermissionError):
 
 @contextlib.contextmanager
 def final_verdict_access() -> Iterator[None]:
-    """Open the held-back split for one final verdict (``probe --final``)."""
+    """Open the held-back split for one final verdict (``probe --config final``)."""
     token = _FINAL_OPEN.set(True)
     try:
         yield
@@ -349,7 +349,7 @@ def require_split(split: str) -> str:
         raise ValueError(f"unknown probe split {split!r}; choose {', '.join(SPLITS)}")
     if split == "final" and not _FINAL_OPEN.get():
         raise FinalSplitLocked(
-            "the held-back final split is only read by `sparselab probe --final` "
+            "the held-back final split is only read by `sparselab probe --config final` "
             "(final verdicts); selection loops (try, probe) use dev/heldout"
         )
     return split
