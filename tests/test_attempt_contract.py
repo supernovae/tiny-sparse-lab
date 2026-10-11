@@ -456,22 +456,56 @@ def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
+@pytest.mark.parametrize("delayed_startup", [False, True])
 def test_runtime_deadline_keeps_charge_and_zero_survivors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delayed_startup: bool
 ) -> None:
     _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
+    if delayed_startup:
+        original = subprocess.Popen
+
+        def spawn_after_deadline(
+            command: list[str], **kwargs: object
+        ) -> subprocess.Popen:
+            # Hold the helper before imports/handler installation, as a loaded
+            # CI host can. Keep its real deadline, subreaper and receipt writer.
+            assert command[1:3] == ["-m", "sparselab.owned_process"]
+            script = (
+                "import runpy,sys,time\n"
+                "sys.argv = sys.argv[1:]\n"
+                "deadline = float(sys.argv[sys.argv.index('--deadline') + 1])\n"
+                "while time.monotonic() < deadline + 0.1: time.sleep(0.01)\n"
+                "runpy.run_module('sparselab.owned_process', run_name='__main__')\n"
+            )
+            return original([command[0], "-c", script, *command[2:]], **kwargs)
+
+        monkeypatch.setattr(module.subprocess, "Popen", spawn_after_deadline)
     budget, paths = _fixture(tmp_path, updates=1, seconds=0.5)
+    budget.reserve_vector(
+        "earlier",
+        generation_calls=1,
+        generated_tokens=8,
+        content_identity_sha256=paths["identity"],
+    )
     completion = paths["root"] / "owned.json"
     with pytest.raises(AttemptBudgetError, match="wall-time limit"):
         budget.run_contract(
             [sys.executable, "-c", "import time;time.sleep(30)"],
             **_run_args(paths, completion),
         )
-    assert len(budget.status()["reservations"]) == 1
-    assert json.loads(completion.read_text())["living_descendants"] == 0
+    status = budget.status()
+    assert len(status["reservations"]) == 2
+    assert status["charged_generation_calls"] == 1
+    assert status["charged_generated_tokens"] == 8
+    receipt = json.loads(completion.read_text())
+    assert receipt["living_descendants"] == 0
+    assert all(not _alive(pid) for pid in receipt["observed_descendants"])
+    if delayed_startup:
+        assert receipt["reason"] == "stopped before command launch"
+        assert receipt["observed_descendants"] == []
     assert (paths["root"] / "owned.json.attempt.json").exists()
 
 
