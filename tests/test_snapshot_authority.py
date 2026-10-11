@@ -14,10 +14,11 @@ def test_packed_inventory_authority_excludes_source_preparation(kind):
     assert "data.verification" in modules
     assert "data.sources" not in modules
     assert "corpus.acquisition" not in modules
+    assert "corpus.mixture" not in modules
 
 
 @pytest.mark.parametrize(
-    "module", ["data.sources", "corpus.acquisition", "corpus.project"]
+    "module", ["data.sources", "corpus.acquisition", "corpus.project", "corpus.mixture"]
 )
 def test_tokenizer_authority_invalidates_on_snapshot_verifier_chain_change(
     monkeypatch, module
@@ -61,12 +62,33 @@ def test_semantic_domains_retain_snapshot_verifier(kind):
     assert "data.sources" in authority.verifier_authority(kind, 1)["modules"]
 
 
+@pytest.mark.parametrize("kind", ["tokenizer", "stage_bundle", "corpus_export"])
+def test_semantic_domains_retain_mixture_authority(monkeypatch, kind):
+    before = authority.verifier_authority(kind, 1)
+    assert "corpus.mixture" in before["modules"]
+    read = authority.Path.read_bytes
+
+    def changed(path):
+        raw = read(path)
+        if path == authority.Path(authority.__file__).parent / "corpus" / "mixture.py":
+            return raw + b"\n# revised mixture verification\n"
+        return raw
+
+    monkeypatch.setattr(authority.Path, "read_bytes", changed)
+    assert authority.verifier_authority(kind, 1)["sha256"] != before["sha256"]
+
+
 @pytest.mark.parametrize(
     "module, function",
-    [("sources", "verify_snapshot"), ("tokenizer", "verify_tokenizer_artifact")],
+    [
+        ("data.sources", "verify_snapshot"),
+        ("data.tokenizer", "verify_tokenizer_artifact"),
+        ("corpus.mixture", "verify_mixture_dataset"),
+    ],
 )
+@pytest.mark.parametrize("kind", ["file", "prepared_array", "prepared_data"])
 def test_new_snapshot_use_in_array_verifier_requires_reaudit(
-    monkeypatch, module, function
+    monkeypatch, module, function, kind
 ):
     read = authority.Path.read_bytes
 
@@ -76,7 +98,7 @@ def test_new_snapshot_use_in_array_verifier_requires_reaudit(
             return (
                 raw
                 + f"""\ndef _new_array_verifier(config):
-    from sparselab.data.{module} import {function} as verify_generic_snapshot
+    from sparselab.{module} import {function} as verify_generic_snapshot
     return verify_generic_snapshot(config)
 """.encode()
             )
@@ -86,7 +108,31 @@ def test_new_snapshot_use_in_array_verifier_requires_reaudit(
     with pytest.raises(
         ValueError, match="verifier exclusion needs review.*data.packing"
     ):
-        authority.verifier_authority("prepared_array", 1)
+        authority.verifier_authority(kind, 1)
+
+
+@pytest.mark.parametrize("kind", ["file", "prepared_array", "prepared_data"])
+def test_existing_mixture_alias_use_in_inventory_verifier_requires_reaudit(
+    monkeypatch, kind
+):
+    read = authority.Path.read_bytes
+
+    def changed(path):
+        raw = read(path)
+        if path.name == "packing.py":
+            return (
+                raw
+                + b"""\ndef _new_inventory_verifier(identity):
+    return verify_mixture_dataset(identity)
+"""
+            )
+        return raw
+
+    monkeypatch.setattr(authority.Path, "read_bytes", changed)
+    with pytest.raises(
+        ValueError, match="verifier exclusion needs review.*corpus.mixture"
+    ):
+        authority.verifier_authority(kind, 1)
 
 
 def test_all_declared_domains_have_reviewed_closures():
