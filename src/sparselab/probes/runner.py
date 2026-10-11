@@ -44,6 +44,7 @@ from sparselab.probes.suite import (
     BY_ID,
     ProbeSpec,
     fact_items,
+    final_verdict_access,
     needle_split,
     ordered,
     parametric_items,
@@ -51,11 +52,13 @@ from sparselab.probes.suite import (
     prompts,
     suite_identity,
     tiers_through,
+    verdict_split,
 )
 from sparselab.probes.verdict import (
     INCOMPLETE_STOPS,
     MISSING_STATUSES,
     decide,
+    final_verdict,
     judge,
     numerical_failure,
     overfit_guard,
@@ -90,10 +93,10 @@ class Arm:
 
 
 # Probes that mean the same thing for a public reference model: lm-eval tasks
-# are defined by the harness, and the text-level ranking probes ask the same
-# strings of any tokenizer (their ``item_group`` proves it). Needle items are
-# sized in the model's own tokens, so they are not text-level.
-REFERENCE_PROBES = frozenset({"lm_eval", "fact_recall", "parametric_recall"})
+# are defined by the harness, and the text-level ranking probes (needle
+# included: its lengths are in characters) ask the same strings of any
+# tokenizer (their ``item_group`` proves it).
+REFERENCE_PROBES = frozenset({"lm_eval", "fact_recall", "parametric_recall", "needle"})
 TEXT_PROBES = ("fact_recall", "parametric_recall", "needle")
 
 
@@ -214,7 +217,7 @@ def generations(loaded: Any, max_new_tokens: int) -> list[dict[str, Any]]:
 
     budget = max(1, min(max_new_tokens, loaded.config.model.max_seq_len // 2))
     rows = []
-    for prompt in prompts("heldout"):
+    for prompt in prompts(verdict_split()):
         text, ids = generate_with_token_ids(
             loaded.model,
             loaded.tokenizer,
@@ -333,32 +336,37 @@ def _ranked(loaded: Any, items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def needle_items(loaded: Any, split: str, fractions: list[float]) -> list[dict]:
+def needle_items(split: str, char_lengths: Sequence[int]) -> list[dict]:
+    """Text-level needle items: every prefix is exactly N characters long.
+
+    Independent of any tokenizer, so a lab run and a reference model are asked
+    identical strings (one ``item_group``). The code word opens the context,
+    filler sentences (rotated per item) push it back, and the filler is cut to
+    the exact length before the closing question.
+    """
     spec = needle_split(split)
-    max_len = loaded.config.model.max_seq_len
+    filler = spec["filler"]
     items = []
-    for fraction in fractions:
-        target = max(8, int(fraction * max_len))
+    for length in char_lengths:
         for offset, word in enumerate(spec["needles"]):
-            filler = spec["filler"]
-            # The needle opens the context; filler pushes it further back.
-            parts = [spec["statement"].format(w=word)]
+            head = spec["statement"].format(w=word) + " "
+            tail = " " + spec["question"]
+            room = int(length) - len(head) - len(tail)
+            if room < 0:
+                raise ValueError(f"needle length {length} is too short")
+            stream = ""
             k = offset
-            while True:
-                candidate = parts + [filler[k % len(filler)]]
-                text = " ".join([*candidate, spec["question"], word])
-                if len(scoring.encode(loaded, text)) > target:
-                    break
-                parts = candidate
+            while len(stream) < room:
+                stream += filler[k % len(filler)] + " "
                 k += 1
-            prefix = " ".join([*parts, spec["question"]])
+            prefix = head + stream[:room] + tail
+            assert len(prefix) == int(length)
             items.append(
                 {
                     "prefix": prefix,
                     "answer": word,
                     "candidates": spec["needles"],
-                    "fraction": fraction,
-                    "tokens": len(scoring.encode(loaded, prefix)),
+                    "chars": int(length),
                 }
             )
     return items
@@ -403,7 +411,7 @@ def _measure(
         }
     if spec.id == "token_agreement":
         rows = []
-        for prompt in prompts("heldout"):
+        for prompt in prompts(verdict_split()):
             ids = scoring.encode(loaded, prompt)[-loaded.config.model.max_seq_len :]
             rows.append(scoring.log_probs(loaded, ids).astype(np.float32))
         return {"log_probs": rows}
@@ -427,22 +435,28 @@ def _measure(
                 return recall_items(split)
             if spec.id == "parametric_recall":
                 return parametric_recall_items(split, seed=binding["seed"])
-            return needle_items(loaded, split, list(spec.params["length_fractions"]))
+            return [
+                # Token count is this model's view of the item: informational,
+                # never part of the item identity.
+                {**item, "tokens": len(scoring.encode(loaded, item["prefix"]))}
+                for item in needle_items(split, spec.params["char_lengths"])
+            ]
 
         binding = (
             parametric_binding(loaded, reference=arm.reference)
             if spec.id == "parametric_recall"
             else {}
         )
-        held = items("heldout")
+        held = items(verdict_split())
         ranked = _ranked(loaded, held)
         credits = ranked["credits"]
         out = {
             "value": float(np.mean(credits)) if credits else None,
             "credits": credits,
             "picked": ranked["picked"],
+            "constant_pick": scoring.constant_pick(held, ranked["picked"]),
             "dev_credits": scoring.ranking_credit(loaded, items("dev")),
-            "fractions": [i.get("fraction") for i in held],
+            "chars": [i.get("chars") for i in held],
             "tokens": [i.get("tokens") for i in held],
             "chance": 1 / len(held[0]["candidates"]) if held else None,
             "item_group": item_group(spec.id, held),
@@ -450,7 +464,7 @@ def _measure(
                 {
                     "prompt": i["prefix"] if spec.id != "needle" else None,
                     "answer": i["answer"],
-                    "fraction": i.get("fraction"),
+                    "chars": i.get("chars"),
                     "tokens": i.get("tokens"),
                 }
                 for i in held
@@ -459,7 +473,9 @@ def _measure(
         if spec.id == "parametric_recall":
             control = _ranked(
                 loaded,
-                parametric_recall_items("heldout", seed=binding["seed"], control=True),
+                parametric_recall_items(
+                    verdict_split(), seed=binding["seed"], control=True
+                ),
             )
             out["control_accuracy"] = float(np.mean(control["credits"]))
             out["manifest_sha256"] = binding["manifest_sha256"]
@@ -476,11 +492,22 @@ def _measure(
     raise ValueError(f"unknown probe {spec.id}")
 
 
+def probe_cache_key(probe_id: str) -> str:
+    """Per-arm cache key of a probe measurement, scoped to the verdict split.
+
+    Item-based probes read ``heldout`` or (inside a final verdict) ``final``
+    items, so a measurement made under one split is never reused under the
+    other. Validation statistics (held-out loss, calibration) are cached
+    separately under ``validation``; they do not depend on the item split.
+    """
+    return f"probe:{verdict_split()}:{probe_id}"
+
+
 def _measure_safely(
     spec: ProbeSpec, loaded: Any, arm: Arm, protocol: Mapping[str, int]
 ) -> dict[str, Any]:
     """Probe failures become evidence gaps; OOM and stops propagate."""
-    key = f"probe:{spec.id}"
+    key = probe_cache_key(spec.id)
     if key in arm.cache:
         return arm.cache[key]
     try:
@@ -570,11 +597,7 @@ def _judge(
             "status": "not_comparable",
             "note": comparable["validation_reason"],
         }
-    if (
-        b is not None
-        and spec.id in {"token_agreement", "needle"}
-        and not comparable["tokenizer"]
-    ):
+    if b is not None and spec.id == "token_agreement" and not comparable["tokenizer"]:
         return {**row, "status": "not_comparable", "note": "tokenizers differ"}
     if spec.id == "heldout_loss" and (b or {}).get("numerical_failure"):
         # The reference is broken: nothing can be judged against it.
@@ -678,6 +701,8 @@ def _judge(
             else None,
             "item_group": t["item_group"],
             "scoring": scoring.RANKING_PROTOCOL,
+            "constant_pick": t.get("constant_pick"),
+            "baseline_constant_pick": b.get("constant_pick") if b else None,
             # Per held-out item: what was asked, the answer, each arm's pick and
             # credit (the Behaviors page shows the misses).
             "items": [
@@ -704,9 +729,10 @@ def _judge(
             details["manifest_seed"] = t["manifest_seed"]
         if spec.id == "needle":
             by_length: dict[str, dict[str, Any]] = {}
-            for fraction in spec.params["length_fractions"]:
-                picks = [i for i, f in enumerate(t["fractions"]) if f == fraction]
-                by_length[str(fraction)] = {
+            for length in spec.params["char_lengths"]:
+                picks = [i for i, c in enumerate(t["chars"]) if c == length]
+                by_length[str(length)] = {
+                    "chars": length,
                     "tokens": max((t["tokens"][i] for i in picks), default=0),
                     "accuracy": float(np.mean([t["credits"][i] for i in picks]))
                     if picks
@@ -817,6 +843,26 @@ def _require_complete_benchmark(results: list[dict[str, Any]], spec: ProbeSpec) 
 
 
 def run_battery(
+    target: Any, baseline: Any | None = None, *, final: bool = False, **options: Any
+) -> dict[str, Any]:
+    """Run the battery (see :func:`_run_battery`); FINAL scores the held-back split.
+
+    ``final=True`` is the final verdict on an already chosen candidate: text
+    probes, agreement and generations read the ``final`` split instead of
+    ``heldout`` (held-out loss stays on the run's validation split). Only
+    ``sparselab probe --final`` passes it; ``try`` and ordinary probes never
+    do, so no selection loop reads the held-back items.
+    """
+    if not final:
+        return _run_battery(target, baseline, **options)
+    if options.get("comparison") is not None:
+        raise ValueError("a final verdict is a standalone probe, not part of a try")
+    with final_verdict_access():
+        result = _run_battery(target, baseline, **options)
+    return {**result, "verdict": final_verdict(result["verdict"]), "final": True}
+
+
+def _run_battery(
     target: Any,
     baseline: Any | None = None,
     *,
@@ -827,8 +873,13 @@ def run_battery(
     context: LabContext | None = None,
     now: Callable[[], datetime] | None = None,
     lm_eval: ProbeSpec | None = None,
+    comparison: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run the battery through TIER and return one result (never raises on probes).
+
+    COMPARISON is the enclosing try's held-out comparison, when there is one;
+    a ``NOT_COMPARABLE`` try gets a non-escalating verdict whatever the probes
+    say.
 
     TARGET/BASELINE are :class:`Arm` loaders or already loaded runs. Arms are
     opened one at a time per tier: the baseline first, then the candidate,
@@ -941,7 +992,9 @@ def run_battery(
             report("running", "candidate", spec.id)
             tick = time.monotonic()
             measured = _measure_safely(spec, loaded, t_arm, state["protocol"])
-            base = b_arm.cache.get(f"probe:{spec.id}") if b_arm is not None else None
+            base = (
+                b_arm.cache.get(probe_cache_key(spec.id)) if b_arm is not None else None
+            )
             row = _judge(spec, measured, base, comparable(), dev)
             row["seconds"] = round(time.monotonic() - tick, 3)
             results.append(row)
@@ -1031,6 +1084,7 @@ def run_battery(
         specs={**BY_ID, "lm_eval": lm_spec},
         stop=stop,
         reference=t_arm.reference,
+        comparison=comparison,
     )
     protocol_used = state["protocol"] or {}
 

@@ -1030,6 +1030,7 @@ def _probe_arms(
             protocol=protocol,
             progress=progress_writer(try_dir / "probe-progress.json"),
             context=context,
+            comparison=record.get("comparison"),
         )
     except Exception as error:  # noqa: BLE001 - probes inform, never fail a try
         return {"status": "error", "error": f"{type(error).__name__}: {error}"}
@@ -1091,9 +1092,14 @@ def summarize(
     probe = record.get("probe")
     if isinstance(probe, Mapping) and probe.get("format"):
         from sparselab.probes.render import render
+        from sparselab.probes.verdict import respect_try_comparison
 
+        shown = {
+            **probe,
+            "verdict": respect_try_comparison(probe.get("verdict"), comparison),
+        }
         lines.append("")
-        lines.append(render(probe, color=color))
+        lines.append(render(shown, color=color))
     elif isinstance(probe, Mapping):
         lines.append(
             f"  probe battery: {probe.get('status')} {probe.get('error') or ''}".rstrip()

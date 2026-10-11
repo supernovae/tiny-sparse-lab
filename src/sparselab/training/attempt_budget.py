@@ -1762,8 +1762,11 @@ class AttemptBudget:
             generated_tokens=generated_tokens,
             content_identity_sha256=content_identity_sha256,
         )
+        # Anchor before the wall-clock read: its transaction/return latency must
+        # not extend the helper deadline beyond the parent's later budget read.
+        deadline_anchor = time.monotonic()
         remaining = self.remaining_seconds()
-        deadline = time.monotonic() + remaining
+        deadline = deadline_anchor + remaining
         environment = os.environ.copy()
         environment["SPARSELAB_ATTEMPT_BUDGET_LEDGER"] = str(self.path)
         environment["SPARSELAB_ATTEMPT_CONTRACT_SHA256"] = self.status()[
@@ -1814,7 +1817,13 @@ class AttemptBudget:
             timed_out = isinstance(
                 error, (subprocess.TimeoutExpired, AttemptBudgetError)
             )
-            if process.poll() is None:
+            deadline_stop = timed_out and time.monotonic() >= deadline
+            # The helper already owns this deadline, including refusing to
+            # launch after it. TERM during interpreter startup can kill it
+            # before its cleanup handler exists, losing the shutdown receipt.
+            # Give it only the existing bounded cleanup window to certify exit.
+            # An earlier parent timeout (e.g. a wall-clock jump) still needs TERM.
+            if process.poll() is None and not deadline_stop:
                 process.terminate()  # The isolated subreaper owns TERM-to-KILL cleanup.
             try:
                 rc = process.wait(timeout=grace_seconds + 4)

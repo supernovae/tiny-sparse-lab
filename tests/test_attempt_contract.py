@@ -8,6 +8,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import psutil
@@ -456,23 +457,139 @@ def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
+@pytest.mark.parametrize(
+    ("delayed_startup", "delayed_budget_read"),
+    [(False, False), (True, False), (True, True)],
+)
 def test_runtime_deadline_keeps_charge_and_zero_survivors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    delayed_startup: bool,
+    delayed_budget_read: bool,
 ) -> None:
     _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
+    if delayed_startup:
+        original = subprocess.Popen
+
+        def spawn_after_deadline(
+            command: list[str], **kwargs: object
+        ) -> subprocess.Popen:
+            # Hold the helper before imports/handler installation, as a loaded
+            # CI host can. Keep its real deadline, subreaper and receipt writer.
+            assert command[1:3] == ["-m", "sparselab.owned_process"]
+            script = (
+                "import runpy,sys,time\n"
+                "sys.argv = sys.argv[1:]\n"
+                "deadline = float(sys.argv[sys.argv.index('--deadline') + 1])\n"
+                "while time.monotonic() < deadline + 0.1: time.sleep(0.01)\n"
+                "runpy.run_module('sparselab.owned_process', run_name='__main__')\n"
+            )
+            return original([command[0], "-c", script, *command[2:]], **kwargs)
+
+        monkeypatch.setattr(module.subprocess, "Popen", spawn_after_deadline)
     budget, paths = _fixture(tmp_path, updates=1, seconds=0.5)
+    budget.reserve_vector(
+        "earlier",
+        generation_calls=1,
+        generated_tokens=8,
+        content_identity_sha256=paths["identity"],
+    )
+    if delayed_budget_read:
+        remaining_seconds = budget.remaining_seconds
+        first_read = True
+
+        def read_then_delay() -> float:
+            nonlocal first_read
+            remaining = remaining_seconds()
+            if first_read:
+                first_read = False
+                # Model commit/return latency after the wall-clock measurement.
+                time.sleep(0.1)
+            return remaining
+
+        monkeypatch.setattr(budget, "remaining_seconds", read_then_delay)
     completion = paths["root"] / "owned.json"
     with pytest.raises(AttemptBudgetError, match="wall-time limit"):
         budget.run_contract(
             [sys.executable, "-c", "import time;time.sleep(30)"],
             **_run_args(paths, completion),
         )
-    assert len(budget.status()["reservations"]) == 1
-    assert json.loads(completion.read_text())["living_descendants"] == 0
+    status = budget.status()
+    assert len(status["reservations"]) == 2
+    assert status["charged_generation_calls"] == 1
+    assert status["charged_generated_tokens"] == 8
+    receipt = json.loads(completion.read_text())
+    assert receipt["living_descendants"] == 0
+    assert all(not _alive(pid) for pid in receipt["observed_descendants"])
+    if delayed_startup:
+        assert receipt["reason"] == "stopped before command launch"
+        assert receipt["observed_descendants"] == []
     assert (paths["root"] / "owned.json.attempt.json").exists()
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
+def test_early_parent_timeout_stops_owned_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
+    monkeypatch.setattr(
+        AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
+    )
+    budget, paths = _fixture(tmp_path, seconds=30)
+    completion = paths["root"] / "owned.json"
+    worker_pid = tmp_path / "worker.pid"
+    original = subprocess.Popen
+    spawned = []
+
+    def spawn_then_advance_wall_clock(
+        command: list[str], **kwargs: object
+    ) -> subprocess.Popen:
+        process = original(command, **kwargs)
+        spawned.append(process)
+        startup_limit = time.monotonic() + 10
+        while not worker_pid.exists() and time.monotonic() < startup_limit:
+            assert process.poll() is None
+            time.sleep(0.01)
+        assert worker_pid.exists()
+        helper_deadline = float(command[command.index("--deadline") + 1])
+        assert time.monotonic() < helper_deadline
+        with sqlite3.connect(budget.path) as connection:
+            deadline_ns = connection.execute(
+                "SELECT deadline_ns FROM budget"
+            ).fetchone()[0]
+        # The helper keeps its original monotonic deadline. A forward wall-clock
+        # adjustment leaves the parent's second remaining_seconds() read 50 ms.
+        monkeypatch.setattr(module.time, "time_ns", lambda: deadline_ns - 50_000_000)
+        return process
+
+    monkeypatch.setattr(module.subprocess, "Popen", spawn_then_advance_wall_clock)
+    worker = (
+        "import os,signal,time; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        f"open({str(worker_pid)!r}, 'w').write(str(os.getpid())); "
+        "time.sleep(30)"
+    )
+    try:
+        with pytest.raises(AttemptBudgetError, match="wall-time limit"):
+            budget.run_contract(
+                [sys.executable, "-c", worker], **_run_args(paths, completion)
+            )
+        assert spawned[0].poll() is not None
+        assert not _alive(int(worker_pid.read_text()))
+        receipt = json.loads(completion.read_text())
+        assert receipt["reason"] == "supervisor received signal 15"
+        assert receipt["living_descendants"] == 0
+        assert all(not _alive(pid) for pid in receipt["observed_descendants"])
+        assert len(budget.status()["reservations"]) == 1
+        assert completion.with_name(completion.name + ".attempt.json").exists()
+    finally:
+        for process in spawned:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")

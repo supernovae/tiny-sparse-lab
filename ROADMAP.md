@@ -18,12 +18,12 @@ work items and their status. It is not a second task board or a release promise.
 
 ## Current direction
 
-- **Trustworthy evaluation.** Evaluation-integrity work is in progress in
-  [PR #72](https://github.com/supernovae/tiny-sparse-lab/pull/72), still open at
-  this snapshot and not shipped on main. Its scope includes a held-back final
-  split, text-level needle comparisons, recall diagnostics and honest verdicts.
-  Suite-v4 reference resealing and across-seed uncertainty intervals remain
-  follow-up work, beyond that PR.
+- **Trustworthy evaluation.** [PR #72](https://github.com/supernovae/tiny-sparse-lab/pull/72)
+  has landed: held-back final evaluation, text-level needle comparisons, recall
+  diagnostics and verdict safeguards are available. Suite-v4 reference resealing
+  and across-seed uncertainty intervals remain follow-up work. Keep within-run
+  evaluation noise distinct from training variability across paired seeds; see
+  the [probe guide](docs/probe-battery.md) for final-evaluation boundaries.
 - **Richer comparisons and inspection.** Broader reference trajectories,
   fixed-device latency and benchmark coverage, plus MLX and semantic-pack
   support in probes and the explorer.

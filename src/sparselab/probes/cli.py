@@ -77,13 +77,15 @@ def run_probe(
     resource_envelope: Any = None,
     lm_eval_tasks: list[str] | None = None,
     lm_eval_limit: int | None = None,
+    final: bool = False,
 ) -> tuple[dict[str, Any], Path]:
     """Run the battery and publish ``LAB/probes/<id>/probe.json`` (sealed).
 
     The same :class:`LabContext` as ``sparselab try`` applies: touch
     ``LAB/probes/<id>/CANCEL`` (or Ctrl-C) to stop at a safe point; a resource
     envelope is checked before every probe. A stopped battery is still
-    published, marked incomplete.
+    published, marked incomplete. FINAL scores the held-back final split: the
+    final verdict on a chosen candidate, never a selection signal.
     """
     from sparselab.reference_models import is_reference, reference_for
 
@@ -101,6 +103,10 @@ def run_probe(
                 "reference models are scored on lm-eval tasks only: use --tier full"
             )
         require_reference_extras()
+    if final and tier == "fast":
+        raise ValueError(
+            "--final scores the held-back text probes: use --tier standard or full"
+        )
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     probe_id = f"probe-{stamp}-{secrets.token_hex(4)}"
     folder = lab_dir / "probes" / probe_id
@@ -141,6 +147,7 @@ def run_probe(
                 progress=progress,
                 context=context,
                 lm_eval=lm_spec,
+                final=final,
             )
         except (LabSignal, KeyboardInterrupt, Exception) as error:
             # Only failures outside the battery's safe points land here

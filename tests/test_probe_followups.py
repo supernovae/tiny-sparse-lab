@@ -227,19 +227,30 @@ def test_parametric_recall_of_a_uniform_model_is_chance_with_a_chance_control() 
 
 
 @pytest.mark.usefixtures("uniform")
-def test_recall_item_group_is_tokenizer_independent_but_needle_is_not() -> None:
+def test_text_probe_item_groups_are_tokenizer_independent() -> None:
     small = _Loaded(_Words(), max_seq_len=64)
     other = _Loaded(_Words(offset=100), max_seq_len=256)  # another tokenizer
-    for probe in ("fact_recall", "parametric_recall"):
+    for probe in ("fact_recall", "parametric_recall", "needle"):
         assert (
             _measure(probe, small)["item_group"] == _measure(probe, other)["item_group"]
         )
-    # Needle items are sized in the model's own tokens: a different context
-    # renders different items, so they never share a group.
-    assert (
-        _measure("needle", small)["item_group"]
-        != _measure("needle", other)["item_group"]
-    )
+
+
+@pytest.mark.usefixtures("uniform")
+def test_needle_items_have_fixed_character_lengths_for_any_tokenizer() -> None:
+    lengths = BY_ID["needle"].params["char_lengths"]
+    items = runner.needle_items("heldout", lengths)
+    assert sorted({len(i["prefix"]) for i in items}) == sorted(lengths)
+    assert all(len(i["prefix"]) == i["chars"] for i in items)
+    # The code word opens the context; the question closes it.
+    assert all(i["prefix"].startswith(f"Code: {i['answer']}.") for i in items)
+    assert all(i["prefix"].endswith(" Code:") for i in items)
+    # Model token counts are recorded per arm but never enter the item group.
+    small = _measure("needle", _Loaded(_Words(), max_seq_len=64))
+    other = _measure("needle", _Loaded(_Words(offset=7), max_seq_len=64))
+    assert small["chars"] == [i["chars"] for i in items]
+    assert small["item_group"] == other["item_group"]
+    assert runner.REFERENCE_PROBES >= {"needle", "fact_recall"}
 
 
 def _side(credits: list[float], picked: list[str], group: str = "g" * 64) -> dict:
