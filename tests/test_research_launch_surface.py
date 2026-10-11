@@ -116,6 +116,15 @@ def test_study_instructions_have_one_preparation_and_native_dispatch(
     assert readme.count("sparselab data prepare") == 1
     assert "sparselab learn probe" not in readme
     assert "lesson-paths.md" in readme
+    assert "iteration.md#check-the-actual-proposed-configuration" in readme
+    assert (
+        readme.index("`inspect`")
+        < readme.index("`workspace preflight`")
+        < readme.index("`stage` it with `--through smoke`")
+        < readme.index("sparselab train")
+    )
+    assert "a fresh output under\n`$WORK/staging/`" in readme
+    assert "a disposable pilot on the configured runtime" in readme
     assert readme.index("sparselab data prepare") < readme.index("sparselab train")
     if data == "tinystories":
         assert (

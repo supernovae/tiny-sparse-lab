@@ -421,7 +421,13 @@ Exported standalone configurations:
 
 The config files use full scientific SHA-256 names; labels never become paths.
 After preparation, an independent arm and its explicit continuation use the
-native trainer. Choose a listed config; this example uses the first coordinate:
+native trainer. Choose a listed config; this example uses the first coordinate.
+Before training directly, run `inspect` and `workspace preflight` on that listed
+config, then `stage` it with `--through smoke` and a fresh output under
+`$WORK/staging/`; see the
+[iteration guide](https://github.com/supernovae/tiny-sparse-lab/blob/main/docs/iteration.md#check-the-actual-proposed-configuration)
+for syntax, runtime selection and what each check establishes. Staging performs
+a disposable pilot on the configured runtime.
 
 ```sh
 {command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
