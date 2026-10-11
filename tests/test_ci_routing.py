@@ -107,7 +107,12 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     )
     assert not any(token in lab_command for token in ("-k", "-m", "-n", "--pyargs"))
 
-    for suite in ("fast", "integration-linux", "platform-macos", "release-candidate"):
+    # Every PR and main push also runs the fast suite (slow tests excluded);
+    # the full suite moved to the nightly workflow.
+    assert jobs["fast"]["if"] == (
+        "github.event_name != 'workflow_dispatch' || inputs.suite == 'fast'"
+    )
+    for suite in ("integration-linux", "platform-macos", "release-candidate"):
         assert jobs[suite]["if"] == (
             f"github.event_name == 'workflow_dispatch' && inputs.suite == '{suite}'"
         )
@@ -117,4 +122,29 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     ]
     fast = " ".join(jobs["fast"]["steps"][-1]["run"].split())
     assert '-m "not slow and not mps' in fast
+    assert "--no-sync" in fast and "--extra" not in fast
     assert "tools/kernel-memory-lab/ci-guard/" not in workflow_path.read_text()
+
+
+def test_nightly_runs_full_suite_on_main_and_reports_failures() -> None:
+    workflow = yaml.load(
+        (ROOT / ".github/workflows/nightly.yml").read_text(), Loader=yaml.BaseLoader
+    )
+    assert set(workflow["on"]) == {"schedule", "workflow_dispatch"}
+    assert len(workflow["on"]["schedule"]) == 1
+    assert workflow["permissions"] == {"contents": "read"}
+
+    jobs = workflow["jobs"]
+    assert set(jobs) == {"full-suite", "report-failure"}
+    full = jobs["full-suite"]
+    assert full["steps"][0]["with"]["ref"] == "main"
+    command = " ".join(full["steps"][-1]["run"].split())
+    assert '-m "not mps and not mlx' in command
+    assert "slow" not in command
+
+    report = jobs["report-failure"]
+    assert report["needs"] == "full-suite"
+    assert report["if"] == "failure()"
+    assert report["permissions"] == {"issues": "write"}
+    script = report["steps"][-1]["run"]
+    assert "gh issue comment" in script and "gh issue create" in script
