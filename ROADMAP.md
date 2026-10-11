@@ -6,13 +6,15 @@ second checklist or a record of shipped capabilities. See the
 
 ## Where work is tracked
 
-Notion owns actionable task status: [Mission Control](https://app.notion.com/p/3f63b68cca22814abcfdc5904e6cb1bd)
-and the [Engineering Queue](https://app.notion.com/p/6234ef8e736e4d6187f74206d38ecc09)
-are the **owner workspace and require access**. GitHub owns code, reviews and CI.
-Public contributors can report gaps and propose work through
-[GitHub issues](https://github.com/supernovae/tiny-sparse-lab/issues); Notion access
-is not required to contribute. Maintainers reconcile issue/PR outcomes into
-Notion rather than maintain task status in this file.
+Use [GitHub issues](https://github.com/supernovae/tiny-sparse-lab/issues) for
+feature requests, bug reports and proposed code work. Search existing issues
+before opening a new one, and describe the use case or expected behavior.
+Implementation, review and CI live in
+[GitHub pull requests](https://github.com/supernovae/tiny-sparse-lab/pulls) and
+their checks. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+This roadmap summarizes direction; issues and pull requests track individual
+work items and their status. It is not a second task board or a release promise.
 
 ## Current direction
 

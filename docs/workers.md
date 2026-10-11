@@ -229,7 +229,7 @@ GPU dispatch or simultaneous work across hosts requires those provisioned
 environments. SSH framing and quoting tests check transport behavior; they do
 not measure remote driver or kernel performance.
 
-No worker shares optimizer state or exchanges gradients/expert tokens with another. There is no process group, all-reduce, expert all-to-all, tensor/model sharding, or heterogeneous distributed backward. Pending implementation and hardware-validation directions are summarized in [ROADMAP.md](../ROADMAP.md); actionable status lives in the owner workspace, with GitHub issues available to public contributors. Scientific questions stay in the research roadmap/lifecycle.
+No worker shares optimizer state or exchanges gradients/expert tokens with another. There is no process group, all-reduce, expert all-to-all, tensor/model sharding, or heterogeneous distributed backward. Pending implementation and hardware-validation directions are summarized in [ROADMAP.md](../ROADMAP.md); proposed code work belongs in GitHub issues, with implementation, review and CI tracked in pull requests and their checks. Scientific questions stay in the research roadmap/lifecycle.
 
 ## Observed acceptance — 2026-09-23
 
