@@ -85,6 +85,6 @@ Choose an extension only when a declared question needs it:
 | Optimizer and training memory | 8-bit Adam, Adam-mini, GaLore, APOLLO, Lion, Muon, SCALE, COAT, ZeRO family | Configuration, state accounting, safe checkpoint/resume and runtime integration beyond shipped AdamW/Adafactor. |
 
 A maintained upstream implementation or a published device result is motivation,
-not local acceptance. Track missing software in [TODO.md](TODO.md), and register
+not local acceptance. Report missing software through the [contribution workflow](CONTRIBUTING.md#planning-and-contributions), and register
 new experiments through the [research contribution workflow](docs/research/contributing.md).
 For foundational architecture and dataset references, see [references](docs/references.md).

@@ -806,7 +806,7 @@ part of the record, not the subject of a scientific finding.
 
 The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
 
-Native CUDA sparse kernels remain an [implementation gap](../TODO.md). Retained
+Native CUDA sparse kernels remain an [implementation direction](../ROADMAP.md#longer-term-directions). Retained
 software integration records do not yet include execution on Intel XPU or a
 simultaneous multi-host Apple/AMD/Intel worker setup. Native HIP sparse-attention
 measurements were collected on an AMD RX 7900 XTX under WSL2; that names the

@@ -43,6 +43,6 @@ supports it, and keep the prior observation discoverable. Proposed tests belong
 in the [roadmap](roadmap.md), not an implicit execution queue.
 
 The [dashboard](dashboard.md) already browses lifecycle findings and verified
-reports. A shared CLI/dashboard ledger projection is proposed in
-[TODO.md](../../TODO.md#parked-experiment-ledger-projection); it is not a shipped command
+reports. A shared CLI/dashboard ledger projection is a longer-term direction in
+[ROADMAP.md](../../ROADMAP.md#longer-term-directions); it is not a shipped command
 or a new evidence authority.
