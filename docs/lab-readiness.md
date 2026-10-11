@@ -46,7 +46,7 @@ lifecycle. A small pilot cannot establish architecture advantage. MLX supports
 only its documented dense and native block-sparse paths; these readiness runs
 execute on CPU. To check workload compatibility with a GPU
 environment, run the appropriate pilot there. CUDA block-sparse selection still
-uses the reference path until the native CUDA item in `TODO.md` is implemented
+uses the reference path until the native CUDA direction in [ROADMAP.md](../ROADMAP.md#longer-term-directions) is implemented
 and measured on CUDA hardware.
 
 ## Before scaling on a GPU
@@ -121,7 +121,8 @@ dataset identity. A near-1B run requires its
 own GPU warmup and capacity gate; inspection cannot certify it. A GPU sparse
 campaign also requires native CUDA sparse correctness and component benchmarks
 before treating that path as ready for scaled execution. Multi-device training
-and spot-specific cadence remain separately tracked in `TODO.md`.
+and spot-specific cadence remain separate future work; see the
+[feature roadmap](../ROADMAP.md#longer-term-directions) for direction and tracking ownership.
 
 Keep implementation and experiment work separate. Commit a tested lab change
 and, when authorized, push the branch before launching hours-long remote work;

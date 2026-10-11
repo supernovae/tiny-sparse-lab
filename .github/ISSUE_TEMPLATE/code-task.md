@@ -8,8 +8,10 @@ assignees: ""
 
 ## Problem
 
-Describe the user-visible or developer-visible software gap. Link the relevant
-`TODO.md` item.
+Describe the user-visible or developer-visible software gap. Link relevant
+issues, PRs or feature direction in `ROADMAP.md` when useful. Public contributors
+do not need Notion access; maintainers reconcile actionable status into the
+owner workspace Engineering Queue.
 
 ## Required behavior
 

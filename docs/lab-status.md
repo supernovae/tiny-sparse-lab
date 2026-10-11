@@ -21,5 +21,5 @@ Keep that limitation with the observation. Source versions, commands and workloa
 bounds remain in the original records.
 
 See [runtime support](runtime.md) for setup and feature restrictions,
-[workers](workers.md) for operation, and [TODO.md](../TODO.md) for missing software.
+[workers](workers.md) for operation, and [feature roadmap](../ROADMAP.md) for pending directions.
 Use local discovery and workload warmup when selecting an execution environment.

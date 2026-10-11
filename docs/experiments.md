@@ -6,7 +6,7 @@ campaigns and iteration notes belong under
 [`experiments/research/`](../experiments/research/). Keep downloads, prepared
 data, run stores, checkpoints, logs, and generated reports under the external persistent root at
 `$SPARSELAB_WORK_DIR/experiments/<campaign>/`.
-Code gaps discovered during a campaign go to [`TODO.md`](../TODO.md); scientific
+Report code gaps through the [contribution workflow](../CONTRIBUTING.md#planning-and-contributions); scientific
 next steps remain in the research roadmap/lifecycle.
 
 For one local comparison, start with [the TinyStories lab loop](tinystories-microlab.md)

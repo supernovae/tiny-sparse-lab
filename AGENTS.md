@@ -81,7 +81,7 @@ so; promoting a result later is a separate, reviewed step.
 
 ## 1. Establish scope before execution
 
-Read `README.md`, relevant nearby guidance, `TODO.md` for code work, and
+Read `README.md`, relevant nearby guidance, `ROADMAP.md` for feature direction, and
 `docs/research/` for scientific work. Inspect Git state/history before editing;
 preserve other work and use an isolated checkout when experiments have pinned
 another checkout. Distinguish code, fixtures, experiments and evidence.
@@ -101,7 +101,10 @@ code. Do not reimplement hashing, checkpoint selection, accounting or workflow
 state in task scripts. Before building new training, evaluation or quantization
 machinery, check existing libraries (nanoGPT/modded-nanogpt, litgpt,
 lm-evaluation-harness, llm-compressor) and wrap them. Record a genuinely
-missing operation with inputs and failure criteria in `TODO.md`.
+missing operation with inputs and failure criteria in the Notion Engineering
+Queue (owner workspace; access required), or a GitHub issue for public
+contributors. [ROADMAP.md](ROADMAP.md#where-work-is-tracked) explains ownership: Notion
+owns actionable task status; GitHub owns code, reviews and CI.
 
 For release corpus preparation, use the
 [canonical corpus-to-bundle interface](docs/corpus-preparation.md) and its
@@ -169,5 +172,6 @@ overlapping device jobs. Let the user choose models, reasoning effort and
 concurrency. Keep local commits narrow; publishing, history rewriting and remote
 deletion require authorization. Lab records already capture commit, dirty state
 and effective config; release runs additionally run from a fixed tested
-revision. Keep scientific milestones in research records and missing code in
-`TODO.md`.
+revision. Keep scientific milestones in research records and actionable code work in
+Notion, with GitHub issues available to public contributors. Keep `ROADMAP.md`
+a short directional snapshot, not a second checklist.

@@ -212,8 +212,9 @@ and attached semantic packs are refused with a reason.
   this caught a real problem: with `memory_table_size: 257` the legacy n-gram
   hash multiplier (257) was a multiple of the row count, so the order-2 and
   order-3 tables read the previous token and the one before it, not n-grams.
-  The hash now switches to a mixed scheme at such sizes (`sparselab.address_hash`,
-  see TODO.md); the screenshot predates the fix.
+  The hash now switches to a mixed scheme at such sizes (`sparselab.address_hash`;
+  see [re-baselining guidance](first-model.md#re-baseline-the-hash-affected-configs));
+  the screenshot predates the fix.
 
 ## For developers
 

@@ -70,13 +70,22 @@ before changing paths or archiving rights-bound corpus content.
 
 The [research contribution workflow](docs/research/contributing.md) explains validated local catalog/recipe forks, declared controls and variations, train-only data boundaries, retained negative outcomes, and evidence identities. Do not commit downloaded corpora, prepared arrays, run directories, or checkpoints; a static report bundle is small evidence, not a replacement for its stated limitations.
 
+## Planning and contributions
+
+[ROADMAP.md](ROADMAP.md) summarizes feature direction. Actionable task status
+lives in Notion Mission Control and the Engineering Queue (owner workspace;
+access required; links in the roadmap). Public contributors can use
+[GitHub issues](https://github.com/supernovae/tiny-sparse-lab/issues) without
+Notion access. GitHub owns code, reviews and CI; maintainers reconcile outcomes
+into Notion. Do not add a duplicate task checklist to the roadmap.
+
 ## Documentation
 
 Write for someone running their own experiment. Use native `sparselab` commands
 and YAML/JSON declarations, through the locked environment; keep Python snippets
 out of user workflows. If a required operation is API-only, describe the missing
-CLI/DSL input, output and failure criteria in TODO.md instead of inventing a
-command or teaching a private script. Label placeholders and prerequisites, and
+CLI/DSL input, output and failure criteria in the Engineering Queue or a GitHub
+issue instead of inventing a command or teaching a private script. Label placeholders and prerequisites, and
 use fresh task directories under the persistent work root. A config with an
 explicit in-checkout destination keeps it; setting the root does not relocate it.
 
@@ -84,8 +93,8 @@ Keep the beginner route small: `try`, `report`, `probe`, `compare`, `explore`.
 Link advanced operations separately. Remove superseded instructions rather than
 adding deprecation labels, alias tables or compatibility walkthroughs. Preserve
 original evidence and research data; documentation cleanup never authorizes
-pruning run artifacts. Track proposed command removals in TODO before changing
-runtime behavior.
+pruning run artifacts. Track proposed command removals in the Engineering Queue
+or a GitHub issue before changing runtime behavior.
 
 Keep feature availability in the [README matrix](README.md#feature-matrix),
 runtime restrictions in [runtime](docs/runtime.md), and scientific lessons in the

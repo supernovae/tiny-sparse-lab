@@ -141,7 +141,8 @@ Use rclone API copies for portable independent recovery. Linux and macOS are
 the Colab CLI's advertised platforms; native Windows is not currently supported.
 Treat WSL2 as a separate Linux installation with its own ADC/rclone authorization
 and private Linux paths, not a silently shared Windows credential directory.
-Cross-platform Drive acceptance remains in `TODO.md`; do not claim a platform
+Cross-platform Drive acceptance remains qualification work (see the
+[feature roadmap](../ROADMAP.md#longer-term-directions)); do not claim a platform
 or mount option verified without its actual transfer/loss-recovery run.
 
 Every attempt also has a controller-private, exact 32-byte HMAC relay key.
