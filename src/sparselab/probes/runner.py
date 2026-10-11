@@ -58,6 +58,7 @@ from sparselab.probes.verdict import (
     INCOMPLETE_STOPS,
     MISSING_STATUSES,
     decide,
+    final_verdict,
     judge,
     numerical_failure,
     overfit_guard,
@@ -491,11 +492,22 @@ def _measure(
     raise ValueError(f"unknown probe {spec.id}")
 
 
+def probe_cache_key(probe_id: str) -> str:
+    """Per-arm cache key of a probe measurement, scoped to the verdict split.
+
+    Item-based probes read ``heldout`` or (inside a final verdict) ``final``
+    items, so a measurement made under one split is never reused under the
+    other. Validation statistics (held-out loss, calibration) are cached
+    separately under ``validation``; they do not depend on the item split.
+    """
+    return f"probe:{verdict_split()}:{probe_id}"
+
+
 def _measure_safely(
     spec: ProbeSpec, loaded: Any, arm: Arm, protocol: Mapping[str, int]
 ) -> dict[str, Any]:
     """Probe failures become evidence gaps; OOM and stops propagate."""
-    key = f"probe:{spec.id}"
+    key = probe_cache_key(spec.id)
     if key in arm.cache:
         return arm.cache[key]
     try:
@@ -847,13 +859,7 @@ def run_battery(
         raise ValueError("a final verdict is a standalone probe, not part of a try")
     with final_verdict_access():
         result = _run_battery(target, baseline, **options)
-    verdict = dict(result["verdict"])
-    verdict["reasons"] = [*verdict["reasons"], "final verdict: held-back final split"]
-    verdict["suggestion"] = (
-        "FINAL VERDICT (held-back split, scored once): report it; do not change "
-        "the idea and re-run --final. " + str(verdict["suggestion"])
-    )
-    return {**result, "verdict": verdict, "final": True}
+    return {**result, "verdict": final_verdict(result["verdict"]), "final": True}
 
 
 def _run_battery(
@@ -986,7 +992,9 @@ def _run_battery(
             report("running", "candidate", spec.id)
             tick = time.monotonic()
             measured = _measure_safely(spec, loaded, t_arm, state["protocol"])
-            base = b_arm.cache.get(f"probe:{spec.id}") if b_arm is not None else None
+            base = (
+                b_arm.cache.get(probe_cache_key(spec.id)) if b_arm is not None else None
+            )
             row = _judge(spec, measured, base, comparable(), dev)
             row["seconds"] = round(time.monotonic() - tick, 3)
             results.append(row)

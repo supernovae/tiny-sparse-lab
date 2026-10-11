@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.lab_records import iter_lab_records
+from sparselab.probes.points import is_final
 from sparselab.probes.verdict import respect_try_comparison
 
 LIVE_STATES = {"loading", "running"}
@@ -62,6 +63,9 @@ def load_history(
 
     Uses the same sealed-record reader as ``sparselab report``: an edited
     try.json or probe.json is listed as rejected, never shown as a result.
+    ``probe --final`` results are not history: they never feed trends,
+    behaviors, catalogs, pickers or next steps (the Home activity list names
+    them as final verdicts without their items).
     """
     accepted, rejected = iter_lab_records(lab_dir, limit)
     entries: list[ProbeEntry] = []
@@ -89,7 +93,7 @@ def load_history(
                     comparison=record.get("comparison"),
                 )
             )
-        else:
+        elif not is_final(record):
             entries.append(
                 ProbeEntry(
                     key=str(record.get("probe_id") or path.parent.name),

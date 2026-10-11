@@ -25,7 +25,15 @@ STATUSES = (
 MISSING_STATUSES = frozenset({"unavailable", "not_comparable", "error"})
 # Battery stops that leave requested checks unrun (fast-fail stops do not).
 INCOMPLETE_STOPS = frozenset({"cancelled", "resources", "oom", "interrupted"})
-ACTIONS = ("abandon", "tweak", "rerun", "escalate", "longer_run", "compare")
+ACTIONS = (
+    "abandon",
+    "tweak",
+    "rerun",
+    "escalate",
+    "longer_run",
+    "compare",
+    "report",
+)
 NOISE_SIGMAS = 2.0
 OVERFIT_GAP = 0.15
 # The held-out loss SE is window-clustered *within one run*: it measures how
@@ -216,6 +224,44 @@ NOT_COMPARABLE_SUGGESTION = (
     "no probe result can promote it. Fix the cause (same data, tokenizer, "
     "memory packages and eval protocol for both arms) and re-run the try."
 )
+
+
+FINAL_REPORT_SUGGESTION = (
+    "Final verdict on the held-back split ({status}): report this result as it "
+    "is. It is terminal: do not change the idea, re-tune or re-run --final. A "
+    "new idea starts again with `sparselab try` on the held-out split."
+)
+FINAL_RERUN_SUGGESTION = (
+    "Final verdict incomplete: fix the missing evidence ({missing}) and re-run "
+    "the same --final unchanged (same candidate, baseline and tier). Do not "
+    "read the partial final scores."
+)
+
+
+def final_verdict(verdict: Mapping[str, Any]) -> dict[str, Any]:
+    """Terminal form of a completed ``--final`` verdict.
+
+    Status and reasons are kept; the action becomes ``report`` with no next
+    tier and a suggestion that never invites selection (escalate, tweak or a
+    longer run). An incomplete final battery may only be re-run unchanged.
+    """
+    reasons = [*verdict.get("reasons", []), "final verdict: held-back final split"]
+    if verdict.get("status") == "incomplete":
+        missing = ", ".join(m["id"] for m in verdict.get("missing") or []) or "?"
+        return {
+            **verdict,
+            "action": "rerun",
+            "next_tier": None,
+            "reasons": reasons,
+            "suggestion": FINAL_RERUN_SUGGESTION.format(missing=missing),
+        }
+    return {
+        **verdict,
+        "action": "report",
+        "next_tier": None,
+        "reasons": reasons,
+        "suggestion": FINAL_REPORT_SUGGESTION.format(status=verdict.get("status")),
+    }
 
 
 def try_not_comparable(comparison: Mapping[str, Any] | None) -> dict[str, Any] | None:

@@ -151,6 +151,14 @@ def _lm_eval_items(tasks: Mapping[str, Any] | None) -> dict[str, list[float]]:
     return {task: list(row.get("items") or []) for task, row in (tasks or {}).items()}
 
 
+def is_final(result: Mapping[str, Any]) -> bool:
+    """A ``probe --final`` result: scored on the held-back final split."""
+    return (
+        bool(result.get("final"))
+        or (result.get("suite") or {}).get("verdict_split") == "final"
+    )
+
+
 def probe_points(
     result: Mapping[str, Any],
     *,
@@ -241,6 +249,9 @@ def probe_points(
                 "verdict": (result.get("verdict") or {}).get("status")
                 if candidate
                 else "baseline",
+                # Final-split provenance: kept so ordinary views can refuse it.
+                "final": is_final(result),
+                "verdict_split": "final" if is_final(result) else "heldout",
                 "source": source,
                 "path": str(path) if path else None,
                 "created_at": str(
@@ -269,6 +280,8 @@ def try_points(record: Mapping[str, Any], path: Path) -> list[dict[str, Any]]:
                 "packaged": False,
                 "ms_per_token": heldout.get("ms_per_token"),
                 "verdict": (record.get("comparison") or {}).get("verdict"),
+                "final": False,
+                "verdict_split": "heldout",
                 "source": str(record.get("try_id")),
                 "path": str(path),
                 "created_at": str(record.get("created_at")),
@@ -311,19 +324,30 @@ def points_from_record(
 
 
 def collect_points(
-    lab_dir: Path | None, *, references: bool = True, limit: int = 500
+    lab_dir: Path | None,
+    *,
+    references: bool = True,
+    limit: int = 500,
+    final: bool = False,
 ) -> list[dict[str, Any]]:
-    """All points, newest first (packaged references last, i.e. oldest)."""
+    """All points, newest first (packaged references last, i.e. oldest).
+
+    Ordinary views (compare, Pareto, the Models page, enrichment) see only
+    selection evidence: points from ``probe --final`` results are excluded, so
+    held-back scores can never fill in or rank an ordinary comparison. FINAL
+    returns only those final points (explicit final reporting); packaged
+    references have no final results.
+    """
     points: list[dict[str, Any]] = []
     if lab_dir is not None and lab_dir.is_dir():
         accepted, _ = iter_lab_records(lab_dir, limit)
         for kind, path, record in accepted:
             points += points_from_record(kind, record, path)
     points.sort(key=lambda p: p["created_at"], reverse=True)
-    if references:
+    if references and not final:
         for path, record in packaged_reference_records():
             points += points_from_record("probe", record, path, packaged=True)
-    return points
+    return [p for p in points if bool(p.get("final")) == final]
 
 
 # Fields merged per (group, checkpoint): the measurement and every cost. A

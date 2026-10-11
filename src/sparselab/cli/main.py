@@ -2506,6 +2506,7 @@ def _compare(args: argparse.Namespace) -> None:
             args.results[1:],
             lab_dir=lab_dir,
             references=args.references,
+            final=args.final,
         )
     except (ValueError, OSError, KeyError) as error:
         raise SystemExit(f"sparselab compare: {error}") from None
@@ -2805,6 +2806,12 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--list-references",
         action="store_true",
         help="List pinned reference models and which have results",
+    )
+    lab_compare.add_argument(
+        "--final",
+        action="store_true",
+        help="Report `probe --final` results (held-back split) against each "
+        "other. Ordinary comparisons never include final evidence.",
     )
     lab_compare.add_argument("--lab-dir", type=Path)
     lab_compare.add_argument("--json", action="store_true")

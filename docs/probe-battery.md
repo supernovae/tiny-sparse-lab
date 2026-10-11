@@ -239,6 +239,8 @@ actions are:
 | held-out loss improved beyond noise, tiers left | pass/warn | `escalate` with `next_tier` |
 | held-out loss improved beyond noise, all tiers run | pass/warn | `longer_run` |
 | otherwise (no measurable gain) | pass/warn | `tweak` |
+| `probe --final`, battery complete (applied last, whatever the row above) | status kept | `report` (terminal; `next_tier` null; never escalate, tweak or re-run) |
+| `probe --final`, battery incomplete | incomplete | `rerun` the same `--final` unchanged (names the gaps) |
 
 ## Held-out guard and the held-back final split
 
@@ -258,7 +260,15 @@ uv run --locked --extra cpu sparselab probe CANDIDATE --vs BASELINE --backend cp
 and `suite.verdict_split: "final"`. Reading the final split anywhere else raises
 `FinalSplitLocked`, and `tests/test_eval_integrity.py` checks that only the
 probe CLI's `--final` path can open it. Final items have their own item groups,
-so a final result never pairs with an iteration result.
+so a final result never pairs with an iteration result. Final evidence is also
+kept out of every selection view: points carry `final`/`verdict_split`
+provenance, and ordinary `compare` (subjects, others and the same-checkpoint
+enrichment), the Pareto view, the Models page, dashboard history, trends,
+behaviors and next steps exclude final results (Home activity lists them as
+`final`). `sparselab compare --final A B` is the explicit report of two final
+results (no references, no ordinary evidence). Arms cache item-scored probes per
+split, so reusing an Arm across an ordinary and a `--final` battery always
+scores each split afresh. A completed final verdict's action is `report`.
 Agents may look at dev results while iterating; the guard flags
 `overfit_suspected` when the dev gain is beyond its paired noise and exceeds
 the held-out gain by more than `max(0.15, 2 SE)`. Never edit probe items to make

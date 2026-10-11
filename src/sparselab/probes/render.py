@@ -41,6 +41,7 @@ ACTION_TEXT = {
     "escalate": "ESCALATE",
     "longer_run": "LONGER RUN",
     "compare": "COMPARE",
+    "report": "REPORT (final verdict)",
 }
 SPARK = "▁▂▃▄▅▆▇█"
 
@@ -179,8 +180,10 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
     target = result["target"]
     baseline = result.get("baseline")
     tiers = " → ".join(result.get("tiers_run") or []) or "none"
+    final = bool(result.get("final")) or suite.get("verdict_split") == "final"
     lines = [
         _paint("PROBE BATTERY", "1", color)
+        + (_paint("  FINAL (held-back split)", "1", color) if final else "")
         + f"  {suite['name']} v{suite['version']} · suite {suite['sha256'][:8]}"
         + f" · tier {result['tier']} (ran {tiers}) · {result['seconds']:.1f}s",
     ]

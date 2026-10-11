@@ -27,7 +27,7 @@ from sparselab.dashboard.probe_data import (
 )
 from sparselab.explorer import cached_explorations
 from sparselab.lab_records import iter_lab_records
-from sparselab.probes.points import METRICS, collect_points
+from sparselab.probes.points import METRICS, collect_points, is_final
 from sparselab.probes.verdict import respect_try_comparison
 
 # Lab-try comparison verdicts in plain words (``comparison.verdict``).
@@ -108,10 +108,17 @@ def activity(snap: LabSnapshot, limit: int = 12) -> list[dict[str, Any]]:
             {
                 "when": str(record.get("created_at")),
                 "id": str(record.get("probe_id")),
-                "kind": "probe",
-                "what": f"probe {target.get('run_id')} ({record.get('tier')} tier)",
+                "kind": "final" if is_final(record) else "probe",
+                "what": (
+                    f"FINAL verdict {target.get('run_id')} (held-back split)"
+                    if is_final(record)
+                    else f"probe {target.get('run_id')} ({record.get('tier')} tier)"
+                ),
                 "outcome": verdict.get("suggestion"),
-                "loss_delta": (probe_row(record, "heldout_loss") or {}).get("delta"),
+                # Final scores are reported on their own, never as a delta to act on.
+                "loss_delta": None
+                if is_final(record)
+                else (probe_row(record, "heldout_loss") or {}).get("delta"),
                 "verdict": verdict.get("status"),
                 "action": verdict.get("action"),
             }

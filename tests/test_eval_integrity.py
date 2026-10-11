@@ -29,6 +29,7 @@ from sparselab.probes.verdict import (
 )
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "sparselab"
+READ_FILTERS = {"compare", "collect_points", "resolve_point"}
 
 
 # --- Held-back final split -----------------------------------------------------
@@ -104,11 +105,17 @@ def test_selection_paths_never_open_the_final_split() -> None:
             if isinstance(node, ast.Name) and node.id == "final_verdict_access":
                 openers.add(rel)
             if isinstance(node, ast.Call):
+                callee = getattr(node.func, "attr", getattr(node.func, "id", ""))
                 for keyword in node.keywords:
                     if keyword.arg == "final":
-                        passers.add(rel)
+                        passers.add((rel, callee))
     assert openers == {"probes/suite.py", "probes/runner.py"}
-    assert passers == {"probes/cli.py", "cli/main.py"}
+    # `final=` opens the split only through run_battery (the probe CLI); the
+    # compare/points `final=` is a read filter for explicit final reporting.
+    battery = {rel for rel, callee in passers if callee not in READ_FILTERS}
+    assert battery == {"probes/cli.py", "cli/main.py"}
+    readers = {rel for rel, callee in passers if callee in READ_FILTERS}
+    assert readers == {"probes/compare.py", "cli/main.py"}
 
 
 def test_try_probe_battery_is_a_selection_path(
@@ -329,3 +336,243 @@ def test_resolve_point_is_the_only_reference_resolver(tmp_path: Path) -> None:
     assert not hasattr(compare_mod, "_reference_point")
     with pytest.raises(ValueError, match="no result for ref:SmolLM2-135M"):
         compare_mod.resolve_point("ref:SmolLM2-135M", tmp_path, [])
+
+
+# --- Final evidence never reaches selection (PR #72 review) --------------------
+
+SHA = {name: name[0] * 64 for name in ("aaa", "bbb", "ccc")}
+EVAL_GROUP = "e" * 64
+FACT_GROUP = "f" * 64  # matching final item groups: pairable if allowed through
+
+
+def _arm_identity(name: str) -> dict[str, Any]:
+    return {
+        "run_id": f"run-{name}",
+        "checkpoint_sha256": SHA[name],
+        "step": 60,
+        "tokens_seen": 7680,
+        "eval_group": EVAL_GROUP,
+    }
+
+
+def _final_probe(target: str, baseline: str, score: float) -> dict[str, Any]:
+    items = [
+        {"credit": score, "baseline_credit": 0.0},
+        {"credit": score, "baseline_credit": 0.0},
+    ]
+    row = {
+        "status": "pass",
+        "baseline_value": 0.0,
+        "details": {"item_group": FACT_GROUP, "items": items, "chance": 0.25},
+    }
+    return {
+        "format": "sparselab-probe-v1",
+        "probe_id": f"probe-final-{target}",
+        "created_at": f"2026-10-10T20:00:0{len(target) % 10}+00:00",
+        "suite": {"sha256": suite_mod.suite_identity()["sha256"]},
+        "tier": "standard",
+        "target": _arm_identity(target),
+        "baseline": _arm_identity(baseline),
+        "verdict": {"status": "pass", "action": "report", "next_tier": None},
+        "final": True,
+        "probes": [
+            {"id": "fact_recall", "value": score, **row},
+            {"id": "needle", "value": score, **row},
+        ],
+    }
+
+
+@pytest.fixture
+def final_lab(tmp_path: Path) -> Path:
+    """Ordinary fast tries A and B, then `probe --final` records for both."""
+    from sparselab.lab_records import write_sealed
+
+    for name, loss in (("aaa", 3.2), ("bbb", 3.3)):
+        path = tmp_path / f"tries/try-{name}/try.json"
+        path.parent.mkdir(parents=True)
+        write_sealed(
+            path,
+            {
+                "format": "sparselab-lab-try-v1",
+                "try_id": f"try-{name}",
+                "created_at": "2026-10-10T18:00:00+00:00",
+                "arms": {
+                    "baseline": {**_arm_identity("ccc"), "heldout": {"loss": 3.4}},
+                    "candidate": {**_arm_identity(name), "heldout": {"loss": loss}},
+                },
+                "comparison": {"verdict": "CANDIDATE_LOWER_LOSS"},
+            },
+        )
+    for target, score in (("aaa", 1.0), ("bbb", 0.5)):
+        path = tmp_path / f"probes/probe-final-{target}/probe.json"
+        path.parent.mkdir(parents=True)
+        write_sealed(path, _final_probe(target, "ccc", score))
+    return tmp_path
+
+
+def test_ordinary_compare_never_acquires_final_evidence(final_lab: Path) -> None:
+    from sparselab.probes.points import collect_points
+
+    report = compare_mod.compare("try-aaa", ["try-bbb"], lab_dir=final_lab)
+    assert report["final"] is False
+    for point in report["points"]:
+        assert set(point["metrics"]) == {"heldout_loss"}
+        assert not point["final"]
+    pairs = {p["metric"]: p for p in report["comparisons"][0]["pairs"]}
+    assert pairs["heldout_loss"]["status"] == "lower"
+    for metric in ("fact_recall", "needle"):
+        assert pairs[metric]["status"] == "missing_evidence"
+        assert pairs[metric]["value"] is None
+    assert compare_mod.as_json(report)["final"] is False
+    # Final records are refused as ordinary subjects or others.
+    with pytest.raises(ValueError, match="final verdict"):
+        compare_mod.compare("probe-final-aaa", ["try-bbb"], lab_dir=final_lab)
+    with pytest.raises(ValueError, match="final verdict"):
+        compare_mod.compare("try-aaa", ["probe-final-bbb"], lab_dir=final_lab)
+    assert not any(p["final"] for p in collect_points(final_lab))
+
+
+def test_final_results_are_reported_only_explicitly(final_lab: Path) -> None:
+    report = compare_mod.compare(
+        "probe-final-aaa", ["probe-final-bbb"], lab_dir=final_lab, final=True
+    )
+    assert report["final"] and all(p["final"] for p in report["points"])
+    pairs = {p["metric"]: p for p in report["comparisons"][0]["pairs"]}
+    assert pairs["fact_recall"]["delta"] == pytest.approx(0.5)
+    assert "FINAL" in compare_mod.render(report).splitlines()[0]
+    with pytest.raises(ValueError, match="not a final verdict"):
+        compare_mod.compare(
+            "try-aaa", ["probe-final-bbb"], lab_dir=final_lab, final=True
+        )
+    with pytest.raises(ValueError, match="references"):
+        compare_mod.compare(
+            "probe-final-aaa", [], lab_dir=final_lab, final=True, references=True
+        )
+
+
+def test_dashboard_never_ranks_final_results(final_lab: Path) -> None:
+    from sparselab.dashboard import lab_data
+
+    snap = lab_data.snapshot(final_lab)
+    assert snap.points and not any(p["final"] for p in snap.points)
+    assert not any(e.source == "probe" for e in snap.entries)
+    rows = {r["id"]: r for r in lab_data.activity(snap)}
+    final_row = rows["probe-final-aaa"]
+    assert final_row["kind"] == "final" and final_row["loss_delta"] is None
+    assert "FINAL" in final_row["what"]
+    catalog = lab_data.checkpoint_catalog(snap.points)
+    assert all(
+        r.get("fact_recall") is None for r in catalog if r["kind"] != "reference"
+    )
+
+
+class _Model:
+    training = False
+
+    def eval(self) -> None: ...
+
+    def train(self, mode: bool = True) -> None: ...
+
+
+class _LoadedStub:
+    engine = None
+    model = _Model()
+
+
+def _primed_arm(name: str) -> runner.Arm:
+    """An Arm whose identity is already described (no run directory needed)."""
+    arm = runner.Arm(load=_LoadedStub)
+    arm.cache.update(
+        identity=_arm_identity(name),
+        validation_identity={"validation_sha256": "v" * 64},
+        tokenizer_digest="t" * 64,
+        config=None,
+    )
+    return arm
+
+
+@pytest.mark.parametrize(
+    "final_first", [False, True], ids=["ordinary-first", "final-first"]
+)
+def test_reused_arms_score_each_split_afresh(
+    monkeypatch: pytest.MonkeyPatch, final_first: bool
+) -> None:
+    """Two full battery calls on the same Arms never share split-scored results."""
+    _scored_by(monkeypatch, lambda prefix, answer: float(len(answer)))
+    measured: list[tuple[str, str]] = []
+    real_measure = runner._measure
+
+    def counting(spec: Any, loaded: Any, arm: Any, protocol: Any) -> Any:
+        measured.append((spec.id, suite_mod.verdict_split()))
+        return real_measure(spec, loaded, arm, protocol)
+
+    monkeypatch.setattr(runner, "_measure", counting)
+    target, baseline = _primed_arm("aaa"), _primed_arm("ccc")
+    options = {"tier": "standard", "fast_fail": False, "protocol": {"seq_len": 32}}
+
+    def battery(final: bool) -> dict[str, Any]:
+        return runner.run_battery(target, baseline, final=final, **options)
+
+    order = [True, False] if final_first else [False, True]
+    results = {final: battery(final) for final in order}
+
+    def fact(result: dict[str, Any]) -> dict[str, Any]:
+        return next(r for r in result["probes"] if r["id"] == "fact_recall")
+
+    ordinary, final = fact(results[False]), fact(results[True])
+    assert ordinary["details"]["item_group"] != final["details"]["item_group"]
+    with final_verdict_access():
+        final_answers = {i["answer"] for i in fact_items("final")}
+    assert {i["answer"] for i in final["details"]["items"]} == final_answers
+    assert {i["answer"] for i in ordinary["details"]["items"]}.isdisjoint(final_answers)
+    # Each arm scored fact recall once per split, never reused across them.
+    recall = [split for probe, split in measured if probe == "fact_recall"]
+    assert sorted(recall) == ["final", "final", "heldout", "heldout"]
+    assert results[True]["final"] and "final" not in results[False]
+    assert results[True]["verdict"]["next_tier"] is None
+    assert results[True]["verdict"]["action"] in {"report", "rerun"}
+    # Same split again: the arm's cached measurement is reused.
+    battery(False)
+    assert [s for p, s in measured if p == "fact_recall"] == recall
+
+
+# --- Completed final verdicts are terminal -------------------------------------
+
+
+@pytest.mark.parametrize("improved", [True, False], ids=["improved", "unchanged"])
+def test_completed_final_verdict_is_report_only(improved: bool) -> None:
+    from sparselab.probes.verdict import final_verdict
+
+    ordinary = decide(
+        [_loss_row(improved=improved)],
+        has_baseline=True,
+        tiers_run=["fast", "standard"],
+        requested_tier="standard",
+        guard=None,
+        specs=BY_ID,
+    )
+    assert ordinary["action"] == ("escalate" if improved else "tweak")
+    out = final_verdict(ordinary)
+    assert out["action"] == "report" and out["next_tier"] is None
+    assert out["status"] == ordinary["status"]
+    assert out["reasons"][: len(ordinary["reasons"])] == ordinary["reasons"]
+    for selecting in ("Promising", "--tier", "bolder", "longer run", "paired seeds"):
+        assert selecting not in out["suggestion"]
+    assert "report" in out["suggestion"] and "terminal" in out["suggestion"]
+
+
+def test_incomplete_final_verdict_reruns_unchanged() -> None:
+    from sparselab.probes.verdict import final_verdict
+
+    out = final_verdict(
+        {
+            "status": "incomplete",
+            "action": "rerun",
+            "next_tier": "standard",
+            "reasons": ["missing evidence"],
+            "missing": [{"id": "needle"}],
+            "suggestion": "fix it and retry",
+        }
+    )
+    assert out["action"] == "rerun" and out["next_tier"] is None
+    assert "needle" in out["suggestion"] and "unchanged" in out["suggestion"]
