@@ -9,6 +9,7 @@ import psutil
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from sparselab import host_capacity
 from sparselab.workspace_preflight import check_storage
 
 
@@ -91,7 +92,7 @@ def check_envelope(
             raise ValueError(f"{name} must be a nonnegative integer")
 
     try:
-        memory = psutil.virtual_memory()
+        memory = host_capacity.measure_memory()
         available_ram = int(memory.available)
         total_ram = int(memory.total)
         if available_ram < 0 or total_ram <= 0:

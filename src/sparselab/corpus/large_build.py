@@ -144,10 +144,11 @@ def _process_shard_workers(count: int) -> int:
         return 1
     import psutil
 
+    from sparselab import host_capacity
     from sparselab.host_capacity import plan_host_workers
 
     try:
-        total = psutil.virtual_memory().total
+        total = host_capacity.measure_memory().total
         return plan_host_workers(
             "corpus_jsonl_shards",
             worker_memory_bytes=512 * 1024**2,

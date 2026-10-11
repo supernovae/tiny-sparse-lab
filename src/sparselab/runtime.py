@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 import psutil
 
+from sparselab import host_capacity
+
 try:
     import torch
 except ModuleNotFoundError as error:
@@ -113,7 +115,7 @@ def _now() -> str:
 
 
 def _ram() -> tuple[int, int]:
-    memory = psutil.virtual_memory()
+    memory = host_capacity.measure_memory()
     return int(memory.total), int(memory.available)
 
 

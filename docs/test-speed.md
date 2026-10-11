@@ -93,8 +93,11 @@ Delete an entry in the PR that fixes its issue.
 Host-work planning (`sparselab.host_capacity`) refuses work when measured
 available RAM minus a reserve cannot fit one worker. Under xdist, or on a box
 shared with other jobs, that made unrelated tests fail with "inadequate
-measured RAM after reserve". An autouse fixture in `tests/conftest.py` gives
-those tests a fixed host (64 GiB total, 48 GiB available). Tests that
+measured RAM after reserve". Every SparseLab reader of host RAM, including
+reserves computed from total RAM, goes through
+`host_capacity.measure_memory()`. An autouse fixture in `tests/conftest.py`
+pins it to a fixed host (64 GiB total, 48 GiB available), whatever the
+physical machine. Tests that
 monkeypatch `psutil.virtual_memory` themselves still see their own values,
 which is how `tests/test_host_capacity.py` covers the reserve logic.
 

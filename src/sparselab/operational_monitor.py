@@ -26,6 +26,8 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab import host_capacity
+
 _NEW_POLICY_FIELDS = (
     "max_device_memory_bytes",
     "expected_device_uuid",
@@ -562,7 +564,7 @@ def sample(
         else:
             swap += current_swap
     try:
-        available = int(psutil.virtual_memory().available)
+        available = int(host_capacity.measure_memory().available)
     except psutil.Error, OSError, AttributeError, ValueError:
         available = None
     try:

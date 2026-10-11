@@ -23,6 +23,7 @@ from typing import Any
 
 import psutil
 
+from sparselab import host_capacity
 from sparselab.training.manifest import canonical_json, sha256_file
 
 _EXPERIMENT = "learned-engram-portability-v1"
@@ -979,7 +980,7 @@ def _seal_smoke_or_calibration(
         gc.collect()
     try:
         resource_capacity = {
-            "host_available_bytes": int(psutil.virtual_memory().available),
+            "host_available_bytes": int(host_capacity.measure_memory().available),
             "campaign_volume_free_bytes": int(shutil.disk_usage(root).free),
         }
     except (OSError, psutil.Error) as error:

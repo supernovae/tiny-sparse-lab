@@ -37,8 +37,14 @@ class HostWorkPlan:
     workers: int
 
 
-def _measure_memory() -> Any:
-    """Single host-RAM observation point (the test suite pins it; see tests/conftest.py)."""
+def measure_memory() -> Any:
+    """The single host-RAM observation (``psutil.virtual_memory()``).
+
+    Every SparseLab reader of host total/available RAM goes through here, so
+    reserves derived from ``total`` and capacity checks against ``available``
+    always come from one consistent observation. The test suite pins it in
+    tests/conftest.py.
+    """
     return psutil.virtual_memory()
 
 
@@ -70,7 +76,7 @@ def plan_host_workers(
     except _OBSERVATION_ERRORS:
         affinity = None
     try:
-        memory = _measure_memory()
+        memory = measure_memory()
         available, total = _positive(memory.available), _positive(memory.total)
         if memory.available == 0:
             available = 0
@@ -104,7 +110,7 @@ def plan_host_workers(
 def sha_work_plan(*, operator_cap: int = 1) -> HostWorkPlan:
     """Serial default: medium end-to-end cold SHA did not demonstrate parallel ROI."""
     try:
-        total = _positive(_measure_memory().total) or 0
+        total = _positive(measure_memory().total) or 0
     except _OBSERVATION_ERRORS:
         total = 0
     return plan_host_workers(

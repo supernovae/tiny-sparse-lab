@@ -17,6 +17,7 @@ import psutil
 import torch
 import yaml
 
+from sparselab import host_capacity
 from sparselab.config.models import RunConfig
 from sparselab.model.inspection import (
     ParameterInventory,
@@ -295,7 +296,7 @@ def validate_offload_headroom(
     if not config.runtime.memory.activation_offload.enabled:
         return None
     try:
-        memory = psutil.virtual_memory()
+        memory = host_capacity.measure_memory()
         rss = process_rss_bytes()
     except (OSError, psutil.Error) as error:
         raise MemoryError(
@@ -921,7 +922,7 @@ class MemoryMonitor:
             )
         try:
             sample["memory/system_available_bytes"] = int(
-                psutil.virtual_memory().available
+                host_capacity.measure_memory().available
             )
         except OSError, RuntimeError, psutil.Error:
             self.unavailable_reasons["memory/system_available_bytes"] = (

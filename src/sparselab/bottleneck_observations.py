@@ -10,6 +10,8 @@ from typing import Literal
 
 import psutil
 
+from sparselab import host_capacity
+
 HostKind = Literal["verification_bound", "copy_bound", "serialization_bound"]
 CacheEvent = Literal["hit", "miss"]
 
@@ -67,7 +69,7 @@ def _snapshot() -> dict[str, object]:
         except OSError, psutil.Error, AttributeError, NotImplementedError:
             pass
     try:
-        memory = psutil.virtual_memory()
+        memory = host_capacity.measure_memory()
         available, total = int(memory.available), int(memory.total)
     except OSError, psutil.Error, AttributeError:
         available = total = None

@@ -30,9 +30,12 @@ if isinstance(_torch, ModuleType):
 # available RAM minus a reserve cannot fit one worker. Under xdist, and on a
 # box shared with other jobs, that measurement depends on whatever else is
 # running, so unrelated tests failed with "inadequate measured RAM after
-# reserve". Tests see a fixed, ample host instead. A test that monkeypatches
-# ``psutil.virtual_memory`` itself (tests/test_host_capacity.py and friends)
-# still gets its own value, so the reserve logic stays covered.
+# reserve". Every SparseLab RAM reader (reserves from ``total`` as well as
+# checks on ``available``) goes through ``host_capacity.measure_memory``, so
+# pinning it gives tests one fixed, ample host whatever the physical machine.
+# A test that monkeypatches ``psutil.virtual_memory`` itself
+# (tests/test_host_capacity.py and friends) still gets its own value, so
+# low-memory and reserve logic stays covered.
 _GIB = 1024**3
 
 
@@ -49,7 +52,7 @@ def _deterministic_host_ram(monkeypatch: pytest.MonkeyPatch) -> None:
             return psutil.virtual_memory()
         return original()._replace(total=64 * _GIB, available=48 * _GIB)
 
-    monkeypatch.setattr(host_capacity, "_measure_memory", measured)
+    monkeypatch.setattr(host_capacity, "measure_memory", measured)
 
 
 # Fast/full split. Tests listed in tests/slow_tests.txt (by base node id, so
