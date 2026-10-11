@@ -165,7 +165,8 @@ def _probe_table(result: dict[str, Any]) -> None:
             )
         delta = "" if row.get("delta") is None else f"{row['delta']:+.3f}"
         if row.get("delta_se") is not None:
-            delta += f" <span class='pb-hint'>±{row['delta_se']:.3f}</span>"
+            label = " within-run eval noise" if row["id"] == "heldout_loss" else ""
+            delta += f" <span class='pb-hint'>±{row['delta_se']:.3f}{label}</span>"
         hint = ""
         if status in {"warn", "fail"}:
             hint = html.escape(row.get("suggests") or "")
@@ -224,7 +225,11 @@ def _comparison_chart(result: dict[str, Any]) -> None:
     if by_length:
         frame = pd.DataFrame(
             [
-                {"context tokens": v["tokens"], "arm": arm, "accuracy": v[key]}
+                {
+                    "context length": v.get("chars") or v.get("tokens"),
+                    "arm": arm,
+                    "accuracy": v[key],
+                }
                 for v in by_length.values()
                 for arm, key in (
                     ("candidate", "accuracy"),
@@ -235,7 +240,7 @@ def _comparison_chart(result: dict[str, Any]) -> None:
         )
         chart = px.line(
             frame,
-            x="context tokens",
+            x="context length",
             y="accuracy",
             color="arm",
             markers=True,
@@ -284,7 +289,9 @@ def _explain() -> None:
             st.markdown(
                 f"**Judged on** {how}: warn beyond {spec.warn:g}, fail beyond {fail}"
                 + (" (hard: stops the battery)" if spec.hard else "")
-                + f". Changes within 2 standard errors count as noise.\n\n"
+                + ". Changes within 2 standard errors count as noise (for held-out "
+                "loss this is within-run eval noise; seed-to-seed spread is "
+                "larger).\n\n"
                 f"**If it fails:** {spec.suggests}\n\n"
                 f"*Reference:* {spec.reference}"
             )

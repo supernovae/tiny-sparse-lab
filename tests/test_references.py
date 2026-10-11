@@ -29,7 +29,7 @@ from sparselab.probes.points import (
     points_from_record,
     probe_points,
 )
-from sparselab.probes.suite import BY_ID, suite_identity
+from sparselab.probes.suite import BY_ID
 from sparselab.reference_models import (
     REFERENCES,
     ReferenceRun,
@@ -213,6 +213,7 @@ def test_reference_arm_runs_text_level_probes_and_lm_eval_only(
     assert [r["id"] for r in result["probes"]] == [
         "parametric_recall",
         "fact_recall",
+        "needle",
         "lm_eval",
     ]
     assert result["tiers_run"] == ["standard", "full"] and result["protocol"] == {}
@@ -223,7 +224,9 @@ def test_reference_arm_runs_text_level_probes_and_lm_eval_only(
     assert "inapplicable" in parametric["note"]
     assert recall["status"] == "info" and recall["details"]["item_group"]
     assert len(recall["details"]["items"]) == recall["details"]["n"]
-    row = result["probes"][2]
+    needle = result["probes"][2]
+    assert needle["status"] == "info" and needle["details"]["item_group"]
+    row = result["probes"][3]
     assert row["status"] == "info" and row["value"] == pytest.approx(38 / 50)
     assert result["verdict"]["status"] == "info"
     assert result["verdict"]["action"] == "compare"
@@ -324,7 +327,10 @@ def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
             "fact_recall",
             "lm_eval",
         ]
-        assert record["suite"]["sha256"] == suite_identity()["sha256"]
+        # Sealed under suite v3 (before the text-level needle); still
+        # comparable on fact recall and lm-eval because comparisons pair by
+        # item/benchmark group, checked below. Re-sealing adds needle (PR4).
+        assert record["suite"]["version"] == 3
         parametric = record["probes"][0]
         assert parametric["status"] == "skipped" and parametric["value"] is None
         assert "inapplicable" in parametric["note"]

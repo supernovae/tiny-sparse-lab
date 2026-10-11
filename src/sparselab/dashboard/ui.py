@@ -42,6 +42,7 @@ ACTION_TEXT = {
     "escalate": "Escalate to the next tier",
     "longer_run": "Schedule a longer run",
     "compare": "Compare against a baseline",
+    "report": "Final verdict: report it (terminal)",
 }
 # Candidate / baseline / reference series, colorblind-safe (Okabe-Ito based).
 SERIES = {

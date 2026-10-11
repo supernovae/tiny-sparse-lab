@@ -9,7 +9,7 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sparselab.probes.suite import TIERS, ProbeSpec
+from sparselab.probes.suite import TIERS, ProbeSpec, verdict_split
 
 STATUSES = (
     "pass",
@@ -25,9 +25,28 @@ STATUSES = (
 MISSING_STATUSES = frozenset({"unavailable", "not_comparable", "error"})
 # Battery stops that leave requested checks unrun (fast-fail stops do not).
 INCOMPLETE_STOPS = frozenset({"cancelled", "resources", "oom", "interrupted"})
-ACTIONS = ("abandon", "tweak", "rerun", "escalate", "longer_run", "compare")
+ACTIONS = (
+    "abandon",
+    "tweak",
+    "rerun",
+    "escalate",
+    "longer_run",
+    "compare",
+    "report",
+)
 NOISE_SIGMAS = 2.0
 OVERFIT_GAP = 0.15
+# The held-out loss SE is window-clustered *within one run*: it measures how
+# noisy the evaluation is, not how much another seed would move the loss. At
+# tiny budgets seed-to-seed spread is about 5-10x larger, so a single-seed
+# "beyond noise" gain is a screening signal, not a win.
+EVAL_NOISE_LABEL = "within-run eval noise"
+SEED_CAVEAT = (
+    " The ± on held-out loss is within-run eval noise from one seed per arm; "
+    "seed-to-seed spread is typically 5-10x larger at small budgets. Before "
+    "claiming a win, re-run both arms with the same 2-3 extra seeds (paired "
+    "seeds) and check the gain holds on every pair."
+)
 NEXT_TIER_CHECKS = {
     "standard": "reworded fact recall and needle retrieval",
     "full": "standard lm-eval tasks; needs `uv sync --extra lmeval`",
@@ -130,7 +149,7 @@ def overfit_guard(
             "flag": flag,
         }
     return {
-        "verdict_split": "heldout",
+        "verdict_split": verdict_split(),
         "overfit_suspected": suspected,
         "probes": rows,
         "rule": f"flag when the dev gain is beyond noise and exceeds the held-out "
@@ -200,6 +219,93 @@ def _verdict(
     }
 
 
+NOT_COMPARABLE_SUGGESTION = (
+    "The try's arms are not comparable (failed held-out checks: {failed}), so "
+    "no probe result can promote it. Fix the cause (same data, tokenizer, "
+    "memory packages and eval protocol for both arms) and re-run the try."
+)
+
+
+FINAL_REPORT_SUGGESTION = (
+    "Final verdict on the held-back split ({status}): report this result as it "
+    "is. It is terminal: do not change the idea, re-tune or re-run --final. A "
+    "new idea starts again with `sparselab try` on the held-out split."
+)
+FINAL_RERUN_SUGGESTION = (
+    "Final verdict incomplete: fix the missing evidence ({missing}) and re-run "
+    "the same --final unchanged (same candidate, baseline and tier). Do not "
+    "read the partial final scores."
+)
+
+
+def final_verdict(verdict: Mapping[str, Any]) -> dict[str, Any]:
+    """Terminal form of a ``--final`` verdict, or an unchanged re-run.
+
+    The choice follows the evidence, not the status: any requested check that
+    produced no evidence (``missing``: unavailable, error, not comparable, a
+    cancel/resource/OOM stop) makes the final battery ``incomplete`` with
+    action ``rerun`` (the same ``--final``, unchanged), whatever status
+    ``decide`` gave it (e.g. ``info`` without a baseline, or a soft ``fail``).
+    Only a decisive failure (``abandon``: a NaN/inf loss or a hard probe
+    failure) is terminal despite gaps. A complete battery keeps its status and
+    reasons and becomes ``report`` with no next tier and a suggestion that
+    never invites selection (escalate, tweak or a longer run).
+    """
+    reasons = [*verdict.get("reasons", []), "final verdict: held-back final split"]
+    missing = list(verdict.get("missing") or [])
+    decisive = verdict.get("action") == "abandon"
+    if verdict.get("status") == "incomplete" or (missing and not decisive):
+        named = ", ".join(str(m.get("id")) for m in missing) or "?"
+        gaps = [
+            f"missing evidence: {m.get('id')} ({m.get('status')})"
+            for m in missing
+            if f"missing evidence: {m.get('id')} ({m.get('status')})" not in reasons
+        ]
+        return {
+            **verdict,
+            "status": "incomplete",
+            "action": "rerun",
+            "next_tier": None,
+            "reasons": [*gaps, *reasons],
+            "suggestion": FINAL_RERUN_SUGGESTION.format(missing=named),
+        }
+    return {
+        **verdict,
+        "action": "report",
+        "next_tier": None,
+        "reasons": reasons,
+        "suggestion": FINAL_REPORT_SUGGESTION.format(status=verdict.get("status")),
+    }
+
+
+def try_not_comparable(comparison: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The verdict for a try whose comparison is ``NOT_COMPARABLE``, else None.
+
+    A non-comparable try never escalates: this takes precedence over every
+    probe-based outcome except a numerical failure (itself decisive).
+    """
+    if not comparison or comparison.get("verdict") != "NOT_COMPARABLE":
+        return None
+    failed = ", ".join(comparison.get("failed") or []) or "unknown"
+    return _verdict(
+        "incomplete",
+        "rerun",
+        [f"try comparison NOT_COMPARABLE (failed held-out checks: {failed})"],
+        NOT_COMPARABLE_SUGGESTION.format(failed=failed),
+        [{"id": "comparison", "status": "not_comparable", "note": failed}],
+    )
+
+
+def respect_try_comparison(
+    verdict: Mapping[str, Any] | None, comparison: Mapping[str, Any] | None
+) -> Mapping[str, Any] | None:
+    """A recorded probe verdict as shown for a try (older records included)."""
+    override = try_not_comparable(comparison)
+    if override is None or (verdict or {}).get("action") == "abandon":
+        return verdict
+    return override
+
+
 def decide(
     results: Sequence[Mapping[str, Any]],
     *,
@@ -210,13 +316,16 @@ def decide(
     specs: Mapping[str, ProbeSpec],
     stop: Mapping[str, Any] | None = None,
     reference: bool = False,
+    comparison: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Overall verdict and a recommended next action for humans and agents.
 
     Missing evidence never reads as success: an unavailable optional tier, a
     probe error, a non-comparable probe or a battery stopped by cancellation,
     resources or OOM makes the battery ``incomplete`` (action ``rerun``) unless
-    a failure already decides it.
+    a failure already decides it. ``comparison`` is the enclosing try's
+    held-out comparison: ``NOT_COMPARABLE`` takes precedence over every
+    probe outcome except a numerical failure.
     """
     missing = missing_evidence(results, stop)
     by_id = {row["id"]: row for row in results}
@@ -233,6 +342,9 @@ def decide(
             NUMERICAL_SUGGESTION,
             missing,
         )
+    not_comparable = try_not_comparable(comparison)
+    if not_comparable is not None:
+        return not_comparable
     last = tiers_run[-1] if tiers_run else requested_tier
     next_tier = (
         TIERS[TIERS.index(last) + 1] if last in TIERS and last != TIERS[-1] else None
@@ -314,7 +426,9 @@ def decide(
     reasons = [f"warn: {r['id']}" for r in warns]
     loss = by_id.get("heldout_loss")
     if loss is not None and loss.get("improved"):
-        reasons.append("held-out loss improved beyond noise")
+        reasons.append(
+            f"held-out loss improved beyond {EVAL_NOISE_LABEL} (one seed per arm)"
+        )
         if next_tier is not None:
             return _verdict(
                 status,
@@ -322,7 +436,8 @@ def decide(
                 reasons,
                 f"Promising: run `--tier {next_tier}` ("
                 + NEXT_TIER_CHECKS.get(next_tier, "the next tier")
-                + ") before a longer run.",
+                + ") before a longer run."
+                + SEED_CAVEAT,
                 missing,
                 next_tier,
             )
@@ -331,7 +446,8 @@ def decide(
             "longer_run",
             reasons,
             "Every tier holds up: schedule a longer run (more tokens or seeds) "
-            "to confirm the gain. Probes screen; they do not prove usefulness.",
+            "to confirm the gain. Probes screen; they do not prove usefulness."
+            + SEED_CAVEAT,
             missing,
         )
     reasons.append("no held-out loss gain beyond noise")
