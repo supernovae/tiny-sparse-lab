@@ -1405,8 +1405,10 @@ def test_explore_cli_reads_a_lab_run_through_the_verified_loader(
     root, record = tried
     run_id = record["arms"]["candidate"]["run_id"]
     lab = root / "work" / "lab"
+    request = root / "explore.yaml"
+    request.write_text("text: Once upon a\n")
     out = _cli(
-        monkeypatch, capsys, root, "explore", record["try_id"], "--text", "Once upon a"
+        monkeypatch, capsys, root, "explore", record["try_id"], "--config", str(request)
     )
     assert out.startswith(f"EXPLORE  {run_id}")
     assert "cache:" in out
@@ -1434,11 +1436,6 @@ def test_explore_cli_uses_the_shared_runtime_preparation_and_envelope(
 
     root, record = tried
     run_id = record["arms"]["candidate"]["run_id"]
-    # Device selection goes through runtime preparation (CPU in CI): an
-    # unauthorized accelerator is rejected there, before anything loads.
-    with pytest.raises(SystemExit) as rejected:
-        _cli(monkeypatch, capsys, root, "explore", run_id, "--backend", "cuda")
-    assert "cuda requires --runtime-profile" in str(rejected.value)
     seen: list[str] = []
     native_require = cli_main.require_authorization
 
@@ -1460,7 +1457,9 @@ def test_explore_cli_uses_the_shared_runtime_preparation_and_envelope(
         return native_measure(self)
 
     monkeypatch.setattr(LabContext, "measure", measure)
-    args = ("explore", run_id, "--text", "Once upon", "--refresh")
+    request = root / "explore.yaml"
+    request.write_text("text: Once upon\nrefresh: true\n")
+    args = ("explore", run_id, "--config", str(request))
     out = _cli(monkeypatch, capsys, root, *args, "--resource-envelope", str(envelope))
     assert out.startswith(f"EXPLORE  {run_id}")
     assert seen == ["cpu"]

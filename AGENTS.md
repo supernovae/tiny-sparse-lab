@@ -76,7 +76,7 @@ make a new benchmark group, so such results never compare with the default
 slice.
 
 To look inside a small checkpoint (≤ 60M parameters), run `sparselab explore
-RUN [--text "…"] [--json]` (CPU by default; `--backend`/`--runtime`,
+RUN [--config explore.yaml] [--json]` (CPU by default; `--runtime-profile`/`--runtime`,
 `--resource-envelope` go through the same runtime preparation as `probe`). It
 reports the architecture, per-token loss and top-k, attention maps, weight
 statistics, expert routing and memory lookups, cached under `LAB/explorer`. It is descriptive, not a verdict.

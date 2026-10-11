@@ -89,10 +89,17 @@ Do not download reference models just to read their packaged results.
 For more screening or an inside view, these commands **load and execute the
 saved checkpoints**, but do not train:
 
+For a custom sentence, save `explore.yaml` (see [explorer declarations](explore-config.md)):
+
+```yaml
+explore_config_version: 1
+text: Once upon a time
+```
+
 ```sh
 uv run --locked --extra cpu sparselab probe CANDIDATE_RUN --vs BASELINE_RUN \
   --backend cpu --tier standard
-uv run --locked --extra cpu sparselab explore CANDIDATE_RUN --text "Once upon a time"
+uv run --locked --extra cpu sparselab explore CANDIDATE_RUN --config explore.yaml
 uv run --locked --extra cpu sparselab dashboard
 ```
 

@@ -179,15 +179,23 @@ so. Nothing is downloaded or re-scored, and no model is loaded, so `compare`
 
 ## 5. Look inside
 
-```sh
-uv run --locked --no-sync sparselab explore CANDIDATE_RUN --text "The water cycle describes how water moves"
+For a custom sentence, save `explore.yaml` (see [explorer declarations](explore-config.md)):
+
+```yaml
+explore_config_version: 1
+text: The water cycle describes how water moves
 ```
 
-`explore` already defaults to `--backend cpu`, so it needs no flag after a GPU
+```sh
+uv run --locked --no-sync sparselab explore CANDIDATE_RUN --config explore.yaml
+```
+
+`explore` already defaults to CPU, so it needs no flag after a GPU
 try. 17.3M parameters is under the explorer's 60M cap, so you get per-token loss,
 top-k guesses, attention maps for all 8 layers × 6 heads, and weight stats.
 A run trained with `sparselab train` (not `try`) also needs
-`--runs-dir sparselab-work/experiments/first-model/runs`.
+a `runs_dir: sparselab-work/experiments/first-model/runs` field in the
+explorer declaration (relative to that file), or pass the run directory directly.
 
 ## 6. Read the dashboard
 

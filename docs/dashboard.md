@@ -155,8 +155,15 @@ tokens of sample text. Bigger models get a clear message and only the
 architecture diagram, which comes from the config alone, so nothing is loaded.
 Explore from the page (pick a run and a sentence) or from the CLI:
 
+For a custom sentence, save `explore.yaml` (see [explorer declarations](explore-config.md)):
+
+```yaml
+explore_config_version: 1
+text: Once upon a time
+```
+
 ```sh
-uv run --locked --extra cpu sparselab explore RUN --text "Once upon a time"
+uv run --locked --extra cpu sparselab explore RUN --config explore.yaml
 uv run --locked --extra cpu sparselab explore RUN --json        # the full payload
 ```
 
@@ -164,7 +171,7 @@ Results are cached as sealed records under
 `LAB/explorer/<checkpoint sha>/<key>.json`, keyed by checkpoint digest, sample
 text and explorer format. An edited cache file is ignored and recomputed.
 Exploration goes through the same runtime preparation as `sparselab probe` and
-`sparselab try`: the run is resolved, `--backend` (default `cpu`) or
+`sparselab try`: the run is resolved, the CPU default or
 `--runtime`/`--runtime-profile` is applied and authorized by the run's runtime
 policy (an accelerator needs a runtime profile, exactly as for probe), and the
 checkpoint loads through the verified loader. `--resource-envelope FILE` is
