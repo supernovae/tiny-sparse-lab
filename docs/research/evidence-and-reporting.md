@@ -30,7 +30,7 @@ Bundles include `report.json`, original receipt/collected bytes, manifest, escap
 ## Lifecycle declarations versus verification
 
 The lifecycle sidecar records reviewed Findings, baseline declarations, and
-promotion decisions; it does not recalculate report results. `research status`
+promotion decisions; it does not recalculate report results. `report --kind research`
 and `research validate` show every referenced item as verified, unavailable, or
 invalid with its evidence basis. A matching document or source citation is not
 measured experimental evidence. An intact static bundle can preserve historical

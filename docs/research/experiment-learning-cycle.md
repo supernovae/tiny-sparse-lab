@@ -52,7 +52,7 @@ The current worked example is [`dense-lm-v1`](dense-lm-v1.md), a promoted TinySt
 Use:
 
 ```sh
-uv run --locked sparselab research status --json
+uv run --locked sparselab report --kind research --json
 uv run --locked sparselab research baseline describe dense-lm-v1
 uv run --locked sparselab research validate --baseline dense-lm-v1
 ```

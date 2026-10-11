@@ -167,7 +167,7 @@ modified by that historical exercise.
 
 ```sh
 uv run --locked sparselab research validate --json
-uv run --locked sparselab research status --json
+uv run --locked sparselab report --kind research --json
 uv run --locked sparselab research baseline list
 ```
 

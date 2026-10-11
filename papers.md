@@ -64,7 +64,7 @@ retained evidence, limits and possible next tests. In particular:
 - Runtime and optimizer-state checks establish bounded execution/accounting,
   not model quality or a paper reproduction.
 
-Use `sparselab research status` and `research next` for declared lifecycle state,
+Use `sparselab report --kind research` for declared lifecycle state,
 and `campaign status` for a local execution. Checked-in findings cannot establish
 which jobs are currently running on another machine. Scientific next questions
 live in the [research roadmap](docs/research/roadmap.md).

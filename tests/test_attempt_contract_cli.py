@@ -44,7 +44,7 @@ def _run_args(tmp_path: Path, *extra: str) -> list[str]:
         *extra,
         "--",
         "sparselab",
-        "evidence",
+        "report",
     ]
 
 
@@ -140,7 +140,7 @@ def test_run_passes_exact_native_and_campaign_binding(
     args.handler(args)
     assert calls == [
         (
-            ["sparselab", "evidence"],
+            ["sparselab", "report"],
             {
                 "activity": "evaluate",
                 "label": "phase_1",

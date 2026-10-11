@@ -129,8 +129,7 @@ pointer, as the parent/evaluation binding:
 
 ```sh
 uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
-uv run --locked --extra cpu sparselab evidence "$RUN_ID" --runs-dir "$WORK/runs" --json
-uv run --locked --extra cpu sparselab triage "$RUN_ID" --runs-dir "$WORK/runs" --json
+uv run --locked --extra cpu sparselab report --kind run "$RUN_ID" --runs-dir "$WORK/runs" --json
 ```
 
 These commands also have human-readable text mode: omit `--json`.

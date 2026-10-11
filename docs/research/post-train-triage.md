@@ -1,6 +1,6 @@
 # Post-train triage (v1)
 
-`train` runs a bounded, advisory triage **after** a normally completed run. `sparselab triage RUN_ID --runs-dir PATH [--json]` reads the immutable report; it never reruns inference. Reports live at `runs/RUN_ID/post-train-triage/<sha256>.json`. A missing, malformed or ambiguous report is `UNKNOWN`, not evidence of a failed training run. Neither training status nor immutable checkpoint, run manifest, research registry, Finding, NextTest, or promotion decision is changed by triage.
+`train` runs a bounded, advisory triage **after** a normally completed run. `sparselab report --kind run RUN_ID --runs-dir PATH [--json]` reads the immutable report; it never reruns inference. Reports live at `runs/RUN_ID/post-train-triage/<sha256>.json`. A missing, malformed or ambiguous report is `UNKNOWN`, not evidence of a failed training run. Neither training status nor immutable checkpoint, run manifest, research registry, Finding, NextTest, or promotion decision is changed by triage.
 
 ## Evidence and applicability
 
@@ -24,30 +24,31 @@ Candidates sort by cost (`negligible`, `low`, `medium`, `high`), then trigger co
 
 ## Optional Surface Review overlay
 
-`sparselab triage RUN_ID --runs-dir RUNS_DIR --surface-dir DIR` and
-`sparselab dashboard --runs-dir RUNS_DIR --surface-dir DIR` can show a
+`sparselab report RUN_ID --kind run --runs-dir RUNS_DIR --config report.yaml`
+and `sparselab dashboard --runs-dir RUNS_DIR --surface-dir DIR` can show a
 **verified read-only overlay** for sealed [Surface Review v1](surface-review-v1.md)
-bundles. Use, for example,
-`--surface-dir "$SURFACE_DIR"` when that
-directory holds task-owned imports. `sparselab triage ... --json` includes the
-overlay only when requested. Without `--surface-dir`, the existing triage
-output and telemetry dashboard retain their prior behavior.
+bundles. The report declaration is:
+
+```yaml
+report_config_version: 1
+surface_dir: /path/to/surface-review-bundles
+```
 
 Set `RUN_ID` and `RUNS_DIR` to your retained run and its store, and
-`SURFACE_DIR` to the new review bundles described in the Surface Review guide:
+`SURFACE_DIR` to the review bundles described in the Surface Review guide:
 
 ```sh
-uv run --locked sparselab triage "$RUN_ID" \
-  --runs-dir "$RUNS_DIR" \
-  --surface-dir "$SURFACE_DIR" --json
-uv run --locked sparselab dashboard \
-  --runs-dir "$RUNS_DIR" \
+uv run --locked sparselab report "$RUN_ID" --kind run \
+  --runs-dir "$RUNS_DIR" --config report.yaml --json
+uv run --locked sparselab dashboard --runs-dir "$RUNS_DIR" \
   --surface-dir "$SURFACE_DIR"
 ```
 
-With `--surface-dir`, CLI JSON wraps the verified original report under
-`triage` and the optional status under `surface_review`; it does not mutate
-the report bytes or its content-addressed filename.
+Run-report JSON keeps the verified advisory report under `triage`, native
+checkpoint observations under `evidence`, and the requested overlay under
+`surface_review`. Without `surface_dir` in the declaration, it omits the overlay.
+The telemetry dashboard retains its existing behavior. Reading changes neither
+the report bytes nor its content-addressed filename.
 
 The overlay first calls `read_triage` to verify the original immutable report,
 then checks candidate bundles against its run and checkpoint digest. A

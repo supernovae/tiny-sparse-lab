@@ -278,8 +278,7 @@ collect without rerunning the executor:
 uv run --locked --extra cpu sparselab experiment collect "$RUN_ID" \
   --relay-profile "$WORK/relay.yaml" --store "$WORK/runs" --json
 uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
-uv run --locked --extra cpu sparselab evidence "$RUN_ID" --runs-dir "$WORK/runs" --json
-uv run --locked --extra cpu sparselab triage "$RUN_ID" --runs-dir "$WORK/runs" --json
+uv run --locked --extra cpu sparselab report --kind run "$RUN_ID" --runs-dir "$WORK/runs" --json
 ```
 
 Recovery from a confirmed lost worker is explicit and only selects a fully

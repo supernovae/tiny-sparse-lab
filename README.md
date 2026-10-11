@@ -81,6 +81,11 @@ checkpoint path instead: `probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GE
 --backend cpu --config standard`. Copy the baseline run directory and generation
 from the try record; another record ID selects that record's candidate.
 
+For advanced saved-run evidence, use `report RUN_ID --kind run`; it reads verified
+checkpoint observations and saved post-train triage together. `report --kind research`
+shows declared lifecycle state and next tests. See [result reports](docs/result-reports.md)
+for their evidence boundaries and the distinct monitoring/release interfaces.
+
 `sparselab dashboard` opens the [lab dashboard](docs/dashboard.md): Home,
 Experiments, Models, Behaviors and Explorer, with detailed run telemetry below.
 

@@ -165,7 +165,7 @@ The two-step run should be interrupted at a safe boundary with a verifiable chec
 uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter
 uv run --locked --extra cpu sparselab eval instruction-starter --runs-dir sparselab-work/runs
 uv run --locked --extra cpu sparselab chat instruction-starter --runs-dir sparselab-work/runs --system "You are a concise local assistant." --max-new-tokens 32
-uv run --locked --extra cpu sparselab evidence instruction-starter --runs-dir sparselab-work/runs --json
+uv run --locked --extra cpu sparselab report --kind run instruction-starter --runs-dir sparselab-work/runs --json
 ```
 
 Keep a short development questionnaire: greetings, arithmetic, a definition, rewordings, an unrelated question, and a request to correct an earlier answer. Record mistakes as well as good answers. Use a separate frozen set for a final claim; the synthetic validation split alone is not semantic generalization evidence.
@@ -298,7 +298,7 @@ Once independently held-out cases have been frozen:
 ```sh
 uv run --locked --extra cpu sparselab capability describe data/support-test-v1.json
 uv run --locked --extra cpu sparselab capability evaluate support-adapted data/support-test-v1.json --runs-dir sparselab-work/runs
-uv run --locked --extra cpu sparselab evidence support-adapted --json --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab report --kind run support-adapted --json --runs-dir sparselab-work/runs
 ```
 
 Review the saved per-case replies: wrong label, extra prose, or a truncated answer should not quietly become a pass. Exact-answer cards suit labels and fixed extraction. They do **not** grade open-ended explanations fairly; those need a declared human rubric or a separately implemented evaluator. `best.json` selects lowest validation loss, not the best test score.
