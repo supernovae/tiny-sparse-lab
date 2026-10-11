@@ -1762,8 +1762,11 @@ class AttemptBudget:
             generated_tokens=generated_tokens,
             content_identity_sha256=content_identity_sha256,
         )
+        # Anchor before the wall-clock read: its transaction/return latency must
+        # not extend the helper deadline beyond the parent's later budget read.
+        deadline_anchor = time.monotonic()
         remaining = self.remaining_seconds()
-        deadline = time.monotonic() + remaining
+        deadline = deadline_anchor + remaining
         environment = os.environ.copy()
         environment["SPARSELAB_ATTEMPT_BUDGET_LEDGER"] = str(self.path)
         environment["SPARSELAB_ATTEMPT_CONTRACT_SHA256"] = self.status()[

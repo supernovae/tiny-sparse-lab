@@ -457,9 +457,15 @@ def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
-@pytest.mark.parametrize("delayed_startup", [False, True])
+@pytest.mark.parametrize(
+    ("delayed_startup", "delayed_budget_read"),
+    [(False, False), (True, False), (True, True)],
+)
 def test_runtime_deadline_keeps_charge_and_zero_survivors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delayed_startup: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    delayed_startup: bool,
+    delayed_budget_read: bool,
 ) -> None:
     _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
@@ -491,6 +497,20 @@ def test_runtime_deadline_keeps_charge_and_zero_survivors(
         generated_tokens=8,
         content_identity_sha256=paths["identity"],
     )
+    if delayed_budget_read:
+        remaining_seconds = budget.remaining_seconds
+        first_read = True
+
+        def read_then_delay() -> float:
+            nonlocal first_read
+            remaining = remaining_seconds()
+            if first_read:
+                first_read = False
+                # Model commit/return latency after the wall-clock measurement.
+                time.sleep(0.1)
+            return remaining
+
+        monkeypatch.setattr(budget, "remaining_seconds", read_then_delay)
     completion = paths["root"] / "owned.json"
     with pytest.raises(AttemptBudgetError, match="wall-time limit"):
         budget.run_contract(
