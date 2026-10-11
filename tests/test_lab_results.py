@@ -46,7 +46,7 @@ def test_compare_missing_lm_eval_hint_pins_exported_record_after_latest_moves(
     row = next(p for p in report["comparisons"][0]["pairs"] if p["metric"] == "lm_eval")
     assert row["status"] == "missing_evidence"
     command = shlex.split(row["note"].split("`")[1])
-    assert command == ["sparselab", "probe", str(exported), "--tier", "full"]
+    assert command == ["sparselab", "probe", str(exported), "--config", "full"]
     target = resolve_checkpoint(command[2], lab_dir=lab)
     assert target.checkpoint == str(run / "checkpoints/step-1")
     assert target.expected_sha256 == "a" * 64
@@ -71,14 +71,14 @@ def test_needle_and_reference_curve_hints_use_record_targets(tmp_path: Path) -> 
     row = next(p for p in report["comparisons"][0]["pairs"] if p["metric"] == "needle")
     assert row["status"] == "missing_evidence"
     command = shlex.split(row["note"].split("`")[1])
-    assert command == ["sparselab", "probe", str(exported), "--tier", "standard"]
+    assert command == ["sparselab", "probe", str(exported), "--config", "standard"]
     target = resolve_checkpoint(command[2], lab_dir=lab)
     assert target.checkpoint == str(run / "checkpoints/step-1")
     assert target.expected_sha256 == "a" * 64
     assert row["note"] in render(report)
     assert row in as_json(report)["comparisons"][0]["pairs"]
     curve_hint = report["curve"]["note"]
-    assert "sparselab probe RECORD --tier full" in curve_hint
+    assert "sparselab probe RECORD --config full" in curve_hint
     assert "probe RUN" not in render(report)
     assert curve_hint in render(report)
     assert as_json(report)["curve"]["note"] == curve_hint
@@ -290,7 +290,7 @@ def test_unknown_id_has_the_same_text_and_json_error_on_all_surfaces(
     assert payload["result"] == "missing"
     assert payload["reason"] in str(text_error.value)
     assert payload["hint"] in str(text_error.value)
-    if command == "explore":
+    if command in {"explore", "probe"}:
         assert "--lab-dir" not in payload["hint"] and "--config" in payload["hint"]
 
 
@@ -634,7 +634,7 @@ def test_explore_declaration_expands_home_and_preserves_exact_prompt(
         "pass an explicit checkpoint path",
     ],
 )
-def test_lookup_hint_rewrites_only_exact_explorer_selector(
+def test_lookup_hint_rewrites_only_exact_declaration_selector(
     command: str, as_json: bool, hint: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     import argparse
@@ -644,7 +644,7 @@ def test_lookup_hint_rewrites_only_exact_explorer_selector(
     error = ResultLookupError("fixture", "missing_evidence", "fixture reason", hint)
     expected = (
         hint.replace("--work-dir/--lab-dir", "--work-dir or --config lab_dir")
-        if command == "explore"
+        if command in {"explore", "probe"}
         else hint
     )
     with pytest.raises(SystemExit) as stopped:

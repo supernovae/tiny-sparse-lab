@@ -145,12 +145,13 @@ other change) measures the noise floor directly.
 ## 3. Probe at standard and full tiers
 
 ```sh
-uv run --locked --no-sync sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --tier standard
-uv run --locked --no-sync sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --tier full   # needs --extra lmeval
+uv run --locked --no-sync sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config standard
+uv run --locked --no-sync sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config full   # needs --extra lmeval
 ```
 
 `sparselab report TRY_ID` prints both arms' run ids. A run trained with plain
-`sparselab train` also needs `--runs-dir sparselab-work/experiments/first-model/runs`.
+`sparselab train` can be probed by its explicit run directory, for example
+`sparselab probe sparselab-work/experiments/first-model/runs/RUN --backend cpu`.
 
 Keep `--backend cpu`. `probe` has no default backend: without the flag it
 reuses the run's saved training backend (`cuda` or `rocm` for a GPU try), and
@@ -230,7 +231,7 @@ uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_withheld_b
 for cfg in capability_recall_ngram_cpu smoke_memory_cpu smoke_byte_memory_cpu \
            smoke_combined_cpu withheld_bytes_cpu withheld_bpe_cpu; do
   uv run --locked --no-sync sparselab train "configs/$cfg.yaml" --run-id "$cfg-postfix"
-  uv run --locked --no-sync sparselab probe "$cfg-postfix" --runs-dir runs --backend cpu --tier standard
+  uv run --locked --no-sync sparselab probe "runs/$cfg-postfix" --backend cpu --config standard
 done
 ```
 
@@ -246,7 +247,7 @@ to `runs/` (gitignored), where the dashboard's Models page lists them.
 - **Not try baselines: `withheld_bytes_cpu` and `withheld_bpe_cpu`.** The
   `withheld_facts` source trains and validates on the same documents, so a try
   reports `NOT_COMPARABLE (validation_distinct_from_train)`. Use them through
-  `train` plus `probe --tier standard`, which scores closed-book recall from
+  `train` plus `probe --config standard`, which scores closed-book recall from
   weights against its never-trained control. Their recall item counts are
   small (SE about 0.26), so treat recall deltas as directional.
 

@@ -63,7 +63,7 @@ def load_history(
 
     Uses the same sealed-record reader as ``sparselab report``: an edited
     try.json or probe.json is listed as rejected, never shown as a result.
-    ``probe --final`` results are not history: they never feed trends,
+    ``probe --config final`` results are not history: they never feed trends,
     behaviors, catalogs, pickers or next steps (the Home activity list names
     them as final verdicts without their items).
     """

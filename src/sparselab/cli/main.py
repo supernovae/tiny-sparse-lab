@@ -2439,7 +2439,10 @@ def _lab_lookup_failure(args: argparse.Namespace, error: Exception) -> None:
     from sparselab.lab_results import ResultLookupError
 
     if isinstance(error, ResultLookupError):
-        if args.command == "explore" and "--work-dir/--lab-dir" in error.hint:
+        if (
+            args.command in {"explore", "probe"}
+            and "--work-dir/--lab-dir" in error.hint
+        ):
             error = ResultLookupError(
                 error.spec,
                 error.status,
@@ -2557,9 +2560,31 @@ def _probe(args: argparse.Namespace) -> None:
             backend=args.backend,
             authorization=args.runtime_authorization,
             resource_envelope=args.resource_envelope_value,
-            lm_eval_tasks=args.lm_eval_tasks.split(",") if args.lm_eval_tasks else None,
+            lm_eval_tasks=args.lm_eval_tasks,
             lm_eval_limit=args.lm_eval_limit,
             final=args.final,
+            request={
+                **args.probe_config_loaded.model_dump(mode="json"),
+                "baseline": args.vs,
+                "backend_override": args.backend,
+                "runtime_id": args.runtime,
+                "runtime_profile_path": str(args.probe_config_loaded.runtime_profile)
+                if args.probe_config_loaded.runtime_profile is not None
+                else None,
+                "resource_envelope_path": str(
+                    args.probe_config_loaded.resource_envelope
+                )
+                if args.probe_config_loaded.resource_envelope is not None
+                else None,
+                "runtime_profile": args.runtime_profile_loaded.model_dump(mode="json")
+                if args.runtime_profile_loaded is not None
+                else None,
+                "resource_envelope": args.resource_envelope_value.model_dump(
+                    mode="json"
+                )
+                if args.resource_envelope_value is not None
+                else None,
+            },
         )
     except (ValueError, OSError, ReferenceUnavailable) as error:
         _lab_lookup_failure(args, error)
@@ -2834,7 +2859,7 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     lab_compare.add_argument(
         "--final",
         action="store_true",
-        help="Report `probe --final` results (held-back split) against each "
+        help="Report `probe --config final` results (held-back split) against each "
         "other. Ordinary comparisons never include final evidence.",
     )
     lab_compare.add_argument("--lab-dir", type=Path)
@@ -2855,43 +2880,18 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "target",
         help="Try/probe record (its candidate), run id/directory, checkpoint, "
         "or ref:NAME for a pinned "
-        "reference model (--tier full; see `sparselab compare --list-references`)",
+        "reference model (--config full; see `sparselab compare --list-references`)",
     )
     probe.add_argument(
         "--vs",
         metavar="BASELINE",
         help="Baseline run/checkpoint or another record's candidate",
     )
-    probe.add_argument("--tier", choices=("fast", "standard", "full"), default="fast")
     probe.add_argument(
-        "--no-fast-fail",
-        action="store_true",
-        help="Run every probe in the tier even after a hard failure",
-    )
-    probe.add_argument(
-        "--lm-eval-tasks",
-        metavar="T1,T2",
-        help="Full tier: lm-eval tasks instead of the suite's four (a new "
-        "benchmark group; compares only with the same tasks and limit)",
-    )
-    probe.add_argument(
-        "--lm-eval-limit",
-        type=int,
-        metavar="N",
-        help="Full tier: items per lm-eval task (default 50; a new benchmark group)",
-    )
-    probe.add_argument(
-        "--final",
-        action="store_true",
-        help="Final verdict on a chosen candidate: score the held-back final "
-        "split (standard/full tier). Never use it to choose between candidates.",
-    )
-    probe.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
-    probe.add_argument("--runs-dir", help="Also look up run ids here")
-    probe.add_argument(
-        "--resource-envelope",
-        type=Path,
-        help="ResourceEnvelope YAML checked before every probe",
+        "--config",
+        default="fast",
+        metavar="NAME_OR_YAML",
+        help="Validated policy: fast (default), standard, full, final, final-full or YAML",
     )
     probe.add_argument(
         "--backend",
@@ -2899,11 +2899,15 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         help="Default: saved backend (CPU extra does not override it). "
         "Use --backend cpu explicitly to inspect an accelerator run on CPU.",
     )
-    probe_runtime = probe.add_mutually_exclusive_group()
-    probe_runtime.add_argument("--runtime-profile", type=Path)
-    probe_runtime.add_argument("--runtime", metavar="ID")
+    probe.add_argument("--runtime", metavar="ID", help="Registered native runtime")
     probe.add_argument("--json", action="store_true")
-    probe.set_defaults(handler=_probe)
+    probe.set_defaults(
+        handler=_probe,
+        runtime_profile=None,
+        resource_envelope=None,
+        lab_dir=None,
+        runs_dir=None,
+    )
     explore = commands.add_parser(
         "explore",
         help="Model explorer: architecture, weights, attention, routing, memory",
@@ -3979,6 +3983,10 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         from sparselab.explore_config import prepare_explore_config
 
         prepare_explore_config(args)
+    if args.command == "probe":
+        from sparselab.probes.config import prepare_probe_config
+
+        prepare_probe_config(args)
     args.runtime_authorization = None
     args.runtime_profile_loaded = None
     is_submission = _is_config_submission(args)
@@ -4158,7 +4166,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
                     "runtime_required",
                     f"saved backend {config.runtime.backend}: {error}",
                     "the CPU extra installs a framework, not a backend override; "
-                    "select a compatible --runtime/--runtime-profile, or explicitly "
+                    "select a compatible --runtime or declaration runtime_profile, or explicitly "
                     "pass --backend cpu for a PyTorch run (no automatic fallback)",
                 ) from None
             raise
@@ -4294,6 +4302,13 @@ def main() -> None:
             if args.tokenizer_batch_source_bytes is not None
             else TOKENIZER_BATCH_SOURCE_BYTES,
         )
+    if args.command == "probe":
+        from sparselab.probes.config import prepare_probe_config
+
+        try:
+            prepare_probe_config(args)
+        except (ValueError, OSError) as error:
+            raise SystemExit(f"sparselab probe: {error}") from None
     if getattr(args, "resource_envelope", None) is not None:
         try:
             args.resource_envelope_value = load_resource_envelope(
@@ -4349,7 +4364,7 @@ def main() -> None:
                 if args.data_command == "prepared-inputs"
                 else load_config(Path(args.config)).dataset.cache_dir
             )
-        elif args.command in {"try", "explore"}:
+        elif args.command in {"try", "explore", "probe"}:
             from sparselab.lab_mode import lab_root
 
             workspace = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)

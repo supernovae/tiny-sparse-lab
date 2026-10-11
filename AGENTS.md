@@ -31,8 +31,8 @@ See [result lookup](docs/result-lookup.md). Standalone
 installs a framework but does not override a saved CUDA/ROCm backend.
 
 Every try also runs the fast [probe battery](docs/probe-battery.md) tier; use
-`sparselab probe RUN --vs BASE --backend cpu --tier standard --json`
-(or `--tier full`) for more. Act on
+`sparselab probe RUN --vs BASE --backend cpu --config standard --json`
+(or `--config full`) for more. Act on
 `probe.verdict.action`: `abandon` (a hard probe failed, including a NaN/inf
 loss reported as a numerical failure: drop or fix the idea),
 `tweak` (change one setting; `suggestion` names what the failing probe
@@ -41,16 +41,16 @@ check that produced no evidence, such as lm-eval not installed, a probe error,
 or a cancel/signal/resource/OOM stop; fix it and re-run, never read it as a
 pass), `escalate` (re-probe at `next_tier`), `longer_run` (all tiers pass and loss
 improved: worth a larger budget, still in lab mode), `compare` (add `--vs`) or
-`report` (a completed `--final` verdict: terminal, report it as is; a final
+`report` (a completed final verdict: terminal, report it as is; a final
 battery with any missing evidence, with or without `--vs`, says `rerun` the
-same `--final` unchanged unless a NaN/inf or hard failure decided it).
+same final declaration unchanged unless a NaN/inf or hard failure decided it).
 Probes are screening signals, not proof that an idea is useful. Selecting on
 the held-out probes again and again turns them into development data, so any
 claim that an idea is better needs a separate, untouched final evaluation
 (fresh split, longer run, more seeds). Iteration verdicts use only the held-out
 item split. The **held-back final split** is that untouched evaluation for
 probe items: never select on it. Only `sparselab probe CANDIDATE --vs BASE
---tier standard --final` reads it (`try` and ordinary probes cannot; a test
+--config final` reads it (`try` and ordinary probes cannot; a test
 enforces this), once, for the final verdict on a candidate you have already
 chosen; never use it to compare or rank candidates, and never re-run it after
 changing the idea. Final results never enter ordinary `compare`, enrichment,
@@ -70,8 +70,8 @@ comparison group (held-out loss: same `eval_group`; lm-eval: same
 `not_comparable` with the reason or `missing_evidence` with the command that
 produces it; never compare such pairs by hand. Reference models (`ref:NAME`)
 are scored on the text-level probes only (both fact recalls and lm-eval;
-`sparselab probe ref:NAME --tier full`, optional `reference` + `lmeval`
-extras) and are never a `--vs` baseline. `--lm-eval-tasks`/`--lm-eval-limit`
+`sparselab probe ref:NAME --config full`, optional `reference` + `lmeval`
+extras) and are never a `--vs` baseline. Declaration `lm_eval_tasks`/`lm_eval_limit`
 make a new benchmark group, so such results never compare with the default
 slice.
 

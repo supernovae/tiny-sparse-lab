@@ -128,7 +128,7 @@ def test_missing_optional_stack_fails_early_with_install_hint(
 def test_probe_cli_refuses_reference_misuse(tmp_path: Path) -> None:
     from sparselab.probes.cli import run_probe
 
-    with pytest.raises(ValueError, match="use --tier full"):
+    with pytest.raises(ValueError, match="use --config full"):
         run_probe("ref:SmolLM2-135M", None, lab_dir=tmp_path, tier="fast")
     with pytest.raises(ValueError, match="not a probe baseline"):
         run_probe("some-run", "ref:SmolLM2-135M", lab_dir=tmp_path, tier="full")
@@ -473,12 +473,12 @@ def test_compare_never_crosses_groups_and_names_missing_evidence(
         lm = by_other[name]["lm_eval"]
         assert lm["status"] == "missing_evidence"
         assert (
-            f"sparselab probe {tmp_path / 'tries/try-1/try.json'} --tier full"
+            f"sparselab probe {tmp_path / 'tries/try-1/try.json'} --config full"
             in lm["note"]
         )
     text = compare_mod.render(report)
     assert "NOT COMPARABLE" in text and "MISSING EVIDENCE" in text
-    assert "reference curve" in text and "--tier full" in text
+    assert "reference curve" in text and "--config full" in text
     json.dumps(compare_mod.as_json(report))
 
 
@@ -591,11 +591,11 @@ def test_compare_picks_up_a_later_probe_of_the_same_checkpoint(tmp_path: Path) -
     report, lm = lm_pairs()
     assert {p["status"] for p in lm.values()} == {"missing_evidence"}
     assert (
-        f"sparselab probe {tmp_path / 'tries/try-1/try.json'} --tier full"
+        f"sparselab probe {tmp_path / 'tries/try-1/try.json'} --config full"
         in lm["SmolLM2-135M"]["note"]
     )
 
-    # The suggested `probe RECORD --tier full` measured the try's candidate
+    # The suggested `probe RECORD --config full` measured the try's candidate
     # checkpoint: its sealed record lands in the shared pool.
     _probe_record(
         tmp_path,

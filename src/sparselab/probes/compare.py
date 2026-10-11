@@ -65,7 +65,7 @@ def resolve_point(
     """A try/probe id or record path (its candidate), or ``ref:NAME``.
 
     The record's own measurements come first; other verified records of the
-    same checkpoint (e.g. a later ``probe --tier full``) add what it lacks.
+    same checkpoint (e.g. a later ``probe --config full``) add what it lacks.
     """
     if is_reference(spec) and final:
         raise ValueError(
@@ -84,7 +84,7 @@ def resolve_point(
         ]
         if not found:
             raise ValueError(
-                f"no result for {spec}: run `sparselab probe {spec} --tier full`"
+                f"no result for {spec}: run `sparselab probe {spec} --config full`"
             )
         own = _merge(found)
     else:
@@ -98,7 +98,7 @@ def resolve_point(
                 "ordinary comparisons; report it with `sparselab compare --final`"
                 if not final
                 else f"{spec} is not a final verdict: `compare --final` reports "
-                "only `probe --final` results"
+                "only `probe --config final` results"
             )
         if not candidate:
             raise ResultLookupError(
@@ -122,7 +122,7 @@ def _common_group(
     """Measurements of both checkpoints in one shared group, when they exist.
 
     A checkpoint scored in several groups (e.g. an older lm-eval record and a
-    newer `probe --tier full`) is compared in the group the other side has.
+    newer `probe --config full`) is compared in the group the other side has.
     """
     if a.get("group") == b.get("group"):
         return a, b
@@ -170,10 +170,10 @@ def pair(
             else None
         )
         if metric_id == "lm_eval" and target:
-            hint = f"run `sparselab probe {shlex.quote(str(target))} --tier full` (lmeval extra)"
+            hint = f"run `sparselab probe {shlex.quote(str(target))} --config full` (lmeval extra)"
         elif metric_id in {"fact_recall", "needle"} and target:
             tier = "full" if who["kind"] == "reference" else "standard"
-            hint = f"run `sparselab probe {shlex.quote(str(target))} --tier {tier}`"
+            hint = f"run `sparselab probe {shlex.quote(str(target))} --config {tier}`"
         return {
             **out,
             "status": "missing_evidence",
@@ -227,7 +227,7 @@ def compare(
     references: bool = False,
     final: bool = False,
 ) -> dict[str, Any]:
-    """Compare results; FINAL reports ``probe --final`` results only.
+    """Compare results; FINAL reports ``probe --config final`` results only.
 
     Ordinary comparisons never see final-split evidence (not as a subject,
     not as enrichment from other records of the same checkpoint); a final
@@ -460,7 +460,7 @@ def render_references(pool: Sequence[Mapping[str, Any]], *, color: bool = False)
     lines.append(
         _paint(
             "  ✔ = sealed lm-eval result available (packaged or in this lab); "
-            "probe one with `sparselab probe ref:NAME --tier full`",
+            "probe one with `sparselab probe ref:NAME --config full`",
             "2",
             color,
         )

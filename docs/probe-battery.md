@@ -19,13 +19,13 @@ data split, a longer run, more seeds) for any claim that an idea is better.
 uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
 
 # Any run or checkpoint, any tier.
-uv run --locked --extra cpu sparselab probe RUN_OR_CHECKPOINT --vs BASELINE_RUN --backend cpu --tier standard
+uv run --locked --extra cpu sparselab probe RUN_OR_CHECKPOINT --vs BASELINE_RUN --backend cpu --config standard
 uv run --locked --extra cpu sparselab probe RUN --vs BASE --backend cpu --json      # stable schema
 uv run --locked --extra cpu sparselab report probe-20261010T150839Z-ece5a739
 
 # Standard lm-eval tasks (optional extra).
 uv sync --locked --extra cpu --extra lmeval
-uv run --locked --extra cpu --extra lmeval sparselab probe RUN --vs BASE --backend cpu --tier full
+uv run --locked --extra cpu --extra lmeval sparselab probe RUN --vs BASE --backend cpu --config full
 
 # Place a result on the reference curve (reads records; no download, no compute).
 uv run --locked --extra cpu sparselab compare TRY_OR_PROBE_ID --references
@@ -38,7 +38,7 @@ backend when `--backend` is omitted.
 
 A target is a sealed try/probe record ID or path (its exact candidate checkpoint),
 a run directory, a checkpoint directory inside a run, or a run id
-under `WORK_DIR/lab/runs` (or `--runs-dir`). `--vs` accepts the same local inputs;
+under `WORK_DIR/lab/runs` (or declaration `runs_dir`). `--vs` accepts the same local inputs;
 a record supplied there selects that record's candidate, not its baseline.
 Records never silently select a newer checkpoint; missing generations must be
 restored or a different input explicitly chosen. See [result lookup](result-lookup.md).
@@ -164,8 +164,16 @@ the end-of-text token) and scores every continuation token, windowing with
 maximal left context when a continuation is longer than `max_seq_len`. A task
 that produces no accuracy is an error, i.e. missing evidence.
 
-**Larger limits and more task families.** `sparselab probe RUN --tier full
---lm-eval-tasks hellaswag,arc_challenge,winogrande --lm-eval-limit 500` runs any
+**Larger limits and more task families.** Save a [probe declaration](probe-config.md):
+
+```yaml
+probe_config_version: 1
+tier: full
+lm_eval_tasks: [hellaswag, arc_challenge, winogrande]
+lm_eval_limit: 500
+```
+
+`sparselab probe RUN --config benchmark.yaml` runs any
 lm-eval tasks at any limit through the same adapter. Bad options (duplicate
 tasks, a limit below 1) are refused before any work. The probe suite and its
 digest do not change. The tasks, limit, task versions and per-item
@@ -185,7 +193,7 @@ stops (`fast-fail: numerical failure in heldout_loss`) and the verdict is
 `fail`/`abandon` with a numerical-failure reason and suggestion, even without a
 baseline. If the *baseline* is the one that fails numerically, nothing can be
 judged against it and the row is `error` (missing evidence). Any other failure finishes the current
-tier but the battery does not escalate ("not promising"). `--no-fast-fail` runs
+tier but the battery does not escalate ("not promising"). Declaration `fast_fail: false` runs
 everything. A probe that crashes is recorded as `error`; it never sinks the try,
 but it is missing evidence: the battery does not escalate past it and the
 verdict is `incomplete`.
@@ -204,7 +212,7 @@ released, then the candidate is loaded, measured and judged probe by probe, so a
 battery never holds two models in memory. Inside `try` the battery runs under
 the try's own context (the same `CANCEL` sentinel, `--resource-envelope` and
 SIGINT/SIGTERM handling as training and scoring); standalone `probe` creates
-`LAB/probes/<id>/CANCEL` as its sentinel and accepts `--resource-envelope` too.
+`LAB/probes/<id>/CANCEL` as its sentinel and reads a native envelope through declaration `resource_envelope: FILE`.
 The context is checked before each arm and before every probe. `stop.kind`
 records why a battery stopped: `fast_fail` (hard failure, including a
 numerical failure), `not_promising`
@@ -244,8 +252,8 @@ actions are:
 | held-out loss improved beyond noise, tiers left | pass/warn | `escalate` with `next_tier` |
 | held-out loss improved beyond noise, all tiers run | pass/warn | `longer_run` |
 | otherwise (no measurable gain) | pass/warn | `tweak` |
-| `probe --final`, any requested evidence missing (whatever the row above, including no-baseline `info` and a soft `fail`), unless a NaN/inf loss or hard failure decided it | incomplete | `rerun` the same `--final` unchanged (names the gaps) |
-| `probe --final`, otherwise (complete, or decided by a NaN/inf loss or hard failure) | status kept | `report` (terminal; `next_tier` null; never escalate, tweak or re-run) |
+| `probe --config final`, any requested evidence missing (whatever the row above, including no-baseline `info` and a soft `fail`), unless a NaN/inf loss or hard failure decided it | incomplete | `rerun` the same final declaration unchanged (names the gaps) |
+| `probe --config final`, otherwise (complete, or decided by a NaN/inf loss or hard failure) | status kept | `report` (terminal; `next_tier` null; never escalate, tweak or re-run) |
 
 ## Held-out guard and the held-back final split
 
@@ -257,14 +265,14 @@ final split exists for the one verdict that must not be selected on:
 
 ```sh
 # Once, for a candidate you have already chosen. Never to pick between candidates.
-uv run --locked --extra cpu sparselab probe CANDIDATE --vs BASELINE --backend cpu --tier standard --final
+uv run --locked --extra cpu sparselab probe CANDIDATE --vs BASELINE --backend cpu --config final
 ```
 
-`--final` scores the text probes, agreement and generations on the final split
+`--config final` (or declaration `final: true`) scores the text probes, agreement and generations on the final split
 (held-out loss stays on the run's validation split) and records `final: true`
 and `suite.verdict_split: "final"`. Reading the final split anywhere else raises
 `FinalSplitLocked`, and `tests/test_eval_integrity.py` checks that only the
-probe CLI's `--final` path can open it. Final items have their own item groups,
+probe CLI's final-declaration path can open it. Final items have their own item groups,
 so a final result never pairs with an iteration result. Final evidence is also
 kept out of every selection view: points carry `final`/`verdict_split`
 provenance, and ordinary `compare` (subjects, others and the same-checkpoint
@@ -272,7 +280,7 @@ enrichment), the Pareto view, the Models page, dashboard history, trends,
 behaviors and next steps exclude final results (Home activity lists them as
 `final`). `sparselab compare --final A B` is the explicit report of two final
 results (no references, no ordinary evidence). Arms cache item-scored probes per
-split, so reusing an Arm across an ordinary and a `--final` battery always
+split, so reusing an Arm across an ordinary and a final battery always
 scores each split afresh. A completed final verdict's action is `report`.
 Agents may look at dev results while iterating; the guard flags
 `overfit_suspected` when the dev gain is beyond its paired noise and exceeds
@@ -335,11 +343,11 @@ same lm-eval adapter as our checkpoints:
 
 ```sh
 uv sync --locked --extra cpu --extra reference --extra lmeval
-uv run --locked --no-sync sparselab probe ref:SmolLM2-135M --tier full
+uv run --locked --no-sync sparselab probe ref:SmolLM2-135M --config full
 uv run --locked --no-sync sparselab compare --list-references
 ```
 
-A reference runs the probes that are defined at the text level (`--tier full`
+A reference runs the probes that are defined at the text level (`--config full`
 is required): **fact recall** (reworded, in-context), **fact recall from
 weights** and **lm-eval**. Recall items are rendered text (prompt, answer,
 candidates) scored by mean token log-prob under each model's own tokenizer, so
@@ -376,7 +384,7 @@ held-out items with 4 candidates each (chance 0.25). Fact recall from weights
 is recorded as `skipped` (inapplicable): a public model was never trained on a
 withheld-facts manifest, so there are no trained facts to ask about. To refresh
 them, run
-`sparselab probe ref:NAME --tier full` for each reference and copy the sealed
+`sparselab probe ref:NAME --config full` for each reference and copy the sealed
 `probe.json` to `reference_results/NAME.json`; `tests/test_references.py`
 checks every packaged record against the pinned registry.
 
@@ -402,7 +410,7 @@ subject). Each point is completed with compatible evidence for the **same
 checkpoint** (same checkpoint sha256) from every verified record in the lab:
 per (comparison group, checkpoint) each field keeps its newest available value
 and its source. So when `compare TRY --references` reports missing lm-eval
-evidence and suggests `sparselab probe TRY --tier full`, rerunning the same
+evidence and suggests `sparselab probe TRY --config full`, rerunning the same
 `compare TRY` picks up that probe and says where the number came from. It and prints one table of points and, per metric, each pair as
 better/worse/within noise (|Δ| ≤ 2 paired SE), **NOT COMPARABLE** with the
 reason, or **MISSING EVIDENCE** with the command that produces it:
@@ -482,7 +490,7 @@ caption, never mixed in. The dotted frontier respects the metric's direction,
 the dashed line is the chance level, a log cost axis is on by default when
 references are present, and "How to read the Pareto view" explains it for
 learners. Plain `sparselab train` runs join the view once
-`sparselab probe RUN --runs-dir DIR` scores them; the Models page lists the
+`sparselab probe DIR/RUN` scores them; the Models page lists the
 ones still unscored, with that command.
 
 ![Pareto view: lab runs on the reference curve](assets/dashboard-models-pareto.png)

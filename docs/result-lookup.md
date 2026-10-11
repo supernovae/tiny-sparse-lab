@@ -6,7 +6,7 @@ result commands:
 ```sh
 sparselab report TRY_ID
 sparselab compare TRY_ID --references
-sparselab probe TRY_ID --vs BASELINE_RUN --backend cpu --tier standard
+sparselab probe TRY_ID --vs BASELINE_RUN --backend cpu --config standard
 sparselab explore TRY_ID
 ```
 
@@ -24,7 +24,7 @@ To use the same baseline the try scored, copy its `arms.baseline.run_dir` and
 `arms.baseline.checkpoint` from `report TRY_ID --json` and combine them:
 
 ```sh
-sparselab probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GENERATION --backend cpu --tier standard
+sparselab probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GENERATION --backend cpu --config standard
 ```
 
 This pins both sides; there is no record selector for a try's baseline arm.
@@ -34,8 +34,9 @@ This pins both sides; there is no record selector for a try's baseline arm.
 All four commands use the same lookup:
 
 - A record ID is looked up under `LAB/tries` and `LAB/probes`, where `LAB`
-  defaults to `WORK_DIR/lab`. `--lab-dir` selects another lab for `try`, `probe`, `compare` and `report`;
-  `explore` uses the `lab_dir` field of its [declaration](explore-config.md).
+  defaults to `WORK_DIR/lab`. `--lab-dir` selects another lab for `try`, `compare` and `report`;
+  `probe` and `explore` use the `lab_dir` field of their declarations
+  ([probe](probe-config.md), [explore](explore-config.md)).
 - Bare IDs also match existing entries in the current working directory,
   preserving the previous local-path lookup. If that is the only match, it is
   used; if a lab location also matches, lookup reports `ambiguous_result`.
@@ -43,8 +44,8 @@ All four commands use the same lookup:
   to choose a location unambiguously; do not assume a bare ID is lab-only.
 - A record file or directory can be passed explicitly, including an exported
   sealed JSON file with a different filename. Its digest is verified.
-- `probe` and `explore` also accept run IDs under `LAB/runs` or an extra runs root (`probe --runs-dir`;
-  `explore` declaration `runs_dir`),
+- `probe` and `explore` also accept run IDs under `LAB/runs` or an extra runs root
+  (declaration `runs_dir`),
   run directories and checkpoint paths. A direct run still uses the native
   checkpoint loader's default (`latest`); an explicit checkpoint uses native
   checkpoint verification.
@@ -74,7 +75,7 @@ Standalone `probe` inherits each run's **saved backend** when `--backend` is
 omitted. Installing `--extra cpu` only chooses dependencies; it cannot convert
 a saved CUDA/ROCm run into CPU inference. A saved accelerator without runtime
 authorization fails before loading with `runtime_required` and instructions
-to select a compatible `--runtime`/`--runtime-profile` or explicitly choose
+to select a compatible `--runtime` or declaration `runtime_profile` or explicitly choose
 `--backend cpu` for a compatible PyTorch run. No unavailable device is silently
 replaced. `explore` retains its documented CPU default; select an existing runtime
 profile with `--runtime` or `--runtime-profile` to choose another backend. Backend overrides do not
@@ -84,12 +85,12 @@ PyTorch inference by a backend override.
 ## Scope of the everyday-command audit
 
 This change consolidates lookup and diagnostics. It does **not** complete the
-option-reduction work: `try` and `probe` still exceed five relevant
+option-reduction work: `try` still exceeds five relevant
 options in beginner help. Follow-up work must move scientific controls into
 validated declarations and runtime controls into the existing profiles/envelopes,
 with caller and documentation migration, rather than hiding executable flags.
-`explore` now has five options and a validated descriptive declaration; see
-[explorer declarations](explore-config.md).
+`probe` and `explore` now have five options and validated declarations; see
+[probe declarations](probe-config.md) and [explorer declarations](explore-config.md).
 
 | Command | Distinct semantics to retain in that follow-up |
 | --- | --- |

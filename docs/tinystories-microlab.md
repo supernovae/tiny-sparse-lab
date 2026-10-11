@@ -98,7 +98,7 @@ text: Once upon a time
 
 ```sh
 uv run --locked --extra cpu sparselab probe CANDIDATE_RUN --vs BASELINE_RUN \
-  --backend cpu --tier standard
+  --backend cpu --config standard
 uv run --locked --extra cpu sparselab explore CANDIDATE_RUN --config explore.yaml
 uv run --locked --extra cpu sparselab dashboard
 ```

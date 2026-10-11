@@ -1049,7 +1049,9 @@ def test_try_runs_the_fast_tier_and_records_it(
     assert progress["state"] == "done"
 
 
+@pytest.mark.parametrize("policy", ["standard", "final"])
 def test_probe_cli_json_and_report(
+    policy: str,
     tried: tuple[Path, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1066,8 +1068,8 @@ def test_probe_cli_json_and_report(
         candidate,
         "--vs",
         baseline,
-        "--tier",
-        "standard",
+        "--config",
+        policy,
         "--json",
     )
     result = json.loads(out)
@@ -1076,6 +1078,11 @@ def test_probe_cli_json_and_report(
         == record["arms"]["candidate"]["checkpoint_sha256"]
     )
     assert set(result) >= RESULT_KEYS | {"probe_id", "record_sha256", "record"}
+    assert result["request"]["tier"] == "standard"
+    assert result["request"]["fast_fail"] is True
+    assert result["request"]["baseline"] == baseline
+    assert result["request"]["final"] is (policy == "final")
+    assert result.get("final", False) is (policy == "final")
     assert result["tiers_run"][0] == "fast"
     ids = [r["id"] for r in result["probes"]]
     assert ids == [s.id for s in ordered("standard")]
@@ -1084,6 +1091,11 @@ def test_probe_cli_json_and_report(
     text = _cli(monkeypatch, capsys, root, "report", result["probe_id"])
     assert text.startswith("PROBE BATTERY")
     assert "verdict " in text and "next → " in text and "\x1b[" not in text
+    full = json.loads(
+        _cli(monkeypatch, capsys, root, "report", result["probe_id"], "--json")
+    )
+    assert full["request"] == result["request"]
+    assert full["record_sha256"] == result["record_sha256"]
 
     summary = _cli(monkeypatch, capsys, root, "report", record["try_id"])
     assert "PROBE BATTERY" in summary and "tier fast" in summary
@@ -1242,6 +1254,8 @@ def test_standalone_probe_signal_publishes_the_partial_battery(
     (folder,) = set((root / "work/lab/probes").glob("*/")) - before
     _, sealed = read_lab_record(folder / "probe.json", "probe")
     _assert_partial(sealed, "interrupted")
+    assert sealed["request"]["tier"] == "fast"
+    assert sealed["request"]["baseline"] == record["arms"]["baseline"]["run_id"]
     assert sealed["stop"]["reason"] == "interrupted: SIGTERM"
     progress = json.loads((folder / "progress.json").read_text())
     assert progress["state"] == "stopped"

@@ -14,6 +14,7 @@ re-judges a result. Each view answers one researcher question:
 
 from __future__ import annotations
 
+import shlex
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -165,10 +166,10 @@ def next_steps(
         action = verdict.get("action")
         baseline = (latest.result.get("baseline") or {}).get("run_id")
         command = {
-            "escalate": f"sparselab probe {target} --tier {verdict.get('next_tier')}"
+            "escalate": f"sparselab probe {target} --config {verdict.get('next_tier')}"
             + (f" --vs {baseline}" if baseline else ""),
             "compare": f"sparselab compare {latest.key} --references",
-            "rerun": f"sparselab probe {target} --tier {latest.result.get('tier')}"
+            "rerun": f"sparselab probe {target} --config {latest.result.get('tier')}"
             + (f" --vs {baseline}" if baseline else ""),
         }.get(str(action))
         if command:
@@ -200,7 +201,7 @@ def next_steps(
                 "title": "Check behavior, not only loss",
                 "why": f"{len(unprobed)} candidate checkpoint(s) have held-out loss "
                 "but no fact-recall/needle evidence yet.",
-                "command": f"sparselab probe {run} --tier standard",
+                "command": f"sparselab probe {run} --config standard",
             }
         )
     lm = {
@@ -215,7 +216,7 @@ def next_steps(
                 "title": "Place a run on the reference curve",
                 "why": "No lab checkpoint has lm-eval accuracy yet, so none can "
                 "sit next to Pythia/SmolLM2.",
-                "command": f"sparselab probe {_run_id(lab_runs[0])} --tier full",
+                "command": f"sparselab probe {_run_id(lab_runs[0])} --config full",
             }
         )
     plain = unscored_runs(runs_dirs, snap.points)
@@ -296,7 +297,7 @@ def tries_without_probes(snap: LabSnapshot) -> list[dict[str, Any]]:
                 "outcome": TRY_VERDICT_TEXT.get(
                     str((record.get("comparison") or {}).get("verdict")), None
                 ),
-                "command": f"sparselab probe {candidate.get('run_id')} --tier standard",
+                "command": f"sparselab probe {candidate.get('run_id')} --config standard",
             }
         )
     return rows
@@ -363,7 +364,7 @@ def unscored_runs(
                 {
                     "run_id": run.name,
                     "path": str(run),
-                    "command": f"sparselab probe {run.name} --runs-dir {root}",
+                    "command": f"sparselab probe {shlex.quote(str(run.resolve()))}",
                 }
             )
     return out

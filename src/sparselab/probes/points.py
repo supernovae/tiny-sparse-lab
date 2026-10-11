@@ -57,7 +57,7 @@ METRICS = {
         higher_is_better=True,
         not_comparable="different benchmark group (tasks, limit, few-shot or "
         "task versions differ)",
-        missing_hint="run `sparselab probe RECORD --tier full` (needs the lmeval extra)",
+        missing_hint="run `sparselab probe RECORD --config full` (needs the lmeval extra)",
     ),
     "fact_recall": Metric(
         id="fact_recall",
@@ -65,7 +65,7 @@ METRICS = {
         group_label="item group",
         higher_is_better=True,
         not_comparable="different items (prompts, answers or candidates differ)",
-        missing_hint="run `sparselab probe RECORD --tier standard`",
+        missing_hint="run `sparselab probe RECORD --config standard`",
     ),
     "needle": Metric(
         id="needle",
@@ -74,7 +74,7 @@ METRICS = {
         higher_is_better=True,
         not_comparable="different needle items (text, lengths or candidates "
         "differ; results before suite v4 were sized in model tokens)",
-        missing_hint="run `sparselab probe RECORD --tier standard`",
+        missing_hint="run `sparselab probe RECORD --config standard`",
     ),
 }
 # Probe rows whose ``details.items`` carry per-item credit (paired evidence).
@@ -152,7 +152,7 @@ def _lm_eval_items(tasks: Mapping[str, Any] | None) -> dict[str, list[float]]:
 
 
 def is_final(result: Mapping[str, Any]) -> bool:
-    """A ``probe --final`` result: scored on the held-back final split."""
+    """A ``probe --config final`` result: scored on the held-back final split."""
     return (
         bool(result.get("final"))
         or (result.get("suite") or {}).get("verdict_split") == "final"
@@ -333,7 +333,7 @@ def collect_points(
     """All points, newest first (packaged references last, i.e. oldest).
 
     Ordinary views (compare, Pareto, the Models page, enrichment) see only
-    selection evidence: points from ``probe --final`` results are excluded, so
+    selection evidence: points from ``probe --config final`` results are excluded, so
     held-back scores can never fill in or rank an ordinary comparison. FINAL
     returns only those final points (explicit final reporting); packaged
     references have no final results.
@@ -402,7 +402,7 @@ def with_checkpoint_evidence(
     """SUBJECT plus compatible evidence for its checkpoint from verified records.
 
     Other records that measured the same checkpoint digest (e.g. ``sparselab
-    probe RUN --tier full`` after a try) fill what the subject lacks: a metric
+    probe RUN --config full`` after a try) fill what the subject lacks: a metric
     the subject never measured comes from the newest record that did; a
     metric it has is only completed from records in the *same* group. Every
     metric keeps ``evidence`` (field -> record) so the provenance is shown,
