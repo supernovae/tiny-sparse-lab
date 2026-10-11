@@ -15,6 +15,7 @@ from typing import Any, Self
 import psutil
 from tokenizers import Tokenizer
 
+from sparselab import host_capacity
 from sparselab.host_capacity import plan_host_workers
 
 TOKENIZER_BATCH_DOCUMENTS = 256
@@ -46,7 +47,7 @@ class PreparationEncoder:
         self._pending = bytearray()
         try:
             try:
-                total = psutil.virtual_memory().total
+                total = host_capacity.measure_memory().total
             except OSError, psutil.Error, AttributeError:
                 total = 0
             # The measured 4-thread tree peaked below 512 MiB. Keep a conservative

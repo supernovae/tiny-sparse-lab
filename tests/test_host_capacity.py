@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -160,3 +161,58 @@ def test_isa_parsing_and_fallback(monkeypatch):
     assert host._parse_isa("riscv64", None) == {"capabilities": "unknown"}
     monkeypatch.setattr(host.platform, "system", lambda: "unsupported")
     assert host.hardware_observation()["probe"] == "unknown"
+
+
+def test_suite_ram_fixture_is_consistent_on_a_physical_host_above_480_gib(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Reserves from ``total`` and checks on ``available`` share one observation.
+
+    A 512 GiB physical host once gave callers a 51.2 GiB reserve (10% of the
+    real total) against the fixture's 48 GiB available, so planning raised
+    "inadequate measured RAM after reserve". The physical reading is faked
+    below psutil's public API, so the suite's deterministic fixture stays active.
+    """
+    import psutil
+    from tokenizers import Tokenizer, models
+
+    from sparselab.corpus import large_build
+    from sparselab.data import encoding
+
+    gib = 1024**3
+    physical = psutil._psplatform.virtual_memory
+    monkeypatch.setattr(
+        psutil._psplatform,
+        "virtual_memory",
+        lambda: physical()._replace(total=512 * gib, available=500 * gib),
+    )
+    assert psutil.virtual_memory().total == 512 * gib
+    observed = host.measure_memory()
+    assert (observed.total, observed.available) == (64 * gib, 48 * gib)
+
+    # Corpus shard planning: 10% of total as reserve, two workers fit.
+    assert large_build._process_shard_workers(4) == 2
+
+    # Tokenizer preparation: same reserve rule; stop before the child spawns.
+    plans = []
+    real_plan = encoding.plan_host_workers
+
+    def recording(*args, **kwargs):
+        plans.append((kwargs["reserve_bytes"], real_plan(*args, **kwargs)))
+        return plans[-1][1]
+
+    class Spawned(Exception):
+        pass
+
+    def no_spawn(*_args, **_kwargs):
+        raise Spawned
+
+    monkeypatch.setattr(encoding, "plan_host_workers", recording)
+    monkeypatch.setattr(encoding.subprocess, "Popen", no_spawn)
+    with pytest.raises(Spawned):
+        encoding.PreparationEncoder(
+            Tokenizer(models.BPE()), tmp_path / "workspace", max_workers=None
+        )
+    ((reserve, plan),) = plans
+    assert reserve == 64 * gib // 10
+    assert plan.workers >= 1

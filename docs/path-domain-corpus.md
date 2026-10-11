@@ -6,7 +6,7 @@
 
 The authoritative machine-readable records are `data/path_domain_v1/provenance.json`, `oracle_audit.json`, `leakage_audit.json`, and `freeze_ledger_v1.json`. The corpus retains its original MIT notice and synthetic authorship. Every one of its 24 training, 8 development, and 12 frozen records was checked with CPython 3.14.7's `pathlib.PurePosixPath`; `oracle_audit.json` records the exact interpreter, operation, path, argument, oracle value, rendered label, and correction audit for every line. The audit found zero factual label corrections.
 
-The acceptance audit independently parsed all 44 source prompts and recomputed their labels
+Astra independently parsed all 44 source prompts and recomputed their labels
 with CPython 3.14.7. Normalized `(path, operation, argument)` identities have
 zero cross-split overlap. All card prompts and labels match their source chat
 envelopes: acquisition uses a preregistered **six-example subset** of training,
@@ -52,24 +52,24 @@ The pretraining evaluation covers all 30 packed synthetic-validation blocks. The
 Run these only after the runtime acceptance gate. They are endpoint commands, not results.
 
 ```sh
-uv run --locked sparselab tokenizer train configs/path_domain_tokenizer_cpu.yaml
+uv run sparselab tokenizer train configs/path_domain_tokenizer_cpu.yaml
 
-uv run --locked sparselab train configs/path_domain_pretrain_seed17.yaml --run-id path-domain-pretrain-seed17
-uv run --locked sparselab train configs/path_domain_pretrain_seed41.yaml --run-id path-domain-pretrain-seed41
-uv run --locked sparselab train configs/path_domain_pretrain_seed73.yaml --run-id path-domain-pretrain-seed73
+uv run sparselab train configs/path_domain_pretrain_seed17.yaml --run-id path-domain-pretrain-seed17
+uv run sparselab train configs/path_domain_pretrain_seed41.yaml --run-id path-domain-pretrain-seed41
+uv run sparselab train configs/path_domain_pretrain_seed73.yaml --run-id path-domain-pretrain-seed73
 
-uv run --locked sparselab capability evaluate path-domain-pretrain-seed17 data/path_domain_v1/cards/path-domain-acquisition-v1.json --runs-dir runs --backend cpu
-uv run --locked sparselab capability evaluate path-domain-pretrain-seed17 data/path_domain_v1/cards/path-domain-development-v1.json --runs-dir runs --backend cpu
-uv run --locked sparselab capability evaluate path-domain-pretrain-seed17 data/path_domain_v1/cards/path-domain-frozen-v1.json --runs-dir runs --backend cpu
+uv run sparselab capability evaluate path-domain-pretrain-seed17 data/path_domain_v1/cards/path-domain-acquisition-v1.json --runs-dir runs --backend cpu
+uv run sparselab capability evaluate path-domain-pretrain-seed17 data/path_domain_v1/cards/path-domain-development-v1.json --runs-dir runs --backend cpu
+uv run sparselab capability evaluate path-domain-pretrain-seed17 data/path_domain_v1/cards/path-domain-frozen-v1.json --runs-dir runs --backend cpu
 # Repeat the three fixed card commands for pretrain seeds 41 and 73.
 
-uv run --locked sparselab train configs/path_domain_adapt_seed17.yaml --run-id path-domain-adapt-seed17 --promote runs/path-domain-pretrain-seed17/checkpoints/latest.json
-uv run --locked sparselab train configs/path_domain_adapt_seed41.yaml --run-id path-domain-adapt-seed41 --promote runs/path-domain-pretrain-seed41/checkpoints/latest.json
-uv run --locked sparselab train configs/path_domain_adapt_seed73.yaml --run-id path-domain-adapt-seed73 --promote runs/path-domain-pretrain-seed73/checkpoints/latest.json
+uv run sparselab train configs/path_domain_adapt_seed17.yaml --run-id path-domain-adapt-seed17 --promote runs/path-domain-pretrain-seed17/checkpoints/latest.json
+uv run sparselab train configs/path_domain_adapt_seed41.yaml --run-id path-domain-adapt-seed41 --promote runs/path-domain-pretrain-seed41/checkpoints/latest.json
+uv run sparselab train configs/path_domain_adapt_seed73.yaml --run-id path-domain-adapt-seed73 --promote runs/path-domain-pretrain-seed73/checkpoints/latest.json
 
-uv run --locked sparselab capability evaluate path-domain-adapt-seed17 data/path_domain_v1/cards/path-domain-acquisition-v1.json --runs-dir runs --backend cpu
-uv run --locked sparselab capability evaluate path-domain-adapt-seed17 data/path_domain_v1/cards/path-domain-development-v1.json --runs-dir runs --backend cpu
-uv run --locked sparselab capability evaluate path-domain-adapt-seed17 data/path_domain_v1/cards/path-domain-frozen-v1.json --runs-dir runs --backend cpu
+uv run sparselab capability evaluate path-domain-adapt-seed17 data/path_domain_v1/cards/path-domain-acquisition-v1.json --runs-dir runs --backend cpu
+uv run sparselab capability evaluate path-domain-adapt-seed17 data/path_domain_v1/cards/path-domain-development-v1.json --runs-dir runs --backend cpu
+uv run sparselab capability evaluate path-domain-adapt-seed17 data/path_domain_v1/cards/path-domain-frozen-v1.json --runs-dir runs --backend cpu
 # Repeat the three fixed card commands for adaptation seeds 41 and 73.
 ```
 
@@ -113,7 +113,7 @@ deltas (adapt minus pretrain) are +3.0 acquisition-correct cases, +0 development
 for finite lexical PurePosixPath 3.14 semantics only, not evidence of general chat
 competence or safety.
 
-At these fixed budgets and objectives, the models do not provide reliable unseen-path answers: adapted development remains 0/24 across seeds and adapted frozen accuracy is 1/36. The acceptance audit independently reverified all six checkpoints and promotion links, rescored all archived answers, and recomputed all six same-input retention measurements. The severe retention degradation is a negative result, not a successful general-purpose adaptation claim. [Acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json).
+At these fixed budgets and objectives, the models do not provide reliable unseen-path answers: adapted development remains 0/24 across seeds and adapted frozen accuracy is 1/36. Astra independently reverified all six checkpoints and promotion links, rescored all archived answers, and recomputed all six same-input retention measurements. The severe retention degradation is a negative result, not a successful general-purpose adaptation claim. [Acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json).
 
 The auditable six-endpoint ledger, original infrastructure failures, verified
 lineage, exact retention bindings, descriptive aggregates, and all 18 full
@@ -125,7 +125,7 @@ literal-response card reports are in
 Build the provenance-bound bundle before planning the allocation recipe:
 
 ```sh
-uv run --locked sparselab research tasks build memory-allocation --output artifacts/allocation
+uv run sparselab research tasks build memory-allocation --output artifacts/allocation
 ```
 
 The builder rechecks each rendered assistant label and structured prompt key

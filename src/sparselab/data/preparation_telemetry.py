@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 import psutil
 
+from sparselab import host_capacity
+
 if TYPE_CHECKING:
     from sparselab.bottleneck_observations import BottleneckObserver
 
@@ -57,7 +59,7 @@ class PreparationTelemetry:
         if rss is not None:
             self.peak_rss_bytes = max(self.peak_rss_bytes or 0, rss)
         try:
-            available_ram: int | None = psutil.virtual_memory().available
+            available_ram: int | None = host_capacity.measure_memory().available
         except OSError, psutil.Error:
             available_ram = None
         try:

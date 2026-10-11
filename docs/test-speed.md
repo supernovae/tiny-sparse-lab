@@ -44,6 +44,63 @@ uv run --locked --extra cpu ruff check .
 uv run --locked --extra cpu ruff format --check .
 ```
 
+## Fast and full suites
+
+The fast suite skips tests marked `slow`. It is the default local check before
+a push. The full suite is the release gate.
+
+```sh
+# Fast: about 2,900 tests; a few minutes with 4 workers on an 8-vCPU box
+uv run --locked --extra cpu pytest -q -n 4 -m 'not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network'
+# Full: about 3,200 tests; about 18 min with 4 workers on the same box
+uv run --locked --extra cpu pytest -q -n 4 -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
+# Only the slow tests
+uv run --locked --extra cpu pytest -q -n 4 -m slow
+```
+
+`tests/conftest.py` applies the `slow` marker to the base node ids listed in
+[`tests/slow_tests.txt`](../tests/slow_tests.txt), so every parametrized case
+of a listed test follows. The slow tests are fewer than a tenth of the suite
+but take more than 90% of its test time: end-to-end campaign, corpus and
+lifecycle runs, tiny training, and native subprocess monitors.
+`tests/test_slow_list.py` fails when an entry no longer names a real test.
+
+In CI, the automatic `safe` and `lab-loop` jobs are unchanged. The manual
+`workflow_dispatch` choice `fast` runs the fast suite on Linux, and
+`release-candidate` still runs everything.
+
+### Profiling and the slow list
+
+Profile a full run, then list any test whose call time is at least 1 s:
+
+```sh
+uv run --locked --extra cpu pytest -q -n 4 -p no:randomly --durations=50 \
+  --junitxml=/tmp/suite.xml -o junit_duration_report=call
+```
+
+Add new slow tests to `tests/slow_tests.txt` in sorted order. A test whose
+fixture setup is heavy, rather than its call, belongs there too.
+
+### Known failures
+
+[`tests/known_failures.txt`](../tests/known_failures.txt) lists tests that
+fail for a root cause tracked in an open issue. The conftest skips each one
+with its reason and issue number, so `-rs` shows exactly what is not running.
+Delete an entry in the PR that fixes its issue.
+
+### Host RAM in tests
+
+Host-work planning (`sparselab.host_capacity`) refuses work when measured
+available RAM minus a reserve cannot fit one worker. Under xdist, or on a box
+shared with other jobs, that made unrelated tests fail with "inadequate
+measured RAM after reserve". Every SparseLab reader of host RAM, including
+reserves computed from total RAM, goes through
+`host_capacity.measure_memory()`. An autouse fixture in `tests/conftest.py`
+pins it to a fixed host (64 GiB total, 48 GiB available), whatever the
+physical machine. Tests that
+monkeypatch `psutil.virtual_memory` themselves still see their own values,
+which is how `tests/test_host_capacity.py` covers the reserve logic.
+
 ## CPU worker limits and stall diagnosis
 
 The root test `conftest.py` sets `OMP_NUM_THREADS`, `MKL_NUM_THREADS`,

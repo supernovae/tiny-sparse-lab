@@ -63,11 +63,11 @@ Learned coordinates save full-state checkpoints at registered observation bounda
 `build` and `plan` do not train. Learned `build` accepts smoke/nano and auto/cpu/mps; it creates candidate data inventories and immutable design inputs. `plan` is read-only and reports uncalibrated timing until real pilots exist. Run/continue execute the fixed dependency graph under the remaining sealed allowance; a cooperative deadline may overrun only by a current update/bounded item and safe checkpoint/receipt publication. Continue uses verified new child run IDs, restores checkpoint-owned asset paths while rejecting changed scientific settings, and never resets optimizer state or increases total allowance. Report is read-only and does not infer or train.
 
 ```sh
-uv run --locked sparselab research describe learned-engram-portability-v1 --json
-uv run --locked sparselab research portability build --experiment learned-engram-portability-v1 --scale nano --backend auto --output artifacts/learned-engram-portability-v1/behavioral
-uv run --locked sparselab research portability plan --campaign-root artifacts/learned-engram-portability-v1/behavioral
-uv run --locked sparselab research portability run --campaign-root artifacts/learned-engram-portability-v1/behavioral --max-wall-seconds 43200
-uv run --locked sparselab research portability report --campaign-root artifacts/learned-engram-portability-v1/behavioral
+uv run sparselab research describe learned-engram-portability-v1 --json
+uv run sparselab research portability build --experiment learned-engram-portability-v1 --scale nano --backend auto --output artifacts/learned-engram-portability-v1/behavioral
+uv run sparselab research portability plan --campaign-root artifacts/learned-engram-portability-v1/behavioral
+uv run sparselab research portability run --campaign-root artifacts/learned-engram-portability-v1/behavioral --max-wall-seconds 43200
+uv run sparselab research portability report --campaign-root artifacts/learned-engram-portability-v1/behavioral
 ```
 
 Use `continue --campaign-root ROOT --max-wall-seconds SECONDS` only with the emitted remaining allowance. The separately labeled wiring smoke uses 128 facts and its fixed small budgets; it cannot close behavioral criteria or select behavior settings. Existing artifact roots fail closed on conflicting contents.

@@ -51,6 +51,7 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     }
     assert workflow["on"]["workflow_dispatch"]["inputs"]["suite"]["options"] == [
         "safe",
+        "fast",
         "integration-linux",
         "platform-macos",
         "release-candidate",
@@ -63,6 +64,7 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     assert set(jobs) == {
         "safe",
         "lab-loop",
+        "fast",
         "integration-linux",
         "platform-macos",
         "release-candidate",
@@ -105,7 +107,7 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     )
     assert not any(token in lab_command for token in ("-k", "-m", "-n", "--pyargs"))
 
-    for suite in ("integration-linux", "platform-macos", "release-candidate"):
+    for suite in ("fast", "integration-linux", "platform-macos", "release-candidate"):
         assert jobs[suite]["if"] == (
             f"github.event_name == 'workflow_dispatch' && inputs.suite == '{suite}'"
         )
@@ -113,4 +115,6 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
         "ubuntu-24.04",
         "macos-15",
     ]
+    fast = " ".join(jobs["fast"]["steps"][-1]["run"].split())
+    assert '-m "not slow and not mps' in fast
     assert "tools/kernel-memory-lab/ci-guard/" not in workflow_path.read_text()

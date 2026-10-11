@@ -13,22 +13,13 @@ native interfaces, and preserve declaration and artifact identities.
 Land in this order, one small PR each. Treat the P0 [CLI reduction](#cli-reduction)
 tasks as part of lab usability work; complete their caller audit before removal.
 
-1. **PR2 — Test health.**
-   - Known failures on clean `main`: `test_evaluation_suite.py` signed
-     replay/reuse (2), `test_attempt_contract.py::test_outer_receipts_crossing_cap_cannot_return_success`,
-     `test_workers_cli.py::test_composed_run_observes_reconnection_and_artifact_completion`
-     and `test_operational_monitor_safety.py` (4).
-   - About 65 more failures in a full local run (verifier-authority exclusion
-     signatures such as `('data.packing', 'resource_envelope')`, snapshot
-     authority, verification reuse, story-artifact reuse, campaign,
-     operational monitor, and workspace hygiene on
-     `docs/research/sample-report.md` size). CI's PR jobs run only an explicit
-     node list, so these went unnoticed.
-   - The full CPU suite takes over 25 minutes. Split it into a fast tier
-     (every PR) and a full tier (nightly or manual).
-   - The "inadequate measured RAM after reserve" preflight trips under
-     parallel pytest workers (`-n 6` on a 16 GB box). Scale the reserve per
-     worker or mark those tests serial.
+1. **Test-health follow-ups.** Root-cause and unskip the known failures in
+   [`tests/known_failures.txt`](tests/known_failures.txt): verifier-closure
+   drift ([#67](https://github.com/supernovae/tiny-sparse-lab/issues/67)),
+   release identity drift in campaign end-to-end tests
+   ([#68](https://github.com/supernovae/tiny-sparse-lab/issues/68)), and
+   overlayfs-sensitive reuse checks
+   ([#69](https://github.com/supernovae/tiny-sparse-lab/issues/69)).
 2. **PR3 — Evaluation integrity.**
    - A held-back final evaluation set that agents never select on.
    - A text-level needle (fixed character lengths) so needle also runs on

@@ -201,3 +201,27 @@ def test_guard_terminates_owned_command_without_touching_unrelated_process(
     finally:
         unrelated.kill()
         unrelated.wait()
+
+
+def test_workspace_sample_counts_files_reported_on_another_overlay_device(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Overlayfs without xino gives files a different st_dev than directories."""
+    import os
+    import stat as stat_module
+
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "payload.bin").write_bytes(b"x" * 1000)
+    (tmp_path / "top.txt").write_bytes(b"y" * 24)
+    real_stat = os.stat
+
+    def overlay_stat(path, *args, **kwargs):
+        info = real_stat(path, *args, **kwargs)
+        if stat_module.S_ISDIR(info.st_mode):
+            return info
+        fields = list(info)
+        fields[stat_module.ST_DEV] = info.st_dev + 1
+        return os.stat_result(fields)
+
+    monkeypatch.setattr(os, "stat", overlay_stat)
+    assert monitor.sample_workspace_tree(tmp_path) == (1024, 4)

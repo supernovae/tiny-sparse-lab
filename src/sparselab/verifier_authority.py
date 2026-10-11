@@ -220,6 +220,8 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # Pinned below to the AST of each excluded import and all existing uses of its
 # imported names. A new use in a verifier, or any change to an existing user,
 # makes authority unavailable until the exclusion is explicitly re-audited.
+# data.packing edges re-audited 2026-10-10: since ba6370d only _prepare_data
+# (token-mixture preparation) changed; no verifier gained a use of an excluded name.
 _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "workers",
@@ -228,11 +230,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.tokenizer",
-    ): "b41d7b397cdfd8f18004bcfbfd71faea2cd5e400ae0306eae310f1f0fcc60c1b",
+    ): "bb15cc445baca14c9fffdc7a57a8074b09b2665b24a4ad2e8f78b5b2b3ac02c6",
     (
         "data.packing",
         "data.sources",
-    ): "fe0ce26ca7e3b216bf4d8333d753052ffa2eb851e37eb27ebd20f541ef702842",
+    ): "53523d8dce96ca8cdbd6cc876c4c498b74c431448973ca084a961b0cdf7756ae",
     (
         "data",
         "data.tokenizer",
@@ -252,11 +254,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "corpus.export",
-    ): "2d35d685ab13c9e8c6dfcf8cde0aad22a4a6fd8deb8d22baeda12c3019174b5e",
+    ): "684bbead31b5c6f68352299dd08ad257b623b0d9c5429b9c9113057cf997881d",
     (
         "data.packing",
         "data.allocation",
-    ): "c8bcc9012005be2637b890db4f64853099c66b03c674d3491ded871f745f0a36",
+    ): "da322a69a6bd51053e92bd813bfa709a76cfcee35b62cdfacf72f84806545312",
     (
         "data.packing",
         "data.byte_hash",
@@ -272,31 +274,31 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.encoding",
-    ): "f016ee55293b4a8a638232fa33f8855c6f4ad03b473f158aca20b2663a7a4df7",
+    ): "00786760864035e3e6cbb238d95fae133a1db54346fd85416ebbe1f4aca421c1",
     (
         "data.packing",
         "data.local_stories",
-    ): "4ebab1ca420bffe65286500ee1de3843bfaa3426dfc32c643e03aaa2fa888ebe",
+    ): "9715846a468ff227be1fcb812d7f2da2d6a0d2f47d6e415bdd4dd7bb9a273ca1",
     (
         "data.packing",
         "data.preparation_chunks",
-    ): "2f97cd5820af02be17ba75b2631d1f5d3bca51f35a035858e8c6021e3499c429",
+    ): "fbc6d34e0d14a5f15a9f20527a4c99d96c9346afc55a04a0bbc13fe7384a808c",
     (
         "data.packing",
         "data.preparation_telemetry",
-    ): "a8b76c09378f22095e080c197d65af6656e7e789b5ab0ce32447d8dcf1b90e00",
+    ): "879eeb7193db5800003d51af75b54251e15556d99aa0187b6288e5373aa315a7",
     (
         "data.packing",
         "experiments.source_compatibility",
-    ): "5caa9f1bb500601d4fd256a4ed04bd4269618624fabd5b1d8d68361e7b60a948",
+    ): "8412d6dfa7fc8d79b60c0b6b36eb0f1af1b036a24ffcbcffa349283e6cb64ed4",
     (
         "data.packing",
         "progress",
-    ): "af0cbf48d9afae90db4601697723ec64bdb9c4022d3340d90cfb7c34bdace546",
+    ): "c9d71feba2a2df30826a7e963fd9e269ba89651fad970e6540f7d464479e8dba",
     (
         "data.packing",
         "resource_envelope",
-    ): "7e523bfd8d6214617b923be1b8c318377ffd79e0ea80b4a50646b0aded1b00f3",
+    ): "055c9f8a770e512789e16c57dbf2321bbafdcbb7729464976ab5dd09aa764b46",
     (
         "data.packing",
         "workdir",
@@ -308,7 +310,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "workspace_preflight",
-    ): "41b9d945e91ce406d20f02cafe40c971e84bdc188de2a0f50e491e3a1d3548a0",
+    ): "54f472c7837b07513c2495dbcbea0e23bcd506d3bb5a5ca1552de26f078df941",
     (
         "corpus.tokenizer_bakeoff",
         "corpus.cli",

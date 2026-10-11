@@ -7,7 +7,6 @@ receipts are not inputs to corpus scientific identities.
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
 import os
 import re
@@ -27,6 +26,20 @@ from sparselab.recovery.provenance import declaration_paths, repository_root
 
 _COMMIT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def _package_source(module_name: str) -> Path:
+    """Locate an installed SparseLab module's source without importing it.
+
+    Verifier authority refuses non-constant dynamic imports anywhere in a
+    verifier's closure, and this module only needs the bytes on disk.
+    """
+    relative = module_name.removeprefix("sparselab.").split(".")
+    return (
+        Path(__file__).resolve().parents[1].joinpath(*relative).with_suffix(".py")
+    ).resolve(strict=True)
+
+
 _COMPONENTS = (
     "acquisition",
     "pipeline",
@@ -279,8 +292,7 @@ def implementation_preflight(
         historical = hashlib.sha256(
             _git(root, "show", f"{commit}:{relative}")
         ).hexdigest()
-        module = importlib.import_module(f"sparselab.corpus.{name}")
-        current_path = Path(module.__file__).resolve(strict=True)
+        current_path = _package_source(f"sparselab.corpus.{name}")
         current = hashlib.sha256(current_path.read_bytes()).hexdigest()
         stage = (
             "acquisition"
@@ -327,9 +339,7 @@ def implementation_preflight(
                 if name == "training_manifest"
                 else "sparselab.config.models"
             )
-            current_path = Path(importlib.import_module(module_name).__file__).resolve(
-                strict=True
-            )
+            current_path = _package_source(module_name)
         current = (
             hashlib.sha256(current_path.read_bytes()).hexdigest()
             if current_path.is_file()
