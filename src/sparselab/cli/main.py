@@ -3071,7 +3071,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     cleanup_apply = cleanup_commands.add_parser("apply")
     cleanup_apply.add_argument("plan")
     cleanup_apply.set_defaults(handler=_workspace_cleanup_apply)
-    runtime = commands.add_parser("runtime")
+    runtime = commands.add_parser(
+        "runtime",
+        description="Runtime probes and status.",
+        epilog="Manage machine-local environments with sparselab runtime env --help (Torch-free).",
+    )
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
     runtime_status = runtime_commands.add_parser("status")
     runtime_status.add_argument("run_id")

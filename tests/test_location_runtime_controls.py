@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
@@ -105,8 +106,9 @@ def test_runtime_registry_and_install_root_do_not_follow_scientific_work_root(
         "provision",
     ],
 )
+@pytest.mark.parametrize("work_prefix", ["none", "split", "equals"])
 def test_all_environment_help_routes_avoid_framework_and_execution(
-    tmp_path: Path, command: str
+    tmp_path: Path, command: str, work_prefix: str
 ) -> None:
     # A fresh process catches eager imports hidden by pytest's application imports.
     script = """
@@ -127,7 +129,13 @@ def refuse_children(event, args):
         raise AssertionError('environment help started execution: ' + event)
 sys.addaudithook(refuse_children)
 from sparselab.cli.entry import main
-sys.argv = ['sparselab', 'runtime', 'env', sys.argv[1], '--help']
+command, work_prefix, work_dir = sys.argv[1:]
+prefix = []
+if work_prefix == 'split':
+    prefix = ['--work-dir', work_dir]
+elif work_prefix == 'equals':
+    prefix = ['--work-dir=' + work_dir]
+sys.argv = ['sparselab', *prefix, 'runtime', 'env', command, '--help']
 main()
 """
     settings = {
@@ -137,7 +145,14 @@ main()
         "XDG_DATA_HOME": str(tmp_path / "data"),
     }
     result = subprocess.run(
-        [sys.executable, "-c", script, command],
+        [
+            sys.executable,
+            "-c",
+            script,
+            command,
+            work_prefix,
+            str(tmp_path / "selected-work"),
+        ],
         env={**os.environ, **settings, "PYTHONDONTWRITEBYTECODE": "1"},
         capture_output=True,
         text=True,
@@ -147,3 +162,60 @@ main()
     assert result.returncode == 0, result.stderr
     assert f"sparselab runtime env {command}" in result.stdout
     assert all(not Path(path).exists() for path in settings.values())
+    assert not (tmp_path / "selected-work").exists()
+
+
+def test_environment_work_prefix_preserves_separate_runtime_locations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab import runtime_env_cli
+    from sparselab.cli import entry
+    from sparselab.runtime_environments import (
+        resolve_registry_path,
+        resolve_runtime_dir,
+    )
+    from sparselab.workdir import resolve_work_dir
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "original-work"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("SPARSELAB_RUNTIME_DIR", str(tmp_path / "runtimes"))
+    seen = []
+
+    def observe(argv):
+        seen.append(argv)
+        assert resolve_work_dir() == tmp_path / "selected-work"
+        assert resolve_registry_path() == tmp_path / "config/sparselab/runtimes.yaml"
+        assert resolve_runtime_dir() == tmp_path / "runtimes"
+
+    monkeypatch.setattr(runtime_env_cli, "main", observe)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "sparselab",
+            "--work-dir",
+            "selected-work",
+            "runtime",
+            "env",
+            "list",
+            "--json",
+        ],
+    )
+    entry.main()
+    assert seen == [["list", "--json"]]
+    assert not (tmp_path / "selected-work").exists()
+    assert not (tmp_path / "runtimes").exists()
+    assert not (tmp_path / "config").exists()
+
+
+def test_runtime_help_exposes_environment_management(tmp_path: Path) -> None:
+    from sparselab.cli.main import build_parser
+
+    commands = next(
+        action.choices
+        for action in build_parser(tmp_path / "work")._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    assert "sparselab runtime env --help" in commands["runtime"].format_help()
+    assert not (tmp_path / "work").exists()

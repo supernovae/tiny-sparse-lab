@@ -105,8 +105,8 @@ declarations), `workers/cli.py` and `workers/controller.py` (controller store),
 
 ## Torch-free environment route
 
-`sparselab.cli.entry` dispatches the exact prefix `runtime env` before importing
-the application CLI. Keep all eight paths:
+`sparselab.cli.entry` dispatches `runtime env`, optionally preceded by global
+`--work-dir PATH`, before importing the application CLI. Keep all eight paths:
 
 | Path | Distinct operation |
 | --- | --- |
@@ -128,9 +128,12 @@ not `SPARSELAB_WORK_DIR`. The installation root must not equal the scientific
 work root and must be outside Git. Nesting it under the work root is currently
 allowed; the equality check is not a prohibition on nesting.
 
-Do not prefix `runtime env` with global `--work-dir`: that misses the special
-entry route. Use its host-local environment settings. On a provisioned vendor
-interpreter use `uv run --locked --no-sync` or the executable directly; adding
+Global `--work-dir PATH` before `runtime env` selects the scientific work root
+for native containment checks without creating it. It does not relocate the
+registry or runtime installation root; use their host-local environment settings.
+`sparselab runtime --help` points to the separate environment-management help.
+On a provisioned vendor interpreter use `uv run --locked --no-sync` or the
+executable directly; adding
 `--extra cpu` can synchronize a CPU framework over the intended installation.
 See [runtime environments](runtime.md#machine-local-runtime-environments).
 

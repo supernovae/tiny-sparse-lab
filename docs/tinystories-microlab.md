@@ -111,9 +111,20 @@ the foreground; stop it with Ctrl-C or use another terminal.
 
 An incomplete probe is missing evidence, not a pass. A failed or worse candidate
 is a useful retained result. Change one setting in a new delta and run `try`
-again; identical completed baselines can be reused. Use `--seed N` to repeat
-both arms at another seed. One seed and a small evaluation budget cannot
-establish an architecture advantage. Keep an untouched final evaluation instead
+again; identical completed baselines can be reused. To repeat both arms at
+another seed, save a [try declaration](try-config.md) and select it with `--config`:
+
+```sh
+cat > "$WORK/paired-try.yaml" <<'YAML'
+try_config_version: 1
+seed: 7
+YAML
+uv run --locked --extra cpu sparselab try "$WORK/wider-ffn.yaml" \
+  --vs "$WORK/inputs/run.yaml" --config "$WORK/paired-try.yaml"
+```
+
+The declaration's seed overrides both arms. One seed and a small evaluation
+budget cannot establish an architecture advantage. Keep an untouched final evaluation instead
 of repeatedly tuning against the probe items.
 
 ## Go further
