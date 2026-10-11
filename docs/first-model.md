@@ -244,7 +244,8 @@ to `runs/` (gitignored), where the dashboard's Models page lists them.
 - **Try-able (four).** `capability_recall_ngram_cpu`, `smoke_memory_cpu`,
   `smoke_byte_memory_cpu` and `smoke_combined_cpu` work as `try` baselines.
   `try DELTA --vs configs/<cfg>.yaml` retrains its baseline automatically,
-  because the code identity changed. Use paired seeds (`--seed`) as in step 2.
+  because the code identity changed. Use declaration `seed` with `--config`
+  for paired seeds, as in step 2.
 - **Not try baselines: `withheld_bytes_cpu` and `withheld_bpe_cpu`.** The
   `withheld_facts` source trains and validates on the same documents, so a try
   reports `NOT_COMPARABLE (validation_distinct_from_train)`. Use them through

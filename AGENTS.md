@@ -162,8 +162,9 @@ explicit legacy locations. Only disposable fixture scratch belongs in `/tmp`.
 Use the [location/runtime selection guide](docs/location-runtime-controls.md)
 before changing selectors. Work defaults, historical lab/run readers and
 controller stores have distinct contracts; runtime IDs/profiles select an
-interpreter, while backend selects the workload. Keep the exact `runtime env`
-entry prefix Torch-free and preserve source-relative declaration paths.
+interpreter, while backend selects the workload. Keep `runtime env`, including
+its global `--work-dir` prefix, Torch-free and preserve source-relative
+declaration paths.
 Check bytes, inodes and expected growth before expensive work; select a native
 resource envelope for anything large (`try`/`probe`: declaration
 `resource_envelope`; other commands retain their direct `--resource-envelope`
