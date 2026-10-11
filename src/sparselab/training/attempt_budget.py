@@ -1814,13 +1814,12 @@ class AttemptBudget:
             timed_out = isinstance(
                 error, (subprocess.TimeoutExpired, AttemptBudgetError)
             )
-            deadline_stop = isinstance(error, subprocess.TimeoutExpired) or (
-                timed_out and time.monotonic() >= deadline
-            )
+            deadline_stop = timed_out and time.monotonic() >= deadline
             # The helper already owns this deadline, including refusing to
             # launch after it. TERM during interpreter startup can kill it
             # before its cleanup handler exists, losing the shutdown receipt.
             # Give it only the existing bounded cleanup window to certify exit.
+            # An earlier parent timeout (e.g. a wall-clock jump) still needs TERM.
             if process.poll() is None and not deadline_stop:
                 process.terminate()  # The isolated subreaper owns TERM-to-KILL cleanup.
             try:
