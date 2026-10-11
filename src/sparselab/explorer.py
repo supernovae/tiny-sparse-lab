@@ -512,7 +512,9 @@ def explore(
     """
     from sparselab.lab_results import resolve_checkpoint
     from sparselab.probes.cli import load_target
+    from sparselab.resource_envelope import require_envelope_applicability
 
+    require_envelope_applicability(resource_envelope, operation="explore")
     resolved = resolve_checkpoint(target, lab_dir=lab_dir, runs_dir=runs_dir)
     arch = architecture(run_config(resolved.run))
     too_big = size_check(arch)

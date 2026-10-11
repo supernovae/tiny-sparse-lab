@@ -54,6 +54,8 @@ Replace `BASELINE.yaml` with your config and `TRY_ID` with the printed record ID
 choose a width different from your baseline (the TinyStories baseline is 256).
 `try` prepares data as needed, trains both arms, scores the same held-out protocol
 and runs fast probes. It reuses only a verified matching completed baseline.
+Use `--config standard`, `--config no-probes` or a [validated try declaration](docs/try-config.md)
+for paired seeds, probe policy and native runtime/resource settings.
 
 ## The everyday lab loop
 

@@ -534,7 +534,10 @@ there is no automatic empirical throughput search in this proposal interface.
 `data prepare`, `stage`, `train`, single-config `experiment submit`, and
 `experiment prepare` accept `--resource-envelope PATH`. For `experiment submit`,
 the option works with or without `--wait` and is rejected with `--matrix`.
-Policies are strict, frozen YAML mappings:
+`explore` also accepts that direct flag. `try` and `probe` select the same native
+envelope through declaration `resource_envelope` (see [try](try-config.md) and
+[probe](probe-config.md)); profile files use declaration `runtime_profile`, while
+`--runtime ID` remains available. Policies are strict, frozen YAML mappings:
 
 ```yaml
 resource_envelope_version: 1
@@ -548,6 +551,26 @@ max_workers: 4
 max_queue_depth: 1
 spill_to_disk: true
 ```
+
+Try envelopes may also include the optional scoped section:
+
+```yaml
+resource_envelope_version: 1
+lab_try:
+  max_wall_seconds_per_arm: 600
+  tokenizer_batch_documents: 32
+  tokenizer_batch_source_bytes: 1048576
+```
+
+`lab_try` applies only to try arms. A non-null section, including `{}`, is
+rejected by non-try CLI/native consumers before execution; remove it for
+`probe`, `explore`, `train`, `stage`, preparation or worker execution. Try
+resolves it into native trainer arguments, uses the tighter of declared and
+direct API limits, and delegates only common host/storage bounds. Full original
+envelopes remain in sealed try records. The wall limit must be positive and
+finite, with no implicit timeout. Batching uses strict integers (documents
+1–256, source bytes 1–8388608); omitted values retain native defaults (256 and
+1048576). Absent or null `lab_try` preserves legacy envelope serialization.
 
 All numeric limits are optional. Maxima are positive; minima are nonnegative;
 host fraction is in `(0, 1]`. Booleans are not integers. Unknown fields and

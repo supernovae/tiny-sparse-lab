@@ -15,7 +15,7 @@ into development data, so keep a separate, untouched final evaluation (a fresh
 data split, a longer run, more seeds) for any claim that an idea is better.
 
 ```sh
-# Every lab try runs the fast tier automatically (disable with --probe-tier none).
+# Every lab try runs the fast tier automatically (disable with --config no-probes).
 uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
 
 # Any run or checkpoint, any tier.
@@ -210,7 +210,7 @@ verdict, the status is `incomplete` and the action is `rerun`.
 Arms are loaded one at a time: per tier the baseline is loaded, measured and
 released, then the candidate is loaded, measured and judged probe by probe, so a
 battery never holds two models in memory. Inside `try` the battery runs under
-the try's own context (the same `CANCEL` sentinel, `--resource-envelope` and
+the try's own context (the same `CANCEL` sentinel, declaration `resource_envelope` and
 SIGINT/SIGTERM handling as training and scoring); standalone `probe` creates
 `LAB/probes/<id>/CANCEL` as its sentinel and reads a native envelope through declaration `resource_envelope: FILE`.
 The context is checked before each arm and before every probe. `stop.kind`
@@ -477,7 +477,7 @@ touches (one embedding row, the routed experts, the looked-up memory rows), and
 a grey bar spans each checkpoint's active → resident range. Points come from
 every verified lab record through `sparselab.probes.points` (shared with
 `compare`): each scored arm of every `try`, including tries run with
-`--probe-tier none`, every probe target and baseline, and the packaged
+`--config no-probes`, every probe target and baseline, and the packaged
 reference results (purple diamonds, lm-eval and fact recall). One point per
 (comparison group, checkpoint): compatible measurements are merged field by
 field, each keeping its newest available value with its source (`evidence`),

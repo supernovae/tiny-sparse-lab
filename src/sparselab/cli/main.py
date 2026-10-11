@@ -84,6 +84,7 @@ from sparselab.resource_envelope import (
     check_envelope,
     current_process_rss_bytes,
     load_resource_envelope,
+    require_envelope_applicability,
 )
 from sparselab.runtime_forecasting import runtime_forecast_planning
 from sparselab.runtime_profile import (
@@ -2469,13 +2470,30 @@ def _try(args: argparse.Namespace) -> None:
             lab_dir=args.lab_dir,
             seed=args.seed,
             backend=args.backend,
-            max_wall_seconds=args.max_wall_seconds,
             authorization=args.runtime_authorization,
             resource_envelope=args.resource_envelope_value,
-            tokenizer_batch_documents=args.tokenizer_batch_documents,
-            tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
             fresh_baseline=args.fresh_baseline,
             probe_tier=None if args.probe_tier == "none" else args.probe_tier,
+            request={
+                **args.try_config_loaded.model_dump(mode="json"),
+                "baseline": args.vs,
+                "backend_override": args.backend,
+                "runtime_id": args.runtime,
+                "runtime_profile_path": str(args.try_config_loaded.runtime_profile)
+                if args.try_config_loaded.runtime_profile is not None
+                else None,
+                "resource_envelope_path": str(args.try_config_loaded.resource_envelope)
+                if args.try_config_loaded.resource_envelope is not None
+                else None,
+                "runtime_profile": args.runtime_profile_loaded.model_dump(mode="json")
+                if args.runtime_profile_loaded is not None
+                else None,
+                "resource_envelope": args.resource_envelope_value.model_dump(
+                    mode="json"
+                )
+                if args.resource_envelope_value is not None
+                else None,
+            },
         )
     except (ValueError, OSError) as error:
         raise SystemExit(f"sparselab try: {error}") from None
@@ -2791,33 +2809,17 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "candidate", help="Lab delta YAML ({set: {dotted.field: value}}) or RunConfig"
     )
     lab_try.add_argument("--vs", required=True, help="Baseline RunConfig YAML")
-    lab_try.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
-    lab_try.add_argument("--seed", type=int, help="Override the seed of both arms")
+    lab_try.add_argument(
+        "--config",
+        default="fast",
+        metavar="PRESET_OR_YAML",
+        help="Validated try policy: fast, standard, full, no-probes or YAML path",
+    )
     lab_try.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
-    try_runtime = lab_try.add_mutually_exclusive_group()
-    try_runtime.add_argument("--runtime-profile", type=Path)
-    try_runtime.add_argument("--runtime", metavar="ID")
-    lab_try.add_argument("--resource-envelope", type=Path)
-    lab_try.add_argument(
-        "--max-wall-seconds",
-        type=float,
-        help="Optional per-arm wall limit; stops at a checkpointed step (default: none)",
-    )
-    lab_try.add_argument(
-        "--fresh-baseline",
-        action="store_true",
-        help="Retrain the baseline even if a completed identical one exists",
-    )
-    lab_try.add_argument(
-        "--probe-tier",
-        choices=("none", "fast", "standard", "full"),
-        default="fast",
-        help="Probe battery tier run on both arms after scoring (default: fast)",
-    )
+    lab_try.add_argument("--runtime", metavar="ID")
     lab_try.add_argument("--json", action="store_true")
-    _tokenizer_batch_arguments(lab_try)
     lab_try.set_defaults(handler=_try)
     lab_report = commands.add_parser(
         "report", help="Show a sealed lab try record (read-only)"
@@ -3979,6 +3981,10 @@ def _is_config_submission(args: argparse.Namespace) -> bool:
 
 def _prepare_runtime_command(args: argparse.Namespace) -> None:
     """Gate direct execution before the CLI creates its scratch directory."""
+    if args.command == "try":
+        from sparselab.try_config import prepare_try_config
+
+        prepare_try_config(args)
     if args.command == "explore":
         from sparselab.explore_config import prepare_explore_config
 
@@ -4284,7 +4290,7 @@ def main() -> None:
         except ValueError as error:
             parser.error(str(error))
     if (
-        args.command in {"stage", "train", "try"}
+        args.command in {"stage", "train"}
         or _is_config_submission(args)
         or (args.command == "data" and args.data_command == "prepare")
         or (
@@ -4302,6 +4308,13 @@ def main() -> None:
             if args.tokenizer_batch_source_bytes is not None
             else TOKENIZER_BATCH_SOURCE_BYTES,
         )
+    if args.command == "try":
+        from sparselab.try_config import prepare_try_config
+
+        try:
+            prepare_try_config(args)
+        except (ValueError, OSError) as error:
+            raise SystemExit(f"sparselab try: {error}") from None
     if args.command == "probe":
         from sparselab.probes.config import prepare_probe_config
 
@@ -4313,6 +4326,9 @@ def main() -> None:
         try:
             args.resource_envelope_value = load_resource_envelope(
                 args.resource_envelope
+            )
+            require_envelope_applicability(
+                args.resource_envelope_value, operation=args.command
             )
         except (ValueError, OSError) as error:
             raise SystemExit(f"sparselab: {error}") from None
@@ -4377,7 +4393,11 @@ def main() -> None:
             workspace = args.work_dir or Path.cwd()
         try:
             check_envelope(
-                args.resource_envelope_value,
+                # Try resolves scoped limits at its controller boundary; this
+                # preflight only measures the common host/storage constraints.
+                args.resource_envelope_value.model_copy(update={"lab_try": None})
+                if args.command == "try"
+                else args.resource_envelope_value,
                 workspace=workspace,
                 rss_bytes=current_process_rss_bytes(),
             )

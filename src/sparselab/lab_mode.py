@@ -675,25 +675,35 @@ def run_try(
     train_fn: Callable[..., str] | None = None,
     now: Callable[[], datetime] | None = None,
     probe_tier: str | None = "fast",
+    request: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """Train/score baseline and candidate locally and write one lab record."""
     from sparselab.config.loading import load_config
-    from sparselab.data.encoding import (
-        TOKENIZER_BATCH_DOCUMENTS,
-        TOKENIZER_BATCH_SOURCE_BYTES,
-    )
     from sparselab.data.legacy import require_current_dataset
     from sparselab.derivation import _config, _delta, derive_config
     from sparselab.experiments.compiler import patchable_config
-    from sparselab.resource_envelope import check_envelope, current_process_rss_bytes
+    from sparselab.resource_envelope import (
+        check_envelope,
+        current_process_rss_bytes,
+        resolve_lab_try_limits,
+    )
     from sparselab.training.manifest import source_identity
 
     if train_fn is None:
         from sparselab.training.trainer import train as train_fn
-    if max_wall_seconds is not None and (
-        not math.isfinite(max_wall_seconds) or max_wall_seconds <= 0
-    ):
-        raise ValueError("--max-wall-seconds must be positive and finite")
+    declared_envelope = resource_envelope
+    max_wall_seconds, tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+        resolve_lab_try_limits(
+            resource_envelope,
+            max_wall_seconds=max_wall_seconds,
+            tokenizer_batch_documents=tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+        )
+    )
+    # Scoped limits are now explicit native trainer arguments. Delegated
+    # consumers receive only common bounds and cannot silently ignore lab_try.
+    if resource_envelope is not None and resource_envelope.lab_try is not None:
+        resource_envelope = resource_envelope.model_copy(update={"lab_try": None})
     started_at = (now or (lambda: datetime.now(UTC)))()
     started = time.monotonic()
     root = lab_root(Path(work_dir), lab_dir)
@@ -727,6 +737,8 @@ def run_try(
         "arms": {},
         "status": "started",
     }
+    if request is not None:
+        record["request"] = request
     exit_status = 0
     setup_error: BaseException | None = None
     context.install()
@@ -870,10 +882,12 @@ def run_try(
         record["resources"].update(
             {
                 "resource_envelope": None
-                if resource_envelope is None
-                else resource_envelope.model_dump(mode="json"),
+                if declared_envelope is None
+                else declared_envelope.model_dump(mode="json"),
                 "envelope_reading": envelope_reading,
                 "max_wall_seconds_per_arm": max_wall_seconds,
+                "tokenizer_batch_documents": tokenizer_batch_documents,
+                "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
             }
         )
         measurements: dict[str, Any] | None = {} if probe_tier is not None else None
@@ -881,10 +895,8 @@ def run_try(
             "max_wall_seconds": max_wall_seconds,
             "authorization": authorization,
             "measurements": measurements,
-            "tokenizer_batch_documents": tokenizer_batch_documents
-            or TOKENIZER_BATCH_DOCUMENTS,
-            "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes
-            or TOKENIZER_BATCH_SOURCE_BYTES,
+            "tokenizer_batch_documents": tokenizer_batch_documents,
+            "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
             "train_fn": train_fn,
             "context": context,
         }

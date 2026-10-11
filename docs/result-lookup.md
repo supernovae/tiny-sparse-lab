@@ -34,9 +34,9 @@ This pins both sides; there is no record selector for a try's baseline arm.
 All four commands use the same lookup:
 
 - A record ID is looked up under `LAB/tries` and `LAB/probes`, where `LAB`
-  defaults to `WORK_DIR/lab`. `--lab-dir` selects another lab for `try`, `compare` and `report`;
-  `probe` and `explore` use the `lab_dir` field of their declarations
-  ([probe](probe-config.md), [explore](explore-config.md)).
+  defaults to `WORK_DIR/lab`. `--lab-dir` selects another lab for `compare`
+  and `report`; `try`, `probe` and `explore` use declaration `lab_dir`
+  ([try](try-config.md), [probe](probe-config.md), [explore](explore-config.md)).
 - Bare IDs also match existing entries in the current working directory,
   preserving the previous local-path lookup. If that is the only match, it is
   used; if a lab location also matches, lookup reports `ambiguous_result`.
@@ -84,15 +84,14 @@ PyTorch inference by a backend override.
 
 ## Scope of the everyday-command audit
 
-This change consolidates lookup and diagnostics. It does **not** complete the
-option-reduction work: `try` still exceeds five relevant
-options in beginner help. Follow-up work must move scientific controls into
-validated declarations and runtime controls into the existing profiles/envelopes,
-with caller and documentation migration, rather than hiding executable flags.
-`probe` and `explore` now have five options and validated declarations; see
-[probe declarations](probe-config.md) and [explorer declarations](explore-config.md).
+The everyday commands now expose at most five executable options, excluding
+help: try 5, probe 5, explore 5, compare 5, report 2. Scientific controls live
+in validated declarations and runtime controls use native profiles/envelopes.
+See [try declarations](try-config.md), [probe declarations](probe-config.md)
+and [explorer declarations](explore-config.md). Removed flags are rejected,
+not hidden aliases.
 
-| Command | Distinct semantics to retain in that follow-up |
+| Command | Retained distinct semantics |
 | --- | --- |
 | `try` | Derive a candidate, paired seed override, baseline reuse, held-out scoring, optional probe tier, checkpointed wall/resource stops. |
 | `probe` | Explicit baseline, tier and final split; early-stop policy; benchmark tasks/limit change benchmark identity. |

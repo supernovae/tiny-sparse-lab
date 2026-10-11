@@ -277,7 +277,7 @@ def _unprobed_tries(snap: lab_data.LabSnapshot) -> None:
     if rows:
         with st.expander(f"{len(rows)} lab try(s) without a probe battery"):
             st.caption(
-                "These tries recorded held-out loss only (`--probe-tier none` or an "
+                "These tries recorded held-out loss only (`--config no-probes` or an "
                 "older version). Probe the candidate to get a verdict:"
             )
             for row in rows:

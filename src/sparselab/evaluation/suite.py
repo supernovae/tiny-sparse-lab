@@ -15,7 +15,7 @@ from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
 from sparselab.config.models import StrictModel
 from sparselab.engines.base import EngineCapabilityError
 from sparselab.experiments.plan import read_document
-from sparselab.runtime_profile import RuntimeAuthorization
+from sparselab.runtime_profile import RuntimeAuthorization, RuntimeAuthorizationRequired
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
@@ -274,17 +274,6 @@ def run_suite(
             **verification,
         )
     except (EngineCapabilityError, NotImplementedError, ValueError) as error:
-        authorization_reason = (
-            "requires --runtime-profile or a registered compatible worker"
-        )
-        runtime_backend = backend
-        if runtime_backend is None and str(error).endswith(authorization_reason):
-            runtime_backend = evaluation_config(
-                run_id, runs_dir, checkpoint, backend, **verification
-            ).runtime.backend
-        authorization_missing = (
-            str(error) == f"{runtime_backend} {authorization_reason}"
-        )
         if (
             not isinstance(error, (EngineCapabilityError, NotImplementedError))
             and not any(
@@ -295,7 +284,7 @@ def run_suite(
                     "MLX inference only supports the stored metal backend",
                 )
             )
-            and not authorization_missing
+            and not isinstance(error, RuntimeAuthorizationRequired)
         ):
             raise
         unavailable_backend = str(error)
