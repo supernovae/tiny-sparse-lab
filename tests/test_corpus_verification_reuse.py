@@ -197,6 +197,46 @@ def test_distinct_process_receipts_and_independent_cold(
     ] == snapshot_shas
 
 
+def test_operation_memo_survives_reads_and_adjacent_export(
+    corpus: tuple[Path, Path, Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Consumer reads and sibling publication must preserve the complete seal."""
+    root, release, fixture_export, _ = corpus
+    manifests = [release / "manifest.json"] + [
+        path / "manifest.json" for path in _snapshot_paths(release)
+    ]
+    original = [path.read_bytes() for path in manifests]
+    real_files = release_module._files
+    scans = 0
+
+    def counted(path: Path, inventory: dict) -> None:
+        nonlocal scans
+        if path == release:
+            scans += 1
+        real_files(path, inventory)
+
+    monkeypatch.setattr(release_module, "_files", counted)
+    with _verification_operation():
+        manifest = verify_release(release)
+        key = release_module._release_closure_key(release, manifest)
+        for path in (release / "lm").glob("*.jsonl"):
+            path.read_bytes()
+        # This creates a new export beside the authenticated release, including
+        # publication staging and directory metadata changes outside its closure.
+        changed = tmp_path / "base.yaml"
+        changed.write_text(CONFIG.read_text().replace("seed: 7", "seed: 11"))
+        export = export_release(release, "lm", changed, 300, root)
+        assert export != fixture_export
+        assert export.is_dir()
+        with _verification_operation():
+            assert verify_release(release) == manifest
+        assert release_module._release_closure_key(release, manifest) == key
+    assert scans == 1
+    assert [path.read_bytes() for path in manifests] == original
+
+
 def test_operation_memo_rejects_payload_and_snapshot_change(
     corpus: tuple[Path, Path, Path, Path], tmp_path: Path
 ) -> None:

@@ -449,8 +449,7 @@ def test_cli_export_authenticates_release_once(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
 ) -> None:
-    import argparse
-
+    from sparselab.cli.main import build_parser
     from sparselab.corpus import release as publication
     from sparselab.corpus.cli import _handle
 
@@ -466,13 +465,20 @@ def test_cli_export_authenticates_release_once(
 
     monkeypatch.setattr(publication, "_files", observe_files)
     _handle(
-        argparse.Namespace(
-            work_dir=tmp_path / "work",
-            corpus_command="export",
-            release=str(release),
-            view="lm",
-            base_run_config="configs/runtime_smoke_cpu.yaml",
-            vocab_size=300,
+        build_parser().parse_args(
+            [
+                "--work-dir",
+                str(tmp_path / "work"),
+                "corpus",
+                "export",
+                str(release),
+                "--view",
+                "lm",
+                "--base-run-config",
+                "configs/runtime_smoke_cpu.yaml",
+                "--vocab-size",
+                "300",
+            ]
         )
     )
     exported = Path(capsys.readouterr().out.strip())
