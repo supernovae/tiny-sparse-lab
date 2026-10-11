@@ -405,7 +405,9 @@ def require_authorization(
         or authorization._token is not _TOKEN
     ):
         raise ValueError(
-            f"{backend} requires --runtime-profile or a registered compatible worker"
+            f"{backend} requires --runtime ID or an explicit profile "
+            "(try/probe: declaration runtime_profile; other commands: "
+            "--runtime-profile PATH), or a registered compatible worker"
         )
     evidence = authorization.as_dict()
     probe = evidence["probe"]

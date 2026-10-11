@@ -463,3 +463,27 @@ def test_shared_resource_boundary_rejects_unconsumed_try_limits(tmp_path, monkey
     )
     with pytest.raises(ValueError, match="lab_try limits apply only to try"):
         resource.check_envelope(envelope, workspace=tmp_path, rss_bytes=0)
+
+
+@pytest.mark.parametrize("command", ["try", "probe", "train"])
+def test_accelerator_error_names_valid_runtime_selectors(
+    tmp_path, monkeypatch, command
+):
+    from test_lab_results import _run
+
+    baseline = Path(__file__).resolve().parents[1] / "configs/smoke_cpu.yaml"
+    if command == "try":
+        args = ["try", "missing", "--vs", str(baseline)]
+    elif command == "probe":
+        args = ["probe", str(_run(tmp_path / "lab", backend="cuda"))]
+    else:
+        args = ["train", str(baseline)]
+    with pytest.raises(SystemExit) as error:
+        _cli(monkeypatch, tmp_path, *args, "--backend", "cuda")
+    message = str(error.value)
+    assert "cuda requires --runtime ID" in message
+    assert "try/probe: declaration runtime_profile" in message
+    assert "other commands: --runtime-profile PATH" in message
+    assert "registered compatible worker" in message
+    assert not (tmp_path / "lab/tries").exists()
+    assert not (tmp_path / "lab/probes").exists()

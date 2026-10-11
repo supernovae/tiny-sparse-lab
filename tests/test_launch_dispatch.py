@@ -340,10 +340,11 @@ def test_submission_resource_envelope_is_checked_at_store_before_creation(
     tmp_path, monkeypatch
 ):
     import sparselab.cli.main as main_cli
+    from sparselab.resource_envelope import ResourceEnvelope
 
     store = tmp_path / "controller"
     work = tmp_path / "work"
-    envelope = object()
+    envelope = ResourceEnvelope(resource_envelope_version=1)
     monkeypatch.setattr(main_cli, "load_resource_envelope", lambda _: envelope)
 
     def reject(selected, *, workspace, **kwargs):
