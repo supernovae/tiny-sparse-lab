@@ -995,31 +995,6 @@ def _triage_report(
     return report, None
 
 
-def _triage(args: argparse.Namespace) -> None:
-    report, error = _triage_report(args.run_id, Path(args.runs_dir))
-    overlay = (
-        surface_review_status(args.run_id, Path(args.runs_dir), Path(args.surface_dir))
-        if args.surface_dir is not None
-        else None
-    )
-    if args.json:
-        payload = (
-            report if report is not None else {"status": "UNKNOWN", "reason": error}
-        )
-        if overlay is not None:
-            payload = {"triage": payload, "surface_review": overlay}
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return
-    summary = _triage_summary(
-        report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir)
-    )
-    if overlay is not None:
-        summary += f"\nSURFACE REVIEW (read-only)\n  Independent subjective quality: {overlay['independent_subjective_quality']}"
-        for bundle in overlay["bundles"]:
-            summary += f"\n  {bundle['status']}: {bundle['path']}"
-    print(summary)
-
-
 def _checkpoint_plan_spot(args: argparse.Namespace) -> None:
     from sparselab.training.spot_safety import check_spot_capacity, load_spot_policy
 
@@ -1185,11 +1160,6 @@ def _model_exercise(args: argparse.Namespace) -> None:
     )
     output = write_observation(observation, output_root)
     print(json.dumps({**observation, "output": str(output)}, indent=2, sort_keys=True))
-
-
-def _evidence(args: argparse.Namespace) -> None:
-    result = experiment_evidence(Path(args.runs_dir) / args.run_id)
-    print(json.dumps(result, indent=2, sort_keys=True) if args.json else result)
 
 
 def _capability_list(args: argparse.Namespace) -> None:
@@ -1863,37 +1833,6 @@ def _research_scaffold(args: argparse.Namespace) -> None:
     print(path)
 
 
-def _research_status(args: argparse.Namespace) -> None:
-    from sparselab.research.lifecycle import research_status
-
-    registry, evidence_root = _lifecycle_registry(args)
-    payload = research_status(registry, evidence_root=evidence_root)
-    if args.study:
-        from sparselab.experiments.study import plan_study
-
-        payload["research_diagnostics"] = _research_diagnostics(
-            registry, study_sha256=plan_study(Path(args.study)).study_sha256
-        )
-    elif args.protocol_sha256:
-        payload["research_diagnostics"] = _research_diagnostics(
-            registry, protocol_sha256=args.protocol_sha256
-        )
-    print(json.dumps(payload, indent=2, sort_keys=True))
-
-
-def _research_next(args: argparse.Namespace) -> None:
-    from sparselab.research.lifecycle import next_experiments
-
-    registry, evidence_root = _lifecycle_registry(args)
-    print(
-        json.dumps(
-            next_experiments(registry, evidence_root=evidence_root),
-            indent=2,
-            sort_keys=True,
-        )
-    )
-
-
 def _research_baseline_list(args: argparse.Namespace) -> None:
     from sparselab.research.lifecycle import research_status
 
@@ -2507,8 +2446,123 @@ def _try(args: argparse.Namespace) -> None:
         raise SystemExit(record["exit_status"])
 
 
+def _report_run(args: argparse.Namespace) -> None:
+    """Keep verified observations and advisory triage separate in one run view."""
+    run_id = args.record
+    if Path(run_id).name != run_id or run_id in {".", ".."}:
+        raise SystemExit("sparselab report: run ID must be one safe path component")
+    runs_dir = (
+        Path(args.runs_dir)
+        if args.runs_dir
+        else resolve_work_dir(args.work_dir) / "runs"
+    )
+    try:
+        manifest = runs_dir / run_id / "manifest.json"
+        if not manifest.exists() and not manifest.is_symlink():
+            raise FileNotFoundError(f"run manifest unavailable: {manifest}")
+        evidence = experiment_evidence(runs_dir / run_id)
+    except FileNotFoundError as error:
+        evidence = {"status": "missing_evidence", "reason": str(error)}
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        evidence = {"status": "invalid_evidence", "reason": str(error)}
+    triage, error = _triage_report(run_id, runs_dir)
+    payload = {
+        "format": "sparselab-run-report-v1",
+        "run_id": run_id,
+        "evidence": evidence,
+        "triage": triage
+        if triage is not None
+        else {"status": "UNKNOWN", "reason": error},
+    }
+    if args.surface_dir is not None:
+        payload["surface_review"] = surface_review_status(
+            run_id, runs_dir, Path(args.surface_dir)
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"RUN EVIDENCE: {run_id}")
+        print(json.dumps(evidence, indent=2, sort_keys=True))
+        print(_triage_summary(triage, error, run_id=run_id, runs_dir=runs_dir))
+        if "surface_review" in payload:
+            print("SURFACE REVIEW (read-only)")
+            print(json.dumps(payload["surface_review"], indent=2, sort_keys=True))
+    if evidence.get("status") in {"missing_evidence", "invalid_evidence"}:
+        raise SystemExit(1)
+
+
+def _report_research(args: argparse.Namespace) -> None:
+    """Show declared lifecycle state and next tests, never authorize a run."""
+    from sparselab.research.lifecycle import next_experiments, research_status
+
+    registry, evidence_root = _lifecycle_registry(args)
+    status = research_status(registry, evidence_root=evidence_root)
+    if args.study:
+        from sparselab.experiments.study import plan_study
+
+        status["research_diagnostics"] = _research_diagnostics(
+            registry, study_sha256=plan_study(Path(args.study)).study_sha256
+        )
+    elif args.protocol_sha256:
+        status["research_diagnostics"] = _research_diagnostics(
+            registry, protocol_sha256=args.protocol_sha256
+        )
+    print(
+        json.dumps(
+            {
+                "format": "sparselab-research-report-v1",
+                "status": status,
+                "next": next_experiments(registry, evidence_root=evidence_root),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
 def _report(args: argparse.Namespace) -> None:
-    """Read one sealed lab try or probe record without rerunning anything."""
+    """Read results through native readers without rerunning or publishing anything."""
+    from sparselab.report_config import ReportConfig, load_report_config
+
+    try:
+        config = (
+            load_report_config(args.config)
+            if args.config is not None
+            else ReportConfig(report_config_version=1)
+        )
+    except (OSError, ValueError, TypeError) as error:
+        raise SystemExit(f"sparselab report: invalid report config: {error}") from None
+    for field in ("surface_dir", "lifecycle", "study", "protocol_sha256"):
+        setattr(args, field, getattr(config, field))
+    args.evidence_root = str(config.evidence_root)
+    selectors = {
+        "record": ("lab_dir",),
+        "run": ("runs_dir", "surface_dir"),
+        "research": ("lifecycle", "study", "protocol_sha256"),
+    }
+    for kind, fields in selectors.items():
+        if kind != args.kind and any(
+            getattr(args, field) is not None for field in fields
+        ):
+            raise SystemExit(
+                f"sparselab report: {kind} selectors require --kind {kind}"
+            )
+    if args.kind != "research" and "evidence_root" in config.model_fields_set:
+        raise SystemExit("sparselab report: evidence_root requires --kind research")
+    if args.kind == "record" and args.config is not None:
+        raise SystemExit("sparselab report: --config requires --kind run or research")
+    if args.kind == "research":
+        if args.record is not None:
+            raise SystemExit(
+                "sparselab report: --kind research uses lifecycle in --config, not a record ID"
+            )
+        _report_research(args)
+        return
+    if args.record is None:
+        raise SystemExit("sparselab report: a record or run ID is required")
+    if args.kind == "run":
+        _report_run(args)
+        return
     from sparselab.lab_mode import lab_root, summarize
     from sparselab.lab_records import read_lab_record
     from sparselab.lab_results import resolve_record
@@ -2678,8 +2732,6 @@ FAST_PATH_COMMANDS = (
     "inspect",
     "train",
     "eval",
-    "evidence",
-    "triage",
     "generate",
     "chat",
     "dashboard",
@@ -2822,13 +2874,21 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     lab_try.add_argument("--json", action="store_true")
     lab_try.set_defaults(handler=_try)
     lab_report = commands.add_parser(
-        "report", help="Show a sealed lab try record (read-only)"
+        "report",
+        help="Read sealed results, run evidence or declared research (no compute)",
     )
     lab_report.add_argument(
-        "record", help="try.json/probe.json, its folder, or a try/probe id"
+        "record", nargs="?", help="try/probe record; run ID with --kind run"
+    )
+    lab_report.add_argument(
+        "--kind", choices=("record", "run", "research"), default="record"
     )
     lab_report.add_argument("--lab-dir", type=Path)
     lab_report.add_argument("--json", action="store_true")
+    lab_report.add_argument("--runs-dir", help="Saved run location for --kind run")
+    lab_report.add_argument(
+        "--config", type=Path, help="Advanced read-only report selectors YAML"
+    )
     lab_report.set_defaults(handler=_report)
     lab_compare = commands.add_parser(
         "compare",
@@ -3273,17 +3333,6 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     training.add_argument("--resource-envelope", type=Path)
     _tokenizer_batch_arguments(training)
     training.set_defaults(handler=_train)
-    triage = commands.add_parser(
-        "triage",
-        help="Read an existing verified post-train triage report (no diagnostics).",
-    )
-    triage.add_argument("run_id")
-    triage.add_argument("--runs-dir", default=runs_dir_default)
-    triage.add_argument("--json", action="store_true")
-    triage.add_argument(
-        "--surface-dir", help="Optional directory of verified Surface Review bundles"
-    )
-    triage.set_defaults(handler=_triage)
     model = commands.add_parser("model")
     model_commands = model.add_subparsers(dest="model_command", required=True)
     model_exercise = model_commands.add_parser(
@@ -3317,18 +3366,6 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     eval_runtime.add_argument("--runtime-profile", type=Path)
     eval_runtime.add_argument("--runtime", metavar="ID")
     evaluation.set_defaults(handler=_eval)
-    evidence = commands.add_parser(
-        "evidence",
-        help="Summarize verified checkpoints and held-out observations for a local run.",
-    )
-    evidence.add_argument("run_id")
-    evidence.add_argument(
-        "--runs-dir",
-        default=runs_dir_default,
-        help="Run directory (default: selected persistent state root/runs)",
-    )
-    evidence.add_argument("--json", action="store_true")
-    evidence.set_defaults(handler=_evidence)
     capability = commands.add_parser(
         "capability",
         help="Evaluate or compare a versioned narrow capability card.",
@@ -3519,15 +3556,6 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         command.add_argument("--evidence-root", default=".")
         command.add_argument("--json", action="store_true")
 
-    research_status = research_commands.add_parser("status")
-    lifecycle_arguments(research_status)
-    status_scope = research_status.add_mutually_exclusive_group()
-    status_scope.add_argument("--study")
-    status_scope.add_argument("--protocol-sha256")
-    research_status.set_defaults(handler=_research_status)
-    research_next = research_commands.add_parser("next")
-    lifecycle_arguments(research_next)
-    research_next.set_defaults(handler=_research_next)
     baseline = research_commands.add_parser("baseline")
     baseline_commands = baseline.add_subparsers(dest="baseline_command", required=True)
     baseline_list = baseline_commands.add_parser("list")
@@ -4214,8 +4242,6 @@ def _read_only_command(args: argparse.Namespace) -> bool:
             "snapshot",
             "list",
             "describe",
-            "status",
-            "next",
             "validate",
             "baseline",
         }
@@ -4234,8 +4260,6 @@ def _read_only_command(args: argparse.Namespace) -> bool:
     return args.command in {
         "inspect",
         "checkpoint",
-        "evidence",
-        "triage",
         "report",
         "compare",
     }

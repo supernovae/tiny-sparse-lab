@@ -234,7 +234,7 @@ Every serious local run should have verified checkpoint/held-out evidence before
 
 ```sh
 uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/RUN_ID/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab evidence RUN_ID --json
+uv run --locked --extra cpu sparselab report --kind run RUN_ID --json
 ```
 
 Training records held-out validation at initial, configured periodic, and terminal boundaries. A validation metric is not by itself a saved model: checkpoint cadence, a new best loss, or termination triggers a verified generation. Use checkpoint-bound evaluation reports when claiming results for exact weights. See [experiment evidence](evidence.md) for evidence levels, controlled-comparison requirements, and the separately unimplemented hardware/reference-harness protocol.

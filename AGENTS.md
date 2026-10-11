@@ -30,6 +30,13 @@ See [result lookup](docs/result-lookup.md). Standalone
 `probe` inherits the saved backend unless explicitly overridden; the CPU extra
 installs a framework but does not override a saved CUDA/ROCm backend.
 
+Use `report RUN_ID --kind run` for verified run evidence and saved triage together;
+JSON keeps them under separate `evidence` and `triage` keys, plus an optional
+`surface_review` overlay selected by strict `--config` YAML.
+`report --kind research` shows declared status and next
+tests under separate `status` and `next` keys. See [result reports](docs/result-reports.md).
+These views never train, create a run store or grant release/compute authority.
+
 Every try also runs the fast [probe battery](docs/probe-battery.md) tier; use
 `sparselab probe RUN --vs BASE --backend cpu --config standard --json`
 (or `--config full`) for more. Act on

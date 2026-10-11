@@ -22,10 +22,9 @@ Inspect a retained reference through the native lifecycle before planning a
 child. Set `BASELINE_ID` to the declared baseline you intend to inspect:
 
 ```sh
-uv run --locked --extra cpu sparselab research status --json
+uv run --locked --extra cpu sparselab report --kind research --json
 uv run --locked --extra cpu sparselab research baseline describe "$BASELINE_ID"
 uv run --locked --extra cpu sparselab research validate --baseline "$BASELINE_ID"
-uv run --locked --extra cpu sparselab research next --json
 ```
 
 Historical evidence and locally available checkpoint bytes are different states.
@@ -45,6 +44,6 @@ The dated capture record is `artifacts/acceptance/dense_small_v1_2026_09_26.json
 
 A Finding records conditions, evidence, bounded claims, reviewer attribution, disposition, rationale, next action, and reopen conditions. Dispositions are: **rejected** (unsupported under declared conditions), **inconclusive** (unanswered), **learning** (useful evidence without justified compute), **replicate** (independent repetition justified), **scale** (replicated evidence warrants larger compute), and **promote** (eligible for integrated baseline review). Stages are descriptive: mechanism, micro, replicate, scale, confirm, promote. Maturity axes are independent implementation, capability, efficiency, and portability declarations; no axis numerically ranks another.
 
-Use `sparselab research status`, `research next`, and `research baseline describe ID` to inspect declared branches and evidence availability. `research next` is a declared next-test view, not optimal planning. A prior-design advisory never blocks planning; changing the sealed study/protocol identity can make equivalence unassessed.
+Use `sparselab report --kind research` and `research baseline describe ID` to inspect declared branches and evidence availability. `report --kind research` is a declared next-test view, not optimal planning. A prior-design advisory never blocks planning; changing the sealed study/protocol identity can make equivalence unassessed.
 
 Promotion is an explicit reviewed lifecycle JSON change, never a metric trigger. A known-good baseline needs an accepted promotion and complete preparation, training, checkpoint, validation, capability, generation, resources, and static-report evidence. A replacement also needs its parent’s required regressions, identity-bound passed outcomes, a resource tradeoff, and explicit `supersedes`; parallel promotion leaves its parent active. Run `sparselab research validate --json` before relying on a declaration. Keep independent mechanism branches interpretable; a combined candidate needs its own campaign and regressions.

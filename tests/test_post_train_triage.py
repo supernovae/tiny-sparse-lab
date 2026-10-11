@@ -105,3 +105,330 @@ def test_viewer_rejects_unsafe_run_and_conflicting_artifacts(tmp_path: Path) -> 
     (directory / "outside.json").symlink_to(tmp_path / "unowned.json")
     with pytest.raises(ValueError):
         read_triage("run", tmp_path)
+
+
+def _triage_shape_fixture(tmp_path: Path) -> dict:
+    """A sealed advisory fixture with unknown diagnostics; no model work."""
+    from sparselab.evaluation import post_train_triage as triage
+
+    return {
+        "format": triage.FORMAT,
+        "inputs": {},
+        "core": {
+            "integrity": {"status": "UNKNOWN"},
+            "loss": {"trend": "insufficient_history", "points": []},
+        },
+        "tier1": {"status": "UNKNOWN", "greedy": [], "sampled": []},
+        "surfaces": {
+            "review": {"applicability": "UNKNOWN", "observation": "NOT_TESTED"}
+        },
+        "triggers": {
+            code: {
+                "fired": None,
+                "operands": {},
+                "threshold": None,
+                "missing_data_reason": "fixture",
+            }
+            for code in triage._TRIGGERS
+        },
+        "diagnostics": {
+            code: {
+                "status": "UNKNOWN",
+                "estimated_cost_class": "negligible",
+                "requires_training": False,
+            }
+            for code in triage._TRIGGERS
+        },
+        "recommendations": [
+            {
+                "action": "inspect",
+                "trigger": triage._TRIGGERS[0],
+                "estimated_cost_class": "negligible",
+                "requires_training": False,
+            }
+        ],
+        "known_unknowns": [],
+    }
+
+
+def _write_triage_shape(tmp_path: Path, payload: object) -> Path:
+    from sparselab.evaluation.post_train_triage import _sha
+    from sparselab.training.manifest import canonical_json, sha256_file
+
+    if isinstance(payload, dict):
+        payload["identity"] = {
+            "sha256": _sha(payload),
+            "run_id": "run",
+            "manifest_sha256": _sha({"run_id": "run"}),
+        }
+    folder = tmp_path / "run" / "post-train-triage"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "fixture.json"
+    path.write_bytes(canonical_json(payload) + b"\n")
+    sealed = folder / (sha256_file(path) + ".json")
+    path.rename(sealed)
+    return sealed
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        (("core",), None),
+        (("recommendations",), {}),
+        (("known_unknowns",), {}),
+        (("core", "integrity", "status"), []),
+        (("core", "loss", "trend"), {}),
+        (("tier1", "status"), []),
+        (("surfaces", "review", "applicability"), []),
+        (("surfaces", "review", "observation"), {}),
+        (("diagnostics", "LOSS_BEHAVIOR_DIVERGENCE", "status"), []),
+        (("diagnostics", "LOSS_BEHAVIOR_DIVERGENCE", "estimated_cost_class"), {}),
+        (("recommendations", 0, "estimated_cost_class"), []),
+        ((), []),
+    ],
+)
+def test_malformed_sealed_triage_is_value_error_and_cli_unknown(tmp_path, field, value):
+    from sparselab.cli.main import _triage_report
+
+    payload = _triage_shape_fixture(tmp_path)
+    if field:
+        current = payload
+        for key in field[:-1]:
+            current = current[key]
+        current[field[-1]] = value
+    else:
+        payload = value
+    path = _write_triage_shape(tmp_path, payload)
+    before = path.read_bytes()
+    with pytest.raises(ValueError):
+        read_triage("run", tmp_path)
+    report, reason = _triage_report("run", tmp_path)
+    assert report is None
+    assert "invalid or ambiguous artifact" in reason
+    assert path.read_bytes() == before
+
+
+def test_valid_shape_fixture_and_nonobject_progress(tmp_path, monkeypatch):
+    from sparselab.evaluation import post_train_triage as triage
+
+    payload = _triage_shape_fixture(tmp_path)
+    path = _write_triage_shape(tmp_path, payload)
+    (path.parent.parent / "manifest.json").write_text("{}")
+    before = path.read_bytes()
+    monkeypatch.setattr(triage, "read_manifest", lambda path: {"run_id": "run"})
+    progress = tmp_path / "run" / "progress.json"
+    progress.write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "manifest_sha256": payload["identity"]["manifest_sha256"],
+            }
+        )
+    )
+    assert read_triage("run", tmp_path) == payload
+    progress.write_text("[]")
+    with pytest.raises(ValueError, match="expected JSON object"):
+        read_triage("run", tmp_path)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("value", [[], "scalar", 42, None, True])
+def test_nonobject_manifest_is_local_value_error(tmp_path, value):
+    from sparselab.training.manifest import read_manifest
+
+    path = _write_triage_shape(tmp_path, _triage_shape_fixture(tmp_path))
+    manifest = path.parent.parent / "manifest.json"
+    manifest.write_text(json.dumps(value))
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    # The native reader's contract for its other callers remains unchanged.
+    with pytest.raises(TypeError, match="manifest must be a JSON object"):
+        read_manifest(manifest)
+    with pytest.raises(ValueError, match="expected JSON object: manifest.json"):
+        read_triage("run", tmp_path)
+    assert before == {
+        str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    }
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("requested_config", []),
+        ("effective_config", 1),
+        ("model", []),
+        ("attention", []),
+        ("memory", []),
+        ("artifacts", {}),
+    ],
+)
+def test_manifest_nested_shape_errors_are_local_value_error(tmp_path, field, value):
+    from sparselab.evaluation.post_train_triage import _sha
+    from sparselab.training.manifest import (
+        ARCHITECTURE_VERSION,
+        IDENTITY_VERSION,
+        architecture_sha256,
+        config_sha256,
+        read_manifest,
+    )
+
+    path = _write_triage_shape(tmp_path, _triage_shape_fixture(tmp_path))
+    data = {
+        "manifest_version": 1,
+        "architecture_version": ARCHITECTURE_VERSION,
+        "identity_version": IDENTITY_VERSION,
+        "requested_config": {},
+        "effective_config": {"model": {}, "attention": {}},
+        "artifacts": [],
+    }
+    data["architecture_sha256"] = architecture_sha256(data["effective_config"])
+    if field in {"model", "attention"}:
+        data["effective_config"][field] = value
+    elif field == "memory":
+        data["effective_config"]["model"][field] = value
+        data["effective_config"]["model"]["memory_table_size"] = 2
+    else:
+        data[field] = value
+    for config_name in ("requested_config", "effective_config"):
+        config = data[config_name]
+        data[config_name + "_sha256"] = (
+            config_sha256(config) if isinstance(config, dict) else "malformed"
+        )
+    data["sha256"] = _sha(data)
+    manifest = path.parent.parent / "manifest.json"
+    manifest.write_text(json.dumps(data))
+    before = manifest.read_bytes(), path.read_bytes()
+    with pytest.raises(TypeError):
+        read_manifest(manifest)
+    with pytest.raises(ValueError, match="post-train triage manifest"):
+        read_triage("run", tmp_path)
+    assert (manifest.read_bytes(), path.read_bytes()) == before
+
+
+def _triage_pass_fixture(tmp_path):
+    from sparselab.evaluation.post_train_triage import _sha
+    from sparselab.training.manifest import canonical_json
+
+    manifest = {"manifest_version": 1, "run_id": "run"}
+    manifest["sha256"] = _sha(manifest)
+    bound_manifest = {key: value for key, value in manifest.items() if key != "sha256"}
+    payload = _triage_shape_fixture(tmp_path)
+    checkpoint = {"manifest_sha256": _sha(bound_manifest), "step": 0, "tokens_seen": 0}
+    checkpoint["sha256"] = _sha(checkpoint)
+    generation = "step_00000000_gen_000001"
+    payload["core"]["integrity"] = {
+        "status": "PASS",
+        "generation": generation,
+        "generation_manifest_sha256": checkpoint["sha256"],
+    }
+    path = _write_triage_shape(tmp_path, payload)
+    # Bind the fixture to the verified legacy-format run manifest.
+    payload.pop("identity")
+    payload["identity"] = {
+        "run_id": "run",
+        "sha256": _sha(payload),
+        "manifest_sha256": _sha(bound_manifest),
+        "generation_manifest_sha256": checkpoint["sha256"],
+    }
+    path.unlink()
+    raw = canonical_json(payload) + b"\n"
+    from sparselab.training.manifest import sha256_file
+
+    path.write_bytes(raw)
+    sealed = path.with_name(sha256_file(path) + ".json")
+    path.rename(sealed)
+    run = path.parent.parent
+    (run / "manifest.json").write_bytes(canonical_json(manifest))
+    checkpoint_path = run / "checkpoints" / generation / "manifest.json"
+    checkpoint_path.parent.mkdir(parents=True)
+    checkpoint_path.write_bytes(canonical_json(checkpoint))
+    progress = {
+        "status": "completed",
+        "manifest_sha256": _sha(bound_manifest),
+        "step": 0,
+        "tokens_seen": 0,
+        "latest": {
+            "relative_path": generation,
+            "manifest_sha256": checkpoint["sha256"],
+        },
+    }
+    progress_path = run / "progress.json"
+    progress_path.write_bytes(canonical_json(progress))
+    return sealed, checkpoint_path, progress_path
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        "checkpoint_array",
+        "checkpoint_scalar",
+        "missing_step",
+        "bad_step",
+        "bad_tokens",
+        "negative_step",
+        "checkpoint_bool",
+        "progress_step_bool",
+        "progress_tokens_scalar",
+        "latest_array",
+        "latest_scalar",
+    ],
+)
+def test_pass_binding_rejects_malformed_checkpoint_and_progress(tmp_path, broken):
+    from sparselab.evaluation.post_train_triage import _sha
+    from sparselab.training.manifest import canonical_json
+
+    path, checkpoint, progress = _triage_pass_fixture(tmp_path)
+    assert read_triage("run", tmp_path)["core"]["integrity"]["status"] == "PASS"
+    if broken.startswith("checkpoint_"):
+        checkpoint.write_text("[]" if broken.endswith("array") else "42")
+    elif broken in {
+        "missing_step",
+        "bad_step",
+        "bad_tokens",
+        "negative_step",
+        "checkpoint_bool",
+    }:
+        data = json.loads(checkpoint.read_text())
+        data.pop("sha256")
+        if broken == "missing_step":
+            data.pop("step")
+        elif broken == "negative_step":
+            data["step"] = -1
+        elif broken == "checkpoint_bool":
+            data["step"] = False
+        else:
+            data["step" if broken == "bad_step" else "tokens_seen"] = []
+        data["sha256"] = _sha(data)
+        checkpoint.write_bytes(canonical_json(data))
+        # Keep digest/counter bindings matched so only malformed counter shape
+        # distinguishes this from the valid fixture.
+        report = json.loads(path.read_text())
+        identity = report.pop("identity")
+        report["core"]["integrity"]["generation_manifest_sha256"] = data["sha256"]
+        identity["generation_manifest_sha256"] = data["sha256"]
+        identity["sha256"] = _sha(report)
+        report["identity"] = identity
+        path.write_bytes(canonical_json(report) + b"\n")
+        from sparselab.training.manifest import sha256_file
+
+        sealed = path.with_name(sha256_file(path) + ".json")
+        path.rename(sealed)
+        progress_data = json.loads(progress.read_text())
+        progress_data["latest"]["manifest_sha256"] = data["sha256"]
+        progress_data["step"] = data.get("step")
+        progress_data["tokens_seen"] = data.get("tokens_seen")
+        progress.write_text(json.dumps(progress_data))
+    else:
+        data = json.loads(progress.read_text())
+        if broken == "progress_step_bool":
+            data["step"] = False
+        elif broken == "progress_tokens_scalar":
+            data["tokens_seen"] = "0"
+        else:
+            data["latest"] = [] if broken.endswith("array") else 42
+        progress.write_text(json.dumps(data))
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    with pytest.raises(ValueError):
+        read_triage("run", tmp_path)
+    assert before == {
+        str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    }

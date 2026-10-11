@@ -224,7 +224,12 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
     "evaluation fixed-slices select": (1, {"--output"}, {"--json"}, "preparation"),
     "evaluation fixed-slices verify-selection": (2, set(), {"--json"}, "inspection"),
     "monitor-baseline": (1, {"--output", "--seconds"}, {"--json"}, "preparation"),
-    "evidence": (1, {"--runs-dir", "--checkpoint"}, {"--json"}, "inspection"),
+    "report": (
+        1,
+        {"--kind", "--runs-dir", "--lab-dir", "--config"},
+        {"--json"},
+        "inspection",
+    ),
     "checkpoint verify": (1, {"--config"}, {"--json"}, "inspection"),
     "attempt status": (0, {"--ledger"}, set(), "inspection"),
     "campaign apply": (

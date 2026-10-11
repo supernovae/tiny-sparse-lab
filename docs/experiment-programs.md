@@ -374,7 +374,7 @@ held-out evaluation and generation, with `--runs-dir "$WORK/controller"`:
 
 ```sh
 uv run --locked --extra cpu sparselab eval RETURNED_RUN_ID --runs-dir "$WORK/controller"
-uv run --locked --extra cpu sparselab evidence RETURNED_RUN_ID --runs-dir "$WORK/controller" --json
+uv run --locked --extra cpu sparselab report --kind run RETURNED_RUN_ID --runs-dir "$WORK/controller" --json
 uv run --locked --extra cpu sparselab generate RETURNED_RUN_ID --runs-dir "$WORK/controller" \
   --prompt "A path" --max-new-tokens 8
 ```

@@ -39,7 +39,7 @@ Each result retains every prompt, expected answer, generated response, score, an
 
 ```sh
 uv run --locked --extra cpu sparselab capability evaluate chat-engram chat-alias-recall-v1 --checkpoint best.json --runs-dir sparselab-work/runs
-uv run --locked --extra cpu sparselab evidence chat-engram --json --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab report --kind run chat-engram --json --runs-dir sparselab-work/runs
 ```
 
 `best.json` means best **validation loss**, not best capability score. Select a checkpoint on validation, not by searching test scores. For a learning curve, evaluate explicit generation directories at preregistered token budgets; preserve the step-zero result as the untrained control. Compare architectures at the same actual budget, not just the same configured maximum.

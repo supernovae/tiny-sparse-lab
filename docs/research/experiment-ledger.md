@@ -6,8 +6,8 @@ lesson, and separates a possible follow-up from an approved protocol. Exact
 configurations, checkpoint identities, metrics and reviewed decisions remain in
 their original evidence records. No historical run is reclassified here.
 
-For declared lifecycle state use `uv run --locked sparselab research status` and
-`research next`; for an executing workflow use `campaign status`, `next` and
+For declared lifecycle state use `uv run --locked sparselab report --kind research`;
+for an executing workflow use `campaign status`, `next` and
 `explain`. Missing external weights or data can make a recorded result unavailable
 to rerun without invalidating its historical identity.
 

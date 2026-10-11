@@ -49,7 +49,7 @@ study, run, or report artifacts. Start with the [known-good baseline
 guide](known-good-baselines.md) for the exact dense reference commands, gates,
 capture requirements, branch workflow, and the distinction between archival
 report verification and locally runnable checkpoint files.
-Use `sparselab research status --json`, `research next --json`, and
+Use `sparselab report --kind research --json` and
 `research validate --json` to inspect declarations and global evidence
 availability. `research validate --baseline dense-lm-v1` reports
 candidate-specific validity while retaining global registry diagnostics; none of
