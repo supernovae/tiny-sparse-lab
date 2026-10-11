@@ -2439,6 +2439,15 @@ def _lab_lookup_failure(args: argparse.Namespace, error: Exception) -> None:
     from sparselab.lab_results import ResultLookupError
 
     if isinstance(error, ResultLookupError):
+        if args.command == "explore" and "--lab-dir" in error.hint:
+            error = ResultLookupError(
+                error.spec,
+                error.status,
+                error.reason,
+                error.hint.replace(
+                    "--work-dir/--lab-dir", "--work-dir or --config lab_dir"
+                ),
+            )
         if args.json:
             print(json.dumps(error.as_json(), indent=2, sort_keys=True))
             raise SystemExit(1) from None
@@ -2571,7 +2580,7 @@ def _explore(args: argparse.Namespace) -> None:
     from sparselab.lab_mode import lab_root
 
     # Same runtime wiring as probe/try: _prepare_runtime_command resolved the
-    # run, applied --backend/--runtime and authorized the device; the
+    # run, applied the selected runtime profile and authorized the device; the
     # envelope is checked at every explorer stage.
     try:
         result, path = explore(
@@ -2909,27 +2918,26 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "target",
         help="Try/probe record (its candidate), run id/directory or checkpoint",
     )
-    explore.add_argument("--text", help="Text to analyse (default: a short story)")
-    explore.add_argument("--refresh", action="store_true", help="Ignore the cache")
-    explore.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
-    explore.add_argument("--runs-dir", help="Also look up run ids here")
+    explore.add_argument(
+        "--config", type=Path, help="ExploreConfig YAML: text, refresh and lookup roots"
+    )
     explore.add_argument(
         "--resource-envelope",
         type=Path,
         help="ResourceEnvelope YAML checked before every explorer stage",
     )
-    explore.add_argument(
-        "--backend",
-        choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"),
-        default="cpu",
-        help="Device (default cpu); authorized through the run's runtime "
-        "policy like probe/try",
-    )
     explore_runtime = explore.add_mutually_exclusive_group()
     explore_runtime.add_argument("--runtime-profile", type=Path)
     explore_runtime.add_argument("--runtime", metavar="ID")
     explore.add_argument("--json", action="store_true")
-    explore.set_defaults(handler=_explore)
+    explore.set_defaults(
+        handler=_explore,
+        backend="cpu",
+        text=None,
+        refresh=False,
+        lab_dir=None,
+        runs_dir=None,
+    )
     from sparselab.operational_monitor_cli import register_monitor_parser
     from sparselab.training.attempt_contract_cli import register_attempt_parser
 
@@ -3967,6 +3975,10 @@ def _is_config_submission(args: argparse.Namespace) -> bool:
 
 def _prepare_runtime_command(args: argparse.Namespace) -> None:
     """Gate direct execution before the CLI creates its scratch directory."""
+    if args.command == "explore":
+        from sparselab.explore_config import prepare_explore_config
+
+        prepare_explore_config(args)
     args.runtime_authorization = None
     args.runtime_profile_loaded = None
     is_submission = _is_config_submission(args)
@@ -4032,6 +4044,10 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         if profile_path is not None
         else None
     )
+    if args.command == "explore":
+        # CPU is the documented default. An explicit profile selects its
+        # backend; native authorization still checks engine and device index.
+        args.backend = profile.backend if profile is not None else "cpu"
     if args.command == "stage" and args.through == "inspect":
         return
     if is_experiment and args.experiment_command == "run" and args.binding is not None:

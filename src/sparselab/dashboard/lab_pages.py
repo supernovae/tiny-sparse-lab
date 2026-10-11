@@ -991,7 +991,8 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
         if exploration is None:
             st.caption(
                 "Pick a run and a sample sentence, then press Explore. Same as "
-                f'`sparselab explore {run} --text "…"`.'
+                f"`sparselab explore {run} --config explore.yaml` "
+                "with the sentence in the declaration’s `text` field."
             )
             return
     render_exploration(exploration)

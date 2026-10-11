@@ -290,6 +290,8 @@ def test_unknown_id_has_the_same_text_and_json_error_on_all_surfaces(
     assert payload["result"] == "missing"
     assert payload["reason"] in str(text_error.value)
     assert payload["hint"] in str(text_error.value)
+    if command == "explore":
+        assert "--lab-dir" not in payload["hint"] and "--config" in payload["hint"]
 
 
 @pytest.mark.parametrize("backend", ["cuda", "rocm"])
@@ -323,7 +325,8 @@ def test_explicit_cpu_override_reaches_native_authorization_without_changing_sav
     original = (run / "resolved_config.yaml").read_bytes()
     for command in ("probe", "explore"):
         args = build_parser(tmp_path).parse_args(
-            ["--work-dir", str(tmp_path), command, run.name, "--backend", "cpu"]
+            ["--work-dir", str(tmp_path), command, run.name]
+            + (["--backend", "cpu"] if command == "probe" else [])
         )
         _prepare_runtime_command(args)
         assert args.backend == "cpu" and args.runtime_authorization is None
@@ -430,8 +433,6 @@ def test_record_cli_dispatch_preserves_explicit_backend_and_envelope(
         tmp_path,
         "explore",
         record.parent.name,
-        "--backend",
-        "cpu",
         "--resource-envelope",
         str(envelope),
         "--json",
@@ -442,3 +443,146 @@ def test_record_cli_dispatch_preserves_explicit_backend_and_envelope(
     assert seen[0][0] == record.parent.name
     assert seen[0][1]["backend"] == "cpu"
     assert seen[0][1]["resource_envelope"].max_rss_bytes == 1 << 50
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "[]",
+        "text: 123",
+        "text: ''",
+        "refresh: 1",
+        "refresh: 'false'",
+        "explore_config_version: true",
+        "explore_config_version: 2",
+        "backend: cuda",
+        "resource_envelope: bounds.yaml",
+        "typo: true",
+    ],
+)
+def test_explore_declaration_fails_before_runtime_or_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, declaration: str
+) -> None:
+    from sparselab import runtime_environments
+    from sparselab.cli.main import _prepare_runtime_command, build_parser
+
+    request = tmp_path / "explore.yaml"
+    request.write_text(declaration)
+    monkeypatch.setattr(
+        runtime_environments,
+        "profile_for_id",
+        lambda *_: pytest.fail("invalid declaration reached runtime selection"),
+    )
+    args = build_parser(tmp_path).parse_args(
+        ["explore", "missing", "--config", str(request), "--runtime", "accelerator"]
+    )
+    with pytest.raises(ValueError):
+        _prepare_runtime_command(args)
+
+
+def test_explore_option_bound_removes_executable_flags(tmp_path: Path) -> None:
+    import argparse
+
+    from sparselab.cli.main import build_parser
+
+    parser = build_parser(tmp_path)
+    commands = next(
+        a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+    )
+    options = {
+        flag
+        for action in commands.choices["explore"]._actions
+        for flag in action.option_strings
+        if flag != "--help" and flag != "-h"
+    }
+    assert options == {
+        "--config",
+        "--runtime",
+        "--runtime-profile",
+        "--resource-envelope",
+        "--json",
+    }
+    for flag, values in {
+        "--text": ["story"],
+        "--refresh": [],
+        "--backend": ["cpu"],
+        "--lab-dir": ["lab"],
+        "--runs-dir": ["runs"],
+    }.items():
+        with pytest.raises(SystemExit):
+            parser.parse_args(["explore", "candidate", flag, *values])
+
+
+def test_explore_declaration_anchors_roots_and_reaches_native_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sparselab import explorer
+
+    declarations = tmp_path / "requests"
+    declarations.mkdir()
+    lab = tmp_path / "custom-lab"
+    run = _run(lab, backend="cuda")
+    request = declarations / "explore.yaml"
+    request.write_text(
+        "text: declared story\nrefresh: true\nlab_dir: ../custom-lab\nruns_dir: ../custom-lab/runs\n"
+    )
+    original = (run / "resolved_config.yaml").read_bytes()
+    seen = []
+
+    def inspect(target: str, **kwargs: Any) -> tuple[dict, None]:
+        seen.append(kwargs)
+        return {"unavailable": "no model loaded"}, None
+
+    monkeypatch.setattr(explorer, "explore", inspect)
+    _cli(monkeypatch, tmp_path, "explore", run.name, "--config", str(request), "--json")
+    assert json.loads(capsys.readouterr().out)["unavailable"] == "no model loaded"
+    assert seen[0]["text"] == "declared story" and seen[0]["refresh"] is True
+    assert seen[0]["lab_dir"] == lab and seen[0]["runs_dir"] == lab / "runs"
+    assert seen[0]["backend"] == "cpu"
+    assert (run / "resolved_config.yaml").read_bytes() == original
+
+
+@pytest.mark.parametrize("selector", ["--runtime", "--runtime-profile"])
+def test_explore_explicit_profile_selects_backend_before_native_authorization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, selector: str
+) -> None:
+    import sparselab.cli.main as cli
+    from sparselab import runtime_environments
+    from sparselab.runtime_profile import RuntimeProfile
+
+    run = _run(tmp_path / "lab")
+    original = (run / "resolved_config.yaml").read_bytes()
+    profile = RuntimeProfile(
+        runtime_profile_version=1,
+        id="fixture",
+        python=Path(sys.executable).resolve(),
+        engine="pytorch",
+        backend="cuda",
+        device_index=0,
+    )
+    monkeypatch.setattr(runtime_environments, "profile_for_id", lambda _: profile)
+    monkeypatch.setattr(cli, "load_runtime_profile", lambda _: profile)
+    monkeypatch.setattr(cli, "_ensure_runtime_interpreter", lambda *_: None)
+    seen = []
+    authorization = object()
+
+    def authorize(selected: Any, config: Any) -> object:
+        assert selected is profile
+        seen.append(config.runtime.backend)
+        return authorization
+
+    monkeypatch.setattr(cli, "authorize_profile", authorize)
+    args = cli.build_parser(tmp_path).parse_args(
+        ["explore", str(run), selector, "fixture"]
+    )
+    cli._prepare_runtime_command(args)
+    assert seen == ["cuda"] and args.backend == "cuda"
+    assert args.runtime_authorization is authorization
+    assert (run / "resolved_config.yaml").read_bytes() == original
+
+    def unavailable(*_: Any) -> None:
+        raise ValueError("device unavailable")
+
+    monkeypatch.setattr(cli, "authorize_profile", unavailable)
+    with pytest.raises(ValueError, match="device unavailable"):
+        cli._prepare_runtime_command(args)
