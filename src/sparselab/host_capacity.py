@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import platform
 import ssl
 import subprocess
@@ -37,6 +38,9 @@ class HostWorkPlan:
     workers: int
 
 
+TEST_HOST_RAM_ENV = "SPARSELAB_TEST_HOST_RAM"
+
+
 def measure_memory() -> Any:
     """The single host-RAM observation (``psutil.virtual_memory()``).
 
@@ -45,7 +49,14 @@ def measure_memory() -> Any:
     always come from one consistent observation. The test suite pins it in
     tests/conftest.py.
     """
-    return psutil.virtual_memory()
+    memory = psutil.virtual_memory()
+    pinned = os.environ.get(TEST_HOST_RAM_ENV)
+    if pinned:
+        # Test-suite only: tests/conftest.py exports a fixed host so child
+        # processes it launches plan against the same RAM as the parent.
+        total, _, available = pinned.partition(":")
+        memory = memory._replace(total=int(total), available=int(available))
+    return memory
 
 
 def _positive(value: object) -> int | None:

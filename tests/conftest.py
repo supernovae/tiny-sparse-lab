@@ -45,12 +45,16 @@ def _deterministic_host_ram(monkeypatch: pytest.MonkeyPatch) -> None:
 
     from sparselab import host_capacity
 
+    host_capacity_measure = host_capacity.measure_memory
     original = psutil.virtual_memory
+    # Children launched by tests (``python -c``/``-m sparselab``) inherit the
+    # same fixed host through the environment.
+    monkeypatch.setenv(host_capacity.TEST_HOST_RAM_ENV, f"{64 * _GIB}:{48 * _GIB}")
 
     def measured() -> object:
         if psutil.virtual_memory is not original:
             return psutil.virtual_memory()
-        return original()._replace(total=64 * _GIB, available=48 * _GIB)
+        return host_capacity_measure()
 
     monkeypatch.setattr(host_capacity, "measure_memory", measured)
 

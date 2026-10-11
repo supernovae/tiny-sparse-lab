@@ -366,27 +366,21 @@ def test_native_snapshot_full_coverage_and_resume(tmp_path, monkeypatch, interru
         coverage(data.root)
 
 
-def test_incompatible_schedule_leaves_no_output(prepared, tmp_path):
+@pytest.mark.parametrize(
+    ("training", "match"),
+    [
+        ({"micro_batch_size": 100000}, "warmup_steps"),
+        ({"neural_loss_weight": 0.5}, "weighted objectives"),
+    ],
+    ids=["incompatible-schedule", "unsupported-objective"],
+)
+def test_invalid_budget_derivation_leaves_no_output(
+    prepared, tmp_path, training, match
+):
     cfg, data, path = prepared
-    cfg = cfg.model_copy(
-        update={
-            "training": cfg.training.model_copy(update={"micro_batch_size": 100000})
-        }
-    )
+    cfg = cfg.model_copy(update={"training": cfg.training.model_copy(update=training)})
     path.write_text(yaml.safe_dump(cfg.model_dump(mode="json")))
     out = tmp_path / "invalid.yaml"
-    with pytest.raises(ValueError, match="warmup_steps"):
-        derive_budget(path, data.root, 1, out, False)
-    assert not out.exists()
-
-
-def test_unsupported_objective_leaves_no_output(prepared, tmp_path):
-    cfg, data, path = prepared
-    cfg = cfg.model_copy(
-        update={"training": cfg.training.model_copy(update={"neural_loss_weight": 0.5})}
-    )
-    path.write_text(yaml.safe_dump(cfg.model_dump(mode="json")))
-    out = tmp_path / "unsupported.yaml"
-    with pytest.raises(ValueError, match="weighted objectives"):
+    with pytest.raises(ValueError, match=match):
         derive_budget(path, data.root, 1, out, False)
     assert not out.exists()

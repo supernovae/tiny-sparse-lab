@@ -216,3 +216,24 @@ def test_suite_ram_fixture_is_consistent_on_a_physical_host_above_480_gib(
     ((reserve, plan),) = plans
     assert reserve == 64 * gib // 10
     assert plan.workers >= 1
+
+
+def test_child_processes_inherit_the_suite_ram_fixture() -> None:
+    """Tests that launch fresh interpreters plan against the same fixed host."""
+    import subprocess
+    import sys
+
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from sparselab.host_capacity import measure_memory as m;"
+                "r = m(); print(r.total, r.available)"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert child.stdout.split() == [str(64 * 1024**3), str(48 * 1024**3)]

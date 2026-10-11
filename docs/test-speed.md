@@ -97,7 +97,10 @@ measured RAM after reserve". Every SparseLab reader of host RAM, including
 reserves computed from total RAM, goes through
 `host_capacity.measure_memory()`. An autouse fixture in `tests/conftest.py`
 pins it to a fixed host (64 GiB total, 48 GiB available), whatever the
-physical machine. Tests that
+physical machine. It also exports
+`SPARSELAB_TEST_HOST_RAM=total:available`, which `measure_memory()` honors, so
+child interpreters launched by tests plan against the same host. Only the
+test suite sets that variable. Tests that
 monkeypatch `psutil.virtual_memory` themselves still see their own values,
 which is how `tests/test_host_capacity.py` covers the reserve logic.
 

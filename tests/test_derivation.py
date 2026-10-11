@@ -177,9 +177,12 @@ def test_config_derivation_rejects_linked_destination_components(
         {"unknown": 1},
         {"optimizer.unknown": 1},
         {"optimizer": {}, "optimizer.peak": 0.001},
+        {},
+        {"optimizer.peak": float("inf")},
+        {"optimizer.peak": float("nan")},
     ],
 )
-def test_config_derivation_rejects_unknown_and_overlapping_paths(
+def test_config_derivation_rejects_invalid_settings_without_output(
     source_config: Path, tmp_path: Path, settings: dict[str, object]
 ) -> None:
     output = tmp_path / "invalid.yaml"
@@ -364,17 +367,6 @@ def test_config_relocation_preserves_all_typed_input_targets(
     assert rebound["model.memory_package_path"]["resolved_target"] == str(
         loaded.model.memory_package_path
     )
-
-
-@pytest.mark.parametrize(
-    "settings", [{}, {"optimizer.peak": float("inf")}, {"optimizer.peak": float("nan")}]
-)
-def test_api_rejects_empty_and_nonfinite_settings(source_config, tmp_path, settings):
-    output = tmp_path / "invalid.yaml"
-    with pytest.raises(ValueError):
-        derive_config(source_config, output, settings)
-    assert not output.exists()
-    assert not _sidecar(output).exists()
 
 
 @pytest.mark.parametrize("destination", ["invalid.json", "missing/derived.yaml"])
