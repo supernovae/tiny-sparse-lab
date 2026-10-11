@@ -269,8 +269,11 @@ source fails before execution; provision the vendor environment and install
 this source before retrying.
 
 Direct `train`, `stage`, `eval`, `generate`, and `chat` accept mutually exclusive
-`--runtime ID` or `--runtime-profile PROFILE`; composed `run` also accepts these
-when auto-registering a local worker (exclusive with `--worker`). Experiment
+`--runtime ID` or `--runtime-profile PROFILE`; single-config `experiment submit`
+also accepts these when auto-registering a local worker (exclusive with
+`--worker`, unavailable with `--matrix`). Without `--wait`, process the existing
+queued submission with `sparselab controller run --store ROOT` using the same
+store; see [workers](workers.md). Experiment
 bind/run, Campaign apply/resume, evaluation suite run and research snapshot
 support logical IDs wherever they support profile files. A different interpreter
 replaces the CLI once with that Python, preserving arguments and environment.
@@ -528,8 +531,10 @@ there is no automatic empirical throughput search in this proposal interface.
 
 ## Operational resource envelopes
 
-`data prepare`, `stage`, `train`, `run`, and `experiment prepare` accept
-`--resource-envelope PATH`. Policies are strict, frozen YAML mappings:
+`data prepare`, `stage`, `train`, single-config `experiment submit`, and
+`experiment prepare` accept `--resource-envelope PATH`. For `experiment submit`,
+the option works with or without `--wait` and is rejected with `--matrix`.
+Policies are strict, frozen YAML mappings:
 
 ```yaml
 resource_envelope_version: 1
@@ -570,9 +575,12 @@ scientific manifest and cache identity; they are not model-quality metrics.
 
 ## Prepared data: bounded encoding and verification
 
-For `local_text` and `local_stories`, `data prepare`, `stage`, `train`, `run`,
-and `experiment prepare` accept `--tokenizer-batch-documents` (1–256, default 256) and
+For `local_text` and `local_stories`, `data prepare`, `stage`, `train`,
+single-config `experiment submit`, and `experiment prepare` accept
+`--tokenizer-batch-documents` (1–256, default 256) and
 `--tokenizer-batch-source-bytes` (1–8388608, default 1048576). Both bounds apply.
+For `experiment submit`, these options work with or without `--wait` and are
+rejected with `--matrix`, including explicitly supplied default values.
 Oversized documents fail before encoding; token limits never truncate a selected
 story. Batch 1 uses scalar `Tokenizer.encode`; larger batches use Rust
 `encode_batch` in source order, preserving EOS and byte-address semantics.

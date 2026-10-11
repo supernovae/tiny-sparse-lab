@@ -24,6 +24,7 @@ from sparselab.workdir import ensure_scratch_dir
 
 _BACKENDS = ("cpu", "mps", "cuda", "rocm", "xpu", "metal")
 _ENGINES = ("pytorch", "mlx")
+_TRANSFER_TIMEOUT = 1800
 _TERMINAL_QUEUE_STATES = frozenset({"CANCELLED", "COMPLETE", "FAILED", "INTERRUPTED"})
 
 
@@ -31,7 +32,7 @@ def _json(value: object) -> None:
     print(json.dumps(value, sort_keys=True, indent=2, default=str))
 
 
-def _controller(store: Path, *, transfer_timeout: float = 1800):
+def _controller(store: Path, *, transfer_timeout: float = _TRANSFER_TIMEOUT):
     from sparselab.workers.controller import Controller
 
     return Controller(store, transfer_timeout=transfer_timeout)
@@ -321,9 +322,9 @@ def validate_submit_args(args: argparse.Namespace) -> None:
         or args.runtime is not None
         or args.runtime_profile is not None
         or args.resource_envelope is not None
-        or args.tokenizer_batch_documents != TOKENIZER_BATCH_DOCUMENTS
-        or args.tokenizer_batch_source_bytes != TOKENIZER_BATCH_SOURCE_BYTES
-        or args.transfer_timeout != 1800
+        or args.tokenizer_batch_documents is not None
+        or args.tokenizer_batch_source_bytes is not None
+        or args.transfer_timeout is not None
     ):
         raise ValueError(
             "--wait, runtime selection, resource envelope, tokenizer batching and "
@@ -450,7 +451,14 @@ def _submit_config(args: argparse.Namespace, config: Any) -> tuple[Any, Any]:
                 f"selected backend {runtime.backend} requires --runtime-profile "
                 "or a registered --worker"
             )
-    controller = _controller(Path(args.store), transfer_timeout=args.transfer_timeout)
+    controller = _controller(
+        Path(args.store),
+        transfer_timeout=(
+            args.transfer_timeout
+            if args.transfer_timeout is not None
+            else _TRANSFER_TIMEOUT
+        ),
+    )
     if local:
         root = controller.root.resolve()
         namespace = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:12]
@@ -477,8 +485,16 @@ def _submit_config(args: argparse.Namespace, config: Any) -> tuple[Any, Any]:
         stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
         promote=Path(args.promote) if args.promote else None,
         resource_envelope=args.resource_envelope_value,
-        tokenizer_batch_documents=args.tokenizer_batch_documents,
-        tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+        tokenizer_batch_documents=(
+            args.tokenizer_batch_documents
+            if args.tokenizer_batch_documents is not None
+            else TOKENIZER_BATCH_DOCUMENTS
+        ),
+        tokenizer_batch_source_bytes=(
+            args.tokenizer_batch_source_bytes
+            if args.tokenizer_batch_source_bytes is not None
+            else TOKENIZER_BATCH_SOURCE_BYTES
+        ),
     )
     return controller, submission
 
@@ -587,12 +603,15 @@ def add_commands(
     submit.add_argument(
         "--transfer-timeout",
         type=float,
-        default=1800,
-        help="Finite deadline in seconds for each bundle or artifact transfer RPC",
+        default=None,
+        help=f"Finite deadline in seconds for each bundle or artifact transfer RPC (default: {_TRANSFER_TIMEOUT})",
     )
     from sparselab.cli.main import _tokenizer_batch_arguments
 
     _tokenizer_batch_arguments(submit)
+    submit.set_defaults(
+        tokenizer_batch_documents=None, tokenizer_batch_source_bytes=None
+    )
     submit.add_argument("--stage-bundle")
     submit.add_argument("--promote")
     submit.add_argument("--dry-run", action="store_true")
@@ -633,7 +652,7 @@ def add_commands(
     run_controller.add_argument(
         "--transfer-timeout",
         type=float,
-        default=1800,
+        default=_TRANSFER_TIMEOUT,
         help="Finite deadline in seconds for each bundle or artifact transfer RPC",
     )
     _store_argument(run_controller, default_store)

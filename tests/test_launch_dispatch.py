@@ -65,6 +65,9 @@ def test_runtime_selection_is_exclusive(other):
         ["--matrix", "absent.yaml", "--runtime-profile", "absent.yaml"],
         ["--matrix", "absent.yaml", "--resource-envelope", "absent.yaml"],
         ["--matrix", "absent.yaml", "--transfer-timeout", "5"],
+        ["--matrix", "absent.yaml", "--transfer-timeout", "1800"],
+        ["--matrix", "absent.yaml", "--tokenizer-batch-documents", "256"],
+        ["--matrix", "absent.yaml", "--tokenizer-batch-source-bytes", "1048576"],
         ["--matrix", "absent.yaml", "--tokenizer-batch-documents", "1"],
         ["--matrix", "absent.yaml", "--tokenizer-batch-source-bytes", "1"],
     ],
@@ -372,3 +375,38 @@ def test_submission_resource_envelope_is_checked_at_store_before_creation(
         main()
     assert not store.exists()
     assert not work.exists()
+
+
+@pytest.mark.parametrize("wait", [False, True])
+def test_omitted_single_config_controls_keep_native_defaults(
+    tmp_path, monkeypatch, wait
+):
+    observed = {}
+    controller = SimpleNamespace(
+        root=tmp_path / "controller",
+        submit=lambda config, **kwargs: observed.update(submission=kwargs),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_controller",
+        lambda root, **kwargs: observed.update(controller_options=kwargs) or controller,
+    )
+    args = build_parser().parse_args(
+        [
+            "experiment",
+            "submit",
+            str(CONFIG),
+            "--worker",
+            "owned",
+            *(["--wait"] if wait else []),
+        ]
+    )
+    assert args.transfer_timeout is None
+    assert args.tokenizer_batch_documents is None
+    assert args.tokenizer_batch_source_bytes is None
+    cli.validate_submit_args(args)
+    args.resource_envelope_value = None
+    cli._submit_config(args, load_config(CONFIG))
+    assert observed["controller_options"] == {"transfer_timeout": 1800}
+    assert observed["submission"]["tokenizer_batch_documents"] == 256
+    assert observed["submission"]["tokenizer_batch_source_bytes"] == 1048576

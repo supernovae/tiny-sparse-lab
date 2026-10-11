@@ -4230,7 +4230,12 @@ def main() -> None:
         or (args.command == "experiment" and args.experiment_command == "prepare")
     ):
         validate_tokenizer_batch_limits(
-            args.tokenizer_batch_documents, args.tokenizer_batch_source_bytes
+            args.tokenizer_batch_documents
+            if args.tokenizer_batch_documents is not None
+            else TOKENIZER_BATCH_DOCUMENTS,
+            args.tokenizer_batch_source_bytes
+            if args.tokenizer_batch_source_bytes is not None
+            else TOKENIZER_BATCH_SOURCE_BYTES,
         )
     if getattr(args, "resource_envelope", None) is not None:
         try:

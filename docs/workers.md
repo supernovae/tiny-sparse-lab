@@ -51,8 +51,12 @@ registered worker; add `--worker NAME` to select one explicitly. Use
 through terminal artifact ingestion. With `--wait` and no worker selection it
 registers a controller-scoped local endpoint; `--runtime ID` or
 `--runtime-profile PROFILE` selects an authorized local interpreter. Runtime
-selection also supports submission without waiting. If another controller owns
-the store lock, waiting observes it rather than competing for assignments.
+selection also supports submission without waiting: the submission stays queued
+until a controller processes that store. If none is running, execute
+`sparselab controller run --store ROOT` with the same store to process the
+existing queue entry. Submitting again creates another experiment; it does not
+resume processing the queued entry. If another controller owns the store lock,
+waiting observes it rather than competing for assignments.
 Single-config submissions accept resource envelopes, tokenizer batch limits
 and transfer deadlines. Matrix submissions retain their declared worker
 requirements and atomic submission; waiting and these single-config options
@@ -66,7 +70,7 @@ provides direct checkpoint transitions without silently running staging pilots.
 See [launch contracts](launch-contracts.md) for the distinct release and
 preparation interfaces.
 
-`controller run` and composed `run` accept `--transfer-timeout SECONDS` (default 1800). It is a finite per-RPC deadline for bundle and artifact transfers, including hashing and transmission; increase it explicitly for a slow link or large input. Metadata requests have shorter bounded deadlines. Killing the controller never authorizes re-execution of an assigned optimizer attempt.
+`controller run` and single-config `experiment submit` accept `--transfer-timeout SECONDS` (default 1800). It is a finite per-RPC deadline for bundle and artifact transfers, including hashing and transmission; increase it explicitly for a slow link or large input. Metadata requests have shorter bounded deadlines. Killing the controller never authorizes re-execution of an assigned optimizer attempt.
 
 ## Machine-local runtime selection
 
@@ -216,7 +220,7 @@ Each configured worker has one logical slot. Host-wide OS leases additionally se
 - A lost executor is finalized only after its attempt claim and inherited resource holders are gone. It remains `UNKNOWN`; verified finalized generations are available for an explicit child resume. Missing crash-window manifest/checkpoint projections can be reconstructed from those verified files without creating an echo outbox. Conflicting metadata is rejected, never overwritten.
 - Resume creates a new visible child with the selected full-state digest. It requires compatible same-engine/backend training state and a remaining scientific budget. Complete budgets cannot resume. Source/runtime drift requires explicit `--allow-runtime-drift` and remains best-effort, not an architecture/data compatibility bypass.
 
-Execution state and `ingestion_status` are separate durable facts. A remotely complete receipt does not mean its checkpoints are already locally available. Composed `run` waits for `COMPLETE` or `NOT_REQUIRED` ingestion for every terminal outcome, including cancellation and failure. Queued cancellation and failures with no run artifacts require no transfer; they do not fabricate a checkpoint. Full resume is admitted only after verified local ingestion. Artifact-transfer errors remain visible and can be retried without rerunning the optimizer.
+Execution state and `ingestion_status` are separate durable facts. A remotely complete receipt does not mean its checkpoints are already locally available. `experiment submit CONFIG --wait` waits for `COMPLETE` or `NOT_REQUIRED` ingestion for every terminal outcome, including cancellation and failure. Queued cancellation and failures with no run artifacts require no transfer; they do not fabricate a checkpoint. Full resume is admitted only after verified local ingestion. Artifact-transfer errors remain visible and can be retried without rerunning the optimizer.
 
 ## Local aggregation and integrity
 
