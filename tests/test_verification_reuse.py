@@ -649,6 +649,7 @@ def test_file_receipt_kind_rechecks_changed_verifier(
     assert store.lookup(binding)
 
 
+# Basename matching below intentionally changes every cli.py, including corpus/cli.py.
 @pytest.mark.parametrize("module", ["trainer.py", "cli.py", "mixture.py", "sources.py"])
 def test_unrelated_module_change_keeps_prepared_receipt_warm(
     trusted_prepared, monkeypatch, module

@@ -162,6 +162,24 @@ def test_ctime_change_alone_forces_actual_byte_verification(
         == digest
     )
     assert reads == []
+    ctime += 1
+    refreshed = verification.verify_file(path, expected_sha256=digest, **options)
+    assert refreshed.sha256 == digest
+    assert refreshed.cold_verified
+    assert refreshed.fingerprint[:-1] == proof.fingerprint[:-1]
+    assert refreshed.fingerprint[-1] != proof.fingerprint[-1]
+    assert reads == [path]
+    if reuse == "signed":
+        assert store.hits == 1
+        assert store.recorded == 2
+        assert store.diagnostics()["events"][-1]["reason"] == "changed_fingerprint"
+    assert (
+        verification.verify_file(path, expected_sha256=digest, **options).sha256
+        == digest
+    )
+    assert reads == [path]
+    proof = refreshed
+    reads.clear()
     before = path.stat()
     path.write_bytes(b"modified")
     os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
@@ -173,8 +191,8 @@ def test_ctime_change_alone_forces_actual_byte_verification(
         verification.verify_file(path, expected_sha256=digest, **options)
     assert reads == [path]
     if reuse == "signed":
-        assert store.hits == 1
-        assert store.recorded == 1
+        assert store.hits == 2
+        assert store.recorded == 2
         assert store.diagnostics()["events"][-1]["reason"] == "changed_fingerprint"
 
 
