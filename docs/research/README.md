@@ -24,8 +24,8 @@ questions. Use [`experiments/samples/`](../../experiments/samples/) for copyable
 teaching material and [`experiments/research/`](../../experiments/research/) for
 real campaign definitions and iteration records. Mutable output belongs in the
 external persistent root (`$SPARSELAB_WORK_DIR/experiments/`, or the XDG/home default);
-declarations and compact verified evidence belong in Git. Missing code belongs in
-[`TODO.md`](../../TODO.md). Verified semantic retrieval accepts pre-encoded
+declarations and compact verified evidence belong in Git. Report missing code through the
+[contribution workflow](../../CONTRIBUTING.md#planning-and-contributions). Verified semantic retrieval accepts pre-encoded
 vectors; a teacher-representation compiler and natural-language query encoder are
 not shipped.
 

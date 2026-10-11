@@ -147,6 +147,6 @@ listed below and in the [runtime guide](docs/runtime.md).
 | Dashboard | Lab home with next steps, experiments and verdicts, model catalog and Pareto frontier, behaviors (generations, recall misses, calibration), a visual model explorer, plus training telemetry and research views | [Dashboard tour](docs/dashboard.md); [research views](docs/research/dashboard.md); read-only. |
 | Local model exploration | Raw completion, transcript chat, Streamlit comparisons and a loopback API | [Model guide](docs/tinytext-model-guide.md); [nonstreaming API](docs/local-api.md); verified local run required. |
 
-Contributions: [CONTRIBUTING.md](CONTRIBUTING.md), [code backlog](TODO.md),
+Contributions: [CONTRIBUTING.md](CONTRIBUTING.md), [feature roadmap](ROADMAP.md),
 [agent guidance](AGENTS.md). Code is [MIT licensed](LICENSE); source datasets
 retain their own licenses and attribution.

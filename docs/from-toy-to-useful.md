@@ -83,7 +83,7 @@ These are evidence questions, not parameter-count stages. A runnable path does n
 | Complete one useful job | Task builders, custom cards, and blinded review tools are available. | No useful real-domain model has been established; compare a trained checkpoint against rules/search on permissioned, independently held-out requests. |
 | Use external memory reliably | Lexical/byte tables and portable adapters run; semantic packs support bounded retrieval from supplied vectors. The two-case portable result was negative. | Broader transfer tests; semantic text encoding and automatic retrieval are not on the standard chat/training path. |
 
-Choose the next capability that matters to a real user and define how it can fail. Open questions and remaining experiments are tracked in the [research roadmap](research/roadmap.md) and versioned lifecycle; missing implementation belongs in [`TODO.md`](../TODO.md).
+Choose the next capability that matters to a real user and define how it can fail. Open questions and remaining experiments are tracked in the [research roadmap](research/roadmap.md) and versioned lifecycle; report missing implementation through the [contribution workflow](../CONTRIBUTING.md#planning-and-contributions).
 
 ## 4. Which larger model do we actually have?
 
@@ -360,7 +360,7 @@ Shape-only inspection estimates parameter, optimizer, activation, and working-me
 | One host/device per experiment; independent local/SSH queues, leases, cancellation, recovery | Actual ROCm/XPU and cross-host acceptance; distributed training remains out of scope |
 | MLX checkpoints, continuation, promotion, generation/chat, and held-out evidence for FP32 dense/native-sparse models | Blanket PyTorch feature or training-trajectory equivalence |
 
-The [context/Engram](context-engram-study.md#execution-results--2026-09-22) and [domain-adaptation](path-domain-corpus.md#2026-09-22-execution-record) results show why these boundaries matter: untouched override scores stayed 0/8, while adaptation improved acquisition without reliable held-out behavior and sharply damaged retention. The [research roadmap](research/roadmap.md) separates exercised paths from open transfer, useful-task, and hardware evidence; [`TODO.md`](../TODO.md) tracks code work only.
+The [context/Engram](context-engram-study.md#execution-results--2026-09-22) and [domain-adaptation](path-domain-corpus.md#2026-09-22-execution-record) results show why these boundaries matter: untouched override scores stayed 0/8, while adaptation improved acquisition without reliable held-out behavior and sharply damaged retention. The [research roadmap](research/roadmap.md) separates exercised paths from open transfer, useful-task, and hardware evidence; the [feature roadmap](../ROADMAP.md) summarizes implementation direction.
 
 Build these in response to measured bottlenecks. For broad assistant quality sooner, adapting a properly licensed pretrained instruction model is a different route from learning every capability from scratch. The current framework has no general Hugging Face weight/tokenizer/chat-template importer; do not point `--promote` at arbitrary downloaded weights and assume compatibility. Use an appropriate existing stack for that route, or implement and validate the exact architecture/tokenizer/checkpoint mapping here.
 

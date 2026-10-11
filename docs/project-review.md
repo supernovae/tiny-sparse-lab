@@ -1,6 +1,6 @@
 # Repository review: from mechanism demos to measured small models
 
-This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [research roadmap](research/roadmap.md) for current capabilities and remaining scientific questions; [`TODO.md`](../TODO.md) contains implementation work only.
+This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [research roadmap](research/roadmap.md) for current capabilities and remaining scientific questions; the [feature roadmap](../ROADMAP.md) summarizes pending implementation directions.
 
 ## Project contract
 
@@ -86,4 +86,4 @@ Further curriculum or scale experiments need a new explicit hypothesis and froze
 the historical review is not an up-to-date support matrix. Distributed training
 remains outside the current scope.
 
-See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), the [research roadmap](research/roadmap.md), and the [implementation backlog](../TODO.md).
+See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), the [research roadmap](research/roadmap.md), and the [feature roadmap](../ROADMAP.md).

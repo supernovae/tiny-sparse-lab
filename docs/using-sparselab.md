@@ -28,8 +28,8 @@ a **try/probe ID** identifies a result record. `probe` and `explore` search
 `compare` accept sealed result paths as well as record IDs.
 
 Use `sparselab COMMAND --help` for exact arguments. Current help groups commands
-but does not remove them; the [CLI reduction backlog](../TODO.md#cli-reduction)
-tracks implementation work. There is no `advanced` or `release` command alias.
+but does not remove them; the [feature roadmap](../ROADMAP.md#current-direction)
+summarizes the direction for a smaller CLI. There is no `advanced` or `release` command alias.
 
 ## Find the next guide
 

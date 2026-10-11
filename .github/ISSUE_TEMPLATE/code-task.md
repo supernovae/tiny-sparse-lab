@@ -8,8 +8,10 @@ assignees: ""
 
 ## Problem
 
-Describe the user-visible or developer-visible software gap. Link the relevant
-`TODO.md` item.
+Describe the user-visible or developer-visible software gap. Link relevant
+issues, PRs or feature direction in `ROADMAP.md` when useful. Search existing
+issues before opening a new one; track implementation and review in a linked
+pull request.
 
 ## Required behavior
 

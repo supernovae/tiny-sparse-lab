@@ -116,7 +116,7 @@ The `±SE` printed next to Δ held-out loss is a window-clustered error over one
 pair of runs. It measures evaluation noise, not training noise. At tiny
 budgets the seed-to-seed spread was **5–10× larger** than that SE: roughly
 0.03–0.2 nats across seeds, against a per-try SE near 0.006. A single-seed "CANDIDATE_LOWER_LOSS" can be pure seed luck
-(TODO.md PR3 tracks fixing the verdict itself).
+(see the [remaining across-seed uncertainty work](../ROADMAP.md#current-direction)).
 
 Run the same delta on paired seeds (both arms share each seed). A lab delta
 changes only the candidate, so first derive a short-budget **baseline** to make
