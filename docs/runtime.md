@@ -232,6 +232,10 @@ CUDA package versions.
 
 ## Executable runtime profiles
 
+The [location/runtime selection guide](location-runtime-controls.md) maps these
+controls to each journey and records the retention decision for runtime IDs,
+profile files, backend overrides and the eight Torch-free environment paths.
+
 Hardware inventory does not select a Python environment. Accelerator execution
 requires a registered machine-local runtime ID, an explicit runtime profile, or
 a registered worker with an absolute Python interpreter. Ambient CPU execution
