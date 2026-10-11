@@ -25,22 +25,32 @@ from sparselab.try_config import load_try_config
         (load_explore_config, ("lab_dir", "runs_dir")),
     ],
 )
+@pytest.mark.parametrize(
+    ("invoking_dir", "relative_source"),
+    [("first/nested", False), ("second/nested/deeper", True)],
+)
 def test_declaration_locations_do_not_follow_cwd_or_work_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, loader, fields: tuple[str, ...]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    loader,
+    fields: tuple[str, ...],
+    invoking_dir: str,
+    relative_source: bool,
 ) -> None:
     source = tmp_path / "declarations" / "request.yaml"
     source.parent.mkdir()
     source.write_text("\n".join(f"{field}: ../retained/{field}" for field in fields))
     expected = {field: tmp_path / "retained" / field for field in fields}
     before = source.read_bytes()
-    for name in ("first", "second"):
-        cwd = tmp_path / name
-        cwd.mkdir()
-        monkeypatch.chdir(cwd)
-        monkeypatch.setenv("SPARSELAB_WORK_DIR", str(cwd / "work"))
-        config = loader(str(source) if loader != load_explore_config else source)
-        assert {field: getattr(config, field) for field in fields} == expected
-        assert not (cwd / "work").exists()
+    cwd = tmp_path / invoking_dir
+    cwd.mkdir(parents=True)
+    monkeypatch.chdir(cwd)
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(cwd / "work"))
+    selected = Path(os.path.relpath(source, cwd)) if relative_source else source
+    # Explore takes a Path; try/probe take a selection string (preset or path).
+    config = loader(str(selected) if loader != load_explore_config else selected)
+    assert {field: getattr(config, field) for field in fields} == expected
+    assert not (cwd / "work").exists()
     assert source.read_bytes() == before
     assert not (tmp_path / "retained").exists()
 
@@ -110,7 +120,10 @@ class RefuseExecutionImports(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, RefuseExecutionImports())
 def refuse_children(event, args):
-    if event in {'subprocess.Popen', 'os.system', 'os.posix_spawn', 'os.exec'}:
+    if event in {
+        'subprocess.Popen', 'os.system', 'os.posix_spawn', 'os.exec',
+        'os.fork', 'os.forkpty', 'os.spawn',
+    }:
         raise AssertionError('environment help started execution: ' + event)
 sys.addaudithook(refuse_children)
 from sparselab.cli.entry import main

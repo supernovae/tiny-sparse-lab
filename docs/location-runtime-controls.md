@@ -124,8 +124,9 @@ does not import Torch; observation and doctor may run bounded children in the
 selected interpreter. Provisioning intentionally installs packages, only on its
 explicit path. The registry follows `XDG_CONFIG_HOME` (or home config), and the
 installation root follows `SPARSELAB_RUNTIME_DIR` or XDG data/home defaults,
-not `SPARSELAB_WORK_DIR`. The installation root must differ from the scientific
-work root and be outside Git.
+not `SPARSELAB_WORK_DIR`. The installation root must not equal the scientific
+work root and must be outside Git. Nesting it under the work root is currently
+allowed; the equality check is not a prohibition on nesting.
 
 Do not prefix `runtime env` with global `--work-dir`: that misses the special
 entry route. Use its host-local environment settings. On a provisioned vendor
@@ -136,9 +137,13 @@ See [runtime environments](runtime.md#machine-local-runtime-environments).
 ## Regression evidence and limits
 
 `tests/test_location_runtime_controls.py` checks source-relative declarations
-across invoking directories/work roots and framework-free help dispatch for all
-eight operational paths without child execution or installation. Existing
-coverage retains the behavior behind this decision:
+across invoking directories at different depths and work roots, with absolute
+and relative source paths. A mutation resolving against cwd instead of the
+source directory is rejected for all three loaders in both cases.
+It also checks framework-free help dispatch for all
+eight operational paths without child execution or installation, including
+fork/spawn audit events. Existing coverage retains the behavior behind this
+decision:
 
 - `test_workdir.py`: precedence, literal explicit destinations, read-only
   default resolution and storage receipts.
