@@ -37,6 +37,8 @@ if isinstance(_torch, ModuleType):
 # (tests/test_host_capacity.py and friends) still gets its own value, so
 # low-memory and reserve logic stays covered.
 _GIB = 1024**3
+_TEST_HOST_RAM_ENV = "SPARSELAB_TEST_HOST_RAM"
+_CHILD_BOOTSTRAP = Path(__file__).with_name("child_bootstrap")
 
 
 @pytest.fixture(autouse=True)
@@ -45,12 +47,23 @@ def _deterministic_host_ram(monkeypatch: pytest.MonkeyPatch) -> None:
 
     from sparselab import host_capacity
 
+    host_capacity_measure = host_capacity.measure_memory
     original = psutil.virtual_memory
+    # Children launched by tests (``python -c``/``-m sparselab``) get the same
+    # fixed host from a tests-only sitecustomize (tests/child_bootstrap); the
+    # shipped measure_memory has no override, so this never reaches production.
+    monkeypatch.setenv(_TEST_HOST_RAM_ENV, f"{64 * _GIB}:{48 * _GIB}")
+    monkeypatch.setenv(
+        "PYTHONPATH",
+        os.pathsep.join(
+            filter(None, (str(_CHILD_BOOTSTRAP), os.environ.get("PYTHONPATH")))
+        ),
+    )
 
     def measured() -> object:
         if psutil.virtual_memory is not original:
             return psutil.virtual_memory()
-        return original()._replace(total=64 * _GIB, available=48 * _GIB)
+        return host_capacity_measure()._replace(total=64 * _GIB, available=48 * _GIB)
 
     monkeypatch.setattr(host_capacity, "measure_memory", measured)
 

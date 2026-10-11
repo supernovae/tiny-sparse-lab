@@ -47,7 +47,8 @@ uv run --locked --extra cpu ruff format --check .
 ## Fast and full suites
 
 The fast suite skips tests marked `slow`. It is the default local check before
-a push. The full suite is the release gate.
+a push and what every PR runs in CI. The full suite runs nightly and is the
+release gate.
 
 ```sh
 # Fast: about 2,900 tests; a few minutes with 4 workers on an 8-vCPU box
@@ -65,9 +66,20 @@ but take more than 90% of its test time: end-to-end campaign, corpus and
 lifecycle runs, tiny training, and native subprocess monitors.
 `tests/test_slow_list.py` fails when an entry no longer names a real test.
 
-In CI, the automatic `safe` and `lab-loop` jobs are unchanged. The manual
-`workflow_dispatch` choice `fast` runs the fast suite on Linux, and
-`release-candidate` still runs everything.
+### Where each suite runs
+
+- **While iterating (agents included):** run the fast suite, plus the slow
+  tests for the areas you touched (`pytest -q path/to/test_file.py::test_name`,
+  or `-m slow` restricted to the relevant files). Don't run the full suite
+  locally; nightly covers it.
+- **Every PR and push to main:** the `safe` and `lab-loop` jobs (unchanged
+  check names) plus `fast`, which runs the fast suite on Linux.
+- **Nightly** ([`.github/workflows/nightly.yml`](../.github/workflows/nightly.yml),
+  08:17 UTC, also runnable manually): the full CPU suite, slow tests included,
+  on `main`. A failure opens the issue "Nightly full suite failing on main",
+  or comments on it if it is already open.
+- **Manual:** the `workflow_dispatch` choice `release-candidate` still runs the
+  full suite on Linux and macOS.
 
 ### Profiling and the slow list
 
@@ -97,7 +109,15 @@ measured RAM after reserve". Every SparseLab reader of host RAM, including
 reserves computed from total RAM, goes through
 `host_capacity.measure_memory()`. An autouse fixture in `tests/conftest.py`
 pins it to a fixed host (64 GiB total, 48 GiB available), whatever the
-physical machine. Tests that
+physical machine. For child interpreters launched by tests (`python -c`,
+`python -m sparselab`), the fixture also sets
+`SPARSELAB_TEST_HOST_RAM=total:available` and puts
+[`tests/child_bootstrap/`](../tests/child_bootstrap/sitecustomize.py) first on
+`PYTHONPATH`. That directory's `sitecustomize.py` applies the same pin at
+interpreter startup. The shipped `measure_memory()` has no override, so the
+variable does nothing outside the test bootstrap: it cannot change a real
+measurement or get past a low-memory limit. `tests/test_host_capacity.py`
+covers both directions. Tests that
 monkeypatch `psutil.virtual_memory` themselves still see their own values,
 which is how `tests/test_host_capacity.py` covers the reserve logic.
 
@@ -155,7 +175,7 @@ Never use `-n` for MLX/MPS or run another accelerator test/training process agai
 
 The full CPU jobs on Linux and macOS retain their tests, hardware exclusions,
 and existing 30-minute safety limits, but are manual-only while their long
-native integrations are paused as automatic build gates. The automatic `safe` and `lab-loop` jobs have 12- and 20-minute limits. The manual hosted
+native integrations are paused as automatic build gates. The automatic `safe`, `lab-loop` and `fast` jobs have 12-, 20- and 20-minute limits; the nightly full suite has 60 minutes. The manual hosted
 CPU jobs use up to four workers with work-stealing; the local command above
 uses whole-file scheduling for fixture reuse.
 

@@ -143,7 +143,10 @@ and the documented vendor environment for accelerator work (`--no-sync` where
 already provisioned). Do not install packages or create another environment
 without authorization. Host OS does not identify the accelerator. Inspect test
 fixtures and transitive calls before choosing a bounded explicit test selection;
-expand only for a changed behavior or required gate. Prefer deterministic
+expand only for a changed behavior or required gate. While iterating, run
+the fast suite (`-m 'not slow and not mps and not mlx and not cuda and not rocm
+and not xpu and not network'`) plus targeted slow tests for the touched area;
+leave the full suite to the nightly workflow (docs/test-speed.md). Prefer deterministic
 identities, counters, transitions and failure checks to wall-clock assertions
 (the generous lab-loop timer is the deliberate exception).
 

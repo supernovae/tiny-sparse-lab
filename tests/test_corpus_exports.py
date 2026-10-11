@@ -128,9 +128,19 @@ def test_export_verifies_from_same_and_independent_work_roots(
         ("base_config_sha256", "A" * 64),
         ("schema_version", "1"),
         ("schema_version", True),
+        # Sealed metadata digests and policy fields.
+        ("release_manifest_sha256", "0" * 64),
+        ("report_sha256", "0" * 64),
+        ("license_report_sha256", "0" * 64),
+        ("run_config_sha256", "0" * 64),
+        ("tokenizer_config_sha256", "0" * 64),
+        ("publication_mode", "tampered"),
+        ("weight_license_status", "tampered"),
+        ("training_use_policy", {"unexpected": True}),
+        ("unexpected_metadata", "must not be silently accepted"),
     ],
 )
-def test_export_rejects_changed_request(
+def test_export_rejects_changed_request_or_metadata(
     isolated_export: tuple[Path, Path, Path], field: str, bad: Any
 ) -> None:
     _, exported, _ = isolated_export
@@ -172,30 +182,6 @@ def test_export_rejects_wrong_release_path_and_revision(
     other = tmp_path / ("0" * 64)
     shutil.copytree(release, other)
     _reject(exported, corpus_release_path=other)
-
-
-@pytest.mark.parametrize(
-    ("field", "bad"),
-    [
-        ("release_manifest_sha256", "0" * 64),
-        ("report_sha256", "0" * 64),
-        ("license_report_sha256", "0" * 64),
-        ("run_config_sha256", "0" * 64),
-        ("tokenizer_config_sha256", "0" * 64),
-        ("publication_mode", "tampered"),
-        ("weight_license_status", "tampered"),
-        ("training_use_policy", {"unexpected": True}),
-        ("unexpected_metadata", "must not be silently accepted"),
-    ],
-)
-def test_export_rejects_modified_metadata(
-    isolated_export: tuple[Path, Path, Path], field: str, bad: Any
-) -> None:
-    _, exported, _ = isolated_export
-    sidecar = _sidecar(exported)
-    sidecar[field] = bad
-    _write_sidecar(exported, sidecar)
-    _reject(exported)
 
 
 @pytest.mark.parametrize("filename", ["run.yaml", "tokenizer.yaml"])

@@ -130,12 +130,16 @@ jobs:
             tests/test_dashboard_lab.py
 
   fast:
-    # Manual fast suite: everything except tests marked slow (tests/slow_tests.txt).
-    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'fast'
+    # Every PR and main push, plus manual dispatch: the whole suite except tests
+    # marked slow (tests/slow_tests.txt). Slow tests run in the nightly workflow
+    # (.github/workflows/nightly.yml), which reports failures as an issue.
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'fast'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
@@ -144,9 +148,14 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
-      - name: Manual fast CPU suite
+      - name: Fast CPU suite (not slow)
+        env:
+          UV_OFFLINE: "1"
+          SPARSELAB_WORK_DIR: ${{ runner.temp }}/fast-work
         run: >-
-          uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4
+          uv run --locked --no-sync pytest -q -p no:cacheprovider
+          --basetemp "$RUNNER_TEMP/fast-pytest"
+          -n auto --maxprocesses=4
           --dist loadfile --durations=25
           -m "not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network"
 

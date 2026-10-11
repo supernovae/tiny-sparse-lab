@@ -1,0 +1,82 @@
+name: Nightly
+
+# The full CPU suite, slow tests included, against main once a day. Pull
+# requests and main pushes run only the fast suite (ci.yml `fast`); a failure
+# here opens, or comments on, one tracking issue.
+
+on:
+  schedule:
+    - cron: "17 8 * * *"  # 08:17 UTC (03:17 CDT / 02:17 CST)
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  HF_HUB_OFFLINE: "1"
+  HF_DATASETS_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  CUDA_VISIBLE_DEVICES: ""
+  HIP_VISIBLE_DEVICES: ""
+  ROCR_VISIBLE_DEVICES: ""
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  full-suite:
+    name: Full CPU suite (nightly)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --extra cpu --dev
+      - name: Full CPU suite (slow included)
+        env:
+          UV_OFFLINE: "1"
+          SPARSELAB_WORK_DIR: ${{ runner.temp }}/nightly-work
+        run: >-
+          uv run --locked --no-sync pytest -q -p no:cacheprovider
+          --basetemp "$RUNNER_TEMP/nightly-pytest"
+          -n auto --maxprocesses=4 --dist worksteal --durations=50
+          -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
+
+  report-failure:
+    needs: full-suite
+    if: failure()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the nightly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: "Nightly full suite failing on main"
+        run: |
+          body="Nightly full CPU suite failed on main at ${GITHUB_SHA::7}: $RUN_URL"
+          number=$(gh issue list --state open --search "in:title \"$TITLE\"" \
+            --json number,title --jq "map(select(.title == env.TITLE)) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi
