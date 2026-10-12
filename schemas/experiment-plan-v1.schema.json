@@ -1504,6 +1504,8 @@
           "type": "integer"
         },
         "seed": {
+          "maximum": 4294967295,
+          "minimum": 0,
           "title": "Seed",
           "type": "integer"
         },
