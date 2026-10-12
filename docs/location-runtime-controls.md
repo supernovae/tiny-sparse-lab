@@ -92,9 +92,14 @@ six audited switches:
 | `--backend` | 24 | try; probe; facts evaluate/transfer-evaluate; engram export; train; model exercise; eval; capability evaluate/compare; study collect; research scaffold; research portability build; learn scaffold; serve; generate; chat; surface chat; worker register/serve-stdio/execute; evaluation suite run and fixed-slices score/continuations |
 
 Global `--work-dir` is registered once on the application parser. Surface chat
-also accepts a command-local work root and forwards it before the child `chat`
-verb. It is a subprocess storage handoff, not an extra search root. The
-application parser does not own `runtime env`.
+also accepts a command-local work root: an explicit local flag overrides the
+global prefix for both parent scratch and the chat app. Without a local flag,
+the prefix is retained; without either flag, the environment and default rules
+above apply. The resolved root is forwarded after Streamlit's `--` separator
+to the app's chat mode. It is a subprocess storage handoff, not an extra search
+root. Preliminary global parsing stops at the command, leaving command-local
+flags and child command remainders untouched. The application parser does not
+own `runtime env`.
 
 Relevant implementations are `cli/main.py` (parser defaults and runtime gate),
 `workdir.py` (persistent/scratch resolution), `lab_results.py` (unique lookup),

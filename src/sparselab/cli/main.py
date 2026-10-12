@@ -4304,7 +4304,10 @@ def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:
 def main() -> None:
     global_parser = argparse.ArgumentParser(add_help=False)
     global_parser.add_argument("--work-dir", type=Path)
+    global_parser.add_argument("--hf-token-file", type=Path)
     # Only the prefix before the verb contains global arguments.
+    # Consume other global values too, so they cannot become the verb boundary.
+    global_parser.add_argument("command", nargs=argparse.REMAINDER)
     global_args, _ = global_parser.parse_known_args(sys.argv[1:])
     parser = build_parser(global_args.work_dir)
     args, extras = parser.parse_known_args()

@@ -60,7 +60,7 @@ def _launch(args: argparse.Namespace) -> None:
             cmd.extend(("--cell", item))
         cmd.extend(("--backend", args.backend, "--seed", str(args.seed)))
         if args.work_dir:
-            cmd.extend(("--work-dir", args.work_dir))
+            cmd.extend(("--work-dir", str(args.work_dir)))
     subprocess.run(cmd, check=True)
 
 
@@ -94,5 +94,9 @@ def add_commands(commands: argparse._SubParsersAction[argparse.ArgumentParser]) 
     )
     chat.add_argument("--seed", type=int, default=11)
     chat.add_argument("--port", type=int, default=8502)
-    chat.add_argument("--work-dir")
+    chat.add_argument(
+        "--work-dir",
+        default=argparse.SUPPRESS,
+        help="Work root for chat and parent scratch (overrides the global prefix)",
+    )
     chat.set_defaults(handler=_launch, mode="chat")
