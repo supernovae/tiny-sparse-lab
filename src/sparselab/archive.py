@@ -9,8 +9,9 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal
+from typing import Any, BinaryIO, Literal
 
 from sparselab.campaign.state import read_canonical
 from sparselab.recovery.manifest import load_manifest
@@ -794,6 +795,21 @@ def _inventory(
     return inventory, external, family_state, corpus_identities
 
 
+class _ArchiveReader:
+    """Hash exactly the bytes handed to TAR, without buffering a whole member."""
+
+    def __init__(self, handle: BinaryIO) -> None:
+        self.handle = handle
+        self.digest = hashlib.sha256()
+        self.size = 0
+
+    def read(self, size: int) -> bytes:
+        data = self.handle.read(size)
+        self.digest.update(data)
+        self.size += len(data)
+        return data
+
+
 def create_archive(
     source: Path,
     mode: Literal["thin", "portable"],
@@ -846,7 +862,17 @@ def create_archive(
         stat = os.statvfs(output.parent)
         if stat.f_favail and stat.f_favail < len(entries) + 2:
             raise ValueError("insufficient archive destination inodes")
-    with output.open("xb") as stream:
+    # A sibling stage keeps publication on one filesystem. Only the stage is
+    # ever cleaned up: a successful link (even followed by a durability error)
+    # and a competing destination both belong to the caller.
+    with tempfile.NamedTemporaryFile(
+        mode="wb",
+        prefix=f".{output.name}.",
+        suffix=".tmp",
+        dir=output.parent,
+        delete=False,
+    ) as stream:
+        staged = Path(stream.name)
         try:
             with tarfile.open(fileobj=stream, mode="w|") as tar:
                 info = tarfile.TarInfo("archive-index.json")
@@ -860,18 +886,30 @@ def create_archive(
                         file.is_symlink()
                         or not file.is_file()
                         or file.stat().st_size != entry["size"]
-                        or sha256_file(file) != entry["sha256"]
                     ):
                         raise ValueError(f"archive input changed: {file}")
                     info = tarfile.TarInfo(entry["path"])
                     info.size, info.mode, info.mtime = entry["size"], 0o644, 0
                     with file.open("rb") as handle:
-                        tar.addfile(info, handle)
+                        reader = _ArchiveReader(handle)
+                        tar.addfile(info, reader)
+                        if (
+                            reader.size != entry["size"]
+                            or reader.digest.hexdigest() != entry["sha256"]
+                            or handle.read(1)
+                        ):
+                            raise ValueError(f"archive input changed: {file}")
             stream.flush()
             os.fsync(stream.fileno())
-        except BaseException:
-            output.unlink(missing_ok=True)
-            raise
+            os.link(staged, output)
+            staged.unlink()
+            directory = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            staged.unlink(missing_ok=True)
     return index
 
 

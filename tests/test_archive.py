@@ -672,3 +672,197 @@ def test_lock_archive_requires_authenticated_availability_even_with_updated_inde
                 tar.addfile(info, io.BytesIO(value))
         with pytest.raises(ValueError):
             verify_archive(path)
+
+
+@pytest.mark.parametrize("change", ["same-size", "shorter", "longer"])
+def test_archive_validates_streamed_source(
+    tmp_path: Path, partial_recipe: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    # Mutate a disposable copy after all pre-stream checks, just before TAR
+    # consumes the open source. This also reaches the old second-hash gap.
+    repo = tmp_path / "repo"
+    shutil.copytree(partial_recipe.parents[3], repo)
+    source = repo / partial_recipe.relative_to(partial_recipe.parents[3])
+    original_addfile = tarfile.TarFile.addfile
+    mutations = []
+
+    def addfile(tar, info, fileobj=None):
+        if info.name == f"declarations/{source.relative_to(repo).as_posix()}":
+            data = source.read_bytes()
+            changed = {
+                "same-size": bytes([data[0] ^ 1]) + data[1:],
+                "shorter": data[:-1],
+                "longer": data + b"X",
+            }[change]
+            source.write_bytes(changed)
+            mutations.append(info.name)
+        return original_addfile(tar, info, fileobj)
+
+    monkeypatch.setattr(tarfile.TarFile, "addfile", addfile)
+    output = tmp_path / "result.tar"
+    with pytest.raises((ValueError, OSError), match="changed|unexpected end"):
+        create_archive(source, "thin", output, work_root=tmp_path / "state")
+    assert len(mutations) == 1
+    assert not output.exists()
+    assert not list(tmp_path.glob(".result.tar.*.tmp"))
+
+
+@pytest.mark.parametrize(
+    "point",
+    ["member", "tar-complete", "file-sync", "link-before", "link-after", "dir-sync"],
+)
+def test_archive_faults_preserve_only_complete_publication(
+    tmp_path: Path, partial_recipe: Path, monkeypatch: pytest.MonkeyPatch, point: str
+) -> None:
+    import os
+    import stat
+
+    output = tmp_path / "result.tar"
+    original_addfile = tarfile.TarFile.addfile
+    original_close = tarfile.TarFile.close
+    original_sync = os.fsync
+    original_link = os.link
+
+    def addfile(tar, *args, **kwargs):
+        original_addfile(tar, *args, **kwargs)
+        if point == "member":
+            raise KeyboardInterrupt("injected member")
+
+    def close(tar):
+        writing = tar.mode == "w" and not tar.closed
+        original_close(tar)
+        if point == "tar-complete" and writing:
+            raise KeyboardInterrupt("injected tar-complete")
+
+    def sync(fd):
+        directory = stat.S_ISDIR(os.fstat(fd).st_mode)
+        if point == ("dir-sync" if directory else "file-sync"):
+            raise OSError("injected sync")
+        return original_sync(fd)
+
+    def link(source, destination):
+        assert Path(source).parent == output.parent
+        assert Path(source) != output
+        # Publication must see a complete, independently verifiable archive.
+        verify_archive(Path(source))
+        if point == "link-before":
+            raise OSError("injected link-before")
+        original_link(source, destination)
+        if point == "link-after":
+            raise KeyboardInterrupt("injected link-after")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(tarfile.TarFile, "addfile", addfile)
+        patch.setattr(tarfile.TarFile, "close", close)
+        patch.setattr(os, "fsync", sync)
+        patch.setattr(os, "link", link)
+        with pytest.raises((OSError, KeyboardInterrupt), match="injected"):
+            create_archive(partial_recipe, "thin", output, work_root=tmp_path / "state")
+    if point in {"link-after", "dir-sync"}:
+        assert verify_archive(output)["verified_members"] > 0
+    else:
+        assert not output.exists()
+    assert not list(tmp_path.glob(".result.tar.*.tmp"))
+
+
+@pytest.mark.parametrize("competitor", ["existing", "racing", "dangling-symlink"])
+def test_archive_never_clobbers_destination(
+    tmp_path: Path,
+    partial_recipe: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    competitor: str,
+) -> None:
+    import os
+
+    output = tmp_path / "result.tar"
+    original_link = os.link
+    sentinel = b"competing evidence"
+    if competitor == "existing":
+        output.write_bytes(sentinel)
+    elif competitor == "dangling-symlink":
+        output.symlink_to(tmp_path / "absent")
+    else:
+
+        def link(source, destination):
+            output.write_bytes(sentinel)
+            original_link(source, destination)
+
+        monkeypatch.setattr(os, "link", link)
+    with pytest.raises(FileExistsError):
+        create_archive(partial_recipe, "thin", output, work_root=tmp_path / "state")
+    if competitor == "dangling-symlink":
+        assert output.is_symlink()
+        assert output.readlink() == tmp_path / "absent"
+        assert not (tmp_path / "absent").exists()
+    else:
+        assert output.read_bytes() == sentinel
+    assert not list(tmp_path.glob(".result.tar.*.tmp"))
+
+
+def test_archive_preserves_tar_bytes(tmp_path: Path, partial_recipe: Path) -> None:
+    from sparselab.training.manifest import canonical_json
+
+    output = tmp_path / "result.tar"
+    index = create_archive(partial_recipe, "thin", output, work_root=tmp_path / "state")
+    # Rebuild using the original writer's format, order and metadata.
+    expected = io.BytesIO()
+    with (
+        tarfile.open(output) as actual,
+        tarfile.open(fileobj=expected, mode="w|") as tar,
+    ):
+        contents = [("archive-index.json", canonical_json(index) + b"\n")]
+        for entry in index["entries"]:
+            member = actual.extractfile(entry["path"])
+            assert member is not None
+            contents.append((entry["path"], member.read()))
+        for name, data in contents:
+            info = tarfile.TarInfo(name)
+            info.size, info.mode, info.mtime = len(data), 0o644, 0
+            tar.addfile(info, io.BytesIO(data))
+    assert output.read_bytes() == expected.getvalue()
+    assert verify_archive(output)["verified_members"] == len(index["entries"])
+
+
+@pytest.mark.parametrize("point", ["member", "before-link", "after-link"])
+def test_archive_process_exit_leaves_final_absent_or_complete(
+    tmp_path: Path, partial_recipe: Path, point: str
+) -> None:
+    import sys
+
+    output = tmp_path / "result.tar"
+    script = r"""
+import os
+import sys
+import tarfile
+from pathlib import Path
+from sparselab.archive import create_archive
+source, output, point = sys.argv[1:]
+original_addfile = tarfile.TarFile.addfile
+original_link = os.link
+def addfile(tar, *args, **kwargs):
+    original_addfile(tar, *args, **kwargs)
+    if point == "member":
+        os._exit(47)
+def link(source, destination):
+    if point == "before-link":
+        os._exit(47)
+    original_link(source, destination)
+    os._exit(47)
+tarfile.TarFile.addfile = addfile
+os.link = link
+create_archive(Path(source), "thin", Path(output), work_root=Path(output).parent / "state")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(partial_recipe), str(output), point],
+        timeout=20,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 47, result.stderr
+    if point == "after-link":
+        assert verify_archive(output)["verified_members"] > 0
+    else:
+        assert not output.exists()
+    # Uncatchable termination may leave a stage, never a partial final name.
+    assert len(list(tmp_path.glob(".result.tar.*.tmp"))) == 1
