@@ -152,6 +152,11 @@ def resolve_checkpoint(
     spec: str, *, lab_dir: Path, runs_dir: Path | None = None
 ) -> CheckpointTarget:
     result = resolve_result(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+    return checkpoint_from_result(spec, result)
+
+
+def checkpoint_from_result(spec: str, result: LabResult) -> CheckpointTarget:
+    """Keep checkpoint selection and provenance on the same native lookup."""
     if result.run is not None:
         return CheckpointTarget(
             result.run, None if result.path == result.run else str(result.path)
@@ -172,7 +177,16 @@ def resolve_checkpoint(
             "use report to inspect the retained stop/missing evidence; "
             "pass a local run/checkpoint explicitly to start new work",
         )
-    run = Path(row["run_dir"]).resolve()
+    run = Path(row["run_dir"])
+    if not run.is_absolute():
+        raise ResultLookupError(
+            spec,
+            "missing_evidence",
+            "recorded run location is relative; original working directory is unknown",
+            "report can read the historical record; pass an explicit checkpoint path "
+            "for new work rather than inferring a directory from the reader",
+        )
+    run = run.resolve()
     relative = Path(checkpoint)
     # A record must name a generation, never a mutable latest/best pointer.
     if (
@@ -203,3 +217,32 @@ def resolve_checkpoint(
             "restore the recorded checkpoint generation inside its run",
         )
     return CheckpointTarget(run, str(selected), digest)
+
+
+def baseline_provenance(spec: str | None) -> dict[str, Any]:
+    """Capture selector context before setup; never interpret an ID as a path."""
+    return {
+        "selector": spec,
+        "working_directory": str(Path.cwd()),
+        "status": "not_requested" if spec is None else "unresolved",
+    }
+
+
+def baseline_text(record: Any) -> str:
+    """Read-only presentation; historical relative selectors stay uncertain."""
+    provenance = record.get("baseline_provenance")
+    if provenance is None:
+        selector = (record.get("request") or {}).get("baseline")
+        return (
+            f"  baseline selector: {selector!r}; provenance unavailable "
+            "(historical record; original working directory unknown)"
+        )
+    line = f"  baseline selector: {provenance['selector']!r}; {provenance['status']}"
+    if provenance.get("resolved"):
+        selected = provenance["resolved"]
+        line += f"; {selected['kind']}: {selected['path']}"
+        if selected.get("run_id"):
+            line += f"; run {selected['run_id']}"
+        if selected.get("checkpoint"):
+            line += f"; checkpoint {selected['checkpoint']}"
+    return line

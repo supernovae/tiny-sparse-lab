@@ -708,7 +708,14 @@ def run_try(
     started = time.monotonic()
     root = lab_root(Path(work_dir), lab_dir)
     runs = root / "runs"
+    from sparselab.lab_results import baseline_provenance
+
+    request = dict(request) if request is not None else {"baseline": str(baseline_path)}
+    provenance = baseline_provenance(request.get("baseline", str(baseline_path)))
     baseline_path = Path(baseline_path).absolute()
+    provenance.update(
+        status="resolved", resolved={"kind": "config", "path": str(baseline_path)}
+    )
     candidate_path = Path(candidate_path).absolute()
     stamp = started_at.strftime("%Y%m%dT%H%M%SZ")
     try_id = f"try-{stamp}-{secrets.token_hex(4)}"
@@ -736,6 +743,7 @@ def run_try(
         "resources": {"cancel_path": str(cancel_path)},
         "arms": {},
         "status": "started",
+        "baseline_provenance": provenance,
     }
     if request is not None:
         record["request"] = request
@@ -1059,6 +1067,9 @@ def summarize(
 ) -> str:
     """Human-readable comparison; ``--json`` carries the same record."""
     lines = [f"LAB TRY {record['try_id']}  status: {record['status']}  (lab mode)"]
+    from sparselab.lab_results import baseline_text
+
+    lines.append(baseline_text(record))
     if record.get("question"):
         lines.append(f"  question: {record['question']}")
     for field, change in (record.get("delta") or {}).items():

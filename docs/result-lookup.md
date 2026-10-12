@@ -98,3 +98,43 @@ not hidden aliases.
 | `explore` | Descriptive text diagnostics, refreshable cache, CPU default, resource stops. |
 | `compare` | Read-only recorded metrics, comparison groups, references and explicit final-only reports. |
 | `report` | Whole sealed record, including failed/interrupted/missing observations. |
+
+## Baseline selector provenance
+
+New `try` and standalone `probe` records retain the original `request.baseline`
+selector, including relative spelling or an ID. The sealed
+`baseline_provenance` records `selector`, the execution `working_directory`,
+resolution `status` and, when available, `resolved` native selection. Try's
+baseline is a config path (IDs are not supported by `try`). Probe uses native
+unique lookup for run IDs, try/probe record IDs, run directories and checkpoint
+paths. Its resolved selection records the matched path, kind, run identity,
+checkpoint selector and expected digest; record inputs also retain the source
+record digest. IDs are never converted into paths by joining them to the
+execution directory. Paths in provenance describe locations, not scientific
+identities or permission to compute.
+
+For a run selector, `resolved.checkpoint: null` retains native `latest` selection
+at load time. The scored `baseline` row (or `arms.baseline` in a try) records the
+actual generation and digest. Record selectors keep their pinned generation and
+expected digest; provenance neither bypasses verification nor changes baseline
+reuse. Reading from another directory does not reinterpret the saved baseline
+selector. Missing checkpoints still require restoration or an explicit new
+checkpoint selection; provenance is not automatic relocation or replay.
+
+Try seals provenance before input parsing. Probe seals a started record before
+native lookup and retains failed/interrupted setup, with unresolved or explicit
+lookup failure status when no baseline was selected. Such records contain no
+scoring evidence and cannot select a checkpoint. Invalid declarations rejected
+before an execution starts do not create a record.
+
+Text `try`, `probe` and `report` output shows the original selector and resolution
+status. `--json` exposes the sealed fields directly. Historical records remain
+readable under their existing format and digest: text reports explicitly mark
+missing provenance and an unknown original working directory; JSON returns the
+original sealed document without adding inferred fields. Readers never infer
+that directory from their own cwd, reseal history, create stores, or score models.
+
+Resolution records a selected location, not proof that parsing, loading or scoring
+succeeded. Historical records with a relative `run_dir` remain reportable, but
+checkpoint consumers refuse to interpret that location against the reader's
+working directory. Pass an explicit checkpoint path to start new work.
