@@ -145,8 +145,13 @@ children and 32 distinct registered interpreter paths. Directory aliases dedup;
 different venv prefixes remain distinct even when `bin/python` symlinks share a
 base executable. Each candidate has a 20-second/32-KiB output bound; passive host
 tools have 5-second/32-KiB bounds. Truncation is explicit. JSON v1 reports hardware
-separately from environment `READY`, `UNAVAILABLE`, `SOURCE_MISMATCH`, `ERROR` or
-`NOT_PROVISIONED` states. Inventory READY is not authorization for a run.
+separately from environment `READY`, `UNAVAILABLE`, `SOURCE_MISMATCH`, `ERROR`,
+`NOT_PROVISIONED` or `UNOBSERVED` states. List retains all registrations in ID
+order: an existing interpreter omitted by the observation bounds is `UNOBSERVED`
+with an omission reason and no environment observation; a missing interpreter
+remains `NOT_PROVISIONED`. Aliases reuse observations of the same canonical path,
+including paths observed through another origin. `show ID` observes that entry
+even beyond the inventory cap. Inventory READY is not authorization for a run.
 
 `register` checks current source, backend/device and requirements, then runs
 the same doctor as `doctor ID` before publishing. Backend inference chooses one

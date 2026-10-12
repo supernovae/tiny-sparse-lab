@@ -356,3 +356,133 @@ def test_registration_profile_source_mismatch_returns_explicit_repair(
         in result["reason"]
     )
     assert not registry_path.exists()
+
+
+def test_bounded_list_preserves_unobserved_missing_and_aliases(
+    registry_path, tmp_path, capsys, monkeypatch
+):
+    from sparselab import runtime_env_hardware
+    from sparselab import runtime_env_inventory as inventory
+    from sparselab.runtime_environments import RuntimeRegistry
+
+    def interpreter(path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        return path
+
+    root = tmp_path / "runtimes"
+    roots = [interpreter(root / f"env-{i:02}/bin/python") for i in range(35)]
+    project = tmp_path / "project"
+    project_python = interpreter(project / ".venv/bin/python")
+    active = interpreter(tmp_path / "active/bin/python")
+    registered = [
+        interpreter(tmp_path / f"registered-{i:02}/bin/python") for i in range(32)
+    ]
+    omitted = interpreter(tmp_path / "omitted/bin/python")
+    directory_alias = tmp_path / "root-alias"
+    directory_alias.symlink_to(roots[0].parent, target_is_directory=True)
+    entries = {
+        **{f"a-{i:02}": path for i, path in enumerate(registered)},
+        "z-active": active,
+        "z-existing": omitted,
+        "z-missing": tmp_path / "missing/bin/python",
+        "z-project": project_python,
+        "z-registered-alias": registered[0],
+        "z-root": roots[0],
+        "z-root-alias": directory_alias / "python",
+    }
+    registry = RuntimeRegistry(
+        runtimes={
+            identifier: RuntimeEntry(
+                python=path, engine="pytorch", backend="cpu", device_index=0
+            )
+            for identifier, path in reversed(entries.items())
+        }
+    )
+    monkeypatch.setattr(cli, "read_registry", lambda: registry)
+    monkeypatch.setattr(inventory.sys, "executable", str(active))
+    monkeypatch.setattr(runtime_env_hardware, "hardware_inventory", list)
+    calls = []
+
+    def inspect(path):
+        calls.append(path)
+        return {
+            "python": str(canonical_python(path)),
+            "status": "READY",
+            "reason": None,
+            "backends": ["cpu"],
+            "devices": {},
+        }
+
+    monkeypatch.setattr(inventory, "inspect_python", inspect)
+    monkeypatch.setattr(cli, "inspect_python", inspect)
+    monkeypatch.setattr(
+        cli,
+        "inventory",
+        lambda **kwargs: inventory.inventory(
+            **kwargs, runtime_dir=root, project_dir=project
+        ),
+    )
+    listed = invoke(capsys, "list")
+    assert listed["truncated"] is True
+    assert [row["id"] for row in listed["runtimes"]] == sorted(entries)
+    rows = {row["id"]: row for row in listed["runtimes"]}
+    assert rows["z-existing"]["status"] == "UNOBSERVED"
+    assert rows["z-existing"]["reason"] == "candidate omitted by bounded discovery"
+    assert rows["z-existing"]["environment"] is None
+    assert rows["z-missing"]["status"] == "NOT_PROVISIONED"
+    assert rows["z-missing"]["reason"] == "interpreter does not exist"
+    assert rows["z-missing"]["environment"] is None
+    for identifier in entries.keys() - {"z-existing", "z-missing"}:
+        assert rows[identifier]["status"] == "READY"
+    assert rows["z-root"]["environment"] == rows["z-root-alias"]["environment"]
+    assert rows["z-root-alias"]["environment"]["origins"] == ["runtime_root"]
+    assert rows["z-registered-alias"]["environment"] == rows["a-00"]["environment"]
+    assert len(calls) == len(set(calls)) == 32 + 32 + 2
+    assert set(calls) == {*roots[:32], *registered, active, project_python}
+
+    calls.clear()
+    shown = invoke(capsys, "show", "z-existing")
+    assert shown["status"] == "READY"
+    assert shown["environment"]["python"] == str(omitted)
+    assert calls == [omitted]
+
+
+@pytest.mark.parametrize(
+    "status", ["UNAVAILABLE", "SOURCE_MISMATCH", "ERROR", "NOT_PROVISIONED"]
+)
+def test_list_preserves_observed_failure_status_and_reason(
+    status, registry_path, capsys, monkeypatch
+):
+    registered_cpu(registry_path)
+    environment = {**observed(status=status), "reason": "specific observed failure"}
+    monkeypatch.setattr(cli, "inventory", lambda **kwargs: inventory_for(environment))
+    row = invoke(capsys, "list")["runtimes"][0]
+    assert row["status"] == status
+    assert row["reason"] == "specific observed failure"
+    assert row["environment"] == environment
+
+
+@pytest.mark.parametrize(("backends", "device_index"), [(["cpu"], 0), (["cuda"], 1)])
+def test_list_preserves_observed_declared_backend_device_failure(
+    backends, device_index, registry_path, capsys, monkeypatch
+):
+    register_runtime(
+        "cuda-local",
+        RuntimeEntry(
+            python=Path(sys.executable).absolute(),
+            engine="pytorch",
+            backend="cuda",
+            device_index=device_index,
+        ),
+        registry_path=registry_path,
+    )
+    environment = {
+        **observed(backends=backends),
+        "devices": {"cuda": {"count": 1}},
+    }
+    monkeypatch.setattr(cli, "inventory", lambda **kwargs: inventory_for(environment))
+    row = invoke(capsys, "list")["runtimes"][0]
+    assert row["status"] == "UNAVAILABLE"
+    assert row["reason"] == "declared backend/device is not executable"
+    assert row["environment"] == environment
