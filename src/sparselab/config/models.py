@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-# Shared run/try seed domain; preserve the serialized integer unchanged.
+# Shared run/try bounds reject out-of-range seeds rather than wrapping them.
 RunSeed = Annotated[int, Field(ge=0, le=2**32 - 1)]
 
 
