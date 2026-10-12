@@ -148,15 +148,17 @@ def _index_dependencies(
     prefix: str,
     record: dict[str, Any],
     checkpoint: Path,
-    visited: set[str],
+    ancestors: set[str],
 ) -> None:
     """Inventory only files consumed by a verified checkpoint-bound index."""
     from sparselab.evaluation.suite import _source, load_suite, verify_evaluation_index
 
     identity = record["index_sha256"]
-    if identity in visited:
-        return
-    visited.add(identity)
+    if identity in ancestors:
+        raise ValueError("cyclic portable evaluation index dependency")
+    # A shared index needs its full closure under every branch-local prefix.
+    # Only ancestors of this invocation indicate a cycle, not completed siblings.
+    ancestors = ancestors | {identity}
     run = Path(record["run"])
     if (run / record["checkpoint"]).resolve() != checkpoint.resolve():
         raise ValueError("portable index checkpoint differs from declared family node")
@@ -199,7 +201,7 @@ def _index_dependencies(
                 result_path,
                 "evaluation_index_dependency",
             )
-            _index_dependencies(inventory, nested, supplied, checkpoint, visited)
+            _index_dependencies(inventory, nested, supplied, checkpoint, ancestors)
         else:
             _add(
                 inventory,
