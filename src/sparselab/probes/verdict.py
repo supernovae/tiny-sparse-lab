@@ -256,7 +256,7 @@ def final_verdict(verdict: Mapping[str, Any]) -> dict[str, Any]:
     produced no evidence (``missing``: unavailable, error, not comparable, a
     cancel/resource/OOM stop) makes the final battery ``incomplete`` with
     action ``rerun`` (the same final declaration, unchanged), whatever status
-    ``decide`` gave it (e.g. ``info`` without a baseline, or a soft ``fail``).
+    ``decide`` gave it (e.g. a soft ``fail``).
     Only a decisive failure (``abandon``: a NaN/inf loss or a hard probe
     failure) is terminal despite gaps. A complete battery keeps its status and
     reasons and becomes ``report`` with no next tier and a suggestion that
@@ -390,7 +390,9 @@ def decide(
         )
     if not has_baseline:
         if missing:
-            return _incomplete_verdict(missing)
+            verdict = _incomplete_verdict(missing)
+            verdict["suggestion"] += " Add --vs BASELINE for pass/warn/fail."
+            return verdict
         return _verdict(
             "info",
             "compare",

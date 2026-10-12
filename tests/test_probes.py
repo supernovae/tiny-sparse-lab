@@ -407,6 +407,15 @@ def test_missing_evidence_is_never_success(status: str, has_baseline: bool) -> N
         ]
         assert "Every tier holds up" not in out["suggestion"]
         assert "lm_eval" in out["suggestion"]
+        baseline_suggestion = (
+            "Not enough evidence for a verdict. Fix and re-run: "
+            f"lm_eval ({status}: lm-eval not installed)."
+        )
+        if has_baseline:
+            assert out["suggestion"] == baseline_suggestion
+        else:
+            assert out["suggestion"].startswith(baseline_suggestion)
+            assert "Add --vs BASELINE for pass/warn/fail" in out["suggestion"]
     # A real failure still decides the verdict.
     failed = decide(
         [*rows, _result_row("calibration", "fail")],
@@ -435,6 +444,7 @@ def test_stopped_battery_names_the_unrun_probes(has_baseline: bool, kind: str) -
     assert out["status"] == "incomplete" and out["action"] == "rerun"
     assert out["next_tier"] is None
     assert "calibration" in out["suggestion"]
+    assert ("--vs BASELINE" in out["suggestion"]) is (not has_baseline)
     assert out["missing"] == [
         {"id": "calibration", "status": f"stopped:{kind}", "note": "synthetic stop"}
     ]

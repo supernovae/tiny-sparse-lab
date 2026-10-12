@@ -243,16 +243,17 @@ actions are:
 |---|---|---|
 | numerical failure (NaN/inf held-out loss) | fail | `abandon` |
 | inside a try whose comparison is `NOT_COMPARABLE` | incomplete | `rerun` (names the failed held-out checks; never escalates) |
-| no baseline (a reference model only once every task and item is scored) | info | `compare` |
+| no baseline, any requested evidence missing (unavailable, error, not comparable, stopped by cancel/resources/OOM/interrupt) | incomplete | `rerun` (names each gap) |
+| no baseline, every requested check produced evidence (a reference model only once every task and item is scored) | info | `compare` |
 | a hard probe failed | fail | `abandon` |
 | any probe failed | fail | `tweak` (that probe's hint) |
-| missing evidence (unavailable, error, not comparable, stopped by cancel/resources/OOM) | incomplete | `rerun` (names each gap) |
+| missing evidence (unavailable, error, not comparable, stopped by cancel/resources/OOM/interrupt) | incomplete | `rerun` (names each gap) |
 | reference model: a benchmark task or item unscored (error, OOM, partial) | incomplete | `rerun` (names the unscored tasks; never placed on the curve) |
 | overfit guard fired | warn | `tweak` |
 | held-out loss improved beyond noise, tiers left | pass/warn | `escalate` with `next_tier` |
 | held-out loss improved beyond noise, all tiers run | pass/warn | `longer_run` |
 | otherwise (no measurable gain) | pass/warn | `tweak` |
-| `probe --config final`, any requested evidence missing (whatever the row above, including no-baseline `info` and a soft `fail`), unless a NaN/inf loss or hard failure decided it | incomplete | `rerun` the same final declaration unchanged (names the gaps) |
+| `probe --config final`, any requested evidence missing (whatever the row above, e.g. a soft `fail`), unless a NaN/inf loss or hard failure decided it | incomplete | `rerun` the same final declaration unchanged (names the gaps) |
 | `probe --config final`, otherwise (complete, or decided by a NaN/inf loss or hard failure) | status kept | `report` (terminal; `next_tier` null; never escalate, tweak or re-run) |
 
 ## Held-out guard and the held-back final split
