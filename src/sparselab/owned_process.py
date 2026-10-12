@@ -121,6 +121,7 @@ def supervise(
                     break
                 if pid == 0:
                     break
+            # Record a fresh living count after draining adopted zombies.
             living = [p for p in _owned(root, known) if p.pid != root.pid]
         for signum, handler in previous.items():
             signal.signal(signum, handler)

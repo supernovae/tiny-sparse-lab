@@ -45,13 +45,14 @@ def run(options: dict, code: str = "pass") -> monitor.MonitorCompletion:
     return runner.run_controlled([sys.executable, "-c", code], **options)
 
 
-def child(options: dict, code: str) -> subprocess.Popen:
+def child(options: dict, code: str, *, hook: str = "") -> subprocess.Popen:
     args = {key: str(value) for key, value in options.items() if key != "policy"}
     script = (
         "from pathlib import Path; "
         "from sparselab.runner_control import run_controlled; "
         "from sparselab.operational_monitor import load_monitor_policy; "
         "import sys; "
+        f"exec({hook!r}); "
         f"opts={{k:Path(v) for k,v in {args!r}.items()}}; "
         "opts['policy']=load_monitor_policy(opts['policy_path']); "
         f"run_controlled([sys.executable,'-c',{code!r}], **opts)"
@@ -395,3 +396,79 @@ def test_missing_state_directory_is_not_automatically_recreated(tmp_path):
         run(options)
     assert not options["state_dir"].exists()
     assert not options["log_dir"].exists()
+
+
+@pytest.mark.parametrize("alias", ["symlink", "dotdot"])
+def test_two_clean_launches_with_noncanonical_log_parent(tmp_path, alias):
+    options = setup(tmp_path)
+    real = tmp_path / "real"
+    real.mkdir()
+    if alias == "symlink":
+        parent = tmp_path / "link"
+        parent.symlink_to(real, target_is_directory=True)
+    else:
+        parent = real / ".." / "real"
+    options["log_dir"] = parent / "logs1"
+    assert run(options).status == "COMPLETE"
+    options["log_dir"] = parent / "logs2"
+    assert run(options).status == "COMPLETE"
+    for pending_path in options["state_dir"].glob("*/pending.json"):
+        pending = json.loads(pending_path.read_text())
+        assert Path(pending["log_dir"]) == Path(pending["log_dir"]).resolve()
+    assert not options["blocked_path"].exists()
+
+
+def test_signal_before_pending_records_blocker_and_restores_handlers(
+    tmp_path, monkeypatch
+):
+    options = setup(tmp_path)
+    write = runner._write
+    previous = {
+        sig: signal.getsignal(sig)
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+    }
+
+    def interrupt_pending(path, record):
+        if path.name == "pending.json":
+            os.kill(os.getpid(), signal.SIGTERM)
+        write(path, record)
+
+    monkeypatch.setattr(runner, "_write", interrupt_pending)
+    with pytest.raises(InterruptedError, match="runner received signal"):
+        run(options)
+    assert options["blocked_path"].exists()
+    assert not options["log_dir"].exists()
+    assert not list(options["state_dir"].glob("*/pending.json"))
+    assert {sig: signal.getsignal(sig) for sig in previous} == previous
+
+
+def test_second_signal_during_teardown_does_not_abort_owned_cleanup(tmp_path):
+    options = setup(tmp_path, max_wall_seconds=3)
+    ready = tmp_path / "ready"
+    hook = """import os, signal
+from sparselab import operational_monitor as monitor
+original_stop = monitor._stop_enhanced_supervisor
+def second_signal(*args, **kwargs):
+    os.kill(os.getpid(), signal.SIGTERM)
+    return original_stop(*args, **kwargs)
+monitor._stop_enhanced_supervisor = second_signal
+"""
+    process = child(
+        options,
+        f"from pathlib import Path; Path({str(ready)!r}).touch(); import time,signal; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(10)",
+        hook=hook,
+    )
+    try:
+        await_file(ready, process)
+        assert process.poll() is None
+        process.terminate()
+        _, stderr = process.communicate(timeout=6)
+        assert process.returncode != 0, stderr
+        owned = json.loads((options["log_dir"] / "owned-completion.json").read_text())
+        assert owned["living_descendants"] == 0
+        assert options["blocked_path"].exists()
+        assert not list(options["state_dir"].glob("*/completion.json"))
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate(timeout=5)

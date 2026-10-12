@@ -142,6 +142,20 @@ def run_controlled(
     _safe(state.parent, directory=True)
     _safe(blocked.parent, directory=True)
     _unblocked(blocked)
+    monitor_options = {
+        **monitor_options,
+        "log_dir": Path(monitor_options["log_dir"]).resolve(),
+    }
+    run_id = uuid.uuid4().hex
+    stopping = False
+
+    def interrupted(signum: int, _frame: object) -> None:
+        nonlocal stopping
+        if stopping:
+            return  # Repeated signals must not interrupt owned cleanup or persistence.
+        stopping = True
+        raise InterruptedError(f"runner received signal {signum}")
+
     fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
         identity = _safe(lock)
@@ -149,47 +163,43 @@ def run_controlled(
         if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
             raise ValueError("runner lock identity changed")
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        _unblocked(blocked)
-        identity = _safe(lock)
-        if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
-            raise ValueError("runner lock identity changed")
-        os.fsync(fd)
-        _sync_dir(lock.parent)
-        # A missing directory may mean lost evidence, never a recovery request.
-        _safe(state, directory=True)
-        _sync_dir(state.parent)
-        contract = {
-            "format": "sparselab-runner-v1",
-            "lock": str(lock),
-            "lock_device": opened.st_dev,
-            "lock_inode": opened.st_ino,
-            "blocked": str(blocked),
+        previous = {
+            sig: signal.getsignal(sig)
+            for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
         }
-        _prior_runs(state, contract)
-        run_id = uuid.uuid4().hex
-        run = state / run_id
-        run.mkdir(mode=0o700)
-        _sync_dir(state)
-        pending = {
-            "run_id": run_id,
-            "contract": contract,
-            "command": command,
-            "policy": policy.model_dump(mode="json"),
-            "log_dir": str(Path(monitor_options["log_dir"]).absolute()),
-            "owner_pid": os.getpid(),
-        }
-        previous = {}
-
-        def interrupted(signum: int, _frame: object) -> None:
-            raise InterruptedError(f"runner received signal {signum}")
-
         try:
+            for sig in previous:
+                signal.signal(sig, interrupted)
+            _unblocked(blocked)
+            identity = _safe(lock)
+            if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
+                raise ValueError("runner lock identity changed")
+            os.fsync(fd)
+            _sync_dir(lock.parent)
+            # A missing directory may mean lost evidence, never a recovery request.
+            _safe(state, directory=True)
+            _sync_dir(state.parent)
+            contract = {
+                "format": "sparselab-runner-v1",
+                "lock": str(lock),
+                "lock_device": opened.st_dev,
+                "lock_inode": opened.st_ino,
+                "blocked": str(blocked),
+            }
+            _prior_runs(state, contract)
+            run = state / run_id
+            run.mkdir(mode=0o700)
+            _sync_dir(state)
+            pending = {
+                "run_id": run_id,
+                "contract": contract,
+                "command": command,
+                "policy": policy.model_dump(mode="json"),
+                "log_dir": str(monitor_options["log_dir"]),
+                "owner_pid": os.getpid(),
+            }
             # Durable before the monitor can spawn anything, including its helper.
             _write(run / "pending.json", pending)
-            previous = {
-                sig: signal.signal(sig, interrupted)
-                for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
-            }
             result = monitor_command(
                 command, policy, owned_supervisor=True, **monitor_options
             )
@@ -222,6 +232,7 @@ def run_controlled(
             )
             return result
         except BaseException as error:
+            stopping = True
             # Even if this write fails, the retained incomplete run refuses launch.
             if not os.path.lexists(blocked):
                 _write(blocked, {"run_id": run_id, "reason": str(error)})

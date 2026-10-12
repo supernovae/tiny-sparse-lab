@@ -161,7 +161,9 @@ exclusive `completion.json` binds that pending record's SHA-256 and run ID to
 the monitor and owned-completion receipt hashes and supervisor PID/creation
 time. Successful, nonzero-exit and guard-stopped commands can all certify clean
 shutdown; only success certifies workload success. Prior receipts and logs must
-remain available unchanged. Missing, partial, foreign or changed records refuse
+remain available unchanged. Each launch re-verifies retained history, so its
+preflight cost grows with the number of attempts. Log paths are canonicalized
+before recording pending state and passed unchanged to the monitor. Missing, partial, foreign or changed records refuse
 launch, even if the recorded owner PID no longer exists.
 
 The wrapper checks the blocked marker before and after acquiring its single
