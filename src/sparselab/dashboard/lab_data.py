@@ -177,8 +177,9 @@ def next_steps(
             steps.append(
                 {
                     "title": f"Latest verdict: {str(verdict.get('status', '?')).upper()} → {action}",
-                    "why": str(verdict.get("suggestion") or "")
-                    + " Review the sealed follow-up plan; prepare declarations as a separate explicit action.",
+                    "why": "Recorded verdict text: "
+                    + str(verdict.get("suggestion") or "")
+                    + " Follow the sealed policy plan below; a bare --config tier does not retain its runtime/resource/benchmark policy. Prepare declarations as a separate explicit action.",
                     "command": "",
                     "plan": render_followup(plan),
                 }

@@ -254,3 +254,10 @@ native files is a separate explicit action. Verify checkpoint, suite and
 benchmark identities and review relocated paths before executing; source files
 and current defaults may have changed. Opening the dashboard never materializes
 these files or launches work.
+
+For a `NOT_COMPARABLE` try, the plan instead carries its failed comparison
+checks and sealed try inputs. Diagnose and explicitly repair those inputs
+before a new `sparselab try`; an unchanged rerun cannot fix comparability.
+Probe-only settings absent from TryConfig are labelled separately from
+historical missing fields. Recorded verdict tier advice is labelled as such;
+a bare named tier does not retain the sealed effective policy.

@@ -27,6 +27,9 @@ REQUEST_FIELDS = (
 )
 
 
+TRY_SCHEMA_ABSENT = ("final", "fast_fail", "lm_eval_tasks", "lm_eval_limit", "runs_dir")
+
+
 def followup_plan(
     entry: ProbeEntry, owner: Mapping[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -46,15 +49,30 @@ def followup_plan(
     tier = request.get(tier_field)
     if entry.source == "try" and tier is None:
         tier = result.get("tier")
+    comparison = entry.comparison or {}
+    repair_try = entry.source == "try" and (
+        comparison.get("verdict") == "NOT_COMPARABLE"
+        or any(row.get("id") == "comparison" for row in verdict.get("missing") or [])
+    )
     change = {}
-    if action == "escalate":
+    if repair_try:
+        change = {
+            "comparison": "Diagnose and repair failed held-out checks; specify input changes before a new try."
+        }
+    elif action == "escalate":
         change = {"tier": {"from": tier, "to": verdict.get("next_tier")}}
     missing = [name for name in REQUEST_FIELDS if name not in request]
     if entry.source == "try":
         # These are native embedded-battery settings, not training selectors.
-        missing = [name for name in missing if name != "tier"]
+        missing = [
+            name for name in missing if name != "tier" and name not in TRY_SCHEMA_ABSENT
+        ]
         if "probe_tier" not in request:
             missing.append("probe_tier")
+    if repair_try:
+        missing.extend(name for name in ("inputs", "delta") if name not in record)
+        if not comparison.get("failed"):
+            missing.append("comparison.failed")
     bindings = {
         role: copy.deepcopy(result.get(role)) for role in ("target", "baseline")
     }
@@ -74,6 +92,16 @@ def followup_plan(
         missing.append("next_tier")
     return {
         "action": action,
+        "operation": "try" if repair_try else "probe",
+        "comparison_failed": copy.deepcopy(comparison.get("failed"))
+        if repair_try
+        else None,
+        "try_inputs": copy.deepcopy(record.get("inputs")) if repair_try else None,
+        "try_delta": copy.deepcopy(record.get("delta")) if repair_try else None,
+        "not_in_try_schema": list(TRY_SCHEMA_ABSENT) if entry.source == "try" else [],
+        "try_battery_policy": "Probe-only fields are not recorded by TryConfig; embedded batteries use their code revision's policy. These schema absences are distinct from historical missing fields."
+        if entry.source == "try"
+        else None,
         "source_record": str(entry.path.absolute()),
         "record_sha256": record.get("record_sha256"),
         "record_kind": entry.source,
@@ -85,14 +113,32 @@ def followup_plan(
         "suite": copy.deepcopy(result.get("suite")),
         "benchmark_groups": [
             {
-                key: copy.deepcopy((row.get("details") or {}).get(key))
-                for key in ("benchmark_group", "tasks", "limit")
+                "benchmark_group": (row.get("details") or {}).get("benchmark_group"),
+                "tasks": list((row.get("details") or {}).get("tasks") or {}),
+                "benchmark": copy.deepcopy((row.get("details") or {}).get("benchmark")),
+                "limit": (row.get("details") or {}).get("limit"),
             }
             for row in result.get("probes") or []
             if row.get("id") == "lm_eval"
         ],
         "missing_fields": missing,
         "preparation": (
+            "Separate explicit action required: diagnose comparison_failed and repair "
+            "the cause (same data, tokenizer, memory packages and eval protocol for "
+            "both arms). Prepare a new sparselab try from the sealed try request, "
+            "try_inputs and try_delta with those repairs explicitly declared. Keep "
+            "the saved seed, runtime/backend and resource policy unless a deliberate "
+            "change is explained. Verify the source record digest, input identities "
+            "and baseline provenance; do not overwrite the original evidence or "
+            "reinterpret historical relative paths in the reader directory. Copy "
+            "saved runtime/resource descriptors into new native files as needed. "
+            "Missing fields require explicit reconstruction; current defaults are "
+            "not historical evidence. An unchanged rerun cannot fix comparability; "
+            "the new try creates new evidence and does not reproduce the old result. "
+            "Rendering creates no files or execution authority."
+        )
+        if repair_try
+        else (
             "Separate explicit action required: author a ProbeConfig YAML from the "
             "sealed probe policy (for a try, review embedded battery settings separately). "
             "Copy saved runtime_profile/resource_envelope values into new native YAML "
