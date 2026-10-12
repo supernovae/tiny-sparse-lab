@@ -9,12 +9,12 @@ from typing import Literal
 import yaml
 from pydantic import Field, ValidationError, field_validator
 
-from sparselab.config.models import StrictModel
+from sparselab.config.models import RunSeed, StrictModel
 
 
 class TryConfig(StrictModel):
     try_config_version: Literal[1] = 1
-    seed: int | None = Field(default=None, strict=True)
+    seed: RunSeed | None = Field(default=None, strict=True)
     probe_tier: Literal["none", "fast", "standard", "full"] = "fast"
     fresh_baseline: bool = Field(default=False, strict=True)
     lab_dir: Path | None = None

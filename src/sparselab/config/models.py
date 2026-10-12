@@ -14,6 +14,9 @@ from pydantic import (
     model_validator,
 )
 
+# Shared run/try seed domain; preserve the serialized integer unchanged.
+RunSeed = Annotated[int, Field(ge=0, le=2**32 - 1)]
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -483,7 +486,7 @@ class LoggingConfig(StrictModel):
 class RunConfig(StrictModel):
     schema_version: Literal[2]
     name: str = Field(min_length=1)
-    seed: int
+    seed: RunSeed
     runtime: RuntimeConfig = RuntimeConfig()
     model: ModelConfig
     tokenizer: TokenizerConfig

@@ -153,7 +153,7 @@ class MLXEngine:
             raise EngineCapabilityError("MLX Metal execution is unavailable")
         mx.set_default_device(mx.gpu)
         random.seed(config.seed)
-        np.random.seed(config.seed % (2**32))
+        np.random.seed(config.seed)
         # Module constructors use MLX's default stream. Derive that stream from an
         # explicit key split instead of relying on unrelated Torch/Python state.
         init_key, _next_key = mx.random.split(mx.random.key(config.seed))

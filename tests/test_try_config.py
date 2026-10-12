@@ -49,6 +49,8 @@ def test_empty_files_default(tmp_path, document):
         "seed: '7'",
         "seed: true",
         "seed: 7.0",
+        "seed: -1",
+        "seed: 4294967296",
         "fresh_baseline: 'true'",
         "lab_dir: 5",
     ],
