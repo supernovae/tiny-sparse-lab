@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import time
+from functools import wraps
 from pathlib import Path
 
 import psutil
@@ -229,17 +230,84 @@ def test_interrupted_owner_never_automatically_recovers(
         process.send_signal(signum)
         _, stderr = process.communicate(timeout=5)
         if signum == signal.SIGTERM:
+            assert process.returncode != 0, stderr
             assert options["blocked_path"].exists(), (process.returncode, stderr)
+            assert not list(options["state_dir"].glob("*/completion.json"))
         # SIGKILL cannot write a marker: retained pending remains authoritative.
+        pending = list(options["state_dir"].glob("*/pending.json"))
+        assert len(pending) == 1
         options["blocked_path"].unlink(missing_ok=True)
         options["log_dir"] = tmp_path / "new-logs"
-        with pytest.raises((ValueError, FileNotFoundError)):
+        with pytest.raises(FileNotFoundError) as refusal:
             run(options)
+        assert refusal.value.filename == str(pending[0].with_name("completion.json"))
         assert not options["log_dir"].exists()
     finally:
         if process.poll() is None:
             process.kill()
         process.communicate(timeout=5)
+
+
+@pytest.mark.parametrize(
+    "site", ["rss", "swap", "host_ram", "host_swap", "storage", "sample"]
+)
+def test_signal_during_sampling_is_not_a_metric_failure(tmp_path, monkeypatch, site):
+    options = setup(tmp_path, max_wall_seconds=3)
+    previous = {
+        sig: signal.getsignal(sig)
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+    }
+    original_sample = monitor.sample
+    targets = {
+        "rss": (psutil.Process, "memory_info"),
+        "swap": (monitor, "_swap_bytes"),
+        "host_ram": (monitor.host_capacity, "measure_memory"),
+        "host_swap": (psutil, "swap_memory"),
+        "storage": (monitor, "_storage"),
+    }
+    delivered = []
+
+    def interrupt_sample(*args, **kwargs):
+        if not delivered:
+            if site == "sample":
+                delivered.append(site)
+                os.kill(os.getpid(), signal.SIGTERM)
+            else:
+                owner, name = targets[site]
+                original = getattr(owner, name)
+
+                @wraps(original)
+                def interrupt_read(*read_args, **read_kwargs):
+                    # Restore before signalling so owned cleanup can read normally.
+                    monkeypatch.setattr(owner, name, original)
+                    delivered.append(site)
+                    os.kill(os.getpid(), signal.SIGTERM)
+                    return original(*read_args, **read_kwargs)
+
+                monkeypatch.setattr(owner, name, interrupt_read)
+        return original_sample(*args, **kwargs)
+
+    monkeypatch.setattr(monitor, "sample", interrupt_sample)
+    # Real owned helper and harmless work, with a one-second fallback lifetime.
+    with pytest.raises(
+        runner.RunnerInterrupted, match="runner received signal"
+    ) as caught:
+        run(options, "import time; time.sleep(1)")
+    assert not isinstance(caught.value, Exception)  # cancellation is control flow
+    assert delivered == [site]
+    assert options["blocked_path"].exists()
+    pending = list(options["state_dir"].glob("*/pending.json"))
+    assert len(pending) == 1
+    assert not list(options["state_dir"].glob("*/completion.json"))
+    owned = json.loads((options["log_dir"] / "owned-completion.json").read_text())
+    assert owned["living_descendants"] == 0
+    assert {sig: signal.getsignal(sig) for sig in previous} == previous
+    options["blocked_path"].unlink()
+    options["log_dir"] = tmp_path / "refused-logs"
+    with pytest.raises(FileNotFoundError) as refusal:
+        run(options)
+    assert refusal.value.filename == str(pending[0].with_name("completion.json"))
+    assert not options["log_dir"].exists()
 
 
 @pytest.mark.parametrize("damage", ["missing", "foreign", "monitor", "owned", "lock"])
@@ -500,7 +568,7 @@ def test_signal_before_pending_records_blocker_and_restores_handlers(
         write(path, record)
 
     monkeypatch.setattr(runner, "_write", interrupt_pending)
-    with pytest.raises(InterruptedError, match="runner received signal"):
+    with pytest.raises(runner.RunnerInterrupted, match="runner received signal"):
         run(options)
     assert options["blocked_path"].exists()
     assert not options["log_dir"].exists()
@@ -601,7 +669,7 @@ def test_signal_during_preflight_restores_handlers_without_new_blocker(
         os.kill(os.getpid(), signal.SIGTERM)
 
     monkeypatch.setattr(runner, "_prior_runs", interrupt)
-    with pytest.raises(InterruptedError, match="runner received signal"):
+    with pytest.raises(runner.RunnerInterrupted, match="runner received signal"):
         run(options)
     assert not options["blocked_path"].exists()
     assert not list(options["state_dir"].iterdir())
