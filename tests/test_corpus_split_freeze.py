@@ -520,9 +520,9 @@ def test_interrupted_bundle_requires_explicit_identical_recovery(
     publish = split_freeze._publish_new
     calls = 0
 
-    def interrupted(path, data):
+    def interrupted(path, data, **kwargs):
         nonlocal calls
-        publish(path, data)
+        publish(path, data, **kwargs)
         calls += 1
         if calls == publication:
             raise OSError("injected post-publication failure")
@@ -532,7 +532,9 @@ def test_interrupted_bundle_requires_explicit_identical_recovery(
         split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
     before = {p: (p.read_bytes(), p.stat().st_ino) for p in output.parent.iterdir()}
     if publication < 3:
-        with pytest.raises((ValueError, FileNotFoundError)):
+        with pytest.raises(
+            ValueError, match="incomplete or mismatched frozen split bundle"
+        ):
             split_freeze.verify_split_bundle(output)
     else:
         assert split_freeze.verify_split_bundle(output)
@@ -599,7 +601,7 @@ def test_directory_sync_failure_retains_evidence_and_recovery_resyncs(
         project, tmp_path, inventory, clusters, output, recover=True
     )
     assert all(p.read_bytes() == data for p, data in before.items())
-    assert {output.parent, *output.parent.parents} <= set(seen)
+    assert set(seen) == {output.parent, output.parent.parent, tmp_path}
     assert split_freeze.verify_split_bundle(output)
 
 
@@ -677,8 +679,8 @@ def test_recovery_revalidates_inputs_before_completing_subset(tmp_path, monkeypa
     output = tmp_path / "splits.yaml"
     publish = split_freeze._publish_new
 
-    def interrupt(path, data):
-        publish(path, data)
+    def interrupt(path, data, **kwargs):
+        publish(path, data, **kwargs)
         raise OSError("interrupted")
 
     monkeypatch.setattr(split_freeze, "_publish_new", interrupt)
@@ -726,3 +728,145 @@ def test_recovery_rejects_identical_symlink(tmp_path, monkeypatch):
         )
     assert candidate.is_symlink()
     assert saved.read_bytes() == before
+
+
+@pytest.mark.parametrize("recover", [False, True])
+def test_traverse_only_ancestor_does_not_block_publication_or_recovery(
+    tmp_path, monkeypatch, recover
+):
+    locked = tmp_path / "traverse-only"
+    root = locked / "work"
+    root.mkdir(parents=True)
+    project, inventory, clusters, _, _ = _fixture(root, monkeypatch)
+    output = root / "new" / "nested" / "splits.yaml"
+    original_open = split_freeze.os.open
+    sync = split_freeze._sync_directory
+    synced = []
+    fail_root = recover
+
+    def bounded_open(path, flags, *args, **kwargs):
+        # Deterministic even on root/ACL/platform setups where chmod is advisory.
+        if flags & split_freeze.os.O_DIRECTORY:
+            assert Path(path).is_relative_to(root), "opened ancestor above work root"
+        return original_open(path, flags, *args, **kwargs)
+
+    def directory_sync(path):
+        if path == root and fail_root:
+            raise OSError("injected work-root directory sync failure")
+        sync(path)
+        synced.append(path)
+
+    monkeypatch.setattr(split_freeze.os, "open", bounded_open)
+    monkeypatch.setattr(split_freeze, "_sync_directory", directory_sync)
+    locked.chmod(0o311)
+    try:
+        before = {}
+        if recover:
+            with pytest.raises(OSError, match="work-root directory sync"):
+                split_freeze.freeze_splits(project, root, inventory, clusters, output)
+            before = {
+                p: (p.read_bytes(), p.stat().st_ino) for p in output.parent.iterdir()
+            }
+            assert len(before) == 1  # First member survived a failed ancestor sync.
+            fail_root = False
+            synced.clear()
+        split_freeze.freeze_splits(
+            project, root, inventory, clusters, output, recover=recover
+        )
+        assert split_freeze.verify_split_bundle(output)
+        assert set(synced) == {output.parent, output.parent.parent, root}
+        assert all(
+            (p.read_bytes(), p.stat().st_ino) == value for p, value in before.items()
+        )
+    finally:
+        locked.chmod(0o700)  # Only this disposable fixture's permissions.
+
+
+def test_standalone_publication_syncs_created_parents_only(tmp_path, monkeypatch):
+    sync = split_freeze._sync_directory
+    synced = []
+    monkeypatch.setattr(
+        split_freeze, "_sync_directory", lambda p: (synced.append(p), sync(p))
+    )
+    output = tmp_path / "new" / "nested" / "family.jsonl"
+    split_freeze._publish_new(output, b"fixture\n")
+    assert synced == [output.parent, output.parent.parent, tmp_path]
+    assert output.read_bytes() == b"fixture\n"
+    assert output.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("required", [False, True])
+@pytest.mark.parametrize("failure", ["missing", "unreadable"])
+def test_yaml_read_errors_have_uniform_bundle_refusal(
+    tmp_path, monkeypatch, required, failure
+):
+    output = tmp_path / "splits.yaml"
+    if failure == "unreadable":
+        output.write_bytes(split_freeze._FREEZE_MARKER)
+        read_bytes = Path.read_bytes
+
+        def denied(path):
+            if path == output:
+                raise PermissionError("injected YAML read denial")
+            return read_bytes(path)
+
+        monkeypatch.setattr(Path, "read_bytes", denied)
+    with pytest.raises(
+        ValueError, match="^incomplete or mismatched frozen split bundle$"
+    ) as error:
+        split_freeze.verify_split_bundle(output, required=required)
+    assert isinstance(error.value.__cause__, OSError)
+
+
+def test_public_cli_recovers_identical_bundle_and_emits_json(
+    tmp_path, monkeypatch, capsys
+):
+    from sparselab.cli.main import build_parser
+    from sparselab.corpus import project as project_module
+    from sparselab.training.attempt_commands import classify_attempt_command
+
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "splits.yaml"
+    publish = split_freeze._publish_new
+
+    def interrupted(path, data, **kwargs):
+        publish(path, data, **kwargs)
+        raise OSError("injected first publication failure")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(split_freeze, "_publish_new", interrupted)
+        with pytest.raises(OSError, match="first publication"):
+            split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    monkeypatch.setattr(project_module, "load_project", lambda _: project)
+    words = [
+        "--work-dir",
+        str(tmp_path),
+        "corpus",
+        "freeze-splits",
+        "fixture-project.yaml",
+        "--inventory",
+        str(inventory),
+        "--clusters",
+        str(clusters),
+        "--output",
+        str(output),
+        "--json",
+    ]
+    parser = build_parser()
+    ordinary = parser.parse_args(words)
+    with pytest.raises(ValueError, match="already exists"):
+        ordinary.handler(ordinary)
+    recovery = parser.parse_args([*words, "--recover"])
+    recovery.handler(recovery)
+    report = json.loads(capsys.readouterr().out)
+    assert report["output"] == str(output)
+    assert report["sha256"] == sha256_file(output)
+    assert report["eligible_documents"] == 30
+    assert split_freeze.verify_split_bundle(output)
+    # Pin the documented policy boundary; do not broaden the attempt allowlist.
+    argv = ["uv", "run", "--locked", "--no-sync", "sparselab", *words]
+    assert classify_attempt_command(argv)
+    with pytest.raises(
+        ValueError, match="unreviewed or duplicate native option: --recover"
+    ):
+        classify_attempt_command([*argv, "--recover"])

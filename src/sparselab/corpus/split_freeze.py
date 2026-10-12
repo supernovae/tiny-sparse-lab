@@ -8,7 +8,7 @@ import os
 import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -18,6 +18,7 @@ from sparselab.corpus.project import Project, project_path, source_declaration_p
 from sparselab.corpus.release import verify_release
 from sparselab.corpus.rights import verify_record_admission
 from sparselab.corpus.split_inventory import write_split_inventory
+from sparselab.result_publication import sync_directory as _sync_directory
 from sparselab.training.manifest import canonical_json, sha256_file
 from sparselab.verification_proofs import verification_options
 
@@ -26,18 +27,17 @@ _WEIGHTS = (8, 1, 1)
 _FREEZE_MARKER = b"# sparselab frozen split bundle; requires matching receipt\n"
 
 
-def _sync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _sync_parents(path: Path) -> None:
-    # Include ancestors: output directories may themselves have just been created.
-    for parent in (path, *path.parents):
-        _sync_directory(parent)
+def _sync_parents(path: Path, root: Path) -> None:
+    # Recovery cannot know which directories a failed publisher created. Re-sync
+    # their entries through the existing work root, never unrelated ancestors.
+    path = path.resolve()
+    root = root.resolve()
+    path.relative_to(root)
+    while True:
+        _sync_directory(path)
+        if path == root:
+            break
+        path = path.parent
 
 
 def verify_split_bundle(
@@ -46,16 +46,16 @@ def verify_split_bundle(
     """Read-only commit check; legacy complete schema-1 receipts remain valid."""
     candidate = output.with_name(output.stem + ".family-candidates.jsonl")
     receipt_path = output.with_name(output.stem + ".receipt.json")
-    payload = output.read_bytes()
-    if not required and not (
-        payload.startswith(_FREEZE_MARKER)
-        or candidate.exists()
-        or candidate.is_symlink()
-        or receipt_path.exists()
-        or receipt_path.is_symlink()
-    ):
-        return None
     try:
+        payload = output.read_bytes()
+        if not required and not (
+            payload.startswith(_FREEZE_MARKER)
+            or candidate.exists()
+            or candidate.is_symlink()
+            or receipt_path.exists()
+            or receipt_path.is_symlink()
+        ):
+            return None
         if any(
             path.is_symlink() or not path.is_file()
             for path in (output, candidate, receipt_path)
@@ -93,7 +93,15 @@ def _counts(total: int) -> tuple[int, int, int]:
     return floors[0], floors[1], floors[2]
 
 
-def _publish_new(path: Path, data: bytes) -> None:
+def _publish_new(path: Path, data: bytes, *, work_root: Path | None = None) -> None:
+    sync_root = work_root
+    if sync_root is None:
+        # Standalone family-inventory publication: persist every directory we
+        # create, stopping at the first already-existing ancestor.
+        sync_root = path.parent
+        while not sync_root.exists():
+            sync_root = sync_root.parent
+    path.parent.resolve().relative_to(sync_root.resolve())
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="wb", prefix=".freeze-splits-", dir=path.parent, delete=False
@@ -104,7 +112,7 @@ def _publish_new(path: Path, data: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
             os.link(temporary, path)
-            _sync_parents(path.parent)
+            _sync_parents(path.parent, sync_root)
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -465,9 +473,9 @@ def freeze_splits(
             # Re-establish durability after a previous uncertain publication.
             with path.open("rb") as stream:
                 os.fsync(stream.fileno())
-            _sync_parents(path.parent)
+            _sync_parents(path.parent, root)
             continue
-        _publish_new(path, expected)
+        _publish_new(path, expected, work_root=root)
     verify_split_bundle(output)
     return {
         "schema_version": 1,
@@ -493,8 +501,7 @@ def finalize_family_inventory(
     candidate_path = frozen_splits.with_name(
         frozen_splits.stem + ".family-candidates.jsonl"
     )
-    receipt = verify_split_bundle(frozen_splits)
-    assert receipt is not None
+    receipt = cast(dict[str, Any], verify_split_bundle(frozen_splits))
     if (
         receipt.get("schema_version") != 1
         or receipt.get("split_sha256") != sha256_file(frozen_splits)

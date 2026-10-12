@@ -80,8 +80,8 @@ tripwires. Neither fixture result admits a real corpus or qualifies real transfe
 `corpus freeze-splits` publishes family candidates, split YAML, then the schema-1
 receipt as the commit record. Consumers require all three regular files and
 matching split/candidate digests. Publication uses exclusive hard links, file
-fsync, and directory fsync through the ancestors (including newly created
-output directories). Receipt publication follows durable data publication.
+fsync, and directory fsync through the existing work root (including newly
+created output directories, but never ancestors above the work root). Receipt publication follows durable data publication.
 An error after any link, including a directory-sync error after the receipt,
 means the operation's durability is uncertain: keep all evidence. A complete
 matching visible receipt is readable, but a failed call does not establish
@@ -89,7 +89,13 @@ successful durable completion.
 
 For an interrupted operation on an authorized work area, repeat the identical
 `corpus freeze-splits PROJECT --inventory INVENTORY --clusters CLUSTERS --output
-SPLITS --recover` command. This explicitly revalidates acquisition, admission,
+SPLITS --recover` command. Recovery is a separately authorized operator step
+**outside attempt contracts**: their reviewed option allowlist refuses `--recover`.
+An interrupted budgeted attempt must retain its failure/accounting evidence;
+operator recovery does not replay or reset that attempt. Adding recovery to the
+attempt protocol requires a separately reviewed policy change.
+
+The operator command explicitly revalidates acquisition, admission,
 inventory and reviewed clusters, recomputes deterministic bytes, checks **every**
 existing member before writing, and exclusively publishes only missing members.
 Existing identical members are fsynced again without replacement; any conflicting
