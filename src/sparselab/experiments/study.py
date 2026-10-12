@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import re
+import tempfile
+import uuid
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -435,54 +437,49 @@ def study_plan_payload(study: ArchitectureStudy) -> dict[str, object]:
     }
 
 
+def _sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def _write_json_exclusive(path: Path, payload: dict[str, object]) -> None:
+    """Publish complete bytes without replacing any existing destination.
+
+    A failure after linking may leave a complete destination with uncertain
+    directory durability. Never remove that surviving evidence.
+    """
     encoded = canonical_json(payload) + b"\n"
+    missing_parents = []
+    parent = path.parent
+    while not parent.exists():
+        missing_parents.append(parent)
+        parent = parent.parent
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("xb") as handle:
-        handle.write(encoded)
-        handle.flush()
-        os.fsync(handle.fileno())
+    # Persist newly created directory entries before relying on the intent.
+    for parent in reversed(missing_parents):
+        _sync_directory(parent.parent)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            if handle.write(encoded) != len(encoded):
+                raise OSError("short study publication write")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, path)
+        _sync_directory(path.parent)
+    finally:
+        os.unlink(temporary)
 
 
-def submit_study(
-    study: ArchitectureStudy,
-    receipt_path: Path,
-    *,
-    store: Path,
-    worker: str | None = None,
-    stage_bundle: Path | None = None,
-) -> dict[str, object]:
-    if os.path.lexists(receipt_path):
-        raise FileExistsError(f"study receipt already exists: {receipt_path}")
-    receipt_path.parent.mkdir(parents=True, exist_ok=True)
-    from sparselab.workers.controller import Controller
+def study_intent_path(receipt_path: Path) -> Path:
+    return receipt_path.with_name(receipt_path.name + ".intent.json")
 
-    requests = [
-        {
-            "config": item.config,
-            "worker": worker,
-            "stage_bundle": stage_bundle,
-            "requirements": item.requirements,
-            "preferred": item.preferred_worker,
-            "matrix": {
-                "matrix_sha256": item.matrix_sha256,
-                "coordinate": item.coordinate,
-            },
-        }
-        for item in study.expanded
-    ]
-    submissions = Controller(store).submit_many(requests)
-    run_entries: list[dict[str, object]] = [
-        {
-            "coordinate": item.coordinate,
-            "config_sha256": config_sha256(item.config.model_dump(mode="json")),
-            "experiment_id": submission.experiment_id,
-            "attempt_id": submission.attempt_id,
-            "run_id": submission.run_id,
-        }
-        for item, submission in zip(study.expanded, submissions, strict=True)
-    ]
-    receipt: dict[str, object] = {
+
+def _study_receipt_template(study: ArchitectureStudy) -> dict[str, Any]:
+    return {
         "format": "sparselab-architecture-study-receipt",
         "schema_version": 1,
         "study_sha256": study.study_sha256,
@@ -495,15 +492,213 @@ def submit_study(
             }
             for item in study.cards
         ],
-        "runs": run_entries,
+        "runs": [
+            {
+                "coordinate": item.coordinate,
+                "config_sha256": config_sha256(item.config.model_dump(mode="json")),
+            }
+            for item in study.expanded
+        ],
     }
+
+
+def _submission_binding(intent: dict[str, Any], index: int) -> dict[str, Any]:
+    return {
+        "submission_id": intent["submission_id"],
+        "intent_sha256": hashlib.sha256(canonical_json(intent)).hexdigest(),
+        "study_sha256": intent["receipt"]["study_sha256"],
+        "matrix_sha256": intent["receipt"]["matrix_sha256"],
+        "cards_sha256": hashlib.sha256(
+            canonical_json(intent["receipt"]["cards"])
+        ).hexdigest(),
+        "index": index,
+        **intent["receipt"]["runs"][index],
+    }
+
+
+def submit_study(
+    study: ArchitectureStudy,
+    receipt_path: Path,
+    *,
+    store: Path,
+    worker: str | None = None,
+    stage_bundle: Path | None = None,
+) -> dict[str, object]:
+    if os.path.lexists(receipt_path):
+        raise FileExistsError(f"study receipt already exists: {receipt_path}")
+    from sparselab.workers.controller import Controller
+
+    intent = {
+        "format": "sparselab-study-submission-intent",
+        "schema_version": 1,
+        "submission_id": uuid.uuid4().hex,
+        "store": str(store.resolve()),
+        "receipt_path": str(receipt_path.absolute()),
+        "receipt": _study_receipt_template(study),
+    }
+    # Exclusive, durable reservation precedes any bundle preparation/enqueue.
+    _write_json_exclusive(study_intent_path(receipt_path), intent)
+    requests = [
+        {
+            "config": item.config,
+            "worker": worker,
+            "stage_bundle": stage_bundle,
+            "declaration_provenance": {
+                "study_submission": _submission_binding(intent, index)
+            },
+            "requirements": item.requirements,
+            "preferred": item.preferred_worker,
+            "matrix": {
+                "matrix_sha256": item.matrix_sha256,
+                "coordinate": item.coordinate,
+            },
+        }
+        for index, item in enumerate(study.expanded)
+    ]
+    submissions = Controller(store).submit_many(requests)
+    run_entries: list[dict[str, object]] = [
+        {
+            "coordinate": item.coordinate,
+            "config_sha256": config_sha256(item.config.model_dump(mode="json")),
+            "experiment_id": submission.experiment_id,
+            "attempt_id": submission.attempt_id,
+            "run_id": submission.run_id,
+        }
+        for item, submission in zip(study.expanded, submissions, strict=True)
+    ]
+    receipt = {**intent["receipt"], "runs": run_entries}
     try:
         _write_json_exclusive(receipt_path, receipt)
-    except OSError as error:
+    except Exception as error:
         run_ids = ", ".join(str(item["run_id"]) for item in run_entries)
         raise OSError(
             f"study runs were submitted ({run_ids}) but receipt could not be written: {error}"
         ) from error
+    return receipt
+
+
+def recover_study_receipt(
+    study: ArchitectureStudy, intent_path: Path, output: Path, *, store: Path
+) -> dict[str, object]:
+    """Read native evidence only; never instantiate a controller or worker."""
+    from sparselab.config.models import RunConfig
+    from sparselab.workers.models import StudySubmissionMetadata, Submission
+    from sparselab.workers.store import ControllerStore
+
+    if os.path.lexists(output):
+        raise FileExistsError(f"recovery output already exists: {output}")
+    intent_bytes = intent_path.read_bytes()
+    intent = _mapping(
+        json.loads(intent_bytes, object_pairs_hook=_reject_duplicate_pairs),
+        "study intent",
+    )
+    if (
+        set(intent)
+        != {
+            "format",
+            "schema_version",
+            "submission_id",
+            "store",
+            "receipt_path",
+            "receipt",
+        }
+        or intent["format"] != "sparselab-study-submission-intent"
+        or type(intent["schema_version"]) is not int
+        or intent["schema_version"] != 1
+        or intent["store"] != str(store.resolve())
+        or intent["receipt"] != _study_receipt_template(study)
+    ):
+        raise ValueError("study intent identity mismatch")
+    if (
+        output.resolve() == Path(str(intent["receipt_path"])).resolve()
+        or output.resolve() == intent_path.resolve()
+    ):
+        raise ValueError("recovery requires a distinct unused output")
+    expected = [
+        _submission_binding(intent, index) for index in range(len(study.expanded))
+    ]
+    for binding in expected:
+        StudySubmissionMetadata.model_validate(binding)
+    queue = ControllerStore(store, read_only=True)
+    # One read-only snapshot, with strict JSON decoding of original persisted
+    # bytes: a duplicate key must not disappear in a projection reader.
+    with queue.metrics._connect() as connection:
+        records = connection.execute(
+            "SELECT a.experiment_id,a.attempt_id,a.run_id,e.specification_json "
+            "FROM attempts a JOIN experiments e ON e.experiment_id=a.experiment_id"
+        ).fetchall()
+    rows = [
+        {
+            "experiment_id": record[0],
+            "attempt_id": record[1],
+            "run_id": record[2],
+            "spec": _mapping(
+                json.loads(record[3], object_pairs_hook=_reject_duplicate_pairs),
+                "native specification",
+            ),
+        }
+        for record in records
+    ]
+    matches: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        spec = row["spec"]
+        provenance = _mapping(
+            spec.get("declaration_provenance") or {}, "native provenance"
+        )
+        binding = provenance.get("study_submission")
+        if (
+            not isinstance(binding, dict)
+            or binding.get("submission_id") != intent["submission_id"]
+        ):
+            continue
+        validated = StudySubmissionMetadata.model_validate(binding)
+        index = validated.index
+        if index >= len(expected) or binding != expected[index] or index in matches:
+            raise ValueError("ambiguous or mismatched study submission identity")
+        config = RunConfig.model_validate(spec["config"])
+        if (
+            spec.get("experiment_id") != row["experiment_id"]
+            or spec.get("matrix")
+            != {
+                "matrix_sha256": study.matrix_sha256,
+                "coordinate": binding["coordinate"],
+            }
+            or spec.get("config_sha256") != binding["config_sha256"]
+            or config_sha256(config.model_dump(mode="json")) != binding["config_sha256"]
+        ):
+            raise ValueError("native study coordinate/config identity mismatch")
+        matches[index] = row
+    if len(matches) != len(expected):
+        raise ValueError(
+            "incomplete study submission evidence; legacy/unbound jobs cannot be recovered"
+        )
+    runs = []
+    for index, item in enumerate(intent["receipt"]["runs"]):
+        row = matches[index]
+        identities = {
+            key: row[key] for key in ("experiment_id", "attempt_id", "run_id")
+        }
+        Submission.model_validate(identities)
+        runs.append({**item, **identities})
+    for key in ("experiment_id", "attempt_id", "run_id"):
+        if len({item[key] for item in runs}) != len(runs):
+            raise ValueError("duplicate native submission identity")
+    original = Path(str(intent["receipt_path"]))
+    receipt = {
+        **intent["receipt"],
+        "runs": runs,
+        "recovery": {
+            "submission_id": intent["submission_id"],
+            "intent_path": str(intent_path.absolute()),
+            "intent_sha256": hashlib.sha256(intent_bytes).hexdigest(),
+            "original_receipt_path": str(original),
+            "original_receipt_sha256": hashlib.sha256(original.read_bytes()).hexdigest()
+            if original.is_file()
+            else None,
+            "store": str(store.resolve()),
+        },
+    }
+    _write_json_exclusive(output, receipt)
     return receipt
 
 

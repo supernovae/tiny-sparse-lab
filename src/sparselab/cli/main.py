@@ -1747,6 +1747,18 @@ def _study_submit(args: argparse.Namespace) -> None:
     )
 
 
+def _study_recover(args: argparse.Namespace) -> None:
+    from sparselab.experiments.study import plan_study, recover_study_receipt
+
+    receipt = recover_study_receipt(
+        plan_study(Path(args.path), max_runs=args.max_runs),
+        Path(args.intent),
+        Path(args.output),
+        store=Path(args.store),
+    )
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+
+
 def _study_collect(args: argparse.Namespace) -> None:
     from sparselab.experiments.study import collect_study, plan_study
 
@@ -3426,6 +3438,18 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     study_submit.add_argument("--lifecycle")
     study_submit.add_argument("--evidence-root", default=".")
     study_submit.set_defaults(handler=_study_submit)
+    study_recover = study_commands.add_parser(
+        "recover",
+        help="Recover a receipt from bound native submission evidence; no dispatch.",
+    )
+    study_recover.add_argument("path", help="Original architecture study YAML")
+    study_recover.add_argument("--intent", required=True)
+    study_recover.add_argument("--store", required=True)
+    study_recover.add_argument(
+        "--output", required=True, help="Distinct unused recovery receipt path"
+    )
+    study_recover.add_argument("--max-runs", type=int, default=1000)
+    study_recover.set_defaults(handler=_study_recover)
     study_collect = study_commands.add_parser("collect")
     study_collect.add_argument("path", help="Architecture study YAML")
     study_collect.add_argument("receipt")

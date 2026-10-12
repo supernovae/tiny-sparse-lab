@@ -220,6 +220,40 @@ Collection verifies the receipt against the current study and each run's resolve
 
 A study submitted without path overrides uses `<work-dir>/experiments/<study-name>/runs` and one sibling `receipt.json`. Collection defaults to the receipt’s sibling `runs/`. Pass the same explicit store as `--runs-dir` for custom layouts. Seeds, architecture cells, budget coordinates, and resumed children share this store; they do not create peer workspaces. See [workspace policy](workspaces.md) for external-disk overrides and evidence retention.
 
+Submission reserves `receipt.json.intent.json` exclusively and durably before
+preparing or enqueueing jobs. This immutable intent binds a unique submission,
+study, matrix, cards, coordinates, configs and controller store. A failed or
+interrupted attempt retains it: do not delete the intent to retry submission.
+Existing complete or partial receipts and intents prevent another enqueue.
+Receipt publication uses complete staged bytes and an exclusive atomic link.
+
+If publication failed after enqueue, use the original study and explicit native
+store to recover into a **distinct unused** output:
+
+```sh
+uv run --locked --extra cpu sparselab study recover experiments/ffn-study.yaml \
+  --intent /path/to/receipt.json.intent.json \
+  --store /path/to/runs --output /path/to/recovered-receipt.json
+```
+
+Recovery only reads the intent and controller database; it does not submit,
+resume, tick, contact workers, or train. Every planned coordinate must have one
+unambiguous persisted submission with the matching intent and full identity.
+Missing, duplicate, altered or legacy unbound evidence is unrecoverable. An
+intent alone does not prove enqueue occurred. Preserve original partial or
+complete receipt bytes; the recovered receipt includes their observed digest,
+intent provenance and store location. Collect it through the ordinary
+`study collect` command, specifying `--runs-dir` when the output is elsewhere.
+Recovery proves submission identity only, not job completion or scientific
+results. No historical queue or receipt is upgraded or rewritten.
+
+A write/flush/file-fsync failure publishes no destination. A directory-fsync
+failure after publication leaves any complete destination intact and reports an
+error: its crash durability is uncertain. Preserve surviving files and inspect
+the evidence rather than interpreting an error as proof that nothing happened.
+A surviving intent whose durability failed blocks another submit, and no jobs
+are enqueued by that invocation. Recovery also refuses any preexisting output.
+
 The study layer compares only configurations and evidence supported by the current training/evaluation stack. It does not add RL reward training or wire record-based Engram packs into model execution; those require separate model/trainer work. Keep data, tokenizer, source revision, runtime, and actual step/token budgets matched within each architecture comparison.
 
 ## Learn from retained comparisons
