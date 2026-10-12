@@ -621,3 +621,240 @@ def test_setup_only_dashboard_keeps_empty_result_guidance(
     assert "sparselab try DELTA.yaml --vs BASELINE.yaml" in _text(
         _render(page, tmp_path)
     )
+
+
+@pytest.mark.parametrize("action", ["rerun", "escalate"])
+def test_followup_plan_preserves_sealed_policy_and_ui_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, action: str
+) -> None:
+    import copy
+
+    from sparselab.dashboard.probe_hints import followup_plan, render_followup
+    from sparselab.probes import cli as probe_cli
+    from sparselab.probes import config as probe_config
+
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("rendering must not load current declarations or execute probes")
+
+    monkeypatch.setattr(probe_config, "load_probe_config", forbidden)
+    monkeypatch.setattr(probe_cli, "run_probe", forbidden)
+    request = {
+        "probe_config_version": 1,
+        "tier": "standard" if action == "escalate" else "full",
+        "final": False,
+        "fast_fail": False,
+        "lm_eval_tasks": None if action == "escalate" else ["piqa", "winogrande"],
+        "lm_eval_limit": None if action == "escalate" else 37,
+        "lab_dir": "/original/lab",
+        "runs_dir": "/original/runs",
+        "backend_override": "cpu",
+        "runtime_id": "saved-runtime",
+        "runtime_profile_path": "/original/runtime.yaml",
+        "resource_envelope_path": "/original/bounds.yaml",
+        "runtime_profile": {"id": "saved-runtime", "backend": "cpu"},
+        "resource_envelope": {"max_rss_bytes": 123456, "max_wall_seconds": 60},
+        "baseline": "../old-base",
+    }
+    result = {
+        **_probe_result(),
+        "probe_id": "policy-probe",
+        "tier": "fast",
+        "request": request,
+        "target": {**CANDIDATE, "checkpoint": "checkpoints/step-60"},
+        "baseline": {**BASELINE, "checkpoint": "checkpoints/step-60"},
+        "baseline_provenance": {
+            "selector": "../old-base",
+            "working_directory": "/original/cwd",
+            "status": "resolved",
+            "resolved": {"path": "/original/old-base"},
+        },
+        "verdict": {
+            "status": "pass",
+            "action": action,
+            "next_tier": "full",
+            "suggestion": "Promising: run `--config full`"
+            if action == "escalate"
+            else "Rerun the battery",
+        },
+    }
+    if action == "rerun":
+        result["probes"].append(
+            _row(
+                "lm_eval",
+                0.5,
+                None,
+                benchmark_group="custom-benchmark",
+                tasks={
+                    name: {"acc": 0.5, "items": [{"acc": 1.0}]}
+                    for name in request["lm_eval_tasks"]
+                },
+                benchmark={
+                    "tasks": request["lm_eval_tasks"],
+                    "items_sha256": {"piqa": "item-digest"},
+                },
+                limit=request["lm_eval_limit"],
+            )
+        )
+    # Escalation must use the sealed declaration tier, not a display/result tier.
+    path = _mk(tmp_path / "lab/probes/policy-probe/probe.json")
+    sealed = write_sealed(path, result)
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    reader = tmp_path / "moved/reader"
+    reader.mkdir(parents=True)
+    monkeypatch.chdir(reader)
+    snap = lab_data.snapshot(tmp_path / "lab")
+    original = copy.deepcopy(snap.entries[0].result)
+    plan = followup_plan(snap.entries[0])
+    assert plan["sealed_request"] == request
+    assert plan["recorded_tier"] == request["tier"] != result["tier"]
+    if action == "rerun":
+        assert plan["benchmark_groups"] == [
+            {
+                "benchmark_group": "custom-benchmark",
+                "tasks": ["piqa", "winogrande"],
+                "benchmark": {
+                    "tasks": ["piqa", "winogrande"],
+                    "items_sha256": {"piqa": "item-digest"},
+                },
+                "limit": 37,
+            }
+        ]
+    assert plan["checkpoint_bindings"]["target"]["checkpoint_sha256"] == "a" * 64
+    assert plan["baseline_provenance"] == result["baseline_provenance"]
+    assert plan["record_sha256"] == sealed["record_sha256"]
+    assert plan["intended_changes"] == (
+        {"tier": {"from": "standard", "to": "full"}} if action == "escalate" else {}
+    )
+    assert not plan["missing_fields"]
+    assert snap.entries[0].result == original
+    step = lab_data.next_steps(snap)[0]
+    assert step["command"] == ""
+    assert step["plan"] == render_followup(plan)
+    assert step["why"].startswith("Recorded verdict text:")
+    assert "bare --config tier does not retain" in step["why"]
+    app = _render("home", tmp_path / "lab")
+    assert not app.exception
+    assert step["plan"] in [code.value for code in app.code]
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+
+
+def test_historical_followup_is_explicit_about_missing_policy(tmp_path: Path) -> None:
+    from sparselab.dashboard.probe_data import ProbeEntry
+    from sparselab.dashboard.probe_hints import followup_plan
+
+    result = _probe_result()
+    result["verdict"]["action"] = "rerun"
+    entry = ProbeEntry(
+        "old", "probe", "old", tmp_path / "probe.json", result, None, {}, None
+    )
+    plan = followup_plan(entry)
+    assert "fast_fail" in plan["missing_fields"]
+    assert "runtime_profile" in plan["missing_fields"]
+    assert "target.checkpoint" in plan["missing_fields"]
+    assert any("historical" in field for field in plan["missing_fields"])
+    assert plan["sealed_request"] == {}
+    assert "current defaults are not historical evidence" in plan["preparation"]
+    assert plan["intended_changes"] == {}
+
+
+def test_embedded_try_followup_uses_owner_policy(tmp_path: Path) -> None:
+    from sparselab.dashboard.probe_data import ProbeEntry
+    from sparselab.dashboard.probe_hints import followup_plan
+
+    result = _probe_result()
+    result["verdict"].update(action="escalate", next_tier="full")
+    owner = seal(
+        {
+            "request": {
+                "probe_tier": "standard",
+                "runtime_profile": {"id": "try-runtime"},
+                "resource_envelope": {"max_rss_bytes": 999},
+            },
+            "baseline_provenance": {"status": "resolved", "selector": "base.yaml"},
+        }
+    )
+    entry = ProbeEntry(
+        "try", "try", "now", tmp_path / "try.json", result, None, {}, None
+    )
+    plan = followup_plan(entry, owner)
+    assert plan["sealed_request"] == owner["request"]
+    assert plan["record_sha256"] == owner["record_sha256"]
+    assert plan["intended_changes"] == {"tier": {"from": "standard", "to": "full"}}
+    assert "fast_fail" not in plan["missing_fields"]
+    assert "fast_fail" in plan["not_in_try_schema"]
+    assert "review embedded battery settings separately" in plan["preparation"]
+
+
+def test_not_comparable_try_next_step_requires_repaired_new_try(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.dashboard.probe_hints import render_followup
+    from sparselab.try_config import TryConfig
+
+    probe = _probe_result()
+    probe["verdict"].update(action="escalate", next_tier="full")
+    failed = ["validation", "tokenizer"]
+    request = {
+        **TryConfig().model_dump(mode="json"),
+        "baseline": "../baseline.yaml",
+        "backend_override": "cpu",
+        "runtime_id": None,
+        "runtime_profile_path": None,
+        "resource_envelope_path": None,
+    }
+    record = {
+        "format": "sparselab-lab-try-v1",
+        "try_id": "incomparable",
+        "created_at": probe["created_at"],
+        "probe": probe,
+        "request": request,
+        "inputs": {
+            "baseline": {"path": "../baseline.yaml"},
+            "candidate": {"path": "delta.yaml"},
+        },
+        "delta": {"dataset.synthetic_seed": {"base": 0, "variant": 1}},
+        "arms": {"baseline": BASELINE, "candidate": CANDIDATE},
+        "comparison": {"verdict": "NOT_COMPARABLE", "failed": failed},
+        "baseline_provenance": {
+            "selector": "../baseline.yaml",
+            "working_directory": "/original/cwd",
+            "status": "resolved",
+        },
+    }
+    path = _mk(tmp_path / "lab/tries/incomparable/try.json")
+    sealed = write_sealed(path, record)
+    before = path.read_bytes()
+    monkeypatch.chdir(tmp_path)
+    snap = lab_data.snapshot(tmp_path / "lab")
+    step = lab_data.next_steps(snap)[0]
+    plan = json.loads(step["plan"])
+    assert "rerun" in step["title"] and "Fix the cause" in step["why"]
+    assert plan["operation"] == "try"
+    assert plan["comparison_failed"] == failed
+    assert plan["sealed_request"] == request
+    assert (
+        plan["try_inputs"] == record["inputs"] and plan["try_delta"] == record["delta"]
+    )
+    assert plan["record_sha256"] == sealed["record_sha256"]
+    assert plan["baseline_provenance"] == record["baseline_provenance"]
+    assert plan["checkpoint_bindings"]["target"]["checkpoint_sha256"] == "a" * 64
+    assert plan["intended_changes"]["comparison"]
+    assert set(plan["not_in_try_schema"]) == {
+        "final",
+        "fast_fail",
+        "lm_eval_tasks",
+        "lm_eval_limit",
+        "runs_dir",
+    }
+    assert not set(plan["not_in_try_schema"]) & set(plan["missing_fields"])
+    assert "sparselab try" in plan["preparation"]
+    assert (
+        "ProbeConfig" not in plan["preparation"]
+        and "sparselab probe" not in plan["preparation"]
+    )
+    assert "rerun changes nothing" not in plan["preparation"]
+    assert "unchanged rerun cannot fix comparability" in plan["preparation"]
+    assert step["command"] == "" and step["plan"] == render_followup(plan)
+    app = _render("home", tmp_path / "lab")
+    assert not app.exception and step["plan"] in [code.value for code in app.code]
+    assert path.read_bytes() == before

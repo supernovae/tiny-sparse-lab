@@ -155,6 +155,8 @@ def home_page(lab_dir: Path, runs_dirs: Sequence[Path], pages: PageLinks) -> Non
         st.subheader("Next steps")
         for step in lab_data.next_steps(snap, runs_dirs):
             step_card(step["title"], step["why"], step["command"] or None)
+            if step.get("plan"):
+                st.code(step["plan"], language="json")
     references = {p["run_id"] for p in snap.points if p["kind"] == "reference"}
     checkpoints = {p.get("checkpoint_sha256") for p in snap.points}
     cols = st.columns(5)

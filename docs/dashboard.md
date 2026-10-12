@@ -243,3 +243,21 @@ and attached semantic packs are refused with a reason.
 - Page renders are tested with `streamlit.testing.v1.AppTest` (empty and
   populated labs, the real `app.py` entry point). CI's `lab-loop` job runs
   them together with the probe and explorer tests.
+
+Rerun and escalation hints show a read-only follow-up plan from the sealed
+request, including custom benchmark selectors, runtime/resource values,
+checkpoint digests and baseline provenance. Rerun changes no policy; escalation
+names its intended tier change. Historical missing fields remain explicit.
+These plans are not executable declarations and do not promise reproduction.
+Authoring a new ProbeConfig and copying saved runtime/resource descriptors into
+native files is a separate explicit action. Verify checkpoint, suite and
+benchmark identities and review relocated paths before executing; source files
+and current defaults may have changed. Opening the dashboard never materializes
+these files or launches work.
+
+For a `NOT_COMPARABLE` try, the plan instead carries its failed comparison
+checks and sealed try inputs. Diagnose and explicitly repair those inputs
+before a new `sparselab try`; an unchanged rerun cannot fix comparability.
+Probe-only settings absent from TryConfig are labelled separately from
+historical missing fields. Recorded verdict tier advice is labelled as such;
+a bare named tier does not retain the sealed effective policy.
