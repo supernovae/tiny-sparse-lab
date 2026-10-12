@@ -678,16 +678,51 @@ def run_try(
     request: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """Train/score baseline and candidate locally and write one lab record."""
+    import yaml
+    from pydantic import TypeAdapter
+
     from sparselab.config.loading import load_config
+    from sparselab.config.models import RunSeed
     from sparselab.data.legacy import require_current_dataset
     from sparselab.derivation import _config, _delta, derive_config
     from sparselab.experiments.compiler import patchable_config
+    from sparselab.experiments.plan import read_document
     from sparselab.resource_envelope import (
         check_envelope,
         current_process_rss_bytes,
         resolve_lab_try_limits,
     )
     from sparselab.training.manifest import source_identity
+    from sparselab.try_config import TryConfig
+
+    # Only seed errors precede attempt creation. Other parsing/setup failures
+    # still produce the established failed/interrupted record below.
+    TryConfig(seed=seed)
+    seed_adapter = TypeAdapter(RunSeed)
+    for path, is_candidate in ((baseline_path, False), (candidate_path, True)):
+        try:
+            # Match each consumer: baseline load_config uses SafeLoader,
+            # while read_candidate uses the strict experiment document reader.
+            document = (
+                read_document(Path(path))
+                if is_candidate
+                else yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+            )
+        except OSError, ValueError, TypeError, yaml.YAMLError:
+            continue  # Let normal setup retain its failure evidence.
+        if not isinstance(document, dict):
+            continue
+        try:
+            if "seed" in document and (
+                not is_candidate or "schema_version" in document
+            ):
+                seed_adapter.validate_python(document["seed"])
+            if is_candidate and "schema_version" not in document and seed is None:
+                settings = document.get("set")
+                if isinstance(settings, dict) and "seed" in settings:
+                    seed_adapter.validate_python(settings["seed"])
+        except ValueError as error:
+            raise ValueError(f"invalid seed in {path}: {error}") from error
 
     if train_fn is None:
         from sparselab.training.trainer import train as train_fn
@@ -723,8 +758,8 @@ def run_try(
     try_dir.mkdir(parents=True, exist_ok=False)
     record_path = try_dir / "try.json"
     cancel_path = try_dir / "CANCEL"
-    # Cancellation and a sealed 'started' record come before any parsing,
-    # hashing or setup, so a stop at any point still leaves a final record.
+    # After seed preflight, cancellation and a sealed started record precede
+    # other parsing, hashing and setup, retaining interrupted execution evidence.
     context = LabContext(
         cancel_path, resource_envelope=resource_envelope, workspace=root
     )

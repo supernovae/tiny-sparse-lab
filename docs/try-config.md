@@ -20,9 +20,13 @@ resource_envelope: ./bounds.yaml
 ```
 
 All fields are optional. `seed` is an authoritative paired override for both
-arms; without it, native candidate derivation retains a delta's explicit seed
-change. `fresh_baseline` bypasses reuse; ordinary reuse still requires a completed
-try with matching config, code and current tokenizer/data/memory identities.
+arms. Run configs and try overrides accept seeds from `0` through `4294967295`
+(`2**32 - 1`), inclusive, on both PyTorch and MLX. Values outside this range
+are rejected, never wrapped or normalized. Try checks declared seeds before
+creating its attempt directory or preparing either arm. Without an override,
+native candidate derivation retains a delta's explicit seed change.
+`fresh_baseline` bypasses reuse; ordinary reuse still requires a completed try
+with matching config, code and current tokenizer/data/memory identities.
 `probe_tier` selects held-out screening, never the protected final split.
 
 Paths expand `~` and resolve relative to the declaration file. Select either
