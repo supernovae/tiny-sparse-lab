@@ -230,12 +230,17 @@ def test_interrupted_owner_never_automatically_recovers(
         process.send_signal(signum)
         _, stderr = process.communicate(timeout=5)
         if signum == signal.SIGTERM:
+            assert process.returncode != 0, stderr
             assert options["blocked_path"].exists(), (process.returncode, stderr)
+            assert not list(options["state_dir"].glob("*/completion.json"))
         # SIGKILL cannot write a marker: retained pending remains authoritative.
+        pending = list(options["state_dir"].glob("*/pending.json"))
+        assert len(pending) == 1
         options["blocked_path"].unlink(missing_ok=True)
         options["log_dir"] = tmp_path / "new-logs"
-        with pytest.raises((ValueError, FileNotFoundError)):
+        with pytest.raises(FileNotFoundError) as refusal:
             run(options)
+        assert refusal.value.filename == str(pending[0].with_name("completion.json"))
         assert not options["log_dir"].exists()
     finally:
         if process.poll() is None:
@@ -291,15 +296,17 @@ def test_signal_during_sampling_is_not_a_metric_failure(tmp_path, monkeypatch, s
     assert not isinstance(caught.value, Exception)  # cancellation is control flow
     assert delivered == [site]
     assert options["blocked_path"].exists()
-    assert list(options["state_dir"].glob("*/pending.json"))
+    pending = list(options["state_dir"].glob("*/pending.json"))
+    assert len(pending) == 1
     assert not list(options["state_dir"].glob("*/completion.json"))
     owned = json.loads((options["log_dir"] / "owned-completion.json").read_text())
     assert owned["living_descendants"] == 0
     assert {sig: signal.getsignal(sig) for sig in previous} == previous
     options["blocked_path"].unlink()
     options["log_dir"] = tmp_path / "refused-logs"
-    with pytest.raises((ValueError, FileNotFoundError)):
+    with pytest.raises(FileNotFoundError) as refusal:
         run(options)
+    assert refusal.value.filename == str(pending[0].with_name("completion.json"))
     assert not options["log_dir"].exists()
 
 
