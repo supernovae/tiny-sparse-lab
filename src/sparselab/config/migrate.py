@@ -23,6 +23,8 @@ _PATH_KEYS = frozenset(
         "memory_package_path",
         "train_path",
         "validation_path",
+        "mixture_declaration_path",
+        "mixture_output_path",
     }
 )
 

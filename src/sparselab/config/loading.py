@@ -23,6 +23,8 @@ _PATH_KEYS = {
     "source_manifest_path",
     "corpus_release_path",
     "corpus_export_path",
+    "mixture_declaration_path",
+    "mixture_output_path",
 }
 
 

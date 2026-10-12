@@ -8,6 +8,7 @@ import yaml
 from sparselab.config.loading import load_config
 from sparselab.config.migrate import migrate_file
 from sparselab.config.models import ModelConfig, RunConfig
+from sparselab.derivation import derive_config
 
 
 def _v1() -> dict[str, object]:
@@ -74,6 +75,62 @@ def test_invalid_migration_does_not_publish_output(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="migrated config is invalid"):
         migrate_file(source, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("absolute", [False, True])
+@pytest.mark.parametrize("publication", ["load", "derive", "migrate"])
+def test_mixture_paths_preserve_source_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    absolute: bool,
+    publication: str,
+) -> None:
+    source = tmp_path / "source" / "nested" / "run.yaml"
+    source.parent.mkdir(parents=True)
+    declaration = source.parent / "assets" / "mixture.yaml"
+    declaration.parent.mkdir()
+    declaration.write_text("synthetic declaration\n", encoding="utf-8")
+    mixture_output = source.parent / "assets" / "mixture"
+    mixture_output.mkdir()
+    (mixture_output / "receipt.json").write_text("{}\n", encoding="utf-8")
+    raw = _v1()
+    raw["dataset"].update(
+        source="local_token_mixture",
+        license="local synthetic fixture",
+        train_path="assets/mixture/train.tokens.jsonl",
+        validation_path="assets/validation.jsonl",
+        mixture_declaration_path=str(declaration)
+        if absolute
+        else "assets/mixture.yaml",
+        mixture_output_path=str(mixture_output) if absolute else "assets/mixture",
+    )
+    if publication != "migrate":
+        from sparselab.config.migrate import migrate_v1
+
+        raw = migrate_v1(raw)
+    source.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    output = tmp_path / "published" / "elsewhere" / "run.yaml"
+    output.parent.mkdir(parents=True)
+    if publication == "derive":
+        derive_config(source, output, {"name": "derived-mixture"})
+    elif publication == "migrate":
+        migrate_file(source, output)
+    else:
+        output = source
+
+    for cwd in (tmp_path / "cwd-a", tmp_path / "unrelated" / "cwd-b"):
+        cwd.mkdir(parents=True)
+        monkeypatch.chdir(cwd)
+        loaded = load_config(output)
+        assert loaded.dataset.mixture_declaration_path == declaration
+        assert loaded.dataset.mixture_output_path == mixture_output
+        assert (
+            loaded.dataset.mixture_declaration_path.read_text()
+            == "synthetic declaration\n"
+        )
+        assert (
+            loaded.dataset.mixture_output_path / "receipt.json"
+        ).read_text() == "{}\n"
 
 
 def test_memory_injection_serialization_preserves_legacy_final_config() -> None:
