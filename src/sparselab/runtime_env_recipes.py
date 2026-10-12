@@ -64,10 +64,26 @@ _CUDA_CU126 = Recipe(
     test_precision="fp16",
 )
 
+_XPU_ARC = Recipe(
+    id="xpu-arc-v1",
+    version=1,
+    requirements_file=_REQUIREMENTS_DIR / "xpu-arc.txt",
+    python_version=(3, 14),
+    backend="xpu",
+    indexes=("https://download.pytorch.org/whl/xpu",),
+    requirements=MappingProxyType(
+        {
+            "torch_hip": False,
+            "device_name_regex": r"(?i)Intel.*Arc.*\b(?:A\d{3}|B\d{2,3})\b",
+        }
+    ),
+    test_precision="fp32",
+)
+
 
 def get_recipe(name: str) -> Recipe:
     """Select an explicit vendor recipe; never infer one from host hardware."""
-    recipes = {_ROCM_GFX1100.id: _ROCM_GFX1100, _CUDA_CU126.id: _CUDA_CU126}
+    recipes = {item.id: item for item in (_ROCM_GFX1100, _CUDA_CU126, _XPU_ARC)}
     try:
         return recipes[name]
     except KeyError as error:

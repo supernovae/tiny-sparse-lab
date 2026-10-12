@@ -395,3 +395,34 @@ def test_publication_requires_verified_bf16_optimizer(
     assert "gpu" not in read_registry(fixture.registry).runtimes
     assert Path(result["failure_record"]).is_file()
     assert not (fixture.root / "gpu/provision-receipt.json").exists()
+
+
+@pytest.mark.parametrize("executable", [True, False])
+def test_intel_provision_requires_executable_xpu_and_registers_fp32(
+    provision_fixture, monkeypatch, executable
+):
+    fixture = provision_fixture
+    observed = provision_module.inspect_python(fixture.root / "gpu/bin/python")
+    observed["torch"].update(version="2.14.1+xpu", hip=None, cuda=None)
+    observed["backends"] = ["cpu", "xpu"] if executable else ["cpu"]
+    observed["devices"] = {
+        "xpu": {"count": int(executable), "names": ["Intel Arc A380"]}
+    }
+    monkeypatch.setattr(provision_module, "inspect_python", lambda python: observed)
+    fixture.probe.update(backend="xpu", torch_hip=None, device_name="Intel Arc A380")
+    fixture.doctor["tested_runtime"].update(backend="xpu", tested_precisions=["fp32"])
+    result = provision_module.provision("gpu", recipe="xpu-arc-v1")
+    if executable:
+        assert result["status"] == "READY"
+        registered = read_registry(fixture.registry).runtimes["gpu"]
+        assert registered.backend == "xpu"
+        assert registered.requirements.bf16 is None
+        receipt = json.loads(Path(result["receipt_path"]).read_text())
+        assert receipt["torch"]["version"] == "2.14.1+xpu"
+        assert receipt["tested_runtime"]["tested_precisions"] == ["fp32"]
+        assert receipt["recipe"] == "xpu-arc-v1"
+    else:
+        assert result["status"] == "ERROR"
+        assert "not executable xpu" in result["reason"]
+        assert not fixture.registry.exists()
+        assert Path(result["failure_record"]).is_file()

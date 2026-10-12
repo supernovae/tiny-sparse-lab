@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 from types import SimpleNamespace
@@ -206,3 +207,44 @@ def test_preflight_rejects_unsupported_hosts(tmp_path, monkeypatch, system, mach
     with pytest.raises(ValueError, match="Linux x86_64"):
         recipes.preflight_runtime_root(tmp_path / "private")
     assert not (tmp_path / "private").exists()
+
+
+def test_xpu_recipe_pins_upstream_torch_and_intel_runtime():
+    recipe = recipes.get_recipe("xpu-arc-v1")
+    assert recipe.backend == "xpu"
+    assert recipe.python_version == (3, 14)
+    assert recipe.test_precision == "fp32"
+    assert recipe.requirements["torch_hip"] is False
+    text = recipe.requirements_file.read_text()
+    assert "torch==2.14.1+xpu;" in text
+    assert "intel-sycl-rt==2026.1.0" in text
+    assert "triton-xpu==3.8.0" in text
+    assert "--find-links https://download.pytorch.org/whl/xpu/torch/" in text
+    assert "pytorch-cpu" not in text
+    assert "intel-extension-for-pytorch" not in text
+    from sparselab.runtime_env_cli import parser
+
+    args = parser().parse_args(["provision", "intel", "--recipe", recipe.id])
+    assert args.recipe == recipe.id
+
+
+@pytest.mark.parametrize(
+    "name,accepted",
+    [
+        ("Intel(R) Arc(TM) A380 Graphics", True),
+        ("Intel Arc A770", True),
+        ("Intel(R) Arc(TM) B580 Graphics", True),
+        ("Intel Arc Pro B60", True),
+        ("Intel Arc Pro B70", True),
+        ("intel arc a380", True),
+        ("Intel(R) Arc(TM) Graphics", False),
+        ("Intel(R) Arc(TM) 140V GPU", False),
+        ("Intel Arc A3800", False),
+        ("Intel Arc B6000", False),
+    ],
+)
+def test_xpu_recipe_requires_discrete_arc_sku(name, accepted):
+    recipe = recipes.get_recipe("xpu-arc-v1")
+    assert (
+        re.search(recipe.requirements["device_name_regex"], name) is not None
+    ) == accepted

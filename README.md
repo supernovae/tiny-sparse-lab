@@ -103,7 +103,7 @@ come from the model, data, training and evaluation declarations.
 | **CPU** | PyTorch / `cpu` | CPU execution on Linux, WSL2 and macOS. |
 | **NVIDIA GPU** | PyTorch / `cuda` | Requires a compatible CUDA framework and driver installation. Dense SDPA is opt-in; [probe](docs/hosted-environments.md#boundaries-and-gates) the actual selected kernel rather than assuming FlashAttention. |
 | **AMD GPU** | PyTorch / `rocm` | Requires a compatible ROCm framework and driver installation. A native HIP sparse-attention path is also available within its documented device limits. |
-| **Intel GPU** | PyTorch / `xpu` | Requires a compatible XPU framework and driver installation. |
+| **Intel GPU** | PyTorch / `xpu` | [Isolated Intel setup](docs/intel-xpu.md); requires compatible XPU wheels, drivers and render-device access. |
 | **Apple Silicon GPU** | PyTorch / `mps` | Uses the PyTorch Metal backend on a supported Mac. |
 | **Apple Silicon GPU, optional engine** | MLX / `metal` | FP32 dense/native block-sparse training, AdamW and block recomputation; a smaller feature set than PyTorch. |
 

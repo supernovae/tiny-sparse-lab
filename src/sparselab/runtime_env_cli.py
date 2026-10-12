@@ -55,7 +55,7 @@ def parser() -> argparse.ArgumentParser:
         if name == "provision":
             command.add_argument(
                 "--recipe",
-                choices=["rocm-gfx1100-v1", "cuda-cu126-v1"],
+                choices=["rocm-gfx1100-v1", "cuda-cu126-v1", "xpu-arc-v1"],
                 required=True,
             )
             command.add_argument("--python", type=Path)

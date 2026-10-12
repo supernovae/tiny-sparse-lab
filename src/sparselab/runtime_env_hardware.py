@@ -96,6 +96,17 @@ def _metal_names(text: str) -> list[str]:
     return names
 
 
+def _intel_names(text: str) -> list[str]:
+    """Observe Intel PCI display devices, excluding bridges, CPUs and audio."""
+    return [
+        match[1].strip()
+        for match in re.finditer(
+            r"(?m)^\S+\s+[^\n]*\[03(?:00|02|80)\]:\s+([^\n]+?)\s+\[8086:[0-9a-fA-F]{4}\]",
+            text,
+        )
+    ]
+
+
 def hardware_inventory() -> list[dict[str, str | None]]:
     """Observe host devices, without importing frameworks or authorizing a runtime."""
     system = platform.system()
@@ -112,6 +123,12 @@ def hardware_inventory() -> list[dict[str, str | None]]:
                 "nvidia-smi",
                 ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
                 _nvidia_names,
+            ),
+            (
+                "xpu",
+                "lspci",
+                ["lspci", "-Dnn"],
+                _intel_names,
             ),
         )
         if system == "Linux"
