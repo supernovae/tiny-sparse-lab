@@ -192,7 +192,7 @@ def inventory(
 def observed_entry(identifier: str, entry, environments: list[dict]) -> dict:
     path = str(canonical_python(entry.python))
     environment = next((item for item in environments if item["python"] == path), None)
-    status = environment["status"] if environment else "UNAVAILABLE"
+    status = environment["status"] if environment else "UNOBSERVED"
     reason = (
         environment.get("reason")
         if environment
