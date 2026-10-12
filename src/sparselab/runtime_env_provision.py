@@ -131,11 +131,17 @@ def _publish_ready(path: Path, receipt: dict) -> None:
             os.fsync(directory)
         finally:
             os.close(directory)
-    except OSError:
+    except OSError as publication_error:
         # Withdraw only the link we just created, retaining staged evidence.
         # A process death here may leave a truthful READY (registration already
         # returned); the intent still identifies the durability recovery window.
-        path.unlink()
+        try:
+            path.unlink()
+        except OSError as withdrawal_error:
+            raise OSError(
+                f"READY publication failed: {publication_error}; "
+                f"receipt withdrawal failed: {withdrawal_error}"
+            ) from withdrawal_error
         raise
 
 
@@ -367,6 +373,10 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
         }
         receipt_path = target / "provision-receipt.json"
         registry_path = resolve_registry_path()
+        entry = RuntimeEntry.model_validate(
+            profile.model_dump(exclude={"id", "runtime_profile_version"})
+        )
+        receipt["registry_path"] = str(registry_path)
         intent_path = target / "provision-registration.json"
         recovery = {
             "registration_record": str(intent_path),
@@ -383,13 +393,19 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
         }
         _record(intent_path, {**receipt, **recovery, "status": "REGISTRATION_PENDING"})
         failure.update(recovery)
-        register_runtime(
-            identifier,
-            RuntimeEntry.model_validate(
-                profile.model_dump(exclude={"id", "runtime_profile_version"})
-            ),
-            registry_path=registry_path,
-        )
+        try:
+            register_runtime(identifier, entry, registry_path=registry_path)
+        except ValueError:
+            # Validation, registry reads and duplicate-ID refusal precede
+            # publication. OSError may follow replacement and stays unknown.
+            failure["registration_state"] = "refused"
+            failure["recovery"] = (
+                "Registration was refused before publication; this call did not "
+                "modify the registry. Preserve the evidence and any conflicting "
+                "entry. Do not overwrite or unregister it, or rerun provision "
+                "into the reserved target."
+            )
+            raise
         failure["registration_state"] = "registered"
         _publish_ready(receipt_path, receipt)
         return {
@@ -402,5 +418,11 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
     except (OSError, ValueError, TypeError, subprocess.SubprocessError) as error:
         failure["reason"] = f"{type(error).__name__}: {error}"
         failure_path = target / "provision-failure.json"
-        _record(failure_path, failure)
+        try:
+            _record(failure_path, failure)
+        except OSError as recording_error:
+            raise OSError(
+                f"{failure['reason']}; failure recording at {failure_path} "
+                f"failed: {recording_error}"
+            ) from recording_error
         return {**failure, "failure_record": str(failure_path)}

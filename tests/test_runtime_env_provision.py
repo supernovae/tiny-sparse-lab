@@ -459,9 +459,17 @@ def _assert_retained(fixture, entry):
     return intent
 
 
-@pytest.mark.parametrize("mode", ["conflict", "refusal", "write", "directory"])
+@pytest.mark.parametrize(
+    "mode,expected_state",
+    [
+        ("conflict", "refused"),
+        ("refusal", "refused"),
+        ("write", "unknown"),
+        ("directory", "unknown"),
+    ],
+)
 def test_registration_failure_never_publishes_ready(
-    provision_fixture, monkeypatch, mode
+    provision_fixture, monkeypatch, mode, expected_state
 ):
     import os
 
@@ -499,7 +507,9 @@ def test_registration_failure_never_publishes_ready(
     monkeypatch.setattr(os, "fsync", fsync)
     result = _provision()
     assert result["status"] == "ERROR"
-    assert result["registration_state"] == "unknown"
+    assert result["registration_state"] == expected_state
+    if expected_state == "refused":
+        assert "this call did not modify the registry" in result["recovery"]
     assert json.loads(Path(result["failure_record"]).read_text()) == {
         key: value for key, value in result.items() if key != "failure_record"
     }
@@ -633,5 +643,98 @@ def test_success_publishes_ready_only_after_registration(
     receipt = Path(result["receipt_path"])
     assert json.loads(receipt.read_text())["status"] == "READY"
     assert receipt.stat().st_mode & 0o777 == 0o600
-    assert not (receipt.parent / "provision-failure.json").exists()
+    assert {path.name for path in receipt.parent.iterdir()} == {
+        "bin",
+        "common-requirements.txt",
+        "provision-registration.json",
+        "provision-ready-staged.json",
+        "provision-receipt.json",
+    }
+    staged = receipt.parent / "provision-ready-staged.json"
+    assert staged.samefile(receipt)
+    assert receipt.stat().st_nlink == 2
+    assert json.loads(receipt.read_text())["registry_path"] == str(fixture.registry)
+    _assert_retained(fixture, other)
+
+
+def test_invalid_entry_fails_before_intent_or_registration(
+    provision_fixture, monkeypatch
+):
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+
+    def invalid(value):
+        raise ValueError("injected invalid RuntimeEntry")
+
+    def register(*args, **kwargs):
+        pytest.fail("invalid entry must not reach registration")
+
+    monkeypatch.setattr(
+        provision_module, "RuntimeEntry", SimpleNamespace(model_validate=invalid)
+    )
+    monkeypatch.setattr(provision_module, "register_runtime", register)
+    result = _provision()
+    assert result["status"] == "ERROR"
+    assert "registration_state" not in result
+    assert not (fixture.root / "gpu/provision-registration.json").exists()
+    assert not (fixture.root / "gpu/provision-receipt.json").exists()
+    assert read_registry(fixture.registry).runtimes == {"other": other}
+
+
+@pytest.mark.parametrize("persistent", [False, True])
+def test_receipt_withdrawal_failure_retains_all_errors(
+    provision_fixture, monkeypatch, persistent
+):
+    import os
+
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+    ready = fixture.root / "gpu/provision-receipt.json"
+    original_fsync = os.fsync
+    original_unlink = Path.unlink
+    directory_failed = False
+
+    def fsync(fd):
+        nonlocal directory_failed
+        if (
+            ready.exists()
+            and os.fstat(fd).st_ino == ready.parent.stat().st_ino
+            and (not directory_failed or persistent)
+        ):
+            directory_failed = True
+            raise OSError("injected persistent directory fsync failure")
+        return original_fsync(fd)
+
+    def unlink(path, *args, **kwargs):
+        if path == ready:
+            raise OSError("injected receipt unlink failure")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    if persistent:
+        with pytest.raises(OSError) as raised:
+            _provision()
+        reason = str(raised.value)
+        assert "failure recording" in reason
+    else:
+        result = _provision()
+        assert result["status"] == "ERROR"
+        assert result["registration_state"] == "registered"
+        reason = result["reason"]
+    assert (
+        "READY publication failed: injected persistent directory fsync failure"
+        in reason
+    )
+    assert "receipt withdrawal failed: injected receipt unlink failure" in reason
+    assert json.loads(ready.read_text())["status"] == "READY"
+    failure = json.loads((ready.parent / "provision-failure.json").read_text())
+    assert failure["registration_state"] == "registered"
+    assert "receipt withdrawal failed" in failure["reason"]
+    # These bytes are visible even when the failure record's directory fsync
+    # failed; visibility is not a completed durable failure record.
+    assert (
+        read_registry(fixture.registry).runtimes["gpu"].python
+        == ready.parent / "bin/python"
+    )
     _assert_retained(fixture, other)
