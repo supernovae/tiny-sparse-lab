@@ -934,8 +934,8 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
         "Model explorer",
         "What is inside this model, and how does it process a sentence?",
         f"small checkpoints only (≤ {ex.MAX_PARAMETERS / 1e6:.0f}M parameters, "
-        f"≤ {ex.MAX_TOKENS} tokens) · computed on CPU through the verified "
-        "checkpoint loader and cached under LAB/explorer",
+        f"≤ {ex.MAX_TOKENS} tokens) · computed through the verified checkpoint "
+        "loader (runtime shown per exploration) and cached under LAB/explorer",
     )
     snap = _snapshot(lab_dir)
     cached = snap.explorations
@@ -964,7 +964,9 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
             range(len(cached)),
             format_func=lambda i: (
                 f"{(cached[i].get('target') or {}).get('run_id')} · "
-                f"“{cached[i]['text'][:48]}” · {_when(cached[i]['created_at'])}"
+                f"“{cached[i]['text'][:48]}” · {_when(cached[i]['created_at'])} · "
+                f"{ex.runtime_label(cached[i])}"
+                + (" · ⚠ unverified" if cached[i].get("cache_issue") else "")
             ),
             key="explorer_cached",
         )
@@ -1001,6 +1003,8 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
 
 
 def render_exploration(exploration: Mapping[str, Any]) -> None:
+    from sparselab.explorer import runtime_label
+
     arch = exploration["architecture"]
     target = exploration.get("target") or {}
     inv = arch.get("inventory") or {}
@@ -1008,6 +1012,9 @@ def render_exploration(exploration: Mapping[str, Any]) -> None:
         st.warning(f"⊘ Too big to explore here: {exploration['unavailable']}")
         st.markdown(xv.architecture_html(arch), unsafe_allow_html=True)
         return
+    st.caption(f"Diagnostics runtime: {runtime_label(exploration)}")
+    if exploration.get("cache_issue"):
+        st.warning(f"Cache provenance unverified: {exploration['cache_issue']}")
     tokens = exploration["tokens"]
     losses = [t["loss"] for t in tokens if t["loss"] is not None]
     cols = st.columns(5)
