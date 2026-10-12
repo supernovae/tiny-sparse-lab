@@ -678,6 +678,7 @@ def run_try(
     request: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """Train/score baseline and candidate locally and write one lab record."""
+    import yaml
     from pydantic import TypeAdapter
 
     from sparselab.config.loading import load_config
@@ -700,9 +701,17 @@ def run_try(
     seed_adapter = TypeAdapter(RunSeed)
     for path, is_candidate in ((baseline_path, False), (candidate_path, True)):
         try:
-            document = read_document(Path(path))
-        except OSError, ValueError, TypeError:
+            # Match each consumer: baseline load_config uses SafeLoader,
+            # while read_candidate uses the strict experiment document reader.
+            document = (
+                read_document(Path(path))
+                if is_candidate
+                else yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+            )
+        except OSError, ValueError, TypeError, yaml.YAMLError:
             continue  # Let normal setup retain its failure evidence.
+        if not isinstance(document, dict):
+            continue
         try:
             if "seed" in document and (
                 not is_candidate or "schema_version" in document

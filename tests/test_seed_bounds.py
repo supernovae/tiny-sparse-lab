@@ -125,3 +125,44 @@ def test_try_boundary_override_supersedes_delta_before_setup(
             train_fn=lambda: None,
         )
     assert not (tmp_path / "work").exists()
+
+
+@pytest.mark.parametrize("seed", [-1, 2**32])
+def test_try_rejects_merged_baseline_seed_before_artifacts(tmp_path, monkeypatch, seed):
+    from sparselab import resource_envelope
+
+    raw = _raw()
+    del raw["seed"]
+    baseline = tmp_path / "base.yaml"
+    baseline.write_text(f"<<: &defaults {{seed: {seed}}}\n" + yaml.safe_dump(raw))
+    candidate = _write(tmp_path / "candidate.yaml", _raw())
+    monkeypatch.setattr(
+        resource_envelope,
+        "resolve_lab_try_limits",
+        lambda *a, **kw: pytest.fail("resource preparation reached"),
+    )
+    with pytest.raises(ValueError, match="seed"):
+        run_try(candidate, baseline, work_dir=tmp_path / "work", train_fn=lambda: None)
+    assert not (tmp_path / "work").exists()
+
+
+@pytest.mark.parametrize("seed", [0, 2**32 - 1])
+def test_try_merged_baseline_uses_effective_valid_seed(tmp_path, monkeypatch, seed):
+    from sparselab import resource_envelope
+
+    raw = _raw(seed)
+    baseline = tmp_path / "base.yaml"
+    baseline.write_text("<<: &defaults {seed: -1}\n" + yaml.safe_dump(raw))
+    assert load_config(baseline).seed == seed
+    candidate = _write(tmp_path / "candidate.yaml", _raw())
+
+    class Validated(Exception):
+        pass
+
+    def stop_before_setup(*a, **kw):
+        raise Validated
+
+    monkeypatch.setattr(resource_envelope, "resolve_lab_try_limits", stop_before_setup)
+    with pytest.raises(Validated):
+        run_try(candidate, baseline, work_dir=tmp_path / "work", train_fn=lambda: None)
+    assert not (tmp_path / "work").exists()
