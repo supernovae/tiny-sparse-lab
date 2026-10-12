@@ -426,3 +426,212 @@ def test_intel_provision_requires_executable_xpu_and_registers_fp32(
         assert "not executable xpu" in result["reason"]
         assert not fixture.registry.exists()
         assert Path(result["failure_record"]).is_file()
+
+
+def _seed_unrelated(fixture):
+    entry = RuntimeEntry.model_validate(
+        {
+            "python": str(Path(sys.executable).absolute()),
+            "engine": "pytorch",
+            "backend": "cpu",
+            "device_index": 0,
+        }
+    )
+    register_runtime("other", entry, registry_path=fixture.registry)
+    return entry
+
+
+def _intent(fixture):
+    return json.loads((fixture.root / "gpu/provision-registration.json").read_text())
+
+
+def _assert_retained(fixture, entry):
+    intent = _intent(fixture)
+    assert intent["status"] == "REGISTRATION_PENDING"
+    assert intent["registration_state"] == "unknown"
+    assert intent["registry_path"] == str(fixture.registry)
+    assert intent["profile"]["python"] == str(fixture.root / "gpu/bin/python")
+    assert intent["tested_runtime"] == fixture.doctor["tested_runtime"]
+    assert intent["package_inventory"] == fixture.inventory
+    assert len(list(Path(intent["logs"]).glob("*.log"))) == 5
+    assert "Do not rerun provision" in intent["recovery"]
+    assert read_registry(fixture.registry).runtimes["other"] == entry
+    return intent
+
+
+@pytest.mark.parametrize("mode", ["conflict", "refusal", "write", "directory"])
+def test_registration_failure_never_publishes_ready(
+    provision_fixture, monkeypatch, mode
+):
+    import os
+
+    from sparselab import runtime_environments as registry_module
+
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+    before = fixture.registry.read_bytes()
+    original_register = provision_module.register_runtime
+    original_fsync = os.fsync
+
+    def register(identifier, entry, **kwargs):
+        _assert_retained(fixture, other)
+        assert not (fixture.root / "gpu/provision-receipt.json").exists()
+        if mode == "conflict":
+            original_register(identifier, other, **kwargs)
+        elif mode == "refusal":
+            raise ValueError("injected registry refusal")
+        return original_register(identifier, entry, **kwargs)
+
+    def fsync(fd):
+        if (
+            mode == "directory"
+            and os.fstat(fd).st_ino == fixture.registry.parent.stat().st_ino
+        ):
+            raise OSError("injected registry directory durability failure")
+        return original_fsync(fd)
+
+    def replace(source, destination):
+        raise OSError("injected registry write failure")
+
+    monkeypatch.setattr(provision_module, "register_runtime", register)
+    if mode == "write":
+        monkeypatch.setattr(registry_module.os, "replace", replace)
+    monkeypatch.setattr(os, "fsync", fsync)
+    result = _provision()
+    assert result["status"] == "ERROR"
+    assert result["registration_state"] == "unknown"
+    assert json.loads(Path(result["failure_record"]).read_text()) == {
+        key: value for key, value in result.items() if key != "failure_record"
+    }
+    assert not (fixture.root / "gpu/provision-receipt.json").exists()
+    _assert_retained(fixture, other)
+    entries = read_registry(fixture.registry).runtimes
+    if mode == "conflict":
+        assert entries["gpu"] == other
+    elif mode == "directory":
+        assert entries["gpu"].python == fixture.root / "gpu/bin/python"
+    else:
+        assert fixture.registry.read_bytes() == before
+
+
+@pytest.mark.parametrize("mode", ["partial", "link", "directory"])
+def test_ready_publication_failure_preserves_registered_entry_and_recovery(
+    provision_fixture, monkeypatch, mode
+):
+    import os
+
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+    original_record = provision_module._record
+    original_fsync = os.fsync
+    ready = fixture.root / "gpu/provision-receipt.json"
+
+    def record(path, value):
+        if path.name == "provision-ready-staged.json":
+            assert "gpu" in read_registry(fixture.registry).runtimes
+            if mode == "partial":
+                path.write_text('{"status":')
+                raise OSError("injected partial receipt write")
+        return original_record(path, value)
+
+    def link(source, destination):
+        raise OSError("injected receipt link failure")
+
+    def fsync(fd):
+        if (
+            mode == "directory"
+            and ready.exists()
+            and os.fstat(fd).st_ino == ready.parent.stat().st_ino
+        ):
+            raise OSError("injected receipt directory durability failure")
+        return original_fsync(fd)
+
+    monkeypatch.setattr(provision_module, "_record", record)
+    if mode == "link":
+        monkeypatch.setattr(os, "link", link)
+    monkeypatch.setattr(os, "fsync", fsync)
+    result = _provision()
+    assert result["status"] == "ERROR"
+    assert result["registration_state"] == "registered"
+    assert not ready.exists()
+    assert (ready.parent / "provision-ready-staged.json").exists()
+    assert (
+        read_registry(fixture.registry).runtimes["gpu"].python
+        == ready.parent / "bin/python"
+    )
+    _assert_retained(fixture, other)
+    before = fixture.registry.read_bytes()
+    with pytest.raises(ValueError, match="already registered"):
+        _provision()
+    assert fixture.registry.read_bytes() == before
+
+
+@pytest.mark.parametrize("after_registration", [False, True])
+def test_process_interruption_retains_intent_without_claiming_ready(
+    provision_fixture, monkeypatch, after_registration
+):
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+    original_register = provision_module.register_runtime
+
+    class Interrupted(BaseException):
+        pass
+
+    def register(identifier, entry, **kwargs):
+        _assert_retained(fixture, other)
+        if after_registration:
+            original_register(identifier, entry, **kwargs)
+        raise Interrupted
+
+    monkeypatch.setattr(provision_module, "register_runtime", register)
+    with pytest.raises(Interrupted):
+        _provision()
+    assert not (fixture.root / "gpu/provision-receipt.json").exists()
+    assert not (fixture.root / "gpu/provision-failure.json").exists()
+    _assert_retained(fixture, other)
+    assert ("gpu" in read_registry(fixture.registry).runtimes) == after_registration
+
+
+def test_intent_durability_failure_prevents_registration(
+    provision_fixture, monkeypatch
+):
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+    original = provision_module._record
+
+    def record(path, value):
+        if path.name == "provision-registration.json":
+            raise OSError("injected intent durability failure")
+        return original(path, value)
+
+    def register(*args, **kwargs):
+        pytest.fail("registration must not start before durable intent")
+
+    monkeypatch.setattr(provision_module, "_record", record)
+    monkeypatch.setattr(provision_module, "register_runtime", register)
+    result = _provision()
+    assert result["status"] == "ERROR"
+    assert read_registry(fixture.registry).runtimes == {"other": other}
+    assert not (fixture.root / "gpu/provision-receipt.json").exists()
+
+
+def test_success_publishes_ready_only_after_registration(
+    provision_fixture, monkeypatch
+):
+    fixture = provision_fixture
+    other = _seed_unrelated(fixture)
+    original = provision_module.register_runtime
+
+    def register(identifier, entry, **kwargs):
+        _assert_retained(fixture, other)
+        assert not (fixture.root / "gpu/provision-receipt.json").exists()
+        return original(identifier, entry, **kwargs)
+
+    monkeypatch.setattr(provision_module, "register_runtime", register)
+    result = _provision()
+    assert result["status"] == "READY"
+    receipt = Path(result["receipt_path"])
+    assert json.loads(receipt.read_text())["status"] == "READY"
+    assert receipt.stat().st_mode & 0o777 == 0o600
+    assert not (receipt.parent / "provision-failure.json").exists()
+    _assert_retained(fixture, other)

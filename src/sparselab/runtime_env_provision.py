@@ -20,6 +20,7 @@ from sparselab.runtime_environments import (
     RuntimeEntry,
     read_registry,
     register_runtime,
+    resolve_registry_path,
     resolve_runtime_dir,
     validate_id,
 )
@@ -116,6 +117,26 @@ def _source_commit(checkout: Path) -> str:
             "provisioning requires a source checkout with a commit identity"
         )
     return commit
+
+
+def _publish_ready(path: Path, receipt: dict) -> None:
+    # A partial JSON write must never appear at the canonical READY path.
+    # Keep staged evidence on failure; never overwrite an existing receipt.
+    staged = path.with_name("provision-ready-staged.json")
+    _record(staged, receipt)
+    os.link(staged, path)
+    try:
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except OSError:
+        # Withdraw only the link we just created, retaining staged evidence.
+        # A process death here may leave a truthful READY (registration already
+        # returned); the intent still identifies the durability recovery window.
+        path.unlink()
+        raise
 
 
 def _check_common(path: Path) -> None:
@@ -345,13 +366,32 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
             "logs": str(logs),
         }
         receipt_path = target / "provision-receipt.json"
-        _record(receipt_path, receipt)
+        registry_path = resolve_registry_path()
+        intent_path = target / "provision-registration.json"
+        recovery = {
+            "registration_record": str(intent_path),
+            "registry_path": str(registry_path),
+            "receipt_path": str(receipt_path),
+            "registration_state": "unknown",
+            "recovery": (
+                "Inspect the recorded registry path and compare the exact entry with "
+                "the retained profile. An absent or different entry is not success; "
+                "a matching entry does not prove directory durability. Preserve all "
+                "evidence and resolve durability before using the runtime. Do not "
+                "rerun provision, overwrite receipts, or unregister automatically."
+            ),
+        }
+        _record(intent_path, {**receipt, **recovery, "status": "REGISTRATION_PENDING"})
+        failure.update(recovery)
         register_runtime(
             identifier,
             RuntimeEntry.model_validate(
                 profile.model_dump(exclude={"id", "runtime_profile_version"})
             ),
+            registry_path=registry_path,
         )
+        failure["registration_state"] = "registered"
+        _publish_ready(receipt_path, receipt)
         return {
             **checked,
             "runtime_provision_version": 1,
