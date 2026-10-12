@@ -84,6 +84,15 @@ remain hard failures. A pending review does not abort independent numeric gates.
 6. Declare ordered parent/child ModelFamily nodes with pinned corpus, tokenizer, plan, architecture, objective, budgets, and optional checkpoint/index/readiness identities. Inspect `family show`, `family graph`, `family compare` and `family verify` before any action. Comparisons report factual ancestry/settings/evaluation identities, not causality. Use `family promote|reject|supersede <family.yaml> <node> --readiness <result.json> --evaluation <index.json> --approval <review.json> --note '<reason>'` (also `--successor <node>` for supersede). These human-reviewed immutable lifecycle actions are **not** ExperimentPlan weight-transition `promote`. Publish compact lifecycle receipts and name them under `lifecycle_receipts` in the family declaration so archives can inventory decisions after loss of local state.
 7. Invoke `archive create <recovery.yaml> --mode thin --output <new-archive.tar>` only after reviewing the explicit inventory. `archive verify <archive.tar> --json` checks exact TAR membership and hashes without extracting. Thin archives contain small declarations/evidence and **identify unresolved external payloads**; they do not prove absent data. Portable archives require all locally verified required bytes, sufficient destination space/inodes and rights allowing publication. A `metadata_reconstruction_only` corpus or partial `external_required` recipe cannot become portable. Archives never appear automatically. The archive and its exclusive sibling stage use ordinary file permissions under the caller's umask. An abrupt exit may leave a `.<output-name>.*.tmp` stage; remove only the stage belonging to a writer you have confirmed has stopped, never an active writer's stage or the published archive. If directory durability fails after publication, the error identifies the complete archive that was retained; verify it before deciding how to proceed.
 
+Study reports in `local-reports/` and capability results in `runs/<id>/evaluations/`
+also use exclusive sibling stages (`.architecture-*.json.*.tmp` and
+`.capability-*.json.*.tmp`). Readers ignore these stages. After an abrupt exit,
+remove only a stage belonging to a writer confirmed to have stopped; retain
+published result files. A directory-fsync error after publication identifies the
+complete result that was retained but whose directory entry may not be durable.
+An identical replay syncs the directory before reporting success and preserves
+the existing result's bytes.
+
 New archives use `archive-index-v2`; verification still accepts historical v1
 archives. For each available, verified corpus release, the index retains a compact
 `corpus_identities` explanation: project declaration and ID, every normalized

@@ -25,6 +25,8 @@ from sparselab.evaluation.inference import load_run, write_inference_result
 from sparselab.experiments.compiler import is_dotted_path
 from sparselab.experiments.matrix import ExpandedExperiment, expand
 from sparselab.model.inspection import inspection_report, parameter_inventory
+from sparselab.result_publication import sync_directory as _sync_directory
+from sparselab.result_publication import write_bytes_exclusive
 from sparselab.training.manifest import canonical_json, config_sha256
 
 
@@ -436,42 +438,10 @@ def study_plan_payload(study: ArchitectureStudy) -> dict[str, object]:
     }
 
 
-def _sync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
 def _write_json_exclusive(path: Path, payload: dict[str, object]) -> None:
-    """Publish complete bytes without replacing any existing destination.
-
-    A failure after linking may leave a complete destination with uncertain
-    directory durability. Never remove that surviving evidence.
-    """
-    encoded = canonical_json(payload) + b"\n"
-    missing_parents = []
-    parent = path.parent
-    while not parent.exists():
-        missing_parents.append(parent)
-        parent = parent.parent
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Persist newly created directory entries before relying on the intent.
-    for parent in reversed(missing_parents):
-        _sync_directory(parent.parent)
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            if handle.write(encoded) != len(encoded):
-                raise OSError("short study publication write")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.link(temporary, path)
-        _sync_directory(path.parent)
-    finally:
-        os.unlink(temporary)
+    write_bytes_exclusive(
+        path, canonical_json(payload) + b"\n", sync_directory=_sync_directory
+    )
 
 
 def study_intent_path(receipt_path: Path) -> Path:
@@ -1191,12 +1161,8 @@ def collect_study(
     report_path = report_dir / f"architecture-{study.study_sha256[:12]}-{digest}.json"
     payload = {**report, "report_sha256": digest}
     encoded = canonical_json(payload) + b"\n"
-    report_dir.mkdir(parents=True, exist_ok=True)
     try:
-        with report_path.open("xb") as handle:
-            handle.write(encoded)
-            handle.flush()
-            os.fsync(handle.fileno())
+        _write_json_exclusive(report_path, payload)
     except FileExistsError:
         if report_path.read_bytes() != encoded:
             raise ValueError(f"conflicting architecture study report: {report_path}")

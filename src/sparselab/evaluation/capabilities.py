@@ -28,6 +28,7 @@ from sparselab.experiments.compiler import (
     flatten_config,
     is_dotted_path,
 )
+from sparselab.result_publication import write_bytes_exclusive
 from sparselab.training.manifest import source_identity
 
 _CARD_FORMAT = "capability_card_v2"
@@ -986,14 +987,15 @@ def write_capability_result(run: Path, result: dict[str, Any]) -> Path:
     checkpoint_component = _digest(str(checkpoint or "unbound"))[:12]
     payload = {**result, "result_digest": result_digest}
     evaluations = run / "evaluations"
-    evaluations.mkdir(parents=True, exist_ok=True)
     path = evaluations / f"capability-{checkpoint_component}-{result_digest}.json"
-    encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
-    if path.exists():
-        if path.read_text(encoding="utf-8") != encoded:
+    encoded = (
+        json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+    try:
+        write_bytes_exclusive(path, encoded)
+    except FileExistsError:
+        if path.read_bytes() != encoded:
             raise ValueError(f"refusing conflicting capability result at {path}")
-        return path
-    path.write_text(encoded, encoding="utf-8")
     return path
 
 
