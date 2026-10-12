@@ -7,9 +7,9 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import tarfile
-import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Literal
 
@@ -821,6 +821,8 @@ def create_archive(
     if mode not in {"thin", "portable"}:
         raise ValueError("archive mode must be thin or portable")
     source, output = Path(source).absolute(), Path(output).absolute()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(f"refusing to overwrite {output}")
     from sparselab.recovery.provenance import git_provenance
 
     provenance = git_provenance(tuple(_declarations(source)))
@@ -865,14 +867,10 @@ def create_archive(
     # A sibling stage keeps publication on one filesystem. Only the stage is
     # ever cleaned up: a successful link (even followed by a durability error)
     # and a competing destination both belong to the caller.
-    with tempfile.NamedTemporaryFile(
-        mode="wb",
-        prefix=f".{output.name}.",
-        suffix=".tmp",
-        dir=output.parent,
-        delete=False,
-    ) as stream:
-        staged = Path(stream.name)
+    # Exclusive creation preserves the original output's umask/default-ACL
+    # semantics without reading or changing the process-wide umask.
+    staged = output.with_name(f".{output.name}.{secrets.token_hex(16)}.tmp")
+    with staged.open("xb") as stream:
         try:
             with tarfile.open(fileobj=stream, mode="w|") as tar:
                 info = tarfile.TarInfo("archive-index.json")
@@ -901,13 +899,22 @@ def create_archive(
                             raise ValueError(f"archive input changed: {file}")
             stream.flush()
             os.fsync(stream.fileno())
-            os.link(staged, output)
-            staged.unlink()
-            directory = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
             try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
+                os.link(staged, output)
+            except FileExistsError as exc:
+                raise FileExistsError(f"refusing to overwrite {output}") from exc
+            staged.unlink()
+            try:
+                directory = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+            except OSError as exc:
+                raise OSError(
+                    f"complete archive published at {output}, but its directory "
+                    f"entry may not be durable: {exc}"
+                ) from exc
         finally:
             staged.unlink(missing_ok=True)
     return index

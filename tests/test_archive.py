@@ -709,7 +709,15 @@ def test_archive_validates_streamed_source(
 
 @pytest.mark.parametrize(
     "point",
-    ["member", "tar-complete", "file-sync", "link-before", "link-after", "dir-sync"],
+    [
+        "member",
+        "tar-complete",
+        "file-sync",
+        "link-before",
+        "link-after",
+        "dir-open",
+        "dir-sync",
+    ],
 )
 def test_archive_faults_preserve_only_complete_publication(
     tmp_path: Path, partial_recipe: Path, monkeypatch: pytest.MonkeyPatch, point: str
@@ -721,6 +729,7 @@ def test_archive_faults_preserve_only_complete_publication(
     original_addfile = tarfile.TarFile.addfile
     original_close = tarfile.TarFile.close
     original_sync = os.fsync
+    original_open = os.open
     original_link = os.link
 
     def addfile(tar, *args, **kwargs):
@@ -733,6 +742,11 @@ def test_archive_faults_preserve_only_complete_publication(
         original_close(tar)
         if point == "tar-complete" and writing:
             raise KeyboardInterrupt("injected tar-complete")
+
+    def open_directory(path, flags, *args, **kwargs):
+        if point == "dir-open" and flags & os.O_DIRECTORY:
+            raise OSError("injected directory open")
+        return original_open(path, flags, *args, **kwargs)
 
     def sync(fd):
         directory = stat.S_ISDIR(os.fstat(fd).st_mode)
@@ -755,10 +769,15 @@ def test_archive_faults_preserve_only_complete_publication(
         patch.setattr(tarfile.TarFile, "addfile", addfile)
         patch.setattr(tarfile.TarFile, "close", close)
         patch.setattr(os, "fsync", sync)
+        patch.setattr(os, "open", open_directory)
         patch.setattr(os, "link", link)
-        with pytest.raises((OSError, KeyboardInterrupt), match="injected"):
+        with pytest.raises((OSError, KeyboardInterrupt), match="injected") as error:
             create_archive(partial_recipe, "thin", output, work_root=tmp_path / "state")
-    if point in {"link-after", "dir-sync"}:
+    if point in {"dir-open", "dir-sync"}:
+        assert f"complete archive published at {output}" in str(error.value)
+        assert "directory entry may not be durable" in str(error.value)
+        assert isinstance(error.value.__cause__, OSError)
+    if point in {"link-after", "dir-open", "dir-sync"}:
         assert verify_archive(output)["verified_members"] > 0
     else:
         assert not output.exists()
@@ -788,7 +807,13 @@ def test_archive_never_clobbers_destination(
             original_link(source, destination)
 
         monkeypatch.setattr(os, "link", link)
-    with pytest.raises(FileExistsError):
+    if competitor != "racing":
+
+        def unexpected_tar(*args, **kwargs):
+            pytest.fail("existing destination must be refused before TAR construction")
+
+        monkeypatch.setattr(tarfile.TarFile, "addfile", unexpected_tar)
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
         create_archive(partial_recipe, "thin", output, work_root=tmp_path / "state")
     if competitor == "dangling-symlink":
         assert output.is_symlink()
@@ -820,6 +845,10 @@ def test_archive_preserves_tar_bytes(tmp_path: Path, partial_recipe: Path) -> No
             info.size, info.mode, info.mtime = len(data), 0o644, 0
             tar.addfile(info, io.BytesIO(data))
     assert output.read_bytes() == expected.getvalue()
+    ordinary = tmp_path / "ordinary.tar"
+    with ordinary.open("xb") as stream:
+        stream.write(expected.getvalue())
+    assert output.stat().st_mode == ordinary.stat().st_mode
     assert verify_archive(output)["verified_members"] == len(index["entries"])
 
 
@@ -866,3 +895,58 @@ create_archive(Path(source), "thin", Path(output), work_root=Path(output).parent
         assert not output.exists()
     # Uncatchable termination may leave a stage, never a partial final name.
     assert len(list(tmp_path.glob(".result.tar.*.tmp"))) == 1
+
+
+@pytest.mark.parametrize("mask", [0o022, 0o002, 0o077])
+def test_archive_preserves_caller_umask(
+    tmp_path: Path, partial_recipe: Path, mask: int
+) -> None:
+    import sys
+
+    # Set umask only in an isolated child; production must never change it.
+    script = r"""
+import os
+import stat
+import sys
+from pathlib import Path
+from sparselab.archive import create_archive, verify_archive
+source, destination, mask = sys.argv[1:]
+mask = int(mask)
+os.umask(mask)
+def forbidden_umask(*args):
+    raise AssertionError("archive creation must not change process-wide umask")
+os.umask = forbidden_umask
+output = Path(destination)
+create_archive(Path(source), "thin", output, work_root=output.parent / "state")
+assert stat.S_IMODE(output.stat().st_mode) == 0o666 & ~mask
+assert verify_archive(output)["verified_members"] > 0
+"""
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(partial_recipe),
+            str(tmp_path / "result.tar"),
+            str(mask),
+        ],
+        check=True,
+        timeout=20,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_archive_stage_collision_preserves_other_writer(
+    tmp_path: Path, partial_recipe: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab import archive
+
+    monkeypatch.setattr(archive.secrets, "token_hex", lambda size: "collision")
+    output = tmp_path / "result.tar"
+    stage = tmp_path / ".result.tar.collision.tmp"
+    stage.write_bytes(b"another writer's stage")
+    with pytest.raises(FileExistsError):
+        create_archive(partial_recipe, "thin", output, work_root=tmp_path / "state")
+    assert stage.read_bytes() == b"another writer's stage"
+    assert not output.exists()
