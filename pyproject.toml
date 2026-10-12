@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "An educational dense-transformer laboratory"
 readme = "README.md"
 authors = [
-    { name = "Byron Miller (MOBB)", email = "bymiller@redhat.com" }
+    { name = "Byron Miller", email = "bymiller@redhat.com" }
 ]
 requires-python = ">=3.14,<3.15"
 dependencies = [
