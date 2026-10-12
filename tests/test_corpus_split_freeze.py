@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -508,3 +509,220 @@ def test_cross_split_duplicate_qualifying_content_fails_but_quarantine_does_not(
     split_freeze.freeze_splits(
         project, tmp_path, inventory, clusters_path, tmp_path / "quarantined.yaml"
     )
+
+
+@pytest.mark.parametrize("publication", [1, 2, 3])
+def test_interrupted_bundle_requires_explicit_identical_recovery(
+    tmp_path, monkeypatch, publication
+):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "nested" / "splits.yaml"
+    publish = split_freeze._publish_new
+    calls = 0
+
+    def interrupted(path, data):
+        nonlocal calls
+        publish(path, data)
+        calls += 1
+        if calls == publication:
+            raise OSError("injected post-publication failure")
+
+    monkeypatch.setattr(split_freeze, "_publish_new", interrupted)
+    with pytest.raises(OSError, match="post-publication"):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    before = {p: (p.read_bytes(), p.stat().st_ino) for p in output.parent.iterdir()}
+    if publication < 3:
+        with pytest.raises((ValueError, FileNotFoundError)):
+            split_freeze.verify_split_bundle(output)
+    else:
+        assert split_freeze.verify_split_bundle(output)
+    with pytest.raises(ValueError, match="already exists"):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    monkeypatch.setattr(split_freeze, "_publish_new", publish)
+    for _ in range(2):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, output, recover=True
+        )
+        assert split_freeze.verify_split_bundle(output)
+        assert all(
+            (p.read_bytes(), p.stat().st_ino) == value for p, value in before.items()
+        )
+
+
+@pytest.mark.parametrize(
+    "member", ["splits.yaml", "splits.family-candidates.jsonl", "splits.receipt.json"]
+)
+def test_recovery_rejects_conflict_before_publishing_anything(
+    tmp_path, monkeypatch, member
+):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "splits.yaml"
+    conflict = tmp_path / member
+    conflict.write_bytes(b"conflicting evidence\n")
+    with pytest.raises(ValueError, match="conflicting"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, output, recover=True
+        )
+    assert conflict.read_bytes() == b"conflicting evidence\n"
+    assert {p.name for p in tmp_path.glob("splits*")} == {member}
+
+
+@pytest.mark.parametrize("publication", [1, 2, 3])
+def test_directory_sync_failure_retains_evidence_and_recovery_resyncs(
+    tmp_path, monkeypatch, publication
+):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "new" / "nested" / "splits.yaml"
+    sync = split_freeze._sync_directory
+    seen = []
+    calls = 0
+
+    def fail(path):
+        nonlocal calls
+        seen.append(path)
+        if path == output.parent:
+            calls += 1
+            if calls == publication:
+                raise OSError("directory sync failed; publication uncertain")
+        sync(path)
+
+    monkeypatch.setattr(split_freeze, "_sync_directory", fail)
+    with pytest.raises(OSError, match="uncertain"):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    before = {p: p.read_bytes() for p in output.parent.iterdir()}
+    assert len(before) == publication
+    seen.clear()
+    monkeypatch.setattr(
+        split_freeze, "_sync_directory", lambda p: (seen.append(p), sync(p))
+    )
+    split_freeze.freeze_splits(
+        project, tmp_path, inventory, clusters, output, recover=True
+    )
+    assert all(p.read_bytes() == data for p, data in before.items())
+    assert {output.parent, *output.parent.parents} <= set(seen)
+    assert split_freeze.verify_split_bundle(output)
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "missing_receipt",
+        "missing_both",
+        "bad_receipt",
+        "truncated_receipt",
+        "bad_split",
+        "bad_candidates",
+        "symlink",
+    ],
+)
+def test_project_consumer_refuses_incomplete_or_mismatched_bundle(
+    tmp_path, monkeypatch, damage
+):
+    from sparselab.corpus.project import load_project
+
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "splits.yaml"
+    result = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    receipt = Path(result["receipt"])
+    candidates = Path(result["family_candidates"])
+    if damage.startswith("missing"):
+        receipt.unlink()
+        if damage == "missing_both":
+            candidates.unlink()
+    elif damage == "bad_receipt":
+        receipt.write_text("[]")
+    elif damage == "truncated_receipt":
+        content = json.loads(receipt.read_bytes())
+        del content["cluster_sha256"]
+        receipt.write_bytes(canonical_json(content))
+    elif damage == "bad_split":
+        output.write_bytes(output.read_bytes() + b"# changed\n")
+    elif damage == "symlink":
+        saved = tmp_path / "saved"
+        candidates.rename(saved)
+        candidates.symlink_to(saved)
+    else:
+        candidates.write_text("{}\n")
+    # Real project loader, with checked-in source/release declarations.
+    source = Path("corpora/devmind-sample-v0/corpus.yaml")
+    for folder in ("sources", "transforms"):
+        shutil.copytree(source.parent / folder, tmp_path / folder)
+    config = tmp_path / "corpus.yaml"
+    config.write_bytes(source.read_bytes())
+    with pytest.raises(ValueError, match="incomplete or mismatched"):
+        load_project(config)
+    monkeypatch.setattr(split_freeze, "verify_release", lambda _: {})
+    with pytest.raises(ValueError, match="incomplete or mismatched"):
+        split_freeze.finalize_family_inventory(
+            tmp_path, output, tmp_path / "final.jsonl"
+        )
+    assert not (tmp_path / "final.jsonl").exists()
+
+
+def test_legacy_complete_receipt_remains_readable(tmp_path, monkeypatch):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "splits.yaml"
+    result = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    # Synthetic pre-marker schema-1 fixture only; no real evidence migration.
+    output.write_bytes(output.read_bytes().removeprefix(split_freeze._FREEZE_MARKER))
+    receipt_path = Path(result["receipt"])
+    receipt = json.loads(receipt_path.read_bytes())
+    receipt["split_sha256"] = sha256_file(output)
+    receipt_path.write_bytes(canonical_json(receipt) + b"\n")
+    assert split_freeze.verify_split_bundle(output, required=False) == receipt
+
+
+def test_recovery_revalidates_inputs_before_completing_subset(tmp_path, monkeypatch):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "splits.yaml"
+    publish = split_freeze._publish_new
+
+    def interrupt(path, data):
+        publish(path, data)
+        raise OSError("interrupted")
+
+    monkeypatch.setattr(split_freeze, "_publish_new", interrupt)
+    with pytest.raises(OSError, match="interrupted"):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    candidate = output.with_name("splits.family-candidates.jsonl")
+    before = candidate.read_bytes()
+    (project.root / "admission.json").write_text("{}")
+    with pytest.raises(ValueError, match="admission SHA-256 mismatch"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, output, recover=True
+        )
+    assert candidate.read_bytes() == before
+    assert not output.exists()
+    assert not output.with_suffix(".receipt.json").exists()
+
+
+def test_publication_race_never_clobbers_conflicting_evidence(tmp_path, monkeypatch):
+    output = tmp_path / "raced.yaml"
+    link = split_freeze.os.link
+
+    def race(source, destination):
+        destination.write_bytes(b"other writer")
+        link(source, destination)
+
+    monkeypatch.setattr(split_freeze.os, "link", race)
+    with pytest.raises(FileExistsError):
+        split_freeze._publish_new(output, b"our bytes")
+    assert output.read_bytes() == b"other writer"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_recovery_rejects_identical_symlink(tmp_path, monkeypatch):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "splits.yaml"
+    result = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    candidate = Path(result["family_candidates"])
+    saved = tmp_path / "saved-candidate"
+    candidate.rename(saved)
+    candidate.symlink_to(saved)
+    before = saved.read_bytes()
+    with pytest.raises(ValueError, match="conflicting"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, output, recover=True
+        )
+    assert candidate.is_symlink()
+    assert saved.read_bytes() == before

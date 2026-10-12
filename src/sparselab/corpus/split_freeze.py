@@ -23,6 +23,64 @@ from sparselab.verification_proofs import verification_options
 
 _SPLITS = ("train", "validation", "test")
 _WEIGHTS = (8, 1, 1)
+_FREEZE_MARKER = b"# sparselab frozen split bundle; requires matching receipt\n"
+
+
+def _sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _sync_parents(path: Path) -> None:
+    # Include ancestors: output directories may themselves have just been created.
+    for parent in (path, *path.parents):
+        _sync_directory(parent)
+
+
+def verify_split_bundle(
+    output: Path, *, required: bool = True
+) -> dict[str, Any] | None:
+    """Read-only commit check; legacy complete schema-1 receipts remain valid."""
+    candidate = output.with_name(output.stem + ".family-candidates.jsonl")
+    receipt_path = output.with_name(output.stem + ".receipt.json")
+    payload = output.read_bytes()
+    if not required and not (
+        payload.startswith(_FREEZE_MARKER)
+        or candidate.exists()
+        or candidate.is_symlink()
+        or receipt_path.exists()
+        or receipt_path.is_symlink()
+    ):
+        return None
+    try:
+        if any(
+            path.is_symlink() or not path.is_file()
+            for path in (output, candidate, receipt_path)
+        ):
+            raise ValueError("missing or nonregular bundle member")
+        receipt = json.loads(receipt_path.read_bytes())
+        if (
+            not isinstance(receipt, dict)
+            or not {
+                "schema_version",
+                "split_sha256",
+                "family_candidate_sha256",
+                "inventory_sha256",
+                "admission_sha256",
+                "cluster_sha256",
+                "family_counts",
+            }.issubset(receipt)
+            or receipt.get("schema_version") != 1
+            or receipt.get("split_sha256") != hashlib.sha256(payload).hexdigest()
+            or receipt.get("family_candidate_sha256") != sha256_file(candidate)
+        ):
+            raise ValueError("receipt digest mismatch")
+    except (OSError, ValueError) as exc:
+        raise ValueError("incomplete or mismatched frozen split bundle") from exc
+    return receipt
 
 
 def _counts(total: int) -> tuple[int, int, int]:
@@ -46,6 +104,7 @@ def _publish_new(path: Path, data: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
             os.link(temporary, path)
+            _sync_parents(path.parent)
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -124,13 +183,15 @@ def freeze_splits(
     inventory_path: Path,
     clusters_path: Path,
     output: Path,
+    *,
+    recover: bool = False,
 ) -> dict[str, Any]:
     """Assign eligible document families; excluded rows get held-out placeholders."""
     root = work_root.resolve()
     paths = [inventory_path.resolve(), clusters_path.resolve(), output.resolve()]
     if any(not path.is_relative_to(root) for path in paths):
         raise ValueError("split inputs and output must reside in the work root")
-    if output.exists() or output.is_symlink():
+    if not recover and (output.exists() or output.is_symlink()):
         raise ValueError("frozen split output already exists")
     raw_clusters = json.loads(clusters_path.read_text(encoding="utf-8"))
     if (
@@ -346,7 +407,9 @@ def freeze_splits(
         "family_key": None,
         "assignments": dict(sorted(assignments.items())),
     }
-    payload = yaml.safe_dump(declaration, sort_keys=False).encode("utf-8")
+    payload = _FREEZE_MARKER + yaml.safe_dump(declaration, sort_keys=False).encode(
+        "utf-8"
+    )
     family_rows = [
         {
             "document_id": row["document_id"],
@@ -360,7 +423,7 @@ def freeze_splits(
     ]
     candidate_path = output.with_name(output.stem + ".family-candidates.jsonl")
     receipt_path = output.with_name(output.stem + ".receipt.json")
-    if any(
+    if not recover and any(
         path.exists() or path.is_symlink() for path in (candidate_path, receipt_path)
     ):
         raise ValueError("frozen split companion output already exists")
@@ -386,9 +449,26 @@ def freeze_splits(
             else {}
         ),
     }
-    _publish_new(candidate_path, family_payload)
-    _publish_new(output, payload)
-    _publish_new(receipt_path, canonical_json(receipt) + b"\n")
+    members = (
+        (candidate_path, family_payload),
+        (output, payload),
+        (receipt_path, canonical_json(receipt) + b"\n"),
+    )
+    # Validate every existing member before publishing anything, including receipt.
+    for path, expected in members:
+        if path.is_symlink() or (
+            path.exists() and (not path.is_file() or path.read_bytes() != expected)
+        ):
+            raise ValueError(f"conflicting frozen split evidence: {path}")
+    for path, expected in members:
+        if recover and path.exists():
+            # Re-establish durability after a previous uncertain publication.
+            with path.open("rb") as stream:
+                os.fsync(stream.fileno())
+            _sync_parents(path.parent)
+            continue
+        _publish_new(path, expected)
+    verify_split_bundle(output)
     return {
         "schema_version": 1,
         "output": str(output),
@@ -410,11 +490,11 @@ def finalize_family_inventory(
 ) -> dict[str, Any]:
     """Filter the authenticated family candidates to exactly kept release docs."""
     manifest = verify_release(release)
-    receipt_path = frozen_splits.with_name(frozen_splits.stem + ".receipt.json")
     candidate_path = frozen_splits.with_name(
         frozen_splits.stem + ".family-candidates.jsonl"
     )
-    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt = verify_split_bundle(frozen_splits)
+    assert receipt is not None
     if (
         receipt.get("schema_version") != 1
         or receipt.get("split_sha256") != sha256_file(frozen_splits)
