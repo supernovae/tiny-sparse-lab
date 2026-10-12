@@ -2576,14 +2576,24 @@ def _report(args: argparse.Namespace) -> None:
 def _compare(args: argparse.Namespace) -> None:
     """Place sealed results against each other and pinned reference models."""
     from sparselab.lab_mode import lab_root
-    from sparselab.probes.compare import as_json, compare, render, render_references
+    from sparselab.probes.compare import (
+        as_json,
+        compare,
+        references_as_json,
+        render,
+        render_references,
+    )
     from sparselab.probes.points import collect_points
     from sparselab.probes.render import use_color
 
     lab_dir = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)
     try:
         if args.list_references:
-            print(render_references(collect_points(lab_dir), color=use_color()))
+            pool = collect_points(lab_dir)
+            if args.json:
+                print(json.dumps(references_as_json(pool), indent=2, sort_keys=True))
+            else:
+                print(render_references(pool, color=use_color()))
             return
         if not args.results:
             raise ValueError("name a result (try/probe id, record path or ref:NAME)")

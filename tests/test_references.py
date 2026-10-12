@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -541,6 +542,86 @@ def test_compare_cli_lists_references_and_renders(
     )
     with pytest.raises(SystemExit, match="name a result"):
         main()
+
+
+@pytest.mark.parametrize("populated", [False, True], ids=["empty", "populated"])
+def test_compare_cli_reference_listing_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    populated: bool,
+) -> None:
+    from sparselab.cli.main import main
+    from sparselab.probes import points
+
+    names = list(REFERENCES)
+    pool = []
+    if populated:
+        # Zero accuracy is still evidence; recall alone and non-reference
+        # points are not lm-eval availability. Duplicate evidence adds no rows.
+        pool = [
+            {
+                "kind": "reference",
+                "reference": {"name": names[0]},
+                "metrics": {"lm_eval": {"value": 0.0}},
+            },
+            {
+                "kind": "reference",
+                "reference": {"name": names[0]},
+                "metrics": {"lm_eval": {"value": 0.5}},
+            },
+            {
+                "kind": "reference",
+                "reference": {"name": names[1]},
+                "metrics": {"fact_recall": {"value": 1.0}},
+            },
+            {"kind": "reference", "reference": {"name": names[2]}, "metrics": {}},
+            {
+                "kind": "probe",
+                "reference": {"name": names[3]},
+                "metrics": {"lm_eval": {"value": 1.0}},
+            },
+        ]
+
+    def collect(lab_dir: Path) -> list[dict[str, Any]]:
+        assert lab_dir == tmp_path / "lab"
+        return pool
+
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("reference listing must not compare, score or download")
+
+    monkeypatch.setattr(points, "collect_points", collect)
+    monkeypatch.setattr(compare_mod, "compare", forbidden)
+    monkeypatch.setattr(compare_mod, "as_json", forbidden)
+    monkeypatch.setattr(reference_models, "load_reference", forbidden)
+    monkeypatch.setattr(reference_models, "safe_snapshot", forbidden)
+    monkeypatch.setenv("NO_COLOR", "1")
+    argv = ["sparselab", "--work-dir", str(tmp_path), "compare", "--list-references"]
+    monkeypatch.setattr(sys, "argv", [*argv, "--json"])
+    main()
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    result = json.loads(captured.out)
+    assert result == {
+        "schema_version": 1,
+        "references": [
+            {
+                "target": f"ref:{ref.name}",
+                "reference": asdict(ref),
+                "lm_eval_available": populated and ref.name == names[0],
+            }
+            for ref in REFERENCES.values()
+        ],
+    }
+    assert all(len(row["reference"]["revision"]) == 40 for row in result["references"])
+    monkeypatch.setattr(sys, "argv", argv)
+    main()
+    text = capsys.readouterr().out
+    assert text == compare_mod.render_references(pool) + "\n"
+    for name in names:
+        mark = "✔" if populated and name == names[0] else "○"
+        assert f"{mark} ref:{name}" in text
+    assert not (tmp_path / "lab").exists()
 
 
 def test_dashboard_pareto_renders_references_and_try_points(tmp_path: Path) -> None:

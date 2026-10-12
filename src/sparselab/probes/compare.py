@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import shlex
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -443,13 +444,33 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
     return "\n".join(lines)
 
 
-def render_references(pool: Sequence[Mapping[str, Any]], *, color: bool = False) -> str:
-    """The pinned reference registry and which results are available."""
-    have = {
+def _references_with_lm_eval(pool: Sequence[Mapping[str, Any]]) -> set[str]:
+    return {
         (p.get("reference") or {}).get("name")
         for p in pool
         if p["kind"] == "reference" and p["metrics"].get("lm_eval")
     }
+
+
+def references_as_json(pool: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Listing contract: pinned registry identity separate from lm-eval evidence."""
+    have = _references_with_lm_eval(pool)
+    return {
+        "schema_version": 1,
+        "references": [
+            {
+                "target": f"ref:{ref.name}",
+                "reference": asdict(ref),
+                "lm_eval_available": ref.name in have,
+            }
+            for ref in REFERENCES.values()
+        ],
+    }
+
+
+def render_references(pool: Sequence[Mapping[str, Any]], *, color: bool = False) -> str:
+    """The pinned reference registry and which results are available."""
+    have = _references_with_lm_eval(pool)
     lines = [_paint("REFERENCE MODELS", "1", color) + "  (pinned revisions)"]
     for ref in REFERENCES.values():
         mark = "✔" if ref.name in have else "○"
