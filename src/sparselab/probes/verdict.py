@@ -219,6 +219,17 @@ def _verdict(
     }
 
 
+def _incomplete_verdict(missing: list[dict[str, Any]]) -> dict[str, Any]:
+    named = "; ".join(f"{m['id']} ({m['status']}: {m['note']})" for m in missing)
+    return _verdict(
+        "incomplete",
+        "rerun",
+        [f"missing evidence: {m['id']} ({m['status']})" for m in missing],
+        f"Not enough evidence for a verdict. Fix and re-run: {named}.",
+        missing,
+    )
+
+
 NOT_COMPARABLE_SUGGESTION = (
     "The try's arms are not comparable (failed held-out checks: {failed}), so "
     "no probe result can promote it. Fix the cause (same data, tokenizer, "
@@ -245,7 +256,7 @@ def final_verdict(verdict: Mapping[str, Any]) -> dict[str, Any]:
     produced no evidence (``missing``: unavailable, error, not comparable, a
     cancel/resource/OOM stop) makes the final battery ``incomplete`` with
     action ``rerun`` (the same final declaration, unchanged), whatever status
-    ``decide`` gave it (e.g. ``info`` without a baseline, or a soft ``fail``).
+    ``decide`` gave it (e.g. a soft ``fail``).
     Only a decisive failure (``abandon``: a NaN/inf loss or a hard probe
     failure) is terminal despite gaps. A complete battery keeps its status and
     reasons and becomes ``report`` with no next tier and a suggestion that
@@ -378,6 +389,10 @@ def decide(
             missing,
         )
     if not has_baseline:
+        if missing:
+            verdict = _incomplete_verdict(missing)
+            verdict["suggestion"] += " Add --vs BASELINE for pass/warn/fail."
+            return verdict
         return _verdict(
             "info",
             "compare",
@@ -405,14 +420,7 @@ def decide(
             missing,
         )
     if missing:
-        named = "; ".join(f"{m['id']} ({m['status']}: {m['note']})" for m in missing)
-        return _verdict(
-            "incomplete",
-            "rerun",
-            [f"missing evidence: {m['id']} ({m['status']})" for m in missing],
-            f"Not enough evidence for a verdict. Fix and re-run: {named}.",
-            missing,
-        )
+        return _incomplete_verdict(missing)
     if guard and guard.get("overfit_suspected"):
         return _verdict(
             "warn",
