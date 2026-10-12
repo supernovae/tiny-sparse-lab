@@ -133,7 +133,8 @@ def supervise(
             "root": root.model_dump(),
             "living_descendants": len(living),
         }
-        with completion.open("x", encoding="utf-8") as stream:
+        fd = os.open(completion, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(record, stream, sort_keys=True)
             stream.write("\n")
             stream.flush()
