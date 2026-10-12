@@ -2661,7 +2661,12 @@ def _probe(args: argparse.Namespace) -> None:
 
 def _explore(args: argparse.Namespace) -> None:
     """Look inside a small checkpoint; cache the views for the dashboard."""
-    from sparselab.explorer import DEFAULT_TEXT, ExplorerUnavailable, explore
+    from sparselab.explorer import (
+        DEFAULT_TEXT,
+        ExplorerUnavailable,
+        explore,
+        runtime_label,
+    )
     from sparselab.lab_context import LabCancelled
     from sparselab.lab_mode import lab_root
 
@@ -2698,6 +2703,12 @@ def _explore(args: argparse.Namespace) -> None:
     if result.get("unavailable"):
         print(f"  {result['unavailable']}")
         return
+    print(f"  diagnostics runtime: {runtime_label(result)}")
+    reuse = result.get("cache_reuse") or {}
+    print(
+        f"  cache reuse: {reuse.get('status')}"
+        + (f" · {reuse['reason']}" if reuse.get("reason") else "")
+    )
     tokens = [t for t in result["tokens"] if t["loss"] is not None]
     mean = sum(t["loss"] for t in tokens) / len(tokens)
     print(

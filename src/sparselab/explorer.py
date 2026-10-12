@@ -19,7 +19,7 @@ What it shows and where each part comes from:
   forward pass.
 
 Big checkpoints are refused before loading (:func:`size_check`). Results are
-cached per (checkpoint digest, text) under ``LAB/explorer`` as sealed JSON; a
+cached per (checkpoint digest, text, actual runtime) under ``LAB/explorer`` as sealed JSON; a
 cancel sentinel and an optional resource envelope are honored between stages
 through :class:`~sparselab.lab_context.LabContext`.
 """
@@ -390,20 +390,71 @@ def memory_view(
 # --- Orchestration and cache ---------------------------------------------------
 
 
-def cache_key(checkpoint_sha256: str, text: str) -> str:
+def runtime_identity(runtime: Any) -> dict[str, Any]:
+    """Canonical reuse subset of the native loader's *actual* runtime.
+
+    Framework version, OS and device name remain provenance, not cache identity.
+    In particular ROCm is a backend, even though its torch device type is cuda.
+    """
+    if runtime is None:
+        raise ValueError("missing actual-runtime provenance")
+    if (
+        not isinstance(runtime, Mapping)
+        or runtime.get("engine") != "pytorch"
+        or not isinstance(runtime.get("backend"), str)
+        or runtime.get("backend") not in {"cpu", "cuda", "rocm", "mps", "xpu"}
+        or type(runtime.get("device_index")) is not int
+        or runtime["device_index"] < 0
+        or not isinstance(runtime.get("precision"), str)
+        or runtime.get("precision") not in {"fp32", "fp16", "bf16"}
+    ):
+        raise ValueError("malformed or unsupported actual-runtime provenance")
+    return {
+        key: runtime[key] for key in ("engine", "backend", "device_index", "precision")
+    }
+
+
+def runtime_label(value: Mapping[str, Any]) -> str:
+    """Human-readable producer identity, including explicit legacy uncertainty."""
+    try:
+        runtime = runtime_identity(value.get("runtime"))
+    except ValueError as error:
+        return str(error)
+    return (
+        f"{runtime['engine']} / {runtime['backend']}:{runtime['device_index']} / "
+        f"{runtime['precision']}"
+    )
+
+
+def cache_key(
+    checkpoint_sha256: str, text: str, runtime: Mapping[str, Any] | None = None
+) -> str:
+    # Omission retains the historical key for read-only legacy lookup.
+    identity = {
+        "format": EXPLORER_FORMAT,
+        "checkpoint": checkpoint_sha256,
+        "text": text,
+    }
+    if runtime is not None:
+        identity["runtime"] = runtime_identity(runtime)
     payload = json.dumps(
-        {"format": EXPLORER_FORMAT, "checkpoint": checkpoint_sha256, "text": text},
+        identity,
         sort_keys=True,
     )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def cache_path(lab_dir: Path, checkpoint_sha256: str, text: str) -> Path:
+def cache_path(
+    lab_dir: Path,
+    checkpoint_sha256: str,
+    text: str,
+    runtime: Mapping[str, Any] | None = None,
+) -> Path:
     return (
         lab_dir
         / "explorer"
         / checkpoint_sha256[:16]
-        / f"{cache_key(checkpoint_sha256, text)[:24]}.json"
+        / f"{cache_key(checkpoint_sha256, text, runtime)[:24]}.json"
     )
 
 
@@ -418,14 +469,44 @@ def read_cached(path: Path) -> dict[str, Any] | None:
     return value
 
 
+def cache_issue(value: Mapping[str, Any], path: Path) -> str | None:
+    """Why sealed bytes cannot verify a producer-matched cache hit."""
+    try:
+        runtime = runtime_identity(value.get("runtime"))
+    except ValueError as error:
+        return str(error)
+    target = value.get("target")
+    sha = target.get("checkpoint_sha256") if isinstance(target, Mapping) else None
+    text = value.get("text")
+    if not isinstance(sha, str) or not isinstance(text, str):
+        return "malformed checkpoint/text cache identity"
+    expected = cache_path(path.parents[2], sha, text, runtime)
+    if path != expected:
+        return "sealed payload/cache key mismatch"
+    return None
+
+
 def cached_explorations(lab_dir: Path) -> list[dict[str, Any]]:
     """Every readable cached exploration, newest first."""
     out = []
     for path in sorted((lab_dir / "explorer").glob("*/*.json")):
         value = read_cached(path)
         if value is not None:
-            out.append({**value, "path": str(path)})
+            out.append(
+                {**value, "path": str(path), "cache_issue": cache_issue(value, path)}
+            )
     return sorted(out, key=lambda v: v.get("created_at", ""), reverse=True)
+
+
+def _require_supported(loaded: Any) -> None:
+    if getattr(loaded, "engine", None) is not None:
+        raise ExplorerUnavailable(
+            "the explorer needs the PyTorch engine (MLX not supported)"
+        )
+    if getattr(loaded.model, "semantic_memories", None):
+        raise ExplorerUnavailable(
+            "the explorer does not support attached semantic packs"
+        )
 
 
 def explore_loaded(
@@ -436,14 +517,8 @@ def explore_loaded(
     arch: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Every explorer view of a loaded SparseLab checkpoint."""
-    if getattr(loaded, "engine", None) is not None:
-        raise ExplorerUnavailable(
-            "the explorer needs the PyTorch engine (MLX not supported)"
-        )
-    if getattr(loaded.model, "semantic_memories", None):
-        raise ExplorerUnavailable(
-            "the explorer does not support attached semantic packs"
-        )
+    _require_supported(loaded)
+    runtime_identity(loaded.identity.get("runtime"))
     started = time.monotonic()
     arch = dict(arch or architecture(loaded.config))
     state: dict[str, Any] = {}
@@ -473,6 +548,7 @@ def explore_loaded(
     identity = loaded.identity
     return {
         "format": EXPLORER_FORMAT,
+        "runtime": dict(identity["runtime"]),
         "created_at": datetime.now(UTC).isoformat(),
         "target": {
             "run_id": identity.get("run_id"),
@@ -505,7 +581,7 @@ def explore(
     refresh: bool = False,
     load: Callable[[], Any] | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
-    """Explore TARGET (run id, run dir or checkpoint), cached per checkpoint+text.
+    """Explore TARGET, cached per checkpoint+text+canonical actual runtime.
 
     Returns ``(exploration, cache path)``. A too-big model returns only its
     architecture with ``unavailable`` set (nothing is loaded).
@@ -554,11 +630,34 @@ def explore(
         context.checkpoint()
         try:
             loaded = loader()
+            _require_supported(loaded)
             sha = str(loaded.identity.get("checkpoint_sha256"))
-            path = cache_path(lab_dir, sha, text)
+            runtime = runtime_identity(loaded.identity.get("runtime"))
+            path = cache_path(lab_dir, sha, text, runtime)
             cached = None if refresh else read_cached(path)
+            reason = "refresh requested" if refresh else "no cache for actual runtime"
             if cached is not None:
-                return cached, path
+                issue = cache_issue(cached, path)
+                if issue is None and (
+                    cached["target"]["checkpoint_sha256"] != sha
+                    or cached["text"] != text
+                    or runtime_identity(cached["runtime"]) != runtime
+                ):
+                    issue = "sealed payload/cache key mismatch"
+                if issue is None:
+                    return seal({**cached, "cache_reuse": {"status": "hit"}}), path
+                reason = issue
+            elif not refresh and path.exists():
+                reason = "unreadable, unsealed or wrong-format cache"
+            elif not refresh:
+                legacy = cache_path(lab_dir, sha, text)
+                if legacy.exists():
+                    legacy_value = read_cached(legacy)
+                    reason = (
+                        cache_issue(legacy_value, legacy)
+                        if legacy_value is not None
+                        else "unreadable, unsealed or wrong-format legacy cache"
+                    ) or "legacy cache has no verified actual-runtime binding"
             result = explore_loaded(loaded, text, context=context, arch=arch)
         except Exception as error:
             if not is_out_of_memory(error):
@@ -573,4 +672,6 @@ def explore(
     path.parent.mkdir(parents=True, exist_ok=True)
     sealed = seal(jsonable(result))
     write_json_atomic(path, sealed)
-    return sealed, path
+    # Invocation status is a sealed overlay; stored diagnostic bytes describe
+    # their producer and are unchanged by a hit.
+    return seal({**sealed, "cache_reuse": {"status": "miss", "reason": reason}}), path

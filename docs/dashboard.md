@@ -169,7 +169,20 @@ uv run --locked --extra cpu sparselab explore RUN --json        # the full paylo
 
 Results are cached as sealed records under
 `LAB/explorer/<checkpoint sha>/<key>.json`, keyed by checkpoint digest, sample
-text and explorer format. An edited cache file is ignored and recomputed.
+text, explorer format and the native loader's actual runtime: engine, backend,
+device index and precision. ROCm is distinct from CUDA even when Torch calls
+both devices `cuda`. Requested backends (including `auto`) are not identities.
+The full producer runtime (including framework version, OS and device name) is
+recorded in sealed diagnostics; only the four canonical fields bind reuse.
+This is runtime provenance, not hardware qualification or a science identity.
+Loading and authorization still happen before every cache lookup.
+An edited cache file is ignored and recomputed. Missing or malformed runtime
+provenance and sealed payload/key mismatches cannot yield a verified hit.
+Text/JSON output reports the producer runtime and invocation `cache_reuse`
+status/reason (a sealed overlay, not persisted into diagnostic cache bytes).
+Legacy cache bytes are retained unchanged; new runtime-bound paths do not
+overwrite them. The dashboard can display sealed legacy diagnostics, explicitly
+labeling missing/malformed provenance or key mismatches as unverified.
 Exploration goes through the same runtime preparation as `sparselab probe` and
 `sparselab try`: the run is resolved, the CPU default or
 `--runtime`/`--runtime-profile` is applied and authorized by the run's runtime

@@ -67,7 +67,17 @@ def _loaded(**model: Any) -> Any:
         config=config,
         tokenizer=_tokenizer(),
         device=torch.device("cpu"),
-        identity={"run_id": "tiny", "checkpoint_sha256": "c" * 64, "step": 3},
+        identity={
+            "run_id": "tiny",
+            "checkpoint_sha256": "c" * 64,
+            "step": 3,
+            "runtime": {
+                "engine": "pytorch",
+                "backend": "cpu",
+                "device_index": 0,
+                "precision": "fp32",
+            },
+        },
         engine=None,
     )
 
@@ -142,6 +152,7 @@ def test_attention_probabilities_are_the_forward_passes_own_weights() -> None:
 def test_explore_loaded_moe_memory_and_tokens() -> None:
     loaded = _loaded(**MOE_NGRAM)
     result = explorer.explore_loaded(loaded, TEXT)
+    assert result["runtime"] == loaded.identity["runtime"]
     ids = [scoring.eot(loaded), *scoring.encode(loaded, TEXT)]
     tokens = result["tokens"]
     assert [t["id"] for t in tokens] == ids and tokens[0]["loss"] is None

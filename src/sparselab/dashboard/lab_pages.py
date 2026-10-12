@@ -1001,6 +1001,8 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
 
 
 def render_exploration(exploration: Mapping[str, Any]) -> None:
+    from sparselab.explorer import runtime_label
+
     arch = exploration["architecture"]
     target = exploration.get("target") or {}
     inv = arch.get("inventory") or {}
@@ -1008,6 +1010,9 @@ def render_exploration(exploration: Mapping[str, Any]) -> None:
         st.warning(f"⊘ Too big to explore here: {exploration['unavailable']}")
         st.markdown(xv.architecture_html(arch), unsafe_allow_html=True)
         return
+    st.caption(f"Diagnostics runtime: {runtime_label(exploration)}")
+    if exploration.get("cache_issue"):
+        st.warning(f"Cache provenance unverified: {exploration['cache_issue']}")
     tokens = exploration["tokens"]
     losses = [t["loss"] for t in tokens if t["loss"] is not None]
     cols = st.columns(5)

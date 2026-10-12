@@ -153,7 +153,7 @@ def lab(tmp_path_factory: pytest.TempPathFactory) -> Path:
         },
     )
     exploration = explorer.explore_loaded(_loaded(**MOE_NGRAM), TEXT)
-    path = explorer.cache_path(root, "c" * 64, TEXT)
+    path = explorer.cache_path(root, "c" * 64, TEXT, exploration["runtime"])
     path.parent.mkdir(parents=True)
     write_json_atomic(path, seal(jsonable(exploration)))
     run = root / "runs" / "plain-run"
@@ -344,6 +344,41 @@ def test_explorer_page_renders_a_cached_moe_memory_exploration(lab: Path) -> Non
         "Memory lookups",
     ]
     assert len(test.get("plotly_chart")) >= 6
+    assert any(
+        "Diagnostics runtime: pytorch / cpu:0 / fp32" in c.value for c in test.caption
+    )
+
+
+@pytest.mark.parametrize(
+    "runtime, reason",
+    [
+        (None, "missing actual-runtime provenance"),
+        ({}, "malformed"),
+        (
+            {
+                "engine": "pytorch",
+                "backend": "rocm",
+                "device_index": 0,
+                "precision": "fp32",
+            },
+            "sealed payload/cache key mismatch",
+        ),
+    ],
+)
+def test_explorer_dashboard_labels_unverified_cache(
+    lab: Path, runtime: Any, reason: str
+) -> None:
+    from sparselab.lab_records import seal, write_json_atomic
+
+    entry = lab_data.snapshot(lab).explorations[0]
+    path = Path(entry["path"])
+    stored = explorer.read_cached(path)
+    stored["runtime"] = runtime
+    write_json_atomic(path, seal(stored))
+    original = path.read_bytes()
+    test = _render("explorer", lab)
+    assert any(reason in warning.value for warning in test.warning)
+    assert path.read_bytes() == original
 
 
 def test_explorer_page_names_the_size_limit(lab: Path) -> None:
