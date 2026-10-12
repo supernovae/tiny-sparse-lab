@@ -39,9 +39,97 @@ def test_deadline_terminates_candidate():
         run_bounded([sys.executable, "-c", "import time; time.sleep(3)"], timeout=0.1)
 
 
+class _UnreapedFixtureProcess(subprocess.Popen):
+    """Observe exit status without releasing the owned leader's PID/PGID.
+
+    Only teardown reaps these children. Keeping the zombie reserves the group
+    through killpg even if production wait/poll observes a completed leader.
+    This uses POSIX waitid/WNOWAIT, rather than a check-to-signal identity test.
+    """
+
+    _reaped = False
+    wait_calls = 0
+
+    def poll(self):
+        if self.returncode is None:
+            status = os.waitid(os.P_PID, self.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if status is not None:
+                self.returncode = (
+                    status.si_status
+                    if status.si_code == os.CLD_EXITED
+                    else -status.si_status
+                )
+        return self.returncode
+
+    def wait(self, timeout=None):
+        self.wait_calls += 1
+        deadline = time.monotonic() + timeout if timeout is not None else None
+        while self.poll() is None:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(self.args, timeout)
+            time.sleep(0.005)
+        return self.returncode
+
+    def terminate_and_reap(self):
+        if self._reaped:
+            return  # Never signal the numeric PGID after releasing our child.
+        try:
+            os.killpg(self.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        self.returncode = None
+        super().wait(timeout=2)
+        self._reaped = True
+
+
 @pytest.fixture
 def owned_processes(monkeypatch):
-    """Always clean fixture groups, even when the production cleanup regresses."""
+    """Clean owned groups on failures, retaining their PID until the signal."""
+    processes = []
+
+    def capture(*args, **kwargs):
+        process = _UnreapedFixtureProcess(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(subprocess, "Popen", capture)
+    try:
+        yield processes
+    finally:
+        for process in processes:
+            process.terminate_and_reap()
+
+
+def test_fixture_reserves_leader_until_cleanup_and_never_signals_after_reaping(
+    monkeypatch, owned_processes
+):
+    process = subprocess.Popen(
+        [sys.executable, "-S", "-c", "pass"], start_new_session=True
+    )
+    assert process.wait(timeout=1) == 0
+    # Exit-status observation has not consumed the kernel's child status.
+    assert (
+        os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT).si_pid == process.pid
+    )
+    signaled = []
+    original = os.killpg
+
+    def kill_reserved_group(pid, sig):
+        assert not process._reaped
+        assert os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT).si_pid == pid
+        signaled.append(pid)
+        original(pid, sig)
+
+    monkeypatch.setattr(os, "killpg", kill_reserved_group)
+    process.terminate_and_reap()
+    process.terminate_and_reap()
+    assert signaled == [process.pid]
+    with pytest.raises(ChildProcessError):
+        os.waitpid(process.pid, os.WNOHANG)
+
+
+def test_production_cleanup_reaps_real_leader(monkeypatch):
+    # The regression fixture deliberately defers reaping; check real wait here.
     processes = []
     original = subprocess.Popen
 
@@ -52,13 +140,16 @@ def owned_processes(monkeypatch):
 
     monkeypatch.setattr(subprocess, "Popen", capture)
     try:
-        yield processes
+        with pytest.raises(ValueError, match="byte limit"):
+            run_bounded(
+                [sys.executable, "-S", "-c", "print('x' * 2048)"],
+                output_limit=1024,
+                timeout=2,
+            )
+        with pytest.raises(ChildProcessError):
+            os.waitpid(processes[0].pid, os.WNOHANG)
     finally:
         for process in processes:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
             process.wait(timeout=2)
 
 
@@ -117,7 +208,7 @@ def test_exited_parent_descendant_is_terminated(
         assert caught.value.timeout == 0.5
     else:
         assert str(caught.value) == "subprocess output exceeds byte limit"
-    assert owned_processes[0].returncode == 0  # leader reaped, already exited
+    assert owned_processes[0].returncode == 0  # exited; harness defers reaping
     pid = int(pid_path.read_text())
     deadline = time.monotonic() + 0.5
     while time.monotonic() < deadline:
@@ -129,6 +220,7 @@ def test_exited_parent_descendant_is_terminated(
         time.sleep(0.005)
     else:
         pytest.fail(f"owned descendant {pid} still running")
+    assert owned_processes[0].wait_calls == 1
     if stdout_path is not None:
         assert not stdout_path.exists()
 
