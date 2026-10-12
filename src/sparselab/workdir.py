@@ -41,7 +41,12 @@ def ensure_scratch_dir(
 
     def validate_location() -> None:
         if scratch.is_symlink():
-            raise ValueError(f"scratch directory must not be a symlink: {scratch}")
+            raise ValueError(
+                f"scratch directory must not be a symlink: {scratch}; "
+                "choose a different --work-dir or SPARSELAB_WORK_DIR with a real "
+                "scratch directory"
+            )
+        # Also reject resolved redirects not identified as symlinks (e.g. junctions).
         if scratch.resolve().parent != root:
             raise ValueError(
                 f"scratch directory must remain inside work root: {scratch}"

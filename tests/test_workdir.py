@@ -108,6 +108,91 @@ def test_unsafe_scratch_refuses_without_mutation(
     )
 
 
+@pytest.mark.parametrize("caller", ["work", "worker"])
+@pytest.mark.parametrize(
+    "redirect", ["symlink-at-mkdir", "resolve-before-mkdir", "resolve-after-mkdir"]
+)
+def test_scratch_location_checks_refuse_before_environment_or_allocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caller: str, redirect: str
+) -> None:
+    root = tmp_path / "work"
+    root.mkdir()
+    scratch = root / "scratch"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sentinel").write_bytes(b"keep\n")
+    missing = outside / "missing"
+    original_mkdir = Path.mkdir
+    original_resolve = Path.resolve
+    mkdir_calls = []
+
+    def controlled_mkdir(path, *args, **kwargs):
+        if path == scratch:
+            mkdir_calls.append(path)
+            if redirect == "symlink-at-mkdir":
+                path.symlink_to(outside, target_is_directory=True)
+        return original_mkdir(path, *args, **kwargs)
+
+    def controlled_resolve(path, *args, **kwargs):
+        if path == scratch and (
+            redirect == "resolve-before-mkdir"
+            or (redirect == "resolve-after-mkdir" and mkdir_calls)
+        ):
+            return missing
+        return original_resolve(path, *args, **kwargs)
+
+    # Deterministic branch coverage, not an adversarial concurrency guarantee.
+    monkeypatch.setattr(Path, "mkdir", controlled_mkdir)
+    monkeypatch.setattr(Path, "resolve", controlled_resolve)
+    for name in (WORK_DIR_ENV, "TMPDIR", "TEMP", "TMP"):
+        monkeypatch.setenv(name, str(root) if name == WORK_DIR_ENV else "previous")
+    monkeypatch.setattr(tempfile, "tempdir", "previous-cache")
+    before_env = {
+        name: os.environ[name] for name in (WORK_DIR_ENV, "TMPDIR", "TEMP", "TMP")
+    }
+    mkdtemp = Mock(side_effect=AssertionError("must refuse before allocation"))
+    popen = Mock(side_effect=AssertionError("must refuse before worker launch"))
+    monkeypatch.setattr(transport.tempfile, "mkdtemp", mkdtemp)
+    monkeypatch.setattr(transport.subprocess, "Popen", popen)
+    message = (
+        "scratch directory must not be a symlink"
+        if redirect == "symlink-at-mkdir"
+        else "scratch directory must remain inside work root"
+    )
+    with pytest.raises(ValueError, match=message):
+        if caller == "work":
+            ensure_work_dir(root)
+        else:
+            worker = WorkerDefinition(
+                worker_id="test-worker",
+                name="test-worker",
+                transport="local",
+                python=Path(sys.executable),
+                root=tmp_path,
+                engine="pytorch",
+                backend="cpu",
+                device_index=0,
+            )
+            transport.call_worker(worker, "status", {"attempt_id": None})
+
+    assert mkdir_calls == ([] if redirect == "resolve-before-mkdir" else [scratch])
+    assert {name: os.environ[name] for name in before_env} == before_env
+    assert tempfile.tempdir == "previous-cache"
+    mkdtemp.assert_not_called()
+    popen.assert_not_called()
+    assert (outside / "sentinel").read_bytes() == b"keep\n"
+    assert {p.name for p in outside.iterdir()} == {"sentinel"}
+    assert not missing.exists()
+    if redirect == "symlink-at-mkdir":
+        assert scratch.is_symlink()
+        assert scratch.readlink() == outside
+    elif redirect == "resolve-before-mkdir":
+        assert not scratch.exists()
+    else:
+        assert scratch.is_dir() and not scratch.is_symlink()
+        assert list(scratch.iterdir()) == []
+
+
 @pytest.mark.parametrize("existing", [False, True])
 @pytest.mark.parametrize("linked_root", [False, True])
 def test_ordinary_scratch_supports_temporary_allocation(
