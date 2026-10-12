@@ -36,9 +36,14 @@ create it; read-only inspection does not need to initialize it.
     captures/
     local-reports/
   runs/                # implicit generic controller/store
-  scratch/             # disposable temporary files
+  scratch/             # disposable temporary files; real directory, not a symlink
   cache/               # optional reconstructable caches, never scientific evidence
 ```
+
+The `scratch/` child must be a real directory contained in the resolved work
+root; scratch symlinks, including links within that root, are refused. Choose
+a different `--work-dir` or `SPARSELAB_WORK_DIR` if the selected root has a
+symlinked scratch child. Symlink aliases for the work root itself remain supported.
 
 The source tree holds source, tests, configs, documentation, and declarative
 research/lifecycle records. The persistent root holds downloads, prepared arrays,

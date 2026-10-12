@@ -38,7 +38,25 @@ def ensure_scratch_dir(
     """Create only the disposable scratch child of the selected persistent root."""
     root = resolve_work_dir(path, cwd=cwd)
     scratch = root / "scratch"
+
+    def validate_location() -> None:
+        if scratch.is_symlink():
+            raise ValueError(
+                f"scratch directory must not be a symlink: {scratch}; "
+                "choose a different --work-dir or SPARSELAB_WORK_DIR with a real "
+                "scratch directory"
+            )
+        # Also reject resolved redirects not identified as symlinks (e.g. junctions).
+        if scratch.resolve().parent != root:
+            raise ValueError(
+                f"scratch directory must remain inside work root: {scratch}"
+            )
+
+    # Refuse existing redirects before mkdir, and validate the resulting path.
+    # Path checks do not protect against adversarial concurrent replacement.
+    validate_location()
     scratch.mkdir(parents=True, exist_ok=True)
+    validate_location()
     if not scratch.is_dir():
         raise NotADirectoryError(scratch)
     return scratch

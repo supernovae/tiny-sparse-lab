@@ -88,6 +88,10 @@ settings implicitly or turns a config into an approved continuation.
 
 ## Scratch and artifact locations
 
+The work root's `scratch/` child must be a real directory contained in the resolved
+root, never a symlink. If scratch is symlinked, choose a different `--work-dir` or
+`SPARSELAB_WORK_DIR`. Symlink aliases for the work root itself remain supported.
+
 Implicit persistent state defaults to `${XDG_DATA_HOME}/sparselab` when `XDG_DATA_HOME` is absolute and nonempty, otherwise `~/.local/share/sparselab`. For substantial campaigns, set `SPARSELAB_WORK_DIR=/data/sparselab` on a sufficiently large filesystem. Global `--work-dir PATH` (before the subcommand) overrides that environment variable; an explicit relative path stays relative to the current directory. Durable `experiments/`, `runs/` and artifact/receipt stores share that root; temporary files go to its disposable `scratch/`, and optional `cache/` is reconstructable, not evidence. Read-only inspection does not create the root. Long-lived payloads inside **any** Git checkout trigger a containment warning but are not redirected; check explicit destinations too.
 
 Explicit `--runs-dir`, `--store`, `--output`, `dataset.cache_dir` and `logging.root_dir` retain their literal paths, including historical receipts. Selecting an external root does **not** move an existing `sparselab-work/` directory or reinterpret prior data; intentional relocation requires a new location binding/manifest and re-verification of referenced bytes. Study submission and research scaffolding derive implicit workspaces from `<work-dir>/experiments/<study-name>`; SSH hosts need their own adequately sized persistent root.
