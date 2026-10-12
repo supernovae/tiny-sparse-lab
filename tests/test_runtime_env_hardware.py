@@ -30,7 +30,7 @@ def _responses(monkeypatch, responses):
     def run(command, *, timeout, output_limit):
         assert timeout == 5
         assert output_limit == hardware._OUTPUT_LIMIT
-        response = responses[command[0]]
+        response = responses.get(command[0], FileNotFoundError("no tool"))
         if isinstance(response, Exception):
             raise response
         output, error, status = response
@@ -67,6 +67,12 @@ def test_linux_observes_gpu_agents_without_cpu_or_runtime_claim(monkeypatch):
             "observation_source": "nvidia-smi",
             "status": "OBSERVED",
         },
+        {
+            "backend": "xpu",
+            "device_name": None,
+            "observation_source": "lspci",
+            "status": "UNKNOWN",
+        },
     ]
 
 
@@ -82,7 +88,9 @@ def test_linux_observes_gpu_agents_without_cpu_or_runtime_claim(monkeypatch):
 )
 def test_failed_or_oversized_host_tools_are_unknown(monkeypatch, response):
     monkeypatch.setattr(hardware.platform, "system", lambda: "Linux")
-    _responses(monkeypatch, {"rocminfo": response, "nvidia-smi": response})
+    _responses(
+        monkeypatch, {"rocminfo": response, "nvidia-smi": response, "lspci": response}
+    )
     assert hardware.hardware_inventory() == [
         {
             "backend": backend,
@@ -90,7 +98,11 @@ def test_failed_or_oversized_host_tools_are_unknown(monkeypatch, response):
             "observation_source": source,
             "status": "UNKNOWN",
         }
-        for backend, source in (("rocm", "rocminfo"), ("cuda", "nvidia-smi"))
+        for backend, source in (
+            ("rocm", "rocminfo"),
+            ("cuda", "nvidia-smi"),
+            ("xpu", "lspci"),
+        )
     ]
 
 
@@ -129,3 +141,24 @@ def test_darwin_reports_metal_only_when_supported(monkeypatch):
             "status": "OBSERVED",
         }
     ]
+
+
+def test_intel_pci_inventory_excludes_bridges_audio_and_other_vendors(monkeypatch):
+    monkeypatch.setattr(hardware.platform, "system", lambda: "Linux")
+    pci = b"""0000:0a:00.0 PCI bridge [0604]: Intel Corporation [8086:4fa1]
+0000:0c:00.0 VGA compatible controller [0300]: Intel Corporation DG2 [Arc A380] [8086:56a5] (rev 05)
+0000:0d:00.0 Audio device [0403]: Intel Corporation DG2 Audio [8086:4f92]
+0000:0e:00.0 Display controller [0380]: Intel Corporation Arc Pro B60 [8086:e211]
+0000:0f:00.0 3D controller [0302]: Intel Corporation Arc Pro B70 [8086:abcd]
+0000:10:00.0 VGA compatible controller [0300]: AMD Radeon [1002:744c]
+"""
+    _responses(monkeypatch, {"lspci": (pci, b"", 0)})
+    records = [
+        item for item in hardware.hardware_inventory() if item["backend"] == "xpu"
+    ]
+    assert [item["device_name"] for item in records] == [
+        "Intel Corporation DG2 [Arc A380]",
+        "Intel Corporation Arc Pro B60",
+        "Intel Corporation Arc Pro B70",
+    ]
+    assert all(item["status"] == "OBSERVED" for item in records)

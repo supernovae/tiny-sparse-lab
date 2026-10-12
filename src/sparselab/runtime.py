@@ -250,7 +250,11 @@ def discover_runtimes(
         if (
             supported
             and backend != "cpu"
-            and not (torch.version.hip or torch.version.cuda)
+            and not (
+                getattr(torch.version, "xpu", None)
+                if backend == "xpu"
+                else (torch.version.hip or torch.version.cuda)
+            )
         ):
             limitations.append(
                 "accelerator runtime version unavailable through safe PyTorch APIs"
@@ -330,6 +334,16 @@ def discover_runtimes(
                     limitations.append(f"device properties unavailable: {reason}")
             else:
                 limitations.append("device-properties API unavailable")
+            if hasattr(xpu, "mem_get_info"):
+                memory, reason = _safe_call(
+                    lambda api=xpu, i=index: api.mem_get_info(i)
+                )
+                if memory is None:
+                    limitations.append(f"free-memory reading unavailable: {reason}")
+                else:
+                    device_free, source = int(memory[0]), "torch.xpu.mem_get_info"
+            else:
+                limitations.append("free-memory API unavailable")
         infos.append(
             RuntimeInfo(
                 engine="pytorch",
@@ -341,7 +355,11 @@ def discover_runtimes(
                 device_name=name,
                 physical_device_id=physical_device_id,
                 framework_version=torch.__version__ if torch is not None else None,
-                runtime_version=(torch.version.hip or torch.version.cuda)
+                runtime_version=(
+                    getattr(torch.version, "xpu", None)
+                    if backend == "xpu"
+                    else (torch.version.hip or torch.version.cuda)
+                )
                 if torch is not None
                 else None,
                 driver_version=None,
@@ -684,6 +702,8 @@ def capture_rng_state() -> dict[str, Any]:
     }
     if torch.cuda.is_available():
         state["cuda"] = torch.cuda.get_rng_state_all()
+    if _backend_available("xpu"):
+        state["xpu"] = torch.xpu.get_rng_state_all()
     if torch.backends.mps.is_available() and hasattr(torch.mps, "get_rng_state"):
         state["mps"] = torch.mps.get_rng_state()
     return state
@@ -695,6 +715,8 @@ def restore_rng_state(state: dict[str, Any]) -> None:
     torch.set_rng_state(state["torch"])
     if "cuda" in state and torch.cuda.is_available():
         torch.cuda.set_rng_state_all(state["cuda"])
+    if "xpu" in state and _backend_available("xpu"):
+        torch.xpu.set_rng_state_all(state["xpu"])
     if (
         "mps" in state
         and torch.backends.mps.is_available()

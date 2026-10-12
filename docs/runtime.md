@@ -166,6 +166,10 @@ checkpoints. Do not copy this host's registry to an SSH worker.
 
 ### Versioned vendor provisioning
 
+Intel Arc uses the analogous `xpu-arc-v1` recipe, upstream PyTorch XPU and an
+FP32 optimizer pilot. See [Intel acceleration](intel-xpu.md) for A380/Arc Pro
+setup, driver/device access, optional BF16 checks and the native lab loop.
+
 The built-in `rocm-gfx1100-v1` recipe binds AMD ROCm 10.0.0/Python 3.14 pins
 and indexes in `requirements/rocm-gfx1100.txt`; it is not a portable ROCm extra
 or a global ROCm version. First establish the actual Windows/WSL/Linux driver
@@ -792,8 +796,8 @@ This software integration check covers training, checkpointing and evaluation
 in a selected execution environment. Use the same workflow for native Linux,
 WSL2, and macOS. Select a
 config with an explicit backend and precision supported by the provisioned
-environment. The CPU and ROCm runtime smoke configs use the same 20-step,
-640-target workload; a CUDA or XPU candidate can copy that config and change
+environment. The CPU, ROCm and XPU runtime smoke configs use the same 20-step,
+640-target workload; a CUDA candidate can copy that config and change
 `runtime.backend` in its own source config. Do not change a running or frozen
 experiment's config. Backend names in configs and run IDs are useful coordinates;
 host/backend combinations do not define separate storage layouts.
