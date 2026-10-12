@@ -24,8 +24,9 @@ def write_bytes_exclusive(
 ) -> None:
     """Publish complete, file-synced bytes without replacing a destination.
 
-    FileExistsError leaves collision/replay policy to the caller. A failure
-    after linking leaves complete evidence with uncertain directory durability;
+    FileExistsError follows a directory sync, leaving collision/replay policy
+    to the caller. A failure after linking leaves complete evidence with uncertain
+    directory durability;
     never remove that surviving destination. Only our temporary file is removed.
     """
     missing_parents = []
@@ -45,7 +46,19 @@ def write_bytes_exclusive(
                 raise OSError("short immutable publication write")
             handle.flush()
             os.fsync(handle.fileno())
-        os.link(temporary, path)
-        sync_directory(path.parent)
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            # A matching caller may return success on replay, even when the
+            # original publisher failed (or has not yet finished) this sync.
+            sync_directory(path.parent)
+            raise
+        try:
+            sync_directory(path.parent)
+        except OSError as error:
+            raise OSError(
+                f"complete evidence published at {path}, but directory fsync failed; "
+                "its directory entry may not be durable (file retained)"
+            ) from error
     finally:
         os.unlink(temporary)

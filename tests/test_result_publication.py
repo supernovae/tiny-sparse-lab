@@ -6,7 +6,7 @@ import os
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, local
 
 import pytest
 from test_study import _write_study
@@ -116,9 +116,12 @@ def test_publication_failure_never_leaves_partial_final(
             fsync(fd)
 
         monkeypatch.setattr(os, "fsync", fail_sync)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError) as failure:
         publish()
     if boundary == "directory":
+        assert str(path) in str(failure.value)
+        assert "file retained" in str(failure.value)
+        assert isinstance(failure.value.__cause__, OSError)
         assert path.read_bytes() == expected
     else:
         assert not path.exists()
@@ -169,6 +172,21 @@ def test_concurrent_identical_publication(publication, monkeypatch):
     publish, path, expected = publication
     barrier = Barrier(2)
     link = os.link
+    fsync = os.fsync
+    durability = local()
+
+    def track_sync(fd):
+        fsync(fd)
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            durability.synced = True
+
+    def publish_synced():
+        durability.synced = False
+        result = publish()
+        assert durability.synced, "publisher returned without syncing its directory"
+        return result
+
+    monkeypatch.setattr(os, "fsync", track_sync)
 
     def synchronize(source, destination):
         assert Path(source).read_bytes() == expected
@@ -177,7 +195,7 @@ def test_concurrent_identical_publication(publication, monkeypatch):
 
     monkeypatch.setattr(os, "link", synchronize)
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda _: publish(), range(2)))
+        results = list(pool.map(lambda _: publish_synced(), range(2)))
     assert results == [path, path]
     assert path.read_bytes() == expected
     assert not list(path.parent.glob(".*.tmp"))
@@ -215,7 +233,16 @@ def test_replay_after_uncertain_directory_durability(publication, monkeypatch):
             publish()
     inode = path.stat().st_ino
     assert path.read_bytes() == expected
+    synced = []
+
+    def track_sync(fd):
+        fsync(fd)
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            synced.append(fd)
+
+    monkeypatch.setattr(os, "fsync", track_sync)
     assert publish() == path
+    assert synced, "successful replay must re-establish directory durability"
     assert path.stat().st_ino == inode
     assert path.read_bytes() == expected
 
@@ -246,3 +273,60 @@ def test_capability_exists_write_race_never_overwrites(tmp_path, monkeypatch):
         capabilities.write_capability_result(tmp_path, {"card": "synthetic"})
     assert len(targets) == 1
     assert targets[0].read_bytes() == competitor
+
+
+def test_replay_sync_failure_retains_existing_evidence(publication, monkeypatch):
+    publish, path, expected = publication
+    publish()
+    inode = path.stat().st_ino
+    fsync = os.fsync
+
+    def fail_directory(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError("injected replay directory fsync")
+        fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fail_directory)
+    with pytest.raises(OSError, match="replay directory fsync"):
+        publish()
+    assert path.stat().st_ino == inode
+    assert path.read_bytes() == expected
+    assert not list(path.parent.glob(".*.tmp"))
+
+
+def test_concurrent_loser_sync_failure_is_not_success(publication, monkeypatch):
+    publish, path, expected = publication
+    barrier = Barrier(2)
+    link = os.link
+    fsync = os.fsync
+    publisher = local()
+
+    def synchronize(source, destination):
+        barrier.wait(timeout=10)
+        try:
+            link(source, destination)
+        except FileExistsError:
+            publisher.lost = True
+            raise
+
+    def fail_loser_sync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode) and getattr(publisher, "lost", False):
+            raise OSError("injected losing publisher directory fsync")
+        fsync(fd)
+
+    def attempt():
+        try:
+            return publish()
+        except OSError as error:
+            return error
+
+    monkeypatch.setattr(os, "link", synchronize)
+    monkeypatch.setattr(os, "fsync", fail_loser_sync)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: attempt(), range(2)))
+    assert results.count(path) == 1
+    errors = [result for result in results if isinstance(result, OSError)]
+    assert len(errors) == 1
+    assert "losing publisher" in str(errors[0])
+    assert path.read_bytes() == expected
+    assert not list(path.parent.glob(".*.tmp"))
