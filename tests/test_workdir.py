@@ -5,12 +5,14 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 from sparselab.workdir import (
     CHECKOUT_STORAGE_REASON,
     WORK_DIR_ENV,
+    ensure_scratch_dir,
     ensure_work_dir,
     record_storage_observation,
     resolve_work_dir,
@@ -21,6 +23,122 @@ from sparselab.workers import transport
 from sparselab.workers.models import WorkerDefinition
 
 _ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("caller", ["scratch", "work", "worker"])
+@pytest.mark.parametrize("kind", ["outside", "checkout", "dangling", "inside", "file"])
+@pytest.mark.parametrize("configured", [False, True])
+def test_unsafe_scratch_refuses_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caller: str,
+    kind: str,
+    configured: bool,
+) -> None:
+    root = tmp_path / "work"
+    root.mkdir()
+    scratch = root / "scratch"
+    target = root / "target" if kind == "inside" else tmp_path / kind
+    if kind != "dangling":
+        target.mkdir()
+        (target / "sentinel").write_bytes(b"destination unchanged\n")
+    if kind == "checkout":
+        (target / ".git").mkdir()
+    if kind == "file":
+        scratch.write_bytes(b"scratch file unchanged\n")
+    else:
+        scratch.symlink_to(target, target_is_directory=True)
+    before_stat = scratch.lstat()
+    for name in (WORK_DIR_ENV, "TMPDIR", "TEMP", "TMP"):
+        if configured:
+            monkeypatch.setenv(name, str(tmp_path / f"previous-{name}"))
+        else:
+            monkeypatch.delenv(name, raising=False)
+    if caller == "worker":
+        monkeypatch.setenv(WORK_DIR_ENV, str(root))
+    monkeypatch.setattr(tempfile, "tempdir", "previous-cache" if configured else None)
+    before_env = {
+        name: os.environ.get(name) for name in (WORK_DIR_ENV, "TMPDIR", "TEMP", "TMP")
+    }
+    before_tempdir = tempfile.tempdir
+    mkdtemp = Mock(side_effect=AssertionError("must refuse before allocation"))
+    popen = Mock(side_effect=AssertionError("must refuse before worker launch"))
+    monkeypatch.setattr(transport.tempfile, "mkdtemp", mkdtemp)
+    monkeypatch.setattr(transport.subprocess, "Popen", popen)
+
+    error = FileExistsError if kind == "file" else ValueError
+    match = None if kind == "file" else "scratch directory must not be a symlink"
+    with pytest.raises(error, match=match):
+        if caller == "scratch":
+            ensure_scratch_dir(root)
+        elif caller == "work":
+            ensure_work_dir(root)
+        else:
+            worker = WorkerDefinition(
+                worker_id="test-worker",
+                name="test-worker",
+                transport="local",
+                python=Path(sys.executable),
+                root=tmp_path,
+                engine="pytorch",
+                backend="cpu",
+                device_index=0,
+            )
+            transport.call_worker(worker, "status", {"attempt_id": None})
+
+    mkdtemp.assert_not_called()
+    popen.assert_not_called()
+    assert {name: os.environ.get(name) for name in before_env} == before_env
+    assert tempfile.tempdir == before_tempdir
+    assert scratch.lstat() == before_stat
+    if kind == "file":
+        assert scratch.read_bytes() == b"scratch file unchanged\n"
+    else:
+        assert scratch.is_symlink()
+        assert scratch.readlink() == target
+    if kind == "dangling":
+        assert not target.exists()
+    else:
+        assert (target / "sentinel").read_bytes() == b"destination unchanged\n"
+        assert {p.name for p in target.iterdir()} == (
+            {"sentinel", ".git"} if kind == "checkout" else {"sentinel"}
+        )
+    assert {p.name for p in root.iterdir()} == (
+        {"scratch", "target"} if kind == "inside" else {"scratch"}
+    )
+
+
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("linked_root", [False, True])
+def test_ordinary_scratch_supports_temporary_allocation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing: bool,
+    linked_root: bool,
+) -> None:
+    root = tmp_path / "work"
+    selected = tmp_path / "selected" if linked_root else root
+    if linked_root:
+        selected.symlink_to(root, target_is_directory=True)
+    scratch = root / "scratch"
+    if existing:
+        scratch.mkdir(parents=True)
+        (scratch / "sentinel").write_bytes(b"keep\n")
+    for name in (WORK_DIR_ENV, "TMPDIR", "TEMP", "TMP"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(tempfile, "tempdir", None)
+
+    assert ensure_scratch_dir(selected) == scratch
+    assert ensure_work_dir(selected) == root
+    with tempfile.TemporaryDirectory(prefix="lab50-") as allocated:
+        assert Path(allocated).parent == scratch
+    with tempfile.TemporaryFile() as allocated:
+        allocated.write(b"temporary fixture\n")
+        allocated.seek(0)
+        assert allocated.read() == b"temporary fixture\n"
+    assert {p.name for p in scratch.iterdir()} == ({"sentinel"} if existing else set())
+    if existing:
+        assert (scratch / "sentinel").read_bytes() == b"keep\n"
 
 
 def test_default_work_dir_uses_external_xdg_or_home_without_creating_it(
