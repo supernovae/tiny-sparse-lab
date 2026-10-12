@@ -537,7 +537,18 @@ def submit_study(
         "receipt": _study_receipt_template(study),
     }
     # Exclusive, durable reservation precedes any bundle preparation/enqueue.
-    _write_json_exclusive(study_intent_path(receipt_path), intent)
+    intent_path = study_intent_path(receipt_path)
+    try:
+        _write_json_exclusive(intent_path, intent)
+    except FileExistsError as error:
+        raise FileExistsError(
+            f"study submission intent already exists: {intent_path}. Preserve it. "
+            "Use study recover if native jobs were enqueued. If the original "
+            "submitter has finished and preparation failed before enqueue, fix "
+            "the cause and submit with a fresh --receipt in the same directory "
+            f"and the same --store {store}. An empty observation alone does not "
+            "authorize a retry while another submitter may still be active."
+        ) from error
     requests = [
         {
             "config": item.config,
@@ -555,7 +566,17 @@ def submit_study(
         }
         for index, item in enumerate(study.expanded)
     ]
-    submissions = Controller(store).submit_many(requests)
+    try:
+        submissions = Controller(store).submit_many(requests)
+    except BaseException as error:
+        error.add_note(
+            f"Study intent retained at {intent_path}; enqueue outcome is not "
+            "inferred from this exception. Inspect with study recover. If the "
+            "original submitter has finished and preparation failed before "
+            "enqueue, fix the cause and use a fresh --receipt in the same "
+            f"directory with the same --store {store}. Preserve all old evidence."
+        )
+        raise
     run_entries: list[dict[str, object]] = [
         {
             "coordinate": item.coordinate,
@@ -620,32 +641,34 @@ def recover_study_receipt(
     for binding in expected:
         StudySubmissionMetadata.model_validate(binding)
     queue = ControllerStore(store, read_only=True)
-    # One read-only snapshot, with strict JSON decoding of original persisted
-    # bytes: a duplicate key must not disappear in a projection reader.
-    with queue.metrics._connect() as connection:
-        records = connection.execute(
-            "SELECT a.experiment_id,a.attempt_id,a.run_id,e.specification_json "
-            "FROM attempts a JOIN experiments e ON e.experiment_id=a.experiment_id"
-        ).fetchall()
     rows = [
         {
-            "experiment_id": record[0],
-            "attempt_id": record[1],
-            "run_id": record[2],
+            **record,
             "spec": _mapping(
-                json.loads(record[3], object_pairs_hook=_reject_duplicate_pairs),
+                json.loads(
+                    record["specification_json"],
+                    object_pairs_hook=_reject_duplicate_pairs,
+                ),
                 "native specification",
             ),
         }
-        for record in records
+        for record in queue.raw_attempt_specifications()
     ]
     matches: dict[int, dict[str, Any]] = {}
+    unbound_study_records = False
     for row in rows:
         spec = row["spec"]
         provenance = _mapping(
             spec.get("declaration_provenance") or {}, "native provenance"
         )
         binding = provenance.get("study_submission")
+        if binding is None and any(
+            spec.get("matrix")
+            == {"matrix_sha256": study.matrix_sha256, "coordinate": item.coordinate}
+            and spec.get("config_sha256") == expected[index]["config_sha256"]
+            for index, item in enumerate(study.expanded)
+        ):
+            unbound_study_records = True
         if (
             not isinstance(binding, dict)
             or binding.get("submission_id") != intent["submission_id"]
@@ -668,9 +691,24 @@ def recover_study_receipt(
         ):
             raise ValueError("native study coordinate/config identity mismatch")
         matches[index] = row
+    if not matches:
+        detail = (
+            " Legacy/unbound study-like records exist but cannot prove this intent's identity."
+            if unbound_study_records
+            else ""
+        )
+        raise ValueError(
+            "no native submissions are bound to this intent in the observed store."
+            + detail
+            + " This observation does not prove that a live submitter has finished. "
+            "Preserve the intent; if preparation failed before enqueue and the "
+            "original submitter has finished, fix the cause and use a fresh "
+            "--receipt in the same directory with the same --store."
+        )
     if len(matches) != len(expected):
         raise ValueError(
-            "incomplete study submission evidence; legacy/unbound jobs cannot be recovered"
+            f"partial study submission evidence: {len(matches)} of {len(expected)} "
+            "coordinates are bound; missing or legacy/unbound identities cannot be recovered"
         )
     runs = []
     for index, item in enumerate(intent["receipt"]["runs"]):
@@ -690,7 +728,8 @@ def recover_study_receipt(
         "recovery": {
             "submission_id": intent["submission_id"],
             "intent_path": str(intent_path.absolute()),
-            "intent_sha256": hashlib.sha256(intent_bytes).hexdigest(),
+            "intent_sha256": hashlib.sha256(canonical_json(intent)).hexdigest(),
+            "intent_file_sha256": hashlib.sha256(intent_bytes).hexdigest(),
             "original_receipt_path": str(original),
             "original_receipt_sha256": hashlib.sha256(original.read_bytes()).hexdigest()
             if original.is_file()

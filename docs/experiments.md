@@ -227,6 +227,28 @@ interrupted attempt retains it: do not delete the intent to retry submission.
 Existing complete or partial receipts and intents prevent another enqueue.
 Receipt publication uses complete staged bytes and an exclusive atomic link.
 
+An ordinary preparation failure (for example, a missing tokenizer) can leave
+an intent with zero queued jobs. The original receipt path remains reserved;
+recovery distinguishes no bound submissions from partial evidence and from
+legacy/unbound records. These are read-only observations, not proof that another
+submitter has stopped. Never delete, rename or automatically abandon an intent
+because a query currently finds no rows.
+
+After confirming the original submission has finished and failed **before
+enqueue**, fix its preparation error and choose a fresh receipt filename in the
+**same directory**, keeping the same explicit store:
+
+```sh
+uv run --locked --extra cpu sparselab study submit experiments/ffn-study.yaml \
+  --receipt /path/to/receipt-retry-1.json --store /path/to/runs
+```
+
+With no `--store` override, a new `--receipt` in the original receipt directory
+also keeps its sibling `runs/` store. The retry gets a new submission identity
+and its own intent. Preserve the old intent and any receipt bytes. A fresh
+filename is not deduplication: if enqueue happened, or the original submitter
+may still be active, recover or wait instead of submitting another copy.
+
 If publication failed after enqueue, use the original study and explicit native
 store to recover into a **distinct unused** output:
 
@@ -242,7 +264,9 @@ unambiguous persisted submission with the matching intent and full identity.
 Missing, duplicate, altered or legacy unbound evidence is unrecoverable. An
 intent alone does not prove enqueue occurred. Preserve original partial or
 complete receipt bytes; the recovered receipt includes their observed digest,
-intent provenance and store location. Collect it through the ordinary
+intent provenance and store location. `recovery.intent_sha256` is the canonical
+JSON digest used by the native binding; `recovery.intent_file_sha256` hashes the
+observed file bytes, including the trailing newline. Collect it through the ordinary
 `study collect` command, specifying `--runs-dir` when the output is elsewhere.
 Recovery proves submission identity only, not job completion or scientific
 results. No historical queue or receipt is upgraded or rewritten.
@@ -253,6 +277,10 @@ error: its crash durability is uncertain. Preserve surviving files and inspect
 the evidence rather than interpreting an error as proof that nothing happened.
 A surviving intent whose durability failed blocks another submit, and no jobs
 are enqueued by that invocation. Recovery also refuses any preexisting output.
+An abrupt process exit can leave hidden staging files such as
+`.receipt.json.<uuid>.tmp` or `.receipt.json.intent.json.<uuid>.tmp`. They are
+harmless to ignore: they neither reserve the destination nor prove enqueue or
+publication. This recovery workflow does not authorize deleting them.
 
 The study layer compares only configurations and evidence supported by the current training/evaluation stack. It does not add RL reward training or wire record-based Engram packs into model execution; those require separate model/trainer work. Keep data, tokenizer, source revision, runtime, and actual step/token budgets matched within each architecture comparison.
 

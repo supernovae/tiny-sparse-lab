@@ -96,6 +96,27 @@ class ControllerStore:
                     (attempt_id, experiment_id, run_id),
                 )
 
+    def raw_attempt_specifications(self) -> list[dict[str, Any]]:
+        """Read identity rows and original specification JSON in one snapshot.
+
+        Recovery readers retain strict decoding at their boundary rather than
+        losing duplicate keys through the ordinary queue projection.
+        """
+        with self.metrics._connect() as connection:
+            records = connection.execute(
+                "SELECT a.experiment_id,a.attempt_id,a.run_id,e.specification_json "
+                "FROM attempts a JOIN experiments e ON e.experiment_id=a.experiment_id"
+            ).fetchall()
+        return [
+            {
+                "experiment_id": record[0],
+                "attempt_id": record[1],
+                "run_id": record[2],
+                "specification_json": record[3],
+            }
+            for record in records
+        ]
+
     def attempts(self, statuses: frozenset[str] | None = None) -> list[dict[str, Any]]:
         with self.metrics._connect() as con:
             columns = {row[1] for row in con.execute("PRAGMA table_info(attempts)")}

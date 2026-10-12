@@ -534,3 +534,126 @@ def test_atomic_publication_retains_existing_creation_permissions(tmp_path, mask
     finally:
         os.umask(previous)
     assert stat.S_IMODE(output.stat().st_mode) == stat.S_IMODE(reference.stat().st_mode)
+
+
+def test_recovery_reports_canonical_and_file_digests_unambiguously(submission):
+    study, store, receipt, _ = submission
+    subject.submit_study(study, receipt, store=store)
+    result = recover(submission, receipt.parent / "recovered.json")
+    raw = subject.study_intent_path(receipt).read_bytes()
+    native = ControllerStore(store, read_only=True).attempts()[0]["spec"][
+        "declaration_provenance"
+    ]["study_submission"]
+    assert result["recovery"]["intent_sha256"] == native["intent_sha256"]
+    assert (
+        result["recovery"]["intent_file_sha256"]
+        == subject.hashlib.sha256(raw).hexdigest()
+    )
+    assert (
+        result["recovery"]["intent_sha256"] != result["recovery"]["intent_file_sha256"]
+    )
+
+
+@pytest.mark.parametrize("state", ["empty", "partial", "legacy"])
+def test_recovery_distinguishes_unproven_submission_states(submission, state):
+    study, store, receipt, _ = submission
+    subject.submit_study(study, receipt, store=store)
+    queue = ControllerStore(store)
+    rows = queue.attempts()
+    with queue.transaction() as connection:
+        if state == "empty":
+            connection.execute("DELETE FROM attempts")
+        elif state == "partial":
+            connection.execute(
+                "DELETE FROM attempts WHERE attempt_id=?", (rows[0]["attempt_id"],)
+            )
+        else:
+            for row in rows:
+                spec = row["spec"]
+                spec.pop("declaration_provenance")
+                connection.execute(
+                    "UPDATE experiments SET specification_json=? WHERE experiment_id=?",
+                    (json.dumps(spec), row["experiment_id"]),
+                )
+    expected = {
+        "empty": "no native submissions are bound.*live submitter",
+        "partial": "partial study submission evidence: 2 of 3",
+        "legacy": "Legacy/unbound study-like records exist",
+    }[state]
+    original = subject.study_intent_path(receipt).read_bytes()
+    with pytest.raises(ValueError, match=expected):
+        recover(submission, receipt.parent / "recovered.json")
+    assert subject.study_intent_path(receipt).read_bytes() == original
+    assert not (receipt.parent / "recovered.json").exists()
+
+
+def test_empty_observation_cannot_release_a_live_submitter_reservation(
+    submission, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    study, store, receipt, calls = submission
+    entered, release = Event(), Event()
+    submit = Controller.submit_many
+
+    def paused(controller, requests):
+        entered.set()
+        assert release.wait(10), "test did not release paused submitter"
+        return submit(controller, requests)
+
+    monkeypatch.setattr(Controller, "submit_many", paused)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(subject.submit_study, study, receipt, store=store)
+        try:
+            assert entered.wait(10), "submitter never reached pre-enqueue boundary"
+            intent = subject.study_intent_path(receipt).read_bytes()
+            with pytest.raises(
+                ValueError, match="no native submissions are bound.*live submitter"
+            ):
+                recover(submission, receipt.parent / "recovered.json")
+            with pytest.raises(
+                FileExistsError, match="original submitter has finished"
+            ):
+                subject.submit_study(study, receipt, store=store)
+            assert subject.study_intent_path(receipt).read_bytes() == intent
+            assert not calls
+        finally:
+            release.set()
+        result = future.result()
+    assert len(calls) == 1
+    assert (
+        len(result["runs"])
+        == len(ControllerStore(store, read_only=True).attempts())
+        == 3
+    )
+
+
+def test_explicit_fresh_path_retry_has_one_concurrent_winner(submission, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    study, store, receipt, calls = submission
+    submit = Controller.submit_many
+
+    def fail(*args, **kwargs):
+        raise ValueError("preparation failed before enqueue")
+
+    monkeypatch.setattr(Controller, "submit_many", fail)
+    with pytest.raises(ValueError):
+        subject.submit_study(study, receipt, store=store)
+    original = subject.study_intent_path(receipt).read_bytes()
+    monkeypatch.setattr(Controller, "submit_many", submit)
+    fresh = receipt.with_name("receipt-retry-1.json")
+
+    def publish():
+        try:
+            return subject.submit_study(study, fresh, store=store)
+        except FileExistsError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: publish(), range(2)))
+    assert sum(result is not None for result in results) == len(calls) == 1
+    assert len(ControllerStore(store, read_only=True).attempts()) == 3
+    assert subject.study_intent_path(receipt).read_bytes() == original
+    assert not receipt.exists()
