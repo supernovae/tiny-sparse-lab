@@ -5,6 +5,8 @@
 --index-url https://pypi.org/simple
 --find-links https://download.pytorch.org/whl/xpu/torch/
 --find-links https://download.pytorch.org/whl/xpu/triton-xpu/
+# Verified torch-2.14.1+xpu-cp314-cp314-manylinux_2_28_x86_64.whl SHA-256:
+# 4e0814459b341bca05bf688832a23c8f89d14b2f91a0e037f6f52207e29bcb8b
 torch==2.14.1+xpu; sys_platform == 'linux' and platform_machine == 'x86_64' and python_version >= '3.14' and python_version < '3.15'
 intel-cmplr-lib-rt==2026.1.0
 intel-cmplr-lib-ur==2026.1.0
@@ -29,6 +31,8 @@ umf==1.1.0
 intel-pti==1.0.1
 pyzes==0.1.2
 triton-xpu==3.8.0
+# Triton XPU's Python closure.
+pyelftools==0.33
 # Torch Python closure; shared packages agree with the locked common export.
 filelock==4.0.1
 fsspec==2026.2.0

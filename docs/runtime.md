@@ -166,10 +166,6 @@ checkpoints. Do not copy this host's registry to an SSH worker.
 
 ### Versioned vendor provisioning
 
-Intel Arc uses the analogous `xpu-arc-v1` recipe, upstream PyTorch XPU and an
-FP32 optimizer pilot. See [Intel acceleration](intel-xpu.md) for A380/Arc Pro
-setup, driver/device access, optional BF16 checks and the native lab loop.
-
 The built-in `rocm-gfx1100-v1` recipe binds AMD ROCm 10.0.0/Python 3.14 pins
 and indexes in `requirements/rocm-gfx1100.txt`; it is not a portable ROCm extra
 or a global ROCm version. First establish the actual Windows/WSL/Linux driver
@@ -233,6 +229,9 @@ resolved for Linux x86_64/Python 3.14 against the locked common dependencies,
 using the selected Torch wheel's actual metadata rather than another release's
 CUDA package versions.
 
+Intel Arc uses the analogous `xpu-arc-v1` recipe, upstream PyTorch XPU and an
+FP32 optimizer pilot. See [Intel acceleration](intel-xpu.md) for A380/Arc Pro
+setup, driver/device access, optional BF16 checks and the native lab loop.
 
 ## Executable runtime profiles
 

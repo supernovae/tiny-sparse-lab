@@ -72,7 +72,10 @@ _XPU_ARC = Recipe(
     backend="xpu",
     indexes=("https://download.pytorch.org/whl/xpu",),
     requirements=MappingProxyType(
-        {"torch_hip": False, "device_name_regex": r"(?i)Intel.*Arc"}
+        {
+            "torch_hip": False,
+            "device_name_regex": r"(?i)Intel.*Arc.*\b(?:A\d{3}|B\d{2,3})\b",
+        }
     ),
     test_precision="fp32",
 )

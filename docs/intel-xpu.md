@@ -14,8 +14,11 @@ The A380 is an A-series device. Arc Pro B60/B70 use the same XPU execution path,
 but support for each SKU, host and precision must be checked against the current
 vendor driver matrix and a fresh SparseLab doctor/stage; this guide does not
 record hardware acceptance for those cards. The recipe selects device index 0
-and requires an Intel Arc device name. On multi-GPU machines, register a separate
-explicit profile with `--device-index` for the desired GPU.
+and requires a discrete Intel Arc A-series or B-series SKU in the device name;
+integrated `Intel(R) Arc(TM) Graphics` does not match. Check
+`torch.xpu.get_device_name(0)` in the XPU interpreter before provisioning. On
+multi-GPU machines, register a separate explicit profile with `--device-index`
+for the desired GPU.
 
 ## Host prerequisites
 
@@ -76,7 +79,7 @@ To use an already provisioned XPU interpreter instead:
 ```sh
 uv run --locked --extra cpu sparselab runtime env register intel-existing \
   --python /absolute/xpu-env/bin/python --backend xpu \
-  --device-index 0 --device-name-regex 'Intel.*Arc' --json
+  --device-index 0 --device-name-regex '(?i)Intel.*Arc.*\b(?:A\d{3}|B\d{2,3})\b' --json
 ```
 
 Use FP32 first on the A380. BF16 is optional and needs its own check:
@@ -154,3 +157,7 @@ checkpoint/resume state equality and checkpoint-bound held-out evidence. CPU
 contract tests cover isolated provisioning, failure retention, PCI filtering,
 selected-device memory queries and diagnostic RNG preservation. CPU tests do
 not establish GPU throughput, driver compatibility or numerical acceptance.
+Real Arc execution and exact full-versus-resumed checkpoint equality remain
+unverified until the FP32 doctor JSON and this hardware test output are retained
+from a provisioned card. The equality check requires deterministic XPU kernels
+for the repeated training sequence.

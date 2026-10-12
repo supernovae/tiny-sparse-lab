@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 from types import SimpleNamespace
@@ -225,3 +226,25 @@ def test_xpu_recipe_pins_upstream_torch_and_intel_runtime():
 
     args = parser().parse_args(["provision", "intel", "--recipe", recipe.id])
     assert args.recipe == recipe.id
+
+
+@pytest.mark.parametrize(
+    "name,accepted",
+    [
+        ("Intel(R) Arc(TM) A380 Graphics", True),
+        ("Intel Arc A770", True),
+        ("Intel(R) Arc(TM) B580 Graphics", True),
+        ("Intel Arc Pro B60", True),
+        ("Intel Arc Pro B70", True),
+        ("intel arc a380", True),
+        ("Intel(R) Arc(TM) Graphics", False),
+        ("Intel(R) Arc(TM) 140V GPU", False),
+        ("Intel Arc A3800", False),
+        ("Intel Arc B6000", False),
+    ],
+)
+def test_xpu_recipe_requires_discrete_arc_sku(name, accepted):
+    recipe = recipes.get_recipe("xpu-arc-v1")
+    assert (
+        re.search(recipe.requirements["device_name_regex"], name) is not None
+    ) == accepted
