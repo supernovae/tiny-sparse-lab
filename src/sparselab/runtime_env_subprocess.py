@@ -95,7 +95,11 @@ def run_bounded(
             command, code, bytes(streams["stdout"]), bytes(streams["stderr"])
         )
     finally:
-        if process.poll() is None:
+        if not completed:
+            # The leader can exit while descendants still hold our pipes open.
+            # Kill the owned group even then; detached sessions are outside it.
+            # Do not poll/wait first: the unreaped leader reserves its PID/PGID
+            # through the signal, so cleanup cannot target a recycled group.
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
