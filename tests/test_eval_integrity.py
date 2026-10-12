@@ -603,7 +603,8 @@ def _decide_final(results: list[dict[str, Any]], *, has_baseline: bool) -> Any:
 
 def test_no_baseline_final_with_missing_evidence_is_rerun() -> None:
     ordinary, out = _decide_final([_loss_row(), LM_EVAL_MISSING], has_baseline=False)
-    assert ordinary["status"] == "info" and ordinary["missing"]  # the review path
+    assert ordinary["status"] == "incomplete" and ordinary["action"] == "rerun"
+    assert ordinary["missing"] == [LM_EVAL_MISSING]
     assert out["status"] == "incomplete" and out["action"] == "rerun"
     assert out["next_tier"] is None
     assert "lm_eval" in out["suggestion"] and "unchanged" in out["suggestion"]

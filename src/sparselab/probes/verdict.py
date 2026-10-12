@@ -219,6 +219,17 @@ def _verdict(
     }
 
 
+def _incomplete_verdict(missing: list[dict[str, Any]]) -> dict[str, Any]:
+    named = "; ".join(f"{m['id']} ({m['status']}: {m['note']})" for m in missing)
+    return _verdict(
+        "incomplete",
+        "rerun",
+        [f"missing evidence: {m['id']} ({m['status']})" for m in missing],
+        f"Not enough evidence for a verdict. Fix and re-run: {named}.",
+        missing,
+    )
+
+
 NOT_COMPARABLE_SUGGESTION = (
     "The try's arms are not comparable (failed held-out checks: {failed}), so "
     "no probe result can promote it. Fix the cause (same data, tokenizer, "
@@ -378,6 +389,8 @@ def decide(
             missing,
         )
     if not has_baseline:
+        if missing:
+            return _incomplete_verdict(missing)
         return _verdict(
             "info",
             "compare",
@@ -405,14 +418,7 @@ def decide(
             missing,
         )
     if missing:
-        named = "; ".join(f"{m['id']} ({m['status']}: {m['note']})" for m in missing)
-        return _verdict(
-            "incomplete",
-            "rerun",
-            [f"missing evidence: {m['id']} ({m['status']})" for m in missing],
-            f"Not enough evidence for a verdict. Fix and re-run: {named}.",
-            missing,
-        )
+        return _incomplete_verdict(missing)
     if guard and guard.get("overfit_suspected"):
         return _verdict(
             "warn",

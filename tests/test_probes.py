@@ -385,14 +385,15 @@ def test_decide_actions_cover_the_documented_table() -> None:
 
 
 @pytest.mark.parametrize("status", sorted(MISSING_STATUSES))
-def test_missing_evidence_is_never_success(status: str) -> None:
+@pytest.mark.parametrize("has_baseline", [True, False])
+def test_missing_evidence_is_never_success(status: str, has_baseline: bool) -> None:
     """An unavailable tier or a probe error never reads as PASS or escalation."""
     improved = _result_row("heldout_loss", "pass", improved=True)
     rows = [improved, _result_row("lm_eval", status, note="lm-eval not installed")]
     for tiers in (["fast"], ["fast", "standard", "full"]):
         out = decide(
             rows,
-            has_baseline=True,
+            has_baseline=has_baseline,
             tiers_run=tiers,
             requested_tier="full",
             guard=None,
@@ -418,21 +419,62 @@ def test_missing_evidence_is_never_success(status: str) -> None:
     assert failed["action"] == "tweak" and failed["missing"]
 
 
-def test_stopped_battery_names_the_unrun_probes() -> None:
+@pytest.mark.parametrize("has_baseline", [True, False])
+@pytest.mark.parametrize("kind", ["cancelled", "resources", "oom", "interrupted"])
+def test_stopped_battery_names_the_unrun_probes(has_baseline: bool, kind: str) -> None:
     improved = _result_row("heldout_loss", "pass", improved=True)
     out = decide(
         [improved, _result_row("calibration", "skipped")],
-        has_baseline=True,
+        has_baseline=has_baseline,
         tiers_run=["fast"],
         requested_tier="fast",
         guard=None,
         specs=BY_ID,
-        stop={"kind": "oom", "reason": "out of memory"},
+        stop={"kind": kind, "reason": "synthetic stop"},
     )
-    assert out["action"] == "rerun"
+    assert out["status"] == "incomplete" and out["action"] == "rerun"
+    assert out["next_tier"] is None
+    assert "calibration" in out["suggestion"]
     assert out["missing"] == [
-        {"id": "calibration", "status": "stopped:oom", "note": "out of memory"}
+        {"id": "calibration", "status": f"stopped:{kind}", "note": "synthetic stop"}
     ]
+
+
+@pytest.mark.parametrize("has_baseline", [True, False])
+@pytest.mark.parametrize("missing", [True, False])
+def test_missing_evidence_preserves_failure_precedence(
+    has_baseline: bool, missing: bool
+) -> None:
+    options = {
+        "has_baseline": has_baseline,
+        "tiers_run": ["fast"],
+        "requested_tier": "fast",
+        "guard": None,
+        "specs": BY_ID,
+    }
+    gaps = [_result_row("lm_eval", "unavailable")] if missing else []
+    numerical = decide(
+        [
+            _result_row("heldout_loss", "fail", details={"numerical_failure": "nan"}),
+            *gaps,
+        ],
+        **options,
+    )
+    assert numerical["status"] == "fail" and numerical["action"] == "abandon"
+    assert bool(numerical["missing"]) == missing
+    if has_baseline:
+        hard = decide([_result_row("repetition", "fail"), *gaps], **options)
+        assert hard["status"] == "fail" and hard["action"] == "abandon"
+        assert bool(hard["missing"]) == missing
+    soft = decide([_result_row("calibration", "fail"), *gaps], **options)
+    expected = (
+        ("fail", "tweak")
+        if has_baseline
+        else ("incomplete", "rerun")
+        if missing
+        else ("info", "compare")
+    )
+    assert (soft["status"], soft["action"]) == expected
 
 
 def test_overfit_guard_flags_dev_only_gains_beyond_noise() -> None:
@@ -618,6 +660,32 @@ def test_unavailable_optional_tier_is_incomplete(scripted: _Script) -> None:
     assert row["note"] == "baseline: lm-eval is not installed"
     assert result["verdict"]["status"] == "incomplete"
     assert result["verdict"]["action"] == "rerun"
+
+
+@pytest.mark.parametrize("failure", ["unavailable", "error", "interrupted", None])
+def test_no_baseline_battery_guidance(scripted: _Script, failure: str | None) -> None:
+    def stop() -> None:
+        if failure == "unavailable":
+            raise runner.ProbeUnsupported("synthetic missing dependency")
+        if failure == "error":
+            raise RuntimeError("synthetic probe error")
+        raise KeyboardInterrupt
+
+    if failure:
+        scripted.hooks["cand:calibration"] = stop
+    result = runner.run_battery(
+        scripted.arm("cand"), None, tier="fast", protocol=PROTOCOL
+    )
+    verdict = result["verdict"]
+    assert result["baseline"] is None
+    if failure:
+        assert verdict["status"] == "incomplete" and verdict["action"] == "rerun"
+        assert "calibration" in verdict["suggestion"]
+        assert any("calibration" in gap["id"] for gap in verdict["missing"])
+    else:
+        assert verdict["status"] == "info" and verdict["action"] == "compare"
+        assert verdict["missing"] == []
+    assert verdict["next_tier"] is None
 
 
 def test_cancel_sentinel_stops_probing_at_the_next_safe_point(
