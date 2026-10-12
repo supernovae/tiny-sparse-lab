@@ -176,6 +176,17 @@ def _extra(row: Mapping[str, Any]) -> str:
 
 
 def render(result: Mapping[str, Any], *, color: bool = False) -> str:
+    from sparselab.lab_records import is_setup_record
+    from sparselab.lab_results import baseline_text
+
+    if is_setup_record(result):
+        return "\n".join(
+            [
+                f"PROBE {result['probe_id']}  status: {result['status']}",
+                baseline_text(result),
+                f"  setup: {result.get('failure', 'incomplete; no scoring evidence')}",
+            ]
+        )
     suite = result["suite"]
     target = result["target"]
     baseline = result.get("baseline")
@@ -187,6 +198,8 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
         + f"  {suite['name']} v{suite['version']} · suite {suite['sha256'][:8]}"
         + f" · tier {result['tier']} (ran {tiers}) · {result['seconds']:.1f}s",
     ]
+    if "probe_id" in result:
+        lines.append(baseline_text(result))
     for label, who in (("candidate", target), ("baseline ", baseline)):
         if who is None:
             continue

@@ -27,7 +27,7 @@ from sparselab.dashboard.probe_data import (
     result_group,
 )
 from sparselab.explorer import cached_explorations
-from sparselab.lab_records import iter_lab_records
+from sparselab.lab_records import is_setup_record, iter_lab_records
 from sparselab.probes.points import METRICS, collect_points, is_final
 from sparselab.probes.verdict import respect_try_comparison
 
@@ -67,7 +67,9 @@ def snapshot(lab_dir: Path) -> LabSnapshot:
             ((p, r) for k, p, r in accepted if k == "try"), key=newest, reverse=True
         ),
         probes=sorted(
-            ((p, r) for k, p, r in accepted if k == "probe"), key=newest, reverse=True
+            ((p, r) for k, p, r in accepted if k == "probe" and not is_setup_record(r)),
+            key=newest,
+            reverse=True,
         ),
         rejected=rejected,
         points=collect_points(lab_dir),

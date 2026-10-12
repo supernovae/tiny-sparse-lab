@@ -9,8 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.lab_context import LabContext, LabSignal
-from sparselab.lab_records import read_lab_record, write_sealed
-from sparselab.lab_results import resolve_checkpoint
+from sparselab.lab_records import PROBE_FORMAT, read_lab_record, write_sealed
+from sparselab.lab_results import (
+    CheckpointTarget,
+    ResultLookupError,
+    baseline_provenance,
+    checkpoint_from_result,
+    resolve_checkpoint,
+    resolve_result,
+)
 from sparselab.probes.runner import Arm, lm_eval_spec, progress_writer, run_battery
 from sparselab.reference_models import load_reference, require_reference_extras
 
@@ -22,10 +29,11 @@ def load_target(
     runs_dir: Path | None,
     backend: str | None,
     authorization: Any,
+    selected: CheckpointTarget | None = None,
 ) -> Any:
     from sparselab.evaluation.inference import load_run
 
-    target = resolve_checkpoint(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+    target = selected or resolve_checkpoint(spec, lab_dir=lab_dir, runs_dir=runs_dir)
     return load_run(
         target.run.name,
         target.run.parent,
@@ -87,20 +95,62 @@ def run_probe(
     folder = lab_dir / "probes" / probe_id
     folder.mkdir(parents=True, exist_ok=False)
     progress = progress_writer(folder / "progress.json")
-    progress({"state": "loading", "tier": tier, "target": target_spec})
     context = LabContext(
         folder / "CANCEL", resource_envelope=resource_envelope, workspace=lab_dir
     )
-    print(
-        f"probe {probe_id}: touch {context.cancel_path} (or Ctrl-C) to stop",
-        file=sys.stderr,
-    )
 
-    def arm(spec: str) -> Arm:
+    request = dict(request) if request is not None else {"baseline": baseline_spec}
+    provenance = baseline_provenance(baseline_spec)
+    setup_record = {
+        "format": PROBE_FORMAT,
+        "probe_id": probe_id,
+        "created_at": datetime.now(UTC).isoformat(),
+        "status": "started",
+        "tier": tier,
+        "final": final,
+        "request": request,
+        "baseline_provenance": provenance,
+        "target": None,
+        "baseline": None,
+    }
+    path = folder / "probe.json"
+
+    def own_started(existing: Path) -> bool:
+        current = read_probe(existing)
+        return (
+            current.get("status") == "started" and current.get("probe_id") == probe_id
+        )
+
+    def arm(spec: str, *, baseline: bool = False) -> Arm:
         if is_reference(spec):
             return Arm(load=lambda: load_reference(spec), reference=True)
         # Resolve now (fail fast on a typo); load lazily, one arm at a time.
-        resolve_checkpoint(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+        try:
+            found = resolve_result(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+            selected = checkpoint_from_result(spec, found)
+        except ResultLookupError as error:
+            if baseline:
+                provenance.update(status=error.status, error=error.as_json())
+            raise
+        if baseline:
+            provenance.update(
+                status="resolved",
+                resolved={
+                    "kind": found.kind
+                    or ("run" if found.path == found.run else "checkpoint"),
+                    "path": str(found.path),
+                    "run_dir": str(selected.run),
+                    "run_id": selected.run.name,
+                    "checkpoint": selected.checkpoint,
+                    "expected_checkpoint_sha256": selected.expected_sha256,
+                    **(
+                        {"record_sha256": found.record["record_sha256"]}
+                        if found.record
+                        else {}
+                    ),
+                },
+            )
+            write_sealed(path, setup_record, may_replace=own_started)
         return Arm(
             load=lambda: load_target(
                 spec,
@@ -108,15 +158,24 @@ def run_probe(
                 runs_dir=runs_dir,
                 backend=backend,
                 authorization=authorization,
+                selected=selected,
             )
         )
 
     context.install()
     try:
         try:
+            write_sealed(path, setup_record)
+            progress({"state": "loading", "tier": tier, "target": target_spec})
+            print(
+                f"probe {probe_id}: touch {context.cancel_path} (or Ctrl-C) to stop",
+                file=sys.stderr,
+            )
             result = run_battery(
                 arm(target_spec),
-                arm(baseline_spec) if baseline_spec is not None else None,
+                arm(baseline_spec, baseline=True)
+                if baseline_spec is not None
+                else None,
                 tier=tier,
                 fast_fail=fast_fail,
                 progress=progress,
@@ -130,19 +189,27 @@ def run_probe(
             context.finalizing = True
             name = error.name if isinstance(error, LabSignal) else type(error).__name__
             progress({"state": "failed", "error": f"{name}: {error}"})
+            setup_record.update(
+                status="interrupted"
+                if isinstance(error, (LabSignal, KeyboardInterrupt))
+                else "failed",
+                failure=f"{name}: {error}",
+            )
+            write_sealed(path, setup_record, may_replace=own_started)
             if isinstance(error, (LabSignal, KeyboardInterrupt)):
                 raise KeyboardInterrupt from None
             raise
         # Signals are only noted from here on, so the record is always written.
         context.finalizing = True
-        path = folder / "probe.json"
         sealed = write_sealed(
             path,
             {
                 **result,
                 "probe_id": probe_id,
-                **({"request": request} if request is not None else {}),
+                "request": request,
+                "baseline_provenance": provenance,
             },
+            may_replace=own_started,
         )
     finally:
         context.restore()

@@ -70,10 +70,19 @@ def lab(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
 
 def test_try_writes_one_sealed_record_with_identity_and_heldout_scores(
     lab: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root, baseline = lab
     delta = _delta(root, "wider.yaml", {"model.ffn_dim": 128})
-    record, path = run_try(delta, baseline, work_dir=root / "work")
+    monkeypatch.chdir(root)
+    record, path = run_try(delta, Path(baseline.name), work_dir=root / "work")
+    assert record["request"]["baseline"] == baseline.name
+    assert record["baseline_provenance"] == {
+        "selector": baseline.name,
+        "working_directory": str(root),
+        "status": "resolved",
+        "resolved": {"kind": "config", "path": str(baseline)},
+    }
 
     assert path == root / "work/lab/tries" / record["try_id"] / "try.json"
     assert read_record(path) == record

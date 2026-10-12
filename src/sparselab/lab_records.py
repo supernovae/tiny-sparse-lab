@@ -28,6 +28,15 @@ KINDS = {
 _BY_FORMAT = {fmt: kind for kind, (fmt, _, _) in KINDS.items()}
 
 
+def is_setup_record(record: Mapping[str, Any]) -> bool:
+    """A retained probe setup attempt, without a battery's scoring protocol."""
+    return (
+        record.get("format") == PROBE_FORMAT
+        and record.get("status") in {"started", "failed", "interrupted"}
+        and "suite" not in record
+    )
+
+
 def canonical(value: Any) -> bytes:
     from sparselab.training.manifest import canonical_json
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -549,3 +550,74 @@ def test_needle_chance_is_omitted_when_the_group_disagrees(tmp_path: Path) -> No
             break
     else:
         raise AssertionError("no needle chart")
+
+
+@pytest.mark.parametrize("status", ["started", "failed", "interrupted"])
+def test_setup_probes_do_not_replace_scored_dashboard_history(
+    tmp_path: Path, status: str
+) -> None:
+    from test_lab_results import _run
+
+    from sparselab.dashboard.probe_data import load_history
+    from sparselab.lab_records import is_setup_record, read_lab_record
+    from sparselab.lab_results import ResultLookupError
+    from sparselab.probes.cli import run_probe
+    from sparselab.probes.render import render
+
+    # Real failed lookup produces the setup shape; started/interrupted are
+    # retained fixture states of the same attempt, without executing a model.
+    run = _run(tmp_path)
+    with pytest.raises(ResultLookupError):
+        run_probe(str(run), "missing", lab_dir=tmp_path)
+    (setup_path,) = (tmp_path / "probes").glob("*/probe.json")
+    setup = read_lab_record(setup_path)[1]
+    setup["status"] = status
+    setup_path.write_text(json.dumps(seal(setup)))
+    original = setup_path.read_bytes()
+    assert is_setup_record(setup)
+    assert status in render(setup)
+
+    scored = {**_probe_result(), "probe_id": "scored"}
+    write_sealed(_mk(tmp_path / "probes/scored/probe.json"), scored)
+    # A genuine incomplete battery has a suite and scoring evidence: preserve
+    # it even though its status is interrupted.
+    partial = {
+        **_probe_result(),
+        "probe_id": "partial",
+        "status": "interrupted",
+        "created_at": "2026-10-10T18:00:00+00:00",
+        "stop": {"kind": "interrupted"},
+    }
+    write_sealed(_mk(tmp_path / "probes/partial/probe.json"), partial)
+    assert not is_setup_record(partial)
+    entries, rejected = load_history(tmp_path)
+    assert [entry.key for entry in entries] == ["scored", "partial"]
+    assert not rejected
+    snap = lab_data.snapshot(tmp_path)
+    assert [entry.key for entry in snap.entries] == ["scored", "partial"]
+    assert [row["id"] for row in lab_data.activity(snap)] == ["scored", "partial"]
+    assert snap.entries[0].result["verdict"] == scored["verdict"]
+    assert all("None" not in step["command"] for step in lab_data.next_steps(snap))
+    home = _text(_render("home", tmp_path))
+    assert "WARN" in home and "Calibration slipped" in home
+    experiments = _render("experiments", tmp_path)
+    assert "fact recall" in _text(experiments).lower()
+    assert experiments.selectbox[0].value == 0
+    assert "scored" in experiments.selectbox[0].options[0]
+    assert len(experiments.selectbox[0].options) == 2
+    assert setup_path.read_bytes() == original
+
+
+@pytest.mark.parametrize("page", ["home", "experiments"])
+def test_setup_only_dashboard_keeps_empty_result_guidance(
+    tmp_path: Path, page: str
+) -> None:
+    write_sealed(
+        _mk(tmp_path / "probes/setup/probe.json"),
+        {"format": "sparselab-probe-v1", "probe_id": "setup", "status": "started"},
+    )
+    snap = lab_data.snapshot(tmp_path)
+    assert snap.empty and not snap.entries and not lab_data.activity(snap)
+    assert "sparselab try DELTA.yaml --vs BASELINE.yaml" in _text(
+        _render(page, tmp_path)
+    )
