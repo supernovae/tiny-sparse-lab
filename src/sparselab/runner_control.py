@@ -20,6 +20,10 @@ from sparselab.operational_monitor import (
 )
 
 
+class RunnerInterrupted(BaseException):
+    """Signal cancellation, never a recoverable sensor or filesystem error."""
+
+
 def _sync_dir(path: Path) -> None:
     fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
@@ -127,7 +131,11 @@ def run_controlled(
     blocked_path: Path,
     **monitor_options: Any,
 ) -> MonitorCompletion:
-    """One flock owner; never reclaim incomplete state or remove a blocked marker."""
+    """One flock owner; never reclaim incomplete state or remove a blocked marker.
+
+    Signals raise RunnerInterrupted after cleanup, bypassing recoverable monitor
+    errors while retaining incomplete durable state for explicit reconciliation.
+    """
     if sys.platform != "linux":
         raise ValueError("runner control requires Linux")
     # Resolve parents, never the final component: symlinks must remain visible.
@@ -156,7 +164,7 @@ def run_controlled(
         if stopping:
             return  # Repeated signals must not interrupt owned cleanup or persistence.
         stopping = True
-        raise InterruptedError(f"runner received signal {signum}")
+        raise RunnerInterrupted(f"runner received signal {signum}")
 
     fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
