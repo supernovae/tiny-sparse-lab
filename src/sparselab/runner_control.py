@@ -133,8 +133,8 @@ def run_controlled(
 ) -> MonitorCompletion:
     """One flock owner; never reclaim incomplete state or remove a blocked marker.
 
-    Signals raise RunnerInterrupted after cleanup, bypassing recoverable monitor
-    errors while retaining incomplete durable state for explicit reconciliation.
+    Signals raise RunnerInterrupted, bypassing recoverable monitor errors.
+    Started attempts retain incomplete durable state for explicit reconciliation.
     """
     if sys.platform != "linux":
         raise ValueError("runner control requires Linux")
