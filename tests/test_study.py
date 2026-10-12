@@ -410,7 +410,10 @@ def test_three_seed_cli_submission_uses_one_workspace(
     assert all(item["status"] == "QUEUED" for item in queued)
     assert Path(output["store"]) == work / "runs"
     assert not list(tmp_path.glob("runs*"))
-    assert len(list(work.glob("receipt*.json"))) == 1
+    assert {path.name for path in work.glob("receipt*.json")} == {
+        "receipt.json",
+        "receipt.json.intent.json",
+    }
 
     # Exercise the controller's resume routing without fabricating model weights
     # or running training. Only checkpoint bundle preparation is stubbed.
