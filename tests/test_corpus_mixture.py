@@ -338,6 +338,67 @@ def test_native_packing_supervises_exact_exported_quota(
     ]
 
 
+def test_yaml_mixture_consumer_is_independent_of_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Release authentication and tokenizer encoding use the tiny synthetic fixture;
+    # mixture materialization, cold replay, dataset binding and packing are real.
+    assets = tmp_path / "source" / "nested"
+    assets.mkdir(parents=True)
+    declaration, _, release = _fixture(assets, monkeypatch)
+    output = assets / "output"
+    receipt = mixture.materialize_mixture(declaration, output)
+    (release / "lm/validation.jsonl").write_text('{"text":"heldout"}\n')
+    fit_dir = assets / "fit"
+    fit_dir.mkdir()
+    (fit_dir / "tokenizer.json").write_text("{}")
+    monkeypatch.setattr(
+        mixture,
+        "load_tokenizer_config",
+        lambda *args: SimpleNamespace(output_dir=fit_dir, vocab_size=260),
+    )
+    from sparselab.corpus import export
+
+    monkeypatch.setattr(export, "_licenses", lambda path: "local research")
+    raw = load_config(
+        Path(__file__).resolve().parents[1] / "configs/runtime_smoke_cpu.yaml"
+    ).model_dump(mode="json")
+    raw["model"]["vocab_size"] = 260
+    raw["training"]["seq_len"] = 8
+    raw["tokenizer"]["path"] = "fit/tokenizer.json"
+    raw["dataset"] = {
+        "source": "local_token_mixture",
+        "revision": release.name,
+        "cache_dir": "cache",
+        "train_path": "output/train.tokens.jsonl",
+        "validation_path": f"{release.name}/lm/validation.jsonl",
+        "train_max_documents": receipt["records"],
+        "validation_max_documents": 1,
+        "train_max_tokens": 20,
+        "validation_max_tokens": 9,
+        "license": "local research",
+        "mixture_declaration_path": "mixture.yaml",
+        "mixture_output_path": "output",
+    }
+    source = assets / "run.yaml"
+    source.write_text(yaml.safe_dump(raw))
+    tokenizer = SimpleNamespace(
+        token_to_id=lambda value: {"<bos>": 2, "<eos>": 3, "<pad>": 0}[value]
+    )
+    for cwd in (tmp_path / "cwd-a", tmp_path / "unrelated" / "cwd-b"):
+        cwd.mkdir(parents=True)
+        monkeypatch.chdir(cwd)
+        config = load_config(source)
+        verified = mixture.verify_mixture_dataset(
+            config.dataset, config.tokenizer.path, config.model.vocab_size
+        )
+        assert verified == receipt
+        ids, mask, stats = _collect_token_mixture(config, tokenizer, verified)
+        assert stats["supervised_target_positions"] == 20
+        assert sum(mask) == 20
+        assert len(ids) == len(mask)
+
+
 def test_native_packing_rejects_malformed_target_row(tmp_path: Path) -> None:
     path = tmp_path / "train.tokens.jsonl"
     path.write_text(json.dumps({"token_ids": [5, 5]}) + "\n")
