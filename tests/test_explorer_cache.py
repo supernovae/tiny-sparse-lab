@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import sparselab.probes.cli  # noqa: F401 -- bind native resolver before fixture patches
 from sparselab import explorer, lab_results
 from sparselab.lab_records import is_sealed, seal, write_json_atomic
 

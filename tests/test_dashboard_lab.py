@@ -372,13 +372,58 @@ def test_explorer_dashboard_labels_unverified_cache(
 
     entry = lab_data.snapshot(lab).explorations[0]
     path = Path(entry["path"])
+    original = path.read_bytes()
     stored = explorer.read_cached(path)
     stored["runtime"] = runtime
     write_json_atomic(path, seal(stored))
-    original = path.read_bytes()
+    modified = path.read_bytes()
+    try:
+        test = _render("explorer", lab)
+        assert any(reason in warning.value for warning in test.warning)
+        assert "⚠ unverified" in test.selectbox(key="explorer_cached").options[0]
+        assert path.read_bytes() == modified
+    finally:
+        path.write_bytes(original)
+
+
+def test_explorer_picker_distinguishes_runtime_and_legacy_entries(
+    lab: Path, tmp_path: Path
+) -> None:
+    from sparselab.lab_records import seal, write_json_atomic
+
+    entry = lab_data.snapshot(lab).explorations[0]
+    stored = explorer.read_cached(Path(entry["path"]))
+    sha, text = stored["target"]["checkpoint_sha256"], stored["text"]
+    # Isolate additional caches from the module-scoped dashboard fixture.
+    lab = tmp_path
+    cpu_path = explorer.cache_path(lab, sha, text, stored["runtime"])
+    cpu_path.parent.mkdir(parents=True)
+    write_json_atomic(cpu_path, stored)
+    rocm = {**stored["runtime"], "backend": "rocm"}
+    write_json_atomic(
+        explorer.cache_path(lab, sha, text, rocm), seal({**stored, "runtime": rocm})
+    )
+    legacy = {k: v for k, v in stored.items() if k != "runtime"}
+    write_json_atomic(explorer.cache_path(lab, sha, text), seal(legacy))
     test = _render("explorer", lab)
-    assert any(reason in warning.value for warning in test.warning)
-    assert path.read_bytes() == original
+    options = test.selectbox(key="explorer_cached").options
+    assert len(options) == 3
+    assert any(
+        "pytorch / cpu:0 / fp32" in label and "unverified" not in label
+        for label in options
+    )
+    assert any(
+        "pytorch / rocm:0 / fp32" in label and "unverified" not in label
+        for label in options
+    )
+    assert any(
+        "missing actual-runtime provenance" in label and "⚠ unverified" in label
+        for label in options
+    )
+    assert any(
+        "runtime shown per exploration" in caption.value for caption in test.caption
+    )
+    assert not any("computed on CPU" in caption.value for caption in test.caption)
 
 
 def test_explorer_page_names_the_size_limit(lab: Path) -> None:

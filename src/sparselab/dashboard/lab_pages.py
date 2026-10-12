@@ -934,8 +934,8 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
         "Model explorer",
         "What is inside this model, and how does it process a sentence?",
         f"small checkpoints only (≤ {ex.MAX_PARAMETERS / 1e6:.0f}M parameters, "
-        f"≤ {ex.MAX_TOKENS} tokens) · computed on CPU through the verified "
-        "checkpoint loader and cached under LAB/explorer",
+        f"≤ {ex.MAX_TOKENS} tokens) · computed through the verified checkpoint "
+        "loader (runtime shown per exploration) and cached under LAB/explorer",
     )
     snap = _snapshot(lab_dir)
     cached = snap.explorations
@@ -964,7 +964,9 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
             range(len(cached)),
             format_func=lambda i: (
                 f"{(cached[i].get('target') or {}).get('run_id')} · "
-                f"“{cached[i]['text'][:48]}” · {_when(cached[i]['created_at'])}"
+                f"“{cached[i]['text'][:48]}” · {_when(cached[i]['created_at'])} · "
+                f"{ex.runtime_label(cached[i])}"
+                + (" · ⚠ unverified" if cached[i].get("cache_issue") else "")
             ),
             key="explorer_cached",
         )
