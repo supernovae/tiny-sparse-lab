@@ -517,3 +517,20 @@ def test_unsafe_native_ids_rejected(submission, key):
         )
     with pytest.raises(ValueError):
         recover(submission, receipt.parent / "recovered.json")
+
+
+@pytest.mark.parametrize("mask", [0o022, 0o077])
+def test_atomic_publication_retains_existing_creation_permissions(tmp_path, mask):
+    import os
+    import stat
+
+    previous = os.umask(mask)
+    try:
+        reference = tmp_path / "reference"
+        with reference.open("xb") as handle:
+            handle.write(b"reference")
+        output = tmp_path / "receipt.json"
+        subject._write_json_exclusive(output, {"complete": True})
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(output.stat().st_mode) == stat.S_IMODE(reference.stat().st_mode)

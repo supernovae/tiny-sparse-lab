@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import re
-import tempfile
 import uuid
 from collections import defaultdict
 from dataclasses import asdict, dataclass
@@ -461,7 +460,8 @@ def _write_json_exclusive(path: Path, payload: dict[str, object]) -> None:
     # Persist newly created directory entries before relying on the intent.
     for parent in reversed(missing_parents):
         _sync_directory(parent.parent)
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
     try:
         with os.fdopen(descriptor, "wb") as handle:
             if handle.write(encoded) != len(encoded):
