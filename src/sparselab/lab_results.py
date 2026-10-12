@@ -231,6 +231,11 @@ def baseline_provenance(spec: str | None) -> dict[str, Any]:
 def baseline_text(record: Any) -> str:
     """Read-only presentation; historical relative selectors stay uncertain."""
     provenance = record.get("baseline_provenance")
+    request = record.get("request") or {}
+    if (provenance or {}).get("status") == "not_requested" or (
+        provenance is None and "baseline" in request and request["baseline"] is None
+    ):
+        return "  baseline: none requested"
     if provenance is None:
         selector = (record.get("request") or {}).get("baseline")
         return (

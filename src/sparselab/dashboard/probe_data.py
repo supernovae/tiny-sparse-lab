@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sparselab.lab_records import iter_lab_records
+from sparselab.lab_records import is_setup_record, iter_lab_records
 from sparselab.probes.points import is_final
 from sparselab.probes.verdict import respect_try_comparison
 
@@ -70,6 +70,8 @@ def load_history(
     accepted, rejected = iter_lab_records(lab_dir, limit)
     entries: list[ProbeEntry] = []
     for kind, path, record in accepted:
+        if is_setup_record(record):
+            continue
         if kind == "try":
             probe = record.get("probe")
             if not isinstance(probe, dict) or "format" not in probe:

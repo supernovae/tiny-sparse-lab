@@ -124,8 +124,9 @@ checkpoint selection; provenance is not automatic relocation or replay.
 Try seals provenance before input parsing. Probe seals a started record before
 native lookup and retains failed/interrupted setup, with unresolved or explicit
 lookup failure status when no baseline was selected. Such records contain no
-scoring evidence and cannot select a checkpoint. Invalid declarations rejected
-before an execution starts do not create a record.
+scoring evidence and cannot select a checkpoint. Dashboard result history and
+Home activity omit setup probes; `report` still reads their retained records.
+Invalid declarations rejected before an execution starts do not create a record.
 
 Text `try`, `probe` and `report` output shows the original selector and resolution
 status. `--json` exposes the sealed fields directly. Historical records remain
@@ -134,7 +135,14 @@ missing provenance and an unknown original working directory; JSON returns the
 original sealed document without adding inferred fields. Readers never infer
 that directory from their own cwd, reseal history, create stores, or score models.
 
-Resolution records a selected location, not proof that parsing, loading or scoring
-succeeded. Historical records with a relative `run_dir` remain reportable, but
+For try, `resolved` means the config path was made absolute before parsing; for
+probe it means native unique lookup selected a record, run or checkpoint.
+Neither status proves that parsing, loading or scoring succeeded. Non-CLI callers
+that omit `request` now receive a minimal sealed request containing `baseline`;
+caller-supplied requests are preserved unchanged. Text says
+`baseline: none requested` when sealed evidence explicitly records no baseline
+request. Historical records without that request evidence retain uncertainty
+about the original selector.
+Historical records with a relative `run_dir` remain reportable, but
 checkpoint consumers refuse to interpret that location against the reader's
 working directory. Pass an explicit checkpoint path to start new work.

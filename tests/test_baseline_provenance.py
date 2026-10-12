@@ -248,3 +248,18 @@ def test_historical_relative_run_location_cannot_use_reader_cwd(
         resolve_checkpoint(str(path), lab_dir=tmp_path)
     assert read_lab_record(path)[1] == seal(record)
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"baseline_provenance": {"selector": None, "status": "not_requested"}},
+        {"request": {"baseline": None}},
+    ],
+)
+def test_explicit_no_baseline_display(record):
+    assert baseline_text(record) == "  baseline: none requested"
+
+
+def test_missing_historical_request_retains_uncertainty():
+    assert "original working directory unknown" in baseline_text({"baseline": None})

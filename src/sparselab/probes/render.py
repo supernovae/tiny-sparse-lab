@@ -176,12 +176,10 @@ def _extra(row: Mapping[str, Any]) -> str:
 
 
 def render(result: Mapping[str, Any], *, color: bool = False) -> str:
+    from sparselab.lab_records import is_setup_record
     from sparselab.lab_results import baseline_text
 
-    if (
-        result.get("status") in {"started", "failed", "interrupted"}
-        and "suite" not in result
-    ):
+    if is_setup_record(result):
         return "\n".join(
             [
                 f"PROBE {result['probe_id']}  status: {result['status']}",

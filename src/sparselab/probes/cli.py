@@ -201,7 +201,6 @@ def run_probe(
             raise
         # Signals are only noted from here on, so the record is always written.
         context.finalizing = True
-        path = folder / "probe.json"
         sealed = write_sealed(
             path,
             {
