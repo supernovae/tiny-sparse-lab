@@ -26,6 +26,7 @@ from sparselab.dashboard.probe_data import (
     probe_row,
     result_group,
 )
+from sparselab.dashboard.probe_hints import followup_plan, render_followup
 from sparselab.explorer import cached_explorations
 from sparselab.lab_records import is_setup_record, iter_lab_records
 from sparselab.probes.points import METRICS, collect_points, is_final
@@ -164,16 +165,24 @@ def next_steps(
         # tweak, longer run) the verdict banner already says what to do.
         latest = snap.entries[0]
         verdict = latest.result.get("verdict") or {}
-        target = (latest.result.get("target") or {}).get("run_id")
         action = verdict.get("action")
-        baseline = (latest.result.get("baseline") or {}).get("run_id")
-        command = {
-            "escalate": f"sparselab probe {target} --config {verdict.get('next_tier')}"
-            + (f" --vs {baseline}" if baseline else ""),
-            "compare": f"sparselab compare {latest.key} --references",
-            "rerun": f"sparselab probe {target} --config {latest.result.get('tier')}"
-            + (f" --vs {baseline}" if baseline else ""),
-        }.get(str(action))
+        command = (
+            f"sparselab compare {latest.key} --references"
+            if action == "compare"
+            else None
+        )
+        if action in ("rerun", "escalate"):
+            owner = next((r for p, r in snap.tries if p == latest.path), None)
+            plan = followup_plan(latest, owner)
+            steps.append(
+                {
+                    "title": f"Latest verdict: {str(verdict.get('status', '?')).upper()} → {action}",
+                    "why": str(verdict.get("suggestion") or "")
+                    + " Review the sealed follow-up plan; prepare declarations as a separate explicit action.",
+                    "command": "",
+                    "plan": render_followup(plan),
+                }
+            )
         if command:
             steps.append(
                 {
