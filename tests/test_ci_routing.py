@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import shlex
+from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,28 +43,135 @@ NODES = (
 )
 
 
-def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
-    workflow_path = ROOT / ".github/workflows/ci.yml"
-    workflow = yaml.load(workflow_path.read_text(), Loader=yaml.BaseLoader)
+LAB_NODES = (
+    "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
+    "tests/test_probes.py",
+    "tests/test_references.py",
+    "tests/test_probe_followups.py",
+    "tests/test_explorer.py",
+    "tests/test_dashboard_lab.py",
+)
+CPU_ENV = {
+    **dict.fromkeys(
+        (
+            "OMP_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+            "HF_HUB_OFFLINE",
+            "HF_DATASETS_OFFLINE",
+            "TRANSFORMERS_OFFLINE",
+            "PYTHONDONTWRITEBYTECODE",
+        ),
+        "1",
+    ),
+    **dict.fromkeys(
+        ("CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"), ""
+    ),
+}
+EXCLUSIONS = "not mps and not mlx and not cuda and not rocm and not xpu and not network"
+SYNC = "uv sync --locked --extra cpu --dev"
+
+
+def _load(name):
+    return yaml.load(
+        (ROOT / f".github/workflows/{name}.yml").read_text(), Loader=yaml.BaseLoader
+    )
+
+
+def _step(job, **identity):
+    """Require one semantic match, including when an action/command is unnamed."""
+    matches = [
+        step
+        for step in job["steps"]
+        if all(step.get(key) == value for key, value in identity.items())
+    ]
+    assert len(matches) == 1, (
+        f"Expected one step matching {identity}, got {len(matches)}"
+    )
+    return matches[0]
+
+
+def _tokens(step):
+    return shlex.split(step["run"].replace("\\\n", " "))
+
+
+def _before(job, first, second):
+    assert job["steps"].index(first) < job["steps"].index(second)
+
+
+def _test_job(workflow, key, name, timeout, *, nodes=None, full=False):
+    job = workflow["jobs"][key]
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert job["timeout-minutes"] == str(timeout)
+    assert job.get("permissions", workflow["permissions"]) == {"contents": "read"}
+    checkout = _step(job, uses="actions/checkout@v7")
+    assert checkout["with"]["persist-credentials"] == "false"
+    sync = _step(job, run=SYNC)
+    step = _step(job, name=name)
+    _before(job, checkout, sync)
+    _before(job, sync, step)
+    for item in (job, *job["steps"]):
+        effective = workflow["env"] | job.get("env", {}) | item.get("env", {})
+        assert all(effective.get(k) == v for k, v in CPU_ENV.items())
+    assert step.get("env", {}).get("UV_OFFLINE") == "1"
+    assert "if" not in step and "if" not in sync
+    assert step.get("continue-on-error", "false") == "false"
+    assert job.get("continue-on-error", "false") == "false"
+    command = _tokens(step)
+    prefix = ["uv", "run", "--locked", "--no-sync", "pytest", "-q"]
+    if key == "lab-loop":
+        prefix += ["-s"]
+    prefix += [
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        f"$RUNNER_TEMP/{key if key != 'full-suite' else 'nightly'}-pytest",
+    ]
+    if key == "safe":
+        prefix[-1] = "$RUNNER_TEMP/pr-safe-pytest"
+    if nodes is not None:
+        assert step["env"]["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+        assert command[: len(prefix)] == prefix
+        # Compare the entire remainder: duplicates, globs, options and paths fail.
+        assert Counter(command[len(prefix) :]) == Counter(nodes)
+    else:
+        assert command == prefix + [
+            "-n",
+            "auto",
+            "--maxprocesses=4",
+            "--dist",
+            "worksteal" if full else "loadfile",
+            "--durations=50" if full else "--durations=25",
+            "-m",
+            EXCLUSIONS if full else f"not slow and {EXCLUSIONS}",
+        ]
+    return step
+
+
+def _assert_ci(workflow):
+    assert set(workflow["on"]) == {"push", "pull_request", "workflow_dispatch"}
     assert workflow["on"]["push"] == {"branches": ["main"]}
-    assert set(workflow["on"]["pull_request"]["types"]) == {
-        "opened",
-        "synchronize",
-        "reopened",
-        "converted_to_draft",
-        "ready_for_review",
+    assert workflow["on"]["pull_request"] == {
+        "types": [
+            "opened",
+            "synchronize",
+            "reopened",
+            "converted_to_draft",
+            "ready_for_review",
+        ]
     }
-    assert workflow["on"]["workflow_dispatch"]["inputs"]["suite"]["options"] == [
+    suite = workflow["on"]["workflow_dispatch"]["inputs"]["suite"]
+    assert suite["options"] == [
         "safe",
         "fast",
         "integration-linux",
         "platform-macos",
         "release-candidate",
     ]
-    assert not (ROOT / ".github/workflows/kml-draft-integration.yml").exists()
-    assert "tags" not in workflow["on"]["push"]
+    assert suite["default"] == "safe" and suite["type"] == "choice"
     assert workflow["permissions"] == {"contents": "read"}
-
+    assert all(workflow["env"].get(k) == v for k, v in CPU_ENV.items())
     jobs = workflow["jobs"]
     assert set(jobs) == {
         "safe",
@@ -71,82 +181,318 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
         "platform-macos",
         "release-candidate",
     }
-    assert jobs["safe"]["if"] == (
-        "github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'"
-    )
-    assert jobs["safe"]["runs-on"] == "ubuntu-24.04"
-    assert jobs["safe"]["timeout-minutes"] == "12"
-    safe_steps = jobs["safe"]["steps"]
-    assert safe_steps[3]["run"] == "uv sync --locked --extra cpu --dev"
-    assert "ruff check ." in safe_steps[4]["run"]
-    assert "ruff format --check ." in safe_steps[4]["run"]
-    assert "sparselab.research.lint --json" in safe_steps[4]["run"]
-    assert safe_steps[5]["env"]["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
-    assert safe_steps[5]["env"]["UV_OFFLINE"] == "1"
-    command = shlex.split(safe_steps[5]["run"].replace("\\\n", " "))
-    assert command[:7] == ["uv", "run", "--locked", "--no-sync", "pytest", "-q", "-p"]
-    assert "no:cacheprovider" in command
-    assert tuple(token for token in command if token.startswith("tests/")) == NODES
-    assert not any(token in command for token in ("-k", "-m", "-n", "--pyargs"))
-
-    # The only automatic model work: the bounded CPU lab-mode loop-time guard.
-    lab = jobs["lab-loop"]
-    assert lab["if"] == jobs["safe"]["if"]
-    assert lab["runs-on"] == "ubuntu-24.04"
-    assert lab["timeout-minutes"] == "20"
-    assert lab["steps"][3]["run"] == "uv sync --locked --extra cpu --dev"
-    lab_step = lab["steps"][4]
-    assert lab_step["env"]["SPARSELAB_LAB_LOOP_BUDGET_SECONDS"] == "900"
-    assert lab_step["env"]["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
-    lab_command = shlex.split(lab_step["run"].replace("\\\n", " "))
-    assert tuple(token for token in lab_command if token.startswith("tests/")) == (
-        "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
-        "tests/test_probes.py",
-        "tests/test_references.py",
-        "tests/test_probe_followups.py",
-        "tests/test_explorer.py",
-        "tests/test_dashboard_lab.py",
-    )
-    assert not any(token in lab_command for token in ("-k", "-m", "-n", "--pyargs"))
-
-    # Every PR and main push also runs the fast suite (slow tests excluded);
-    # the full suite moved to the nightly workflow.
-    assert jobs["fast"]["if"] == (
-        "github.event_name != 'workflow_dispatch' || inputs.suite == 'fast'"
-    )
-    for suite in ("integration-linux", "platform-macos", "release-candidate"):
-        assert jobs[suite]["if"] == (
-            f"github.event_name == 'workflow_dispatch' && inputs.suite == '{suite}'"
+    for key in ("safe", "lab-loop", "fast"):
+        choice = "safe" if key == "lab-loop" else key
+        assert (
+            jobs[key]["if"]
+            == f"github.event_name != 'workflow_dispatch' || inputs.suite == '{choice}'"
         )
+    for key in ("integration-linux", "platform-macos", "release-candidate"):
+        assert (
+            jobs[key]["if"]
+            == f"github.event_name == 'workflow_dispatch' && inputs.suite == '{key}'"
+        )
+        assert jobs[key].get("permissions", workflow["permissions"]) == {
+            "contents": "read"
+        }
+        assert jobs[key]["timeout-minutes"] == "30"
     assert jobs["release-candidate"]["strategy"]["matrix"]["os"] == [
         "ubuntu-24.04",
         "macos-15",
     ]
-    fast = " ".join(jobs["fast"]["steps"][-1]["run"].split())
-    assert '-m "not slow and not mps' in fast
-    assert "--no-sync" in fast and "--extra" not in fast
-    assert "tools/kernel-memory-lab/ci-guard/" not in workflow_path.read_text()
-
-
-def test_nightly_runs_full_suite_on_main_and_reports_failures() -> None:
-    workflow = yaml.load(
-        (ROOT / ".github/workflows/nightly.yml").read_text(), Loader=yaml.BaseLoader
+    safe = _test_job(
+        workflow, "safe", "Explicit zero-model-work regressions", 12, nodes=NODES
     )
-    assert set(workflow["on"]) == {"schedule", "workflow_dispatch"}
-    assert len(workflow["on"]["schedule"]) == 1
-    assert workflow["permissions"] == {"contents": "read"}
+    static = _step(jobs["safe"], name="Static format and research records")
+    assert static["env"]["UV_OFFLINE"] == "1"
+    assert static["run"].splitlines() == [
+        "uv run --locked --no-sync ruff check .",
+        "uv run --locked --no-sync ruff format --check .",
+        "uv run --locked --no-sync python -m sparselab.research.lint --json",
+    ]
+    _before(jobs["safe"], _step(jobs["safe"], run=SYNC), static)
+    _before(jobs["safe"], static, safe)
+    lab = _test_job(
+        workflow,
+        "lab-loop",
+        "Timed lab loop (tokenizer -> try + probe -> report, references)",
+        20,
+        nodes=LAB_NODES,
+    )
+    assert lab["env"]["SPARSELAB_LAB_LOOP_BUDGET_SECONDS"] == "900"
+    _test_job(workflow, "fast", "Fast CPU suite (not slow)", 20)
+    assert "tools/kernel-memory-lab/ci-guard/" not in str(workflow)
 
+
+def _assert_nightly(workflow):
+    assert set(workflow["on"]) == {"schedule", "workflow_dispatch"}
+    assert workflow["on"]["schedule"] == [{"cron": "17 8 * * *"}]
+    assert workflow["permissions"] == {"contents": "read"}
+    assert all(workflow["env"].get(k) == v for k, v in CPU_ENV.items())
     jobs = workflow["jobs"]
     assert set(jobs) == {"full-suite", "report-failure"}
     full = jobs["full-suite"]
-    assert full["steps"][0]["with"]["ref"] == "main"
-    command = " ".join(full["steps"][-1]["run"].split())
-    assert '-m "not mps and not mlx' in command
-    assert "slow" not in command
-
+    assert "if" not in full
+    assert _step(full, uses="actions/checkout@v7")["with"]["ref"] == "main"
+    _test_job(workflow, "full-suite", "Full CPU suite (slow included)", 60, full=True)
     report = jobs["report-failure"]
     assert report["needs"] == "full-suite"
     assert report["if"] == "failure()"
     assert report["permissions"] == {"issues": "write"}
-    script = report["steps"][-1]["run"]
+    assert report["timeout-minutes"] == "5"
+    script = _step(report, name="Open or update the nightly-failure issue")["run"]
     assert "gh issue comment" in script and "gh issue create" in script
+
+
+def test_ordinary_ci_selects_only_explicit_zero_model_nodes():
+    _assert_ci(_load("ci"))
+    assert not (ROOT / ".github/workflows/kml-draft-integration.yml").exists()
+
+
+def test_nightly_runs_full_suite_on_main_and_reports_failures():
+    _assert_nightly(_load("nightly"))
+
+
+@pytest.mark.parametrize(
+    "name,check", [("ci", _assert_ci), ("nightly", _assert_nightly)]
+)
+def test_harmless_step_insertion_preserves_contract(name, check):
+    workflow = _load(name)
+    for job in workflow["jobs"].values():
+        original = list(job["steps"])
+        job["steps"] = [{"name": "Before setup", "run": "echo diagnostic"}]
+        for step in original:
+            job["steps"].extend(
+                [step, {"name": "Diagnostic", "run": "echo diagnostic"}]
+            )
+    check(workflow)
+
+
+@pytest.mark.parametrize("key,nodes", [("safe", NODES), ("lab-loop", LAB_NODES)])
+@pytest.mark.parametrize(
+    "change", ["reorder", "omit", "add", "duplicate", "wildcard", "broaden", "option"]
+)
+@pytest.mark.parametrize("node_order", ["original", "module-first"])
+def test_exact_node_membership(key, nodes, change, node_order):
+    workflow = _load("ci")
+    job = workflow["jobs"][key]
+    step = _step(
+        job,
+        name="Explicit zero-model-work regressions"
+        if key == "safe"
+        else "Timed lab loop (tokenizer -> try + probe -> report, references)",
+    )
+    command = _tokens(step)
+    start = next(i for i, token in enumerate(command) if token.startswith("tests/"))
+    selected = list(nodes)
+    if node_order == "module-first":
+        selected.sort(key=lambda node: "::" in node)
+        assert "::" not in selected[0]
+    # Establish that either ordering is valid before applying a regression.
+    step["run"] = shlex.join(command[:start] + selected)
+    _assert_ci(workflow)
+    if change == "reorder":
+        selected.reverse()
+    elif change == "omit":
+        selected.pop()
+    elif change == "add":
+        selected.append("tests/test_training.py")
+    elif change == "duplicate":
+        selected.append(nodes[0])
+    elif change == "wildcard":
+        selected[0] = "tests/test_*.py"
+    elif change == "broaden":
+        explicit = next(node for node in selected if "::" in node)
+        selected[selected.index(explicit)] = explicit.split("::")[0]
+    else:
+        selected += ["-k", "smoke"]
+    step["run"] = shlex.join(command[:start] + selected)
+    if change == "reorder":
+        _assert_ci(workflow)
+    else:
+        with pytest.raises(AssertionError):
+            _assert_ci(workflow)
+
+
+@pytest.mark.parametrize(
+    "name,check", [("ci", _assert_ci), ("nightly", _assert_nightly)]
+)
+@pytest.mark.parametrize("kind", ["name", "uses", "run"])
+@pytest.mark.parametrize("change", ["missing", "duplicate"])
+def test_step_identity_must_be_unique(name, check, kind, change):
+    workflow = _load(name)
+    job = workflow["jobs"]["safe" if name == "ci" else "full-suite"]
+    identity = {
+        "name": "Explicit zero-model-work regressions"
+        if name == "ci"
+        else "Full CPU suite (slow included)",
+        "uses": "actions/checkout@v7",
+        "run": SYNC,
+    }
+    step = _step(job, **{kind: identity[kind]})
+    if change == "missing":
+        job["steps"].remove(step)
+    else:
+        job["steps"].append(deepcopy(step))
+    with pytest.raises(AssertionError, match="Expected one step"):
+        check(workflow)
+
+
+@pytest.mark.parametrize(
+    "name,check,key,test_name",
+    [
+        ("ci", _assert_ci, "fast", "Fast CPU suite (not slow)"),
+        ("nightly", _assert_nightly, "full-suite", "Full CPU suite (slow included)"),
+    ],
+)
+@pytest.mark.parametrize(
+    "regression",
+    [
+        "new-route",
+        "new-job",
+        "write-permission",
+        "job-write-permission",
+        "credentials",
+        "timeout",
+        "threads",
+        "device",
+        "network",
+        "job-env",
+        "step-env",
+        "online",
+        "unlocked",
+        "syncing",
+        "worker-cap",
+        "exclusions",
+        "slow-selection",
+        "sync-order",
+        "skip-test",
+        "ignore-failure",
+    ],
+)
+def test_route_security_and_resource_regressions(
+    name, check, key, test_name, regression
+):
+    workflow = _load(name)
+    job = workflow["jobs"][key]
+    step = _step(job, name=test_name)
+    if regression == "new-route":
+        workflow["on"]["pull_request_target"] = {}
+    elif regression == "new-job":
+        workflow["jobs"]["unreviewed"] = deepcopy(job)
+    elif regression == "write-permission":
+        workflow["permissions"]["contents"] = "write"
+    elif regression == "job-write-permission":
+        job["permissions"] = {"contents": "write"}
+    elif regression == "credentials":
+        _step(job, uses="actions/checkout@v7")["with"]["persist-credentials"] = "true"
+    elif regression == "timeout":
+        job["timeout-minutes"] = "120"
+    elif regression in ("threads", "device", "network"):
+        variable = {
+            "threads": "OMP_NUM_THREADS",
+            "device": "CUDA_VISIBLE_DEVICES",
+            "network": "HF_HUB_OFFLINE",
+        }[regression]
+        workflow["env"][variable] = "8"
+    elif regression == "job-env":
+        job["env"] = {"MKL_NUM_THREADS": "8"}
+    elif regression == "step-env":
+        step["env"]["HIP_VISIBLE_DEVICES"] = "0"
+    elif regression == "online":
+        step["env"]["UV_OFFLINE"] = "0"
+    elif regression == "sync-order":
+        sync = _step(job, run=SYNC)
+        job["steps"].remove(sync)
+        job["steps"].append(sync)
+    elif regression == "skip-test":
+        step["if"] = "false"
+    elif regression == "ignore-failure":
+        job["continue-on-error"] = "true"
+    else:
+        old, new = {
+            "unlocked": ("--locked", ""),
+            "syncing": ("--no-sync", "--extra cpu"),
+            "worker-cap": ("--maxprocesses=4", "--maxprocesses=8"),
+            "exclusions": (" and not network", ""),
+            "slow-selection": ("not slow and ", "")
+            if name == "ci"
+            else ("not mps", "not slow and not mps"),
+        }[regression]
+        assert old in step["run"]
+        step["run"] = step["run"].replace(old, new)
+    with pytest.raises(AssertionError):
+        check(workflow)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "safe",
+        "lab-loop",
+        "fast",
+        "integration-linux",
+        "platform-macos",
+        "release-candidate",
+    ],
+)
+def test_job_routes_cannot_be_broadened_or_disabled(key):
+    workflow = _load("ci")
+    workflow["jobs"][key]["if"] = "always()"
+    with pytest.raises(AssertionError):
+        _assert_ci(workflow)
+
+
+@pytest.mark.parametrize(
+    "regression",
+    ["budget", "lab-offline", "lab-no-sync", "safe-plugin", "static-offline"],
+)
+def test_explicit_suite_bounds(regression):
+    workflow = _load("ci")
+    lab = _step(
+        workflow["jobs"]["lab-loop"],
+        name="Timed lab loop (tokenizer -> try + probe -> report, references)",
+    )
+    if regression == "budget":
+        lab["env"]["SPARSELAB_LAB_LOOP_BUDGET_SECONDS"] = "1800"
+    elif regression == "lab-offline":
+        del lab["env"]["UV_OFFLINE"]
+    elif regression == "lab-no-sync":
+        lab["run"] = lab["run"].replace("--no-sync", "")
+    elif regression == "safe-plugin":
+        _step(workflow["jobs"]["safe"], name="Explicit zero-model-work regressions")[
+            "env"
+        ]["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "0"
+    else:
+        _step(workflow["jobs"]["safe"], name="Static format and research records")[
+            "env"
+        ]["UV_OFFLINE"] = "0"
+    with pytest.raises(AssertionError):
+        _assert_ci(workflow)
+
+
+@pytest.mark.parametrize(
+    "regression",
+    ["ref", "schedule", "dependency", "condition", "permissions", "report-command"],
+)
+def test_nightly_main_and_failure_reporting_contract(regression):
+    workflow = _load("nightly")
+    report = workflow["jobs"]["report-failure"]
+    if regression == "ref":
+        _step(workflow["jobs"]["full-suite"], uses="actions/checkout@v7")["with"][
+            "ref"
+        ] = "${{ github.ref }}"
+    elif regression == "schedule":
+        workflow["on"]["schedule"] = []
+    elif regression == "dependency":
+        report["needs"] = "unrelated"
+    elif regression == "condition":
+        report["if"] = "always()"
+    elif regression == "permissions":
+        report["permissions"]["contents"] = "write"
+    else:
+        _step(report, name="Open or update the nightly-failure issue")["run"] = (
+            "echo ignored"
+        )
+    with pytest.raises(AssertionError):
+        _assert_nightly(workflow)
