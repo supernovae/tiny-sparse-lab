@@ -127,10 +127,13 @@ The agreed lock paths and suggested local state locations are:
 
 Marker and receipt locations are configurable so an external runner can keep
 its existing marker convention; agree on one triplet before adopting this tool.
-Parent directories must already exist, belong to the caller, and exclude group
-and other write access. The tool creates a missing lock and state directory;
-existing regular files must have one link, belong to the caller, and exclude
-group/other writes. Symlinked lock/state entries are refused. These are trusted
+Parent directories and the receipt directory must already exist, belong to the
+caller, and exclude group and other write access. After establishing that the
+host has no outstanding work, provision an empty receipt directory once (for
+example, `mkdir -m 700 "$HOME/src/.lab-cpu-runner-state"`). A missing directory
+may mean lost evidence and is refused, never automatically recreated. The tool
+creates a missing lock; existing regular files must have one link, belong to the
+caller, and exclude group/other writes. Symlinked lock/state entries are refused. These are trusted
 local owner files, not a boundary against malicious workloads under that UID.
 Never unlink, replace or truncate the lock: its inode is the stable lock identity.
 

@@ -27,6 +27,7 @@ def setup(tmp: Path, **fields: object) -> dict:
         termination_grace_seconds=0.05,
         **fields,
     )
+    (tmp / "state").mkdir(mode=0o700)
     path = tmp / "policy.json"
     path.write_text(policy.model_dump_json())
     return {
@@ -153,7 +154,7 @@ def test_timeout_cleans_detached_owned_descendant(tmp_path: Path) -> None:
 def test_interrupted_owner_never_automatically_recovers(
     tmp_path: Path, signum: int
 ) -> None:
-    options = setup(tmp_path, max_wall_seconds=1)
+    options = setup(tmp_path, max_wall_seconds=3)
     ready = tmp_path / "ready"
     process = child(
         options,
@@ -161,10 +162,11 @@ def test_interrupted_owner_never_automatically_recovers(
     )
     try:
         await_file(ready, process)
+        assert process.poll() is None, "owner exited before the interruption"
         process.send_signal(signum)
-        process.communicate(timeout=5)
+        _, stderr = process.communicate(timeout=5)
         if signum == signal.SIGTERM:
-            assert options["blocked_path"].exists()
+            assert options["blocked_path"].exists(), (process.returncode, stderr)
         # SIGKILL cannot write a marker: retained pending remains authoritative.
         options["blocked_path"].unlink(missing_ok=True)
         options["log_dir"] = tmp_path / "new-logs"
@@ -328,6 +330,7 @@ def test_unsafe_paths_refuse_launch(tmp_path: Path, unsafe: str) -> None:
         lock.touch(mode=0o666)
         lock.chmod(0o666)
     else:
+        options["state_dir"].rmdir()
         options["state_dir"].symlink_to(tmp_path)
     with pytest.raises((ValueError, OSError)):
         run(options)
@@ -380,3 +383,15 @@ def test_unverified_owned_completion_blocks_current_attempt(
         run(options)
     assert options["blocked_path"].exists()
     assert not list(options["state_dir"].glob("*/completion.json"))
+
+
+def test_missing_state_directory_is_not_automatically_recreated(tmp_path):
+    options = setup(tmp_path)
+    run(options)
+    # Preserve the evidence elsewhere while simulating loss of the agreed path.
+    options["state_dir"].rename(tmp_path / "retained-state")
+    options["log_dir"] = tmp_path / "new-logs"
+    with pytest.raises(FileNotFoundError):
+        run(options)
+    assert not options["state_dir"].exists()
+    assert not options["log_dir"].exists()

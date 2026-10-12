@@ -155,10 +155,9 @@ def run_controlled(
             raise ValueError("runner lock identity changed")
         os.fsync(fd)
         _sync_dir(lock.parent)
-        if not os.path.lexists(state):
-            state.mkdir(mode=0o700)
-            _sync_dir(state.parent)
+        # A missing directory may mean lost evidence, never a recovery request.
         _safe(state, directory=True)
+        _sync_dir(state.parent)
         contract = {
             "format": "sparselab-runner-v1",
             "lock": str(lock),
