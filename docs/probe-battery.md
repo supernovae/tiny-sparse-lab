@@ -348,6 +348,29 @@ uv run --locked --no-sync sparselab probe ref:SmolLM2-135M --config full
 uv run --locked --no-sync sparselab compare --list-references
 ```
 
+For a machine-readable registry listing, use
+`sparselab compare --list-references --json`. This reads existing records only;
+it does not download or score models and needs no subject/result ID. The JSON
+listing has its own schema, separate from a comparison report:
+
+- `schema_version`: integer `1`.
+- `references`: array containing every pinned registry entry in registry order,
+  even when no evidence is available. Each entry has:
+  - `target`: string `ref:NAME`, accepted by `probe` and `compare`.
+  - `reference`: the full registry declaration. String fields are `name`,
+    `family`, `repo_id`, `revision` (full immutable commit, never abbreviated),
+    `model_type`, `architecture`, `license` and `training_tokens_source`.
+    `training_tokens` is an integer; `step` is an integer or `null`.
+  - `lm_eval_available`: boolean, true when a reference point with that name
+    has lm-eval metrics in the ordinary collected evidence (verified packaged
+    or lab records). This is the same criterion as the human listing's `✔`.
+    Recall-only evidence does not count; zero lm-eval accuracy does count.
+
+Registry presence is not evidence availability. With an empty evidence pool,
+all entries remain listed with `lm_eval_available: false`; an empty lab may
+still have packaged evidence. Availability does not assert comparability with
+any particular result, include held-back final evidence, or prove model quality.
+
 A reference runs the probes that are defined at the text level (`--config full`
 is required): **fact recall** (reworded, in-context), **fact recall from
 weights** and **lm-eval**. Recall items are rendered text (prompt, answer,
