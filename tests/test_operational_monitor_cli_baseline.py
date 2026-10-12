@@ -62,3 +62,50 @@ def test_monitor_cli_forwards_baseline_without_changing_legacy_optional_path(
     assert operational_monitor_cli.execute_monitor(with_baseline) == 0
     assert operational_monitor_cli.execute_monitor(without_baseline) == 0
     assert observed == [(["echo", "safe"], Path("/baseline")), (["echo", "safe"], None)]
+
+
+def test_monitor_cli_runner_triplet_is_atomic_and_preserves_exit(monkeypatch):
+    import pytest
+
+    from sparselab import runner_control
+
+    observed = []
+
+    def controlled(command, policy, **kwargs):
+        observed.append((command, kwargs))
+        return SimpleNamespace(status="FAILED", returncode=7, model_dump=lambda **_: {})
+
+    monkeypatch.setattr(runner_control, "run_controlled", controlled)
+    monkeypatch.setattr(operational_monitor_cli, "load_monitor_policy", lambda _: None)
+    parser = build_parser()
+    common = [
+        "monitor",
+        "--policy",
+        "/policy",
+        "--workspace",
+        "/workspace",
+        "--log-dir",
+        "/logs",
+    ]
+    partial = parser.parse_args([*common, "--runner-lock", "/lock", "--", "true"])
+    with pytest.raises(ValueError, match="all three"):
+        operational_monitor_cli.execute_monitor(partial)
+    assert not observed
+    full = parser.parse_args(
+        [
+            *common,
+            "--runner-lock",
+            "/lock",
+            "--runner-state",
+            "/state",
+            "--runner-blocked",
+            "/blocked",
+            "--",
+            "true",
+        ]
+    )
+    assert operational_monitor_cli.execute_monitor(full) == 7
+    assert observed[0][0] == ["true"]
+    assert observed[0][1]["lock_path"] == Path("/lock")
+    assert observed[0][1]["state_dir"] == Path("/state")
+    assert observed[0][1]["blocked_path"] == Path("/blocked")

@@ -67,6 +67,8 @@ class MonitorPolicy(BaseModel):
 
     @model_validator(mode="after")
     def require_device_identity(self) -> MonitorPolicy:
+        if not math.isfinite(self.termination_grace_seconds):
+            raise ValueError("monitor termination grace must be finite")
         if (self.max_device_memory_bytes is None) != (
             self.expected_device_uuid is None
         ):
@@ -745,6 +747,7 @@ def _stop_enhanced_supervisor(
         receipt = json.loads(completion.read_text())
         if (
             receipt["format"] != "sparselab-owned-completion-v1"
+            or receipt["root"] != root.model_dump()
             or receipt["living_descendants"] != 0
             or receipt["returncode"] != rc
         ):
@@ -864,6 +867,7 @@ def monitor_command(
     reserved_inodes: int = 0,
     cwd: Path | None = None,
     baseline_path: Path | None = None,
+    owned_supervisor: bool = False,
 ) -> MonitorCompletion:
     """Launch once; exclusively create a log directory and persist each observation."""
     if not command or reserved_bytes < 0 or reserved_inodes < 0:
@@ -944,7 +948,8 @@ def monitor_command(
         stderr_path.open("xb") as command_stderr,
     ):
         enhanced = (
-            baseline is not None
+            owned_supervisor
+            or baseline is not None
             or policy.max_device_memory_bytes is not None
             or policy.max_wall_seconds is not None
         )
@@ -1135,8 +1140,17 @@ def monitor_command(
                     and not enhanced
                 ):
                     _signal_owned(known, signal.SIGKILL)
+                if (
+                    enhanced
+                    and terminating_at is not None
+                    and time.monotonic() - terminating_at
+                    >= policy.termination_grace_seconds + 4.0
+                ):
+                    raise RuntimeError("owned cleanup deadline exhausted")
                 # Continue until root AND all identified children exit; no group signals.
                 if process.poll() is not None:
+                    if enhanced and terminating_at is None:
+                        terminating_at = time.monotonic()
                     try:
                         if not _owned(root, known):
                             break
@@ -1185,6 +1199,7 @@ def monitor_command(
                 )
                 if (
                     owned_receipt["format"] != "sparselab-owned-completion-v1"
+                    or owned_receipt["root"] != root.model_dump()
                     or owned_receipt["living_descendants"] != 0
                     or owned_receipt["returncode"] != rc
                 ):
