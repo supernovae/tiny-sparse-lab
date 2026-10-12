@@ -142,12 +142,14 @@ def run_controlled(
     _safe(state.parent, directory=True)
     _safe(blocked.parent, directory=True)
     _unblocked(blocked)
+    log_dir = Path(monitor_options["log_dir"])
     monitor_options = {
         **monitor_options,
-        "log_dir": Path(monitor_options["log_dir"]).resolve(),
+        "log_dir": log_dir.parent.resolve(strict=True) / log_dir.name,
     }
     run_id = uuid.uuid4().hex
     stopping = False
+    started = False
 
     def interrupted(signum: int, _frame: object) -> None:
         nonlocal stopping
@@ -177,7 +179,13 @@ def run_controlled(
             os.fsync(fd)
             _sync_dir(lock.parent)
             # A missing directory may mean lost evidence, never a recovery request.
-            _safe(state, directory=True)
+            try:
+                _safe(state, directory=True)
+            except FileNotFoundError as error:
+                raise FileNotFoundError(
+                    f"runner state directory missing: {state}; confirm no outstanding "
+                    "work before provisioning it (docs/workspaces.md)"
+                ) from error
             _sync_dir(state.parent)
             contract = {
                 "format": "sparselab-runner-v1",
@@ -189,6 +197,7 @@ def run_controlled(
             _prior_runs(state, contract)
             run = state / run_id
             run.mkdir(mode=0o700)
+            started = True
             _sync_dir(state)
             pending = {
                 "run_id": run_id,
@@ -233,8 +242,9 @@ def run_controlled(
             return result
         except BaseException as error:
             stopping = True
-            # Even if this write fails, the retained incomplete run refuses launch.
-            if not os.path.lexists(blocked):
+            # Preflight refusals create no attempt and need no new host blocker.
+            # After mkdir, retained incomplete state blocks even if this write fails.
+            if started and not os.path.lexists(blocked):
                 _write(blocked, {"run_id": run_id, "reason": str(error)})
             raise
         finally:

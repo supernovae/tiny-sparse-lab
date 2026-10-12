@@ -133,9 +133,10 @@ host has no outstanding work, provision an empty receipt directory once (for
 example, `mkdir -m 700 "$HOME/src/.lab-cpu-runner-state"`). A missing directory
 may mean lost evidence and is refused, never automatically recreated. The tool
 creates a missing lock; existing regular files must have one link, belong to the
-caller, and exclude group/other writes. Symlinked lock/state entries are refused. These are trusted
-local owner files, not a boundary against malicious workloads under that UID.
-Never unlink, replace or truncate the lock: its inode is the stable lock identity.
+caller, and exclude group/other writes. Symlinked lock/state entries are refused.
+These are trusted local owner files, not a boundary against malicious workloads
+under that UID. Never unlink, replace or truncate the lock: its inode is the
+stable lock identity.
 
 For a CPU command already authorized by the owner (use a fresh log directory):
 
@@ -156,15 +157,17 @@ the existing monitor CLI behavior. Supplying a subset is an error.
 The minimal local contract is `contract.json` (format `sparselab-runner-v1`,
 canonical lock path, device/inode and blocked path) plus one UUID directory per
 attempt. Its exclusive, fsynced `pending.json` records the command, policy,
-owner PID and absolute log directory **before** the native monitor spawns. Its
+owner PID and canonical log directory **before** the native monitor spawns. Its
 exclusive `completion.json` binds that pending record's SHA-256 and run ID to
 the monitor and owned-completion receipt hashes and supervisor PID/creation
 time. Successful, nonzero-exit and guard-stopped commands can all certify clean
 shutdown; only success certifies workload success. Prior receipts and logs must
 remain available unchanged. Each launch re-verifies retained history, so its
-preflight cost grows with the number of attempts. Log paths are canonicalized
-before recording pending state and passed unchanged to the monitor. Missing, partial, foreign or changed records refuse
-launch, even if the recorded owner PID no longer exists.
+preflight cost grows with the number of attempts. Log-path parents must already
+exist and are canonicalized before recording pending state; the same path goes
+to the monitor. The final log directory is created exclusively, and final
+symlinks are refused. Missing, partial, foreign or changed records refuse launch,
+even if the recorded owner PID no longer exists.
 
 The wrapper checks the blocked marker before and after acquiring its single
 non-inherited flock. Any marker, including a dangling symlink, is authoritative.
@@ -176,9 +179,11 @@ owned receipts. These are userspace deadlines; kernel/filesystem stalls cannot
 be given a hard realtime guarantee. Workload time itself remains governed by
 optional `max_wall_seconds`; monitoring introduces no new workload budget.
 
-Uncertain cleanup, interruption or completion-write failure leaves a durable
-blocked marker before lock release. A storage failure can prevent even that
-write: the retained incomplete attempt still forbids a later launch. SIGKILL or
+Preflight refusals before an attempt directory exists leave no new host marker.
+Once an attempt exists on disk, interruption, uncertain cleanup or completion
+write failure leaves a durable blocked marker before lock release. A storage
+failure can prevent even that write: the retained incomplete attempt still
+forbids a later launch. SIGKILL or
 power loss cannot write a new marker; pending state remains authoritative and
 is never automatically recovered. A human must establish that owned work is
 gone, preserve the failed evidence and reconcile the host before provisioning a

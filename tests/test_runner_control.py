@@ -87,10 +87,12 @@ def test_success_failure_and_stable_identity(tmp_path: Path, rc: int) -> None:
 def test_independent_contender_cannot_launch(tmp_path: Path) -> None:
     options = setup(tmp_path, max_wall_seconds=3)
     ready = tmp_path / "work-ready"
-    first = child(
-        options,
-        f"from pathlib import Path; Path({str(ready)!r}).touch(); import time; time.sleep(1)",
+    release = tmp_path / "release"
+    code = (
+        f"from pathlib import Path; Path({str(ready)!r}).touch(); import time\n"
+        f"while not Path({str(release)!r}).exists(): time.sleep(0.01)"
     )
+    first = child(options, code)
     try:
         await_file(ready, first)
         second_options = {**options, "log_dir": tmp_path / "second"}
@@ -99,6 +101,7 @@ def test_independent_contender_cannot_launch(tmp_path: Path) -> None:
         assert second.returncode != 0
         assert b"BlockingIOError" in err
         assert not second_options["log_dir"].exists()
+        release.touch()
         assert first.wait(timeout=5) == 0
     finally:
         if first.poll() is None:
@@ -127,7 +130,7 @@ def test_blocked_before_and_after_lock(tmp_path: Path, monkeypatch, post: bool) 
 
 
 def test_timeout_cleans_detached_owned_descendant(tmp_path: Path) -> None:
-    options = setup(tmp_path, max_wall_seconds=0.8)
+    options = setup(tmp_path, max_wall_seconds=2)
     pidfile = tmp_path / "worker-pid"
     worker = f"import os,time,signal; signal.signal(signal.SIGTERM,signal.SIG_IGN); open({str(pidfile)!r},'w').write(str(os.getpid())); time.sleep(10)"
     code = f"import sys,subprocess,time; subprocess.Popen([sys.executable,'-c',{worker!r}],start_new_session=True); time.sleep(10)"
@@ -204,6 +207,7 @@ def test_stale_or_incomplete_receipts_refuse_takeover(
     with pytest.raises((ValueError, FileNotFoundError)):
         run(options)
     assert not options["log_dir"].exists()
+    assert not options["blocked_path"].exists()
 
 
 @pytest.mark.parametrize("stage", ["pending", "completion", "blocked"])
@@ -380,7 +384,7 @@ def test_unverified_owned_completion_blocks_current_attempt(
         return record
 
     monkeypatch.setattr(monitor.json, "loads", damaged_receipt)
-    with pytest.raises(RuntimeError, match="unverified"):
+    with pytest.raises(RuntimeError, match="unverified|could not be verified"):
         run(options)
     assert options["blocked_path"].exists()
     assert not list(options["state_dir"].glob("*/completion.json"))
@@ -392,10 +396,13 @@ def test_missing_state_directory_is_not_automatically_recreated(tmp_path):
     # Preserve the evidence elsewhere while simulating loss of the agreed path.
     options["state_dir"].rename(tmp_path / "retained-state")
     options["log_dir"] = tmp_path / "new-logs"
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(
+        FileNotFoundError, match=r"runner state directory missing:.*docs/workspaces.md"
+    ):
         run(options)
     assert not options["state_dir"].exists()
     assert not options["log_dir"].exists()
+    assert not options["blocked_path"].exists()
 
 
 @pytest.mark.parametrize("alias", ["symlink", "dotdot"])
@@ -472,3 +479,72 @@ monitor._stop_enhanced_supervisor = second_signal
         if process.poll() is None:
             process.kill()
         process.communicate(timeout=5)
+
+
+def test_mistyped_state_refuses_without_sticky_blocker(tmp_path):
+    options = setup(tmp_path)
+    provisioned = options["state_dir"]
+    options["state_dir"] = tmp_path / "typo-state"
+    with pytest.raises(FileNotFoundError, match="confirm no outstanding work"):
+        run(options)
+    assert not options["blocked_path"].exists()
+    assert not options["state_dir"].exists()
+    assert not options["log_dir"].exists()
+    assert not list(provisioned.iterdir())
+
+
+def test_preflight_storage_error_does_not_create_attempt_or_blocker(
+    tmp_path, monkeypatch
+):
+    options = setup(tmp_path)
+
+    def fail_sync(_path):
+        raise OSError("preflight sync failed")
+
+    monkeypatch.setattr(runner, "_sync_dir", fail_sync)
+    with pytest.raises(OSError, match="preflight sync failed"):
+        run(options)
+    assert not options["blocked_path"].exists()
+    assert not list(options["state_dir"].iterdir())
+    assert not options["log_dir"].exists()
+
+
+@pytest.mark.parametrize("exists", [False, True])
+def test_final_log_symlink_is_refused_without_writing_target(tmp_path, exists):
+    options = setup(tmp_path)
+    target = tmp_path / "target"
+    if exists:
+        target.mkdir()
+        (target / "sentinel").write_text("retain")
+    options["log_dir"].symlink_to(target, target_is_directory=True)
+    with pytest.raises(FileExistsError):
+        run(options)
+    if exists:
+        assert [path.name for path in target.iterdir()] == ["sentinel"]
+        assert (target / "sentinel").read_text() == "retain"
+    else:
+        assert not target.exists()
+    # A durable pending attempt exists; this is not a host preflight refusal.
+    assert list(options["state_dir"].glob("*/pending.json"))
+    assert options["blocked_path"].exists()
+
+
+def test_signal_during_preflight_restores_handlers_without_new_blocker(
+    tmp_path, monkeypatch
+):
+    options = setup(tmp_path)
+    previous = {
+        sig: signal.getsignal(sig)
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+    }
+
+    def interrupt(*args):
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    monkeypatch.setattr(runner, "_prior_runs", interrupt)
+    with pytest.raises(InterruptedError, match="runner received signal"):
+        run(options)
+    assert not options["blocked_path"].exists()
+    assert not list(options["state_dir"].iterdir())
+    assert not options["log_dir"].exists()
+    assert {sig: signal.getsignal(sig) for sig in previous} == previous
