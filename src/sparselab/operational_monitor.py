@@ -1242,7 +1242,8 @@ def monitor_command(
                 result, baseline, workspace, policy, start
             )
         _record(stream, result)
-        with completion_path.open("x", encoding="utf-8") as output:
+        fd = os.open(completion_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
             output.write(result.model_dump_json(indent=2) + "\n")
             output.flush()
             os.fsync(output.fileno())

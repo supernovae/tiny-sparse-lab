@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -82,6 +83,64 @@ def test_success_failure_and_stable_identity(tmp_path: Path, rc: int) -> None:
     assert run(options).status == "COMPLETE"
     assert options["lock_path"].stat().st_ino == inode
     assert not options["blocked_path"].exists()
+
+
+@pytest.mark.parametrize("umask", [0o002, 0o000])
+@pytest.mark.parametrize("rc", [0, 7])
+def test_private_receipts_allow_successive_launches_under_permissive_umask(
+    tmp_path: Path, umask: int, rc: int
+) -> None:
+    options = setup(tmp_path)
+    inode = None
+    for attempt, code in enumerate((f"raise SystemExit({rc})", "pass")):
+        options["log_dir"] = tmp_path / f"logs{attempt}"
+        process = child(options, code, hook=f"import os; os.umask({umask})")
+        _, stderr = process.communicate(timeout=6)
+        assert process.returncode == 0, stderr.decode()
+        completion = monitor.MonitorCompletion.model_validate_json(
+            (options["log_dir"] / "completion.json").read_bytes()
+        )
+        assert completion.returncode == (rc if attempt == 0 else 0)
+        assert completion.status == ("FAILED" if attempt == 0 and rc else "COMPLETE")
+        for name in ("completion.json", "owned-completion.json"):
+            assert stat.S_IMODE((options["log_dir"] / name).stat().st_mode) == 0o600
+        current_inode = options["lock_path"].stat().st_ino
+        if inode is not None:
+            assert current_inode == inode
+        inode = current_inode
+    assert len(list(options["state_dir"].glob("*/completion.json"))) == 2
+    assert not options["blocked_path"].exists()
+
+
+@pytest.mark.parametrize("name", ["completion.json", "owned-completion.json"])
+@pytest.mark.parametrize("mode", [0o664, 0o606])
+def test_unsafe_prior_receipts_still_refuse_launch(
+    tmp_path: Path, name: str, mode: int
+) -> None:
+    options = setup(tmp_path)
+    process = child(options, "pass", hook="import os; os.umask(0o002)")
+    _, stderr = process.communicate(timeout=6)
+    assert process.returncode == 0, stderr.decode()
+    receipt = options["log_dir"] / name
+    original = receipt.read_bytes()
+    receipt.chmod(mode)
+    state_entries = set(options["state_dir"].iterdir())
+    options["log_dir"] = tmp_path / "refused-logs"
+    sentinel = tmp_path / "must-not-launch"
+    process = child(
+        options,
+        f"from pathlib import Path; Path({str(sentinel)!r}).touch()",
+        hook="import os; os.umask(0o002)",
+    )
+    _, stderr = process.communicate(timeout=6)
+    assert process.returncode != 0
+    assert f"unsafe runner state: {receipt}" in stderr.decode()
+    assert not sentinel.exists()
+    assert not options["log_dir"].exists()
+    assert not options["blocked_path"].exists()
+    assert set(options["state_dir"].iterdir()) == state_entries
+    assert receipt.read_bytes() == original
+    assert stat.S_IMODE(receipt.stat().st_mode) == mode
 
 
 def test_independent_contender_cannot_launch(tmp_path: Path) -> None:
