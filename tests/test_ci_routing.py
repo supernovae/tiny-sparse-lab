@@ -272,13 +272,25 @@ def test_harmless_step_insertion_preserves_contract(name, check):
 @pytest.mark.parametrize(
     "change", ["reorder", "omit", "add", "duplicate", "wildcard", "broaden", "option"]
 )
-def test_exact_node_membership(key, nodes, change):
+@pytest.mark.parametrize("node_order", ["original", "module-first"])
+def test_exact_node_membership(key, nodes, change, node_order):
     workflow = _load("ci")
     job = workflow["jobs"][key]
-    step = next(step for step in job["steps"] if nodes[0] in step.get("run", ""))
+    step = _step(
+        job,
+        name="Explicit zero-model-work regressions"
+        if key == "safe"
+        else "Timed lab loop (tokenizer -> try + probe -> report, references)",
+    )
     command = _tokens(step)
-    start = command.index(nodes[0])
+    start = next(i for i, token in enumerate(command) if token.startswith("tests/"))
     selected = list(nodes)
+    if node_order == "module-first":
+        selected.sort(key=lambda node: "::" in node)
+        assert "::" not in selected[0]
+    # Establish that either ordering is valid before applying a regression.
+    step["run"] = shlex.join(command[:start] + selected)
+    _assert_ci(workflow)
     if change == "reorder":
         selected.reverse()
     elif change == "omit":
@@ -290,7 +302,8 @@ def test_exact_node_membership(key, nodes, change):
     elif change == "wildcard":
         selected[0] = "tests/test_*.py"
     elif change == "broaden":
-        selected[0] = nodes[0].split("::")[0]
+        explicit = next(node for node in selected if "::" in node)
+        selected[selected.index(explicit)] = explicit.split("::")[0]
     else:
         selected += ["-k", "smoke"]
     step["run"] = shlex.join(command[:start] + selected)
