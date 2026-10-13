@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -250,14 +251,19 @@ def test_manifest_rejects_gpu_and_broad_nodes(job, tmp_path):
 def test_two_processes_share_one_durable_admission(job, tmp_path):
     manifest = tmp_path / "handoff.json"
     publish_immutable(manifest, job.payload())
-    code = (
-        "import sys; "
-        f"sys.path.insert(0, {str(job.host.repository / 'src')!r}); "
-        "from sparselab.lab_job import main; main(sys.argv[1:])"
-    )
     processes = [
         subprocess.Popen(
-            [sys.executable, "-I", "-B", "-c", code, "admit", str(manifest)],
+            [
+                sys.executable,
+                "-P",
+                "-B",
+                "-m",
+                "sparselab",
+                "lab-job",
+                "admit",
+                str(manifest),
+            ],
+            env={**os.environ, "PYTHONPATH": str(job.host.repository / "src")},
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -321,3 +327,39 @@ def test_public_entry_uses_manifest_paths_without_default_workdir(monkeypatch):
     with pytest.raises(SystemExit):
         entry.main()
     assert len(seen) == 1
+
+
+def test_inherited_pytest_options_and_plugins_cannot_change_pilot(job, monkeypatch):
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--lab70-nonexistent-option")
+    monkeypatch.setenv("PYTEST_PLUGINS", "lab70_nonexistent_host_plugin")
+    result = jobs.admit(job)
+    assert result["summary"]["controller_completion"] == "PASS"
+    assert result["summary"]["tests"] == 1
+    assert result["summary"]["gates"][-1]["returncode"] == 0
+
+
+def test_worktree_preparation_never_runs_host_checkout_hook(job, tmp_path):
+    marker = tmp_path / "host-hook-ran"
+    hook = job.host.repository / ".git/hooks/post-checkout"
+    hook.write_text(
+        f"#!{sys.executable}\nfrom pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('unexpected execution')\n"
+    )
+    hook.chmod(0o700)
+    result = jobs.admit(job)
+    assert result["summary"]["controller_completion"] == "PASS"
+    assert not marker.exists()
+    config = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(job.host.repository),
+            "config",
+            "--local",
+            "--get",
+            "core.hooksPath",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert config.returncode == 1  # No persistent hook setting was written.

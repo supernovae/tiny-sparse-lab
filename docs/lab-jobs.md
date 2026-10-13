@@ -12,9 +12,13 @@ coordinator review of the real CPU result.
 ## Select the immutable handoff
 
 Before admission, the coordinator selects a **merged, validated full SHA** that
-contains this adapter, checks out a clean authoring/controller checkout at that
-SHA, and gives the operator a JSON manifest. `validation_reference` records the
-review/CI evidence; the adapter verifies the local source SHA and ancestry in
+contains this adapter, prepares a separate clean detached controller worktree at
+that SHA, and gives the operator a JSON manifest. Do not switch or modify the
+owner's existing checkout. If the selected controller worktree is not already
+prepared, the parent/operator can create it once from locally available Git
+objects with `git -C /owner/checkout -c core.hooksPath=/dev/null worktree add --detach
+/absolute/selected/controller FULL_VALIDATED_SHA`; the existing checkout's files
+and branch stay in place. `validation_reference` records the review/CI evidence; the adapter verifies the local source SHA and ancestry in
 `refs/remotes/origin/main`, but does not fetch GitHub or independently attest CI.
 The selected SHA is never refreshed or substituted during admission.
 
@@ -29,10 +33,13 @@ wrap `lab-job` in another `flock` or a legacy launcher that takes that lock.
 
 The interpreter must already have the required packages. Record its exact Python,
 Torch and pytest versions; no installation or runtime registry mutation is done.
-Invocation uses that interpreter directly, isolated from Python path overrides,
-and verifies the SparseLab import from the fresh checkout. Accelerator visibility
-is disabled, thread counts are one, Hugging Face/Transformers offline flags and
-pytest plugin-autoload suppression are set. These are execution controls, not an
+The bootstrap below selects controller source explicitly even when the existing
+interpreter has an editable install pointing at an older checkout. The monitored
+child then uses isolated Python mode and verifies its SparseLab import from the
+fresh workload checkout. Accelerator visibility is disabled, thread counts are
+one, Hugging Face/Transformers offline flags and
+pytest plugin-autoload suppression are set. Inherited `PYTEST_ADDOPTS` and
+`PYTEST_PLUGINS` are removed. These are execution controls, not an
 OS network sandbox or protection against hostile code under the same UID.
 
 Create a normal JSON file outside the checkout. Replace every angle-bracket
@@ -86,19 +93,27 @@ input JSON whitespace. Unknown fields, duplicate keys and nonfinite values refus
 
 ## Admit, inspect and collect
 
-From the selected clean checkout, using its already provisioned interpreter:
+Use the selected controller worktree as `host.repository`. Explicitly override
+`PYTHONPATH` for each invocation so an older editable install cannot select the
+adapter. `-P` excludes implicit current-directory imports and `-B` suppresses
+bytecode writes; do not add `-I` here, which would ignore this source selection.
+These are command-scoped environment values, not an install or registry change:
 
 ```sh
-/absolute/provisioned/bin/python -m sparselab lab-job admit /absolute/job.json
-/absolute/provisioned/bin/python -m sparselab lab-job status /absolute/job.json
-/absolute/provisioned/bin/python -m sparselab lab-job collect /absolute/job.json
+env PYTHONPATH=/absolute/selected/controller/src \
+  /absolute/provisioned/bin/python -P -B -m sparselab lab-job admit /absolute/job.json
+env PYTHONPATH=/absolute/selected/controller/src \
+  /absolute/provisioned/bin/python -P -B -m sparselab lab-job status /absolute/job.json
+env PYTHONPATH=/absolute/selected/controller/src \
+  /absolute/provisioned/bin/python -P -B -m sparselab lab-job collect /absolute/job.json
 ```
 
 `admit` durably reserves the job directory and unique attempt index, and seals
 `manifest.json` plus `prepared.json` binding both external IDs, manifest digest,
 and a native runner UUID **before any workload launch**. It creates a fresh owned
-scratch directory and detached Git worktree at the selected SHA. The same binding
-is in the native runner's `pending.json` before monitor spawn. No experiment,
+scratch directory and detached Git worktree at the selected SHA, suppressing
+checkout hooks for that Git subprocess without changing persistent configuration.
+The same binding is in the native runner's `pending.json` before monitor spawn. No experiment,
 optimizer-attempt or worker IDs are invented for a pytest payload. Native queue
 `PREPARED`/claim/replay remains the contract for actual queued training; this
 adapter uses the runner's exclusive pending/completion mechanism and one host
@@ -151,7 +166,8 @@ After external review, merge and successful CI for the chosen merged source:
 Optional cleanup planning is **preview only**:
 
 ```sh
-/absolute/provisioned/bin/python -m sparselab lab-job cleanup-preview /absolute/job.json \
+env PYTHONPATH=/absolute/selected/controller/src \
+  /absolute/provisioned/bin/python -P -B -m sparselab lab-job cleanup-preview /absolute/job.json \
   --candidate /absolute/disposable-work/scratch/cpu-attention-authorized-001
 ```
 

@@ -215,6 +215,8 @@ def admit(job: Job) -> dict:
             "git",
             "-C",
             str(job.host.repository),
+            "-c",
+            "core.hooksPath=/dev/null",
             "worktree",
             "add",
             "--detach",
@@ -296,6 +298,7 @@ def execute(manifest: str) -> int:
         )
     )
     env.pop("PYTEST_ADDOPTS", None)
+    env.pop("PYTEST_PLUGINS", None)
     env["SPARSELAB_WORK_DIR"] = str(scratch / "work")
     temporary = ensure_scratch_dir(scratch / "work")
     env.update(dict.fromkeys(("TMPDIR", "TEMP", "TMP"), str(temporary)))
