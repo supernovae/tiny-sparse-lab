@@ -266,6 +266,41 @@ def inspect_workflow(path: Path, bindings: Path, *, max_runs: int = 1000) -> dic
     }
 
 
+def locked_workflow_context(lock, source: Path) -> LoadedWorkflow:
+    """Reconstruct inventoried intent for read-only inspection, never admission.
+
+    The caller must first authenticate the lock and availability sidecar with
+    open_lock. Inventory integrity is not trusted committed-source provenance.
+    """
+    profile = lock.availability["workflow_profile"]
+    if (
+        not isinstance(profile, dict)
+        or type(profile.get("version")) is not int
+        or profile["version"] != 1
+    ):
+        raise ValueError("unsupported authenticated workflow profile")
+    loaded = load_workflow(
+        Path(profile["descriptor_path"]), Path(profile["binding_path"])
+    )
+    expected = {
+        "recipe_sha256": loaded.recipe_sha256,
+        "descriptor_sha256": loaded.descriptor_sha256,
+        "binding_sha256": loaded.binding_sha256,
+    }
+    hashes = {
+        name: hashlib.sha256(raw).hexdigest()
+        for name, raw in loaded.context.documents.items()
+    }
+    if (
+        any(profile.get(key) != value for key, value in expected.items())
+        or source.absolute() != loaded.source
+        or lock.availability.get("declaration_hashes") != hashes
+        or lock.availability.get("declaration_root") != str(loaded.context.root)
+    ):
+        raise ValueError("workflow declaration or binding identity changed")
+    return loaded
+
+
 def resolve_workflow(path: Path, bindings: Path, *, max_runs: int = 1000):
     """Cold native verification and resolution; no publication or runtime probing."""
     from sparselab.data.legacy import require_current_dataset

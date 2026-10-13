@@ -614,7 +614,96 @@ def test_published_workflow_iteration_does_not_propose_execution(
     report = check_iteration(lock, work_dir=tmp_path / "inspection", cold_verify=True)
     assert report["state"] == "BLOCKED"
     codes = {gate["code"] for gate in report["missing_gates"]}
-    assert "DECLARATION_OR_LOCK_INVALID" in codes
+    assert "WORKFLOW_EXECUTION_UNAVAILABLE" in codes
+    assert "DECLARATION_OR_LOCK_INVALID" not in codes
     assert "experiment run" not in report["next_command"]
     assert "experiment explain" in report["next_command"]
     assert not (tmp_path / "inspection").exists()
+
+
+@pytest.mark.parametrize("damage", ["binding", "descriptor", "config"])
+def test_iteration_preserves_invalid_workflow_declaration_errors(
+    native_workflow, tmp_path, damage
+):
+    from sparselab.iteration import check_iteration
+
+    source, bindings = native_workflow
+    lock = publish_workflow(source, bindings, tmp_path / "published")
+    if damage == "binding":
+        update(bindings, logging_root="changed")
+    elif damage == "descriptor":
+        update(source, portable_workflow_version=99)
+    else:
+        update(source.parent / "configs/run.json", seed=8)
+        repin(source)
+    report = check_iteration(lock, work_dir=tmp_path / "inspection", cold_verify=True)
+    codes = {gate["code"] for gate in report["missing_gates"]}
+    assert "DECLARATION_OR_LOCK_INVALID" in codes
+    assert "WORKFLOW_EXECUTION_UNAVAILABLE" in codes
+    assert report["state"] == "BLOCKED"
+    assert not (tmp_path / "inspection").exists()
+
+
+def test_workflow_iteration_gate_blocks_without_other_missing_evidence():
+    from sparselab.iteration import _classification
+
+    state, _ = _classification(
+        [{"code": "WORKFLOW_EXECUTION_UNAVAILABLE", "reason": "not admitted"}],
+        campaign=None,
+        runtime_needed=False,
+        locked=True,
+        pilot_needed=False,
+    )
+    assert state == "BLOCKED"
+
+
+@pytest.mark.parametrize("damage", ["hashes", "source", "root"])
+def test_locked_context_redundant_availability_consistency(
+    tmp_path, monkeypatch, damage
+):
+    from sparselab.experiments import workflow_recipe
+
+    source, bindings = write_workflow(tmp_path / "recipe")
+    loaded = load_workflow(source, bindings)
+    # Direct helper input models an already-authenticated caller's metadata.
+    # This is a consistency test, not a forged-sidecar/open_lock acceptance test.
+    availability = {
+        "workflow_profile": {
+            "version": 1,
+            "descriptor_path": str(source),
+            "binding_path": str(bindings),
+            "recipe_sha256": loaded.recipe_sha256,
+            "descriptor_sha256": loaded.descriptor_sha256,
+            "binding_sha256": loaded.binding_sha256,
+        },
+        "declaration_hashes": {
+            name: hashlib.sha256(raw).hexdigest()
+            for name, raw in loaded.context.documents.items()
+        },
+        "declaration_root": str(loaded.context.root),
+    }
+    lock = SimpleNamespace(availability=availability)
+    assert (
+        workflow_recipe.locked_workflow_context(lock, loaded.source).plan == loaded.plan
+    )
+    actual_source = loaded.source
+    if damage == "hashes":
+        availability["declaration_hashes"]["configs/run.json"] = "0" * 64
+    elif damage == "source":
+        actual_source = tmp_path / "decoy-plan.json"
+    else:
+        availability["declaration_root"] = str(tmp_path / "decoy-root")
+    reads = []
+    original = workflow_recipe.load_workflow
+
+    def reload(*args):
+        result = original(*args)
+        reads.append(result.recipe_sha256)
+        return result
+
+    monkeypatch.setattr(workflow_recipe, "load_workflow", reload)
+    with pytest.raises(
+        ValueError, match="^workflow declaration or binding identity changed$"
+    ):
+        workflow_recipe.locked_workflow_context(lock, actual_source)
+    assert reads == [loaded.recipe_sha256]  # Descriptor/binding/inventory passed.

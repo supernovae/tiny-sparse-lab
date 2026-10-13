@@ -14,6 +14,18 @@ def add_commands(parser: argparse.ArgumentParser) -> None:
     inspect.add_argument("--max-runs", type=int, default=1000)
     inspect.add_argument("--json", action="store_true")
     inspect.set_defaults(handler=handle)
+    preparation = commands.add_parser(
+        "preparation",
+        help="Inspect an inventoried native preparation graph; never execute",
+    )
+    preparation_actions = preparation.add_subparsers(
+        dest="preparation_command", required=True
+    )
+    preview = preparation_actions.add_parser("inspect")
+    preview.add_argument("source", type=Path)
+    preview.add_argument("--bindings", type=Path, required=True)
+    preview.add_argument("--json", action="store_true")
+    preview.set_defaults(handler=handle_preparation)
     workflow = commands.add_parser(
         "workflow", help="Inspect, resolve or publish prepared-input workflow metadata"
     )
@@ -50,6 +62,16 @@ def handle(args: argparse.Namespace) -> None:
             )
         for limitation in result["limitations"]:
             print(limitation)
+
+
+def handle_preparation(args: argparse.Namespace) -> None:
+    from sparselab.experiments.preparation_recipe import inspect_preparation_recipe
+
+    try:
+        result = inspect_preparation_recipe(args.source, args.bindings)
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(f"sparselab: {error}") from None
+    print(json.dumps(result, sort_keys=True, allow_nan=False))
 
 
 def handle_workflow(args: argparse.Namespace) -> None:
