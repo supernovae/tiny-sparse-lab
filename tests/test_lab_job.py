@@ -54,7 +54,7 @@ def job(tmp_path, monkeypatch):
     import torch
 
     monkeypatch.setattr(jobs, "__file__", str(repo / "src/sparselab/lab_job.py"))
-    return jobs.Job(
+    admitted = jobs.Job(
         format="sparselab-lab-job-v1",
         job_id="one",
         attempt_id="authorized-one",
@@ -87,6 +87,38 @@ def job(tmp_path, monkeypatch):
         ),
         max_evidence_bytes=4_000_000,
     )
+
+    yield admitted
+    # Keep actual supervisor evidence in failing CI output, where temporary
+    # fixture directories are otherwise unavailable after the runner exits.
+    import json
+
+    for completion in admitted.host.evidence.glob("*/monitor/completion.json"):
+        evidence = completion.parent.parent
+        if (evidence / "gates.json").exists():
+            continue
+        receipt = json.loads(completion.read_bytes())
+        print(
+            "INCOMPLETE_GATE_RECEIPT",
+            json.dumps(
+                {
+                    key: receipt[key]
+                    for key in (
+                        "status",
+                        "violations",
+                        "elapsed_seconds",
+                        "returncode",
+                        "peak_tree_rss_bytes",
+                        "sample_count",
+                    )
+                },
+                sort_keys=True,
+            ),
+        )
+        for name in ("monitor/command.stderr.log", "runtime.stderr", "runtime.stdout"):
+            path = evidence / name
+            if path.exists():
+                print(name, path.read_text()[-4096:])
 
 
 def test_end_to_end_and_duplicate_returns_verified_result(job):

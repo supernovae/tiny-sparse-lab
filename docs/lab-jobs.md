@@ -190,7 +190,10 @@ After external review, merge and applicable CI for the selected merged source:
 
 `cpu-regression` is a separate restricted workload profile for one to five
 explicit pytest functions (`kind: pytest`, `profile: cpu-regression`, `nodes`).
-Seal fills its pytest version. Named-node JUnit coverage, zero failures and zero
+Seal fills its pytest version. The adapter’s subprocess regression tests run
+explicitly in serial safe CI; measured slow cases are excluded from parallel
+fast CI to avoid competing against their fixture watchdog. Native model tests
+run explicitly in lab-loop. Named-node JUnit coverage, zero failures and zero
 skips are required. Plugin autoload is disabled and inherited `PYTEST_ADDOPTS` /
 `PYTEST_PLUGINS` are removed. These test limits do not define native lab jobs.
 
