@@ -729,6 +729,11 @@ def _handle(args: argparse.Namespace) -> None:
 
 
 def add_commands(commands: argparse._SubParsersAction) -> None:
+    from sparselab.experiments.recipe_cli import add_commands as add_recipe_commands
+
+    add_recipe_commands(
+        commands.add_parser("recipe", help="Inspect portable recipe metadata")
+    )
     for name in (
         "validate",
         "inspect",

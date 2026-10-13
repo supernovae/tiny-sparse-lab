@@ -79,9 +79,20 @@ def _reject_constant(value: str) -> None:
 
 
 def read_document(path: Path, *, exact_decimals: bool = False) -> dict[str, Any]:
-    """Read strict duplicate-free YAML/JSON; optionally retain decimal number precision."""
+    """Read strict duplicate-free YAML/JSON, without schema or path binding."""
     try:
         text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ValueError(f"invalid experiment document {path}: {error}") from error
+    return parse_document(text, source=path, exact_decimals=exact_decimals)
+
+
+def parse_document(
+    text: str, *, source: Path, exact_decimals: bool = False
+) -> dict[str, Any]:
+    """Read strict duplicate-free YAML/JSON; optionally retain decimal number precision."""
+    path = source
+    try:
         raw = (
             json.loads(
                 text,

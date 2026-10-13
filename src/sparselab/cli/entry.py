@@ -21,6 +21,12 @@ def main() -> None:
         if args.work_dir is not None:
             os.environ["SPARSELAB_WORK_DIR"] = str(resolve_work_dir(args.work_dir))
         environment_main(args.command[2:])
+    elif not extras and args.command[:2] == ["experiment", "recipe"]:
+        from sparselab.experiments.recipe_cli import main as recipe_main
+
+        # Inspection ignores execution-only global work/token selectors. In
+        # particular it neither reads credentials nor configures a work root.
+        recipe_main(args.command[2:])
     elif not extras and args.command[:1] == ["lab-job"]:
         from sparselab.lab_job import main as job_main
 

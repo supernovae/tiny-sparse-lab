@@ -4330,6 +4330,9 @@ def main() -> None:
                 args.campaign_command, f"unrecognized arguments: {' '.join(extras)}"
             )
         parser.error(f"unrecognized arguments: {' '.join(extras)}")
+    if args.command == "experiment" and args.experiment_command == "recipe":
+        args.handler(args)
+        return
     if args.command == "experiment" and args.experiment_command == "submit":
         from sparselab.workers.cli import validate_submit_args
 
