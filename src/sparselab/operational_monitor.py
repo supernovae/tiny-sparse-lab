@@ -10,7 +10,10 @@ import signal
 import stat
 import subprocess
 import sys
+import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Literal
 
@@ -730,6 +733,38 @@ def _record(stream: object, record: BaseModel) -> None:
     os.fsync(stream.fileno())  # type: ignore[attr-defined]
 
 
+@contextmanager
+def _startup_signals() -> Iterator[None]:
+    """Defer handled cancellation until the helper can accept owned shutdown.
+
+    Keep the Popen handle/identity handoff atomic with respect to Python signal
+    handlers. Unlike a signal mask, these temporary handlers are reset by exec:
+    the helper must be able to receive termination after publishing readiness.
+    Non-main-thread callers cannot receive Python signals or install handlers.
+    """
+    previous = {}
+    pending = []
+
+    def defer(signum: int, frame: Any) -> None:
+        if not pending:
+            pending.append((signum, frame))
+
+    try:
+        if threading.current_thread() is threading.main_thread():
+            for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+                handler = signal.getsignal(sig)
+                if callable(handler):
+                    previous[sig] = handler
+                    signal.signal(sig, defer)
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+        if pending:
+            signum, frame = pending[0]
+            previous[signum](signum, frame)
+
+
 def _stop_enhanced_supervisor(
     process: subprocess.Popen[bytes],
     root: ProcessIdentity,
@@ -975,93 +1010,92 @@ def monitor_command(
                 "--",
                 *command,
             ]
-        process = subprocess.Popen(
-            launch_command,
-            cwd=working_directory,
-            stdout=command_stdout,
-            stderr=command_stderr,
-        )
-        root = _identity(psutil.Process(process.pid))
-        if enhanced:
-            ready_path = log_dir / "owned-ready.json"
-            ready_deadline = start + min(
-                4.0,
-                policy.max_wall_seconds if policy.max_wall_seconds is not None else 4.0,
-            )
-            while (
-                not ready_path.exists()
-                and process.poll() is None
-                and time.monotonic() < ready_deadline
-            ):
-                time.sleep(0.01)
-            if not ready_path.exists():
-                # The helper publishes readiness before it can launch work.
-                # A failed handshake cannot be treated as a monitored command.
-                _stop_enhanced_supervisor(
-                    process,
-                    root,
-                    log_dir / "owned-completion.json",
-                    policy.termination_grace_seconds,
-                )
-                raise RuntimeError(
-                    "owned supervisor did not become ready before deadline"
-                )
-            ready_record = json.loads(ready_path.read_text())
-            if ready_record != {"pid": root.pid, "create_time": root.create_time}:
-                _stop_enhanced_supervisor(
-                    process,
-                    root,
-                    log_dir / "owned-completion.json",
-                    policy.termination_grace_seconds,
-                )
-                raise RuntimeError("owned supervisor readiness identity mismatch")
-        known = {root.pid: root}
-        launch = MonitorLaunch(
-            command=command,
-            root=root,
-            policy=policy,
-            workspace=str(workspace.resolve()),
-            cwd=str(working_directory.resolve()),
-            reserved_bytes=reserved_bytes,
-            reserved_inodes=reserved_inodes,
-            source_sha256=source_sha,
-            policy_sha256=policy_sha,
-            source_path=str(Path(__file__).resolve()),
-            policy_path=str(policy_path.resolve()),
-            stdout_path=str(stdout_path.resolve()),
-            stderr_path=str(stderr_path.resolve()),
-            events_path=str(events.resolve()),
-            completion_path=str(completion_path.resolve()),
-            baseline_sha256=baseline.sha256 if baseline is not None else None,
-            owned_source_sha256=(
-                hashlib.sha256(
-                    (Path(__file__).parent / "owned_process.py").read_bytes()
-                ).hexdigest()
-                if enhanced
-                else None
-            ),
-        )
-        _record(stream, launch)
-        minima: dict[str, int | None] = dict.fromkeys(
-            (
-                "host_available_ram_bytes",
-                "host_free_swap_bytes",
-                "disk_free_bytes",
-                "disk_free_inodes",
-                "projected_disk_free_bytes",
-                "projected_disk_free_inodes",
-            )
-        )
-        peak_rss: int | None = None
-        peak_swap: int | None = None
-        peak_device: int | None = None
-        peak_added_bytes: int | None = None
-        peak_added_inodes: int | None = None
-        sample_count = 0
-        violations: list[str] = []
-        monitor_error = False
-        terminating_at: float | None = None
+        process = None
+        root = None
+        known: dict[int, ProcessIdentity] = {}
         try:
+            with _startup_signals():
+                process = subprocess.Popen(
+                    launch_command,
+                    cwd=working_directory,
+                    stdout=command_stdout,
+                    stderr=command_stderr,
+                )
+                root = _identity(psutil.Process(process.pid))
+                known[root.pid] = root
+                if enhanced:
+                    ready_path = log_dir / "owned-ready.json"
+                    ready_deadline = start + min(
+                        4.0,
+                        policy.max_wall_seconds
+                        if policy.max_wall_seconds is not None
+                        else 4.0,
+                    )
+                    while (
+                        not ready_path.exists()
+                        and process.poll() is None
+                        and time.monotonic() < ready_deadline
+                    ):
+                        time.sleep(0.01)
+                    if not ready_path.exists():
+                        # The helper publishes readiness before it can launch work.
+                        # A failed handshake cannot be treated as a monitored command.
+                        raise RuntimeError(
+                            "owned supervisor did not become ready before deadline"
+                        )
+                    ready_record = json.loads(ready_path.read_text())
+                    if ready_record != {
+                        "pid": root.pid,
+                        "create_time": root.create_time,
+                    }:
+                        raise RuntimeError(
+                            "owned supervisor readiness identity mismatch"
+                        )
+            launch = MonitorLaunch(
+                command=command,
+                root=root,
+                policy=policy,
+                workspace=str(workspace.resolve()),
+                cwd=str(working_directory.resolve()),
+                reserved_bytes=reserved_bytes,
+                reserved_inodes=reserved_inodes,
+                source_sha256=source_sha,
+                policy_sha256=policy_sha,
+                source_path=str(Path(__file__).resolve()),
+                policy_path=str(policy_path.resolve()),
+                stdout_path=str(stdout_path.resolve()),
+                stderr_path=str(stderr_path.resolve()),
+                events_path=str(events.resolve()),
+                completion_path=str(completion_path.resolve()),
+                baseline_sha256=baseline.sha256 if baseline is not None else None,
+                owned_source_sha256=(
+                    hashlib.sha256(
+                        (Path(__file__).parent / "owned_process.py").read_bytes()
+                    ).hexdigest()
+                    if enhanced
+                    else None
+                ),
+            )
+            _record(stream, launch)
+            minima: dict[str, int | None] = dict.fromkeys(
+                (
+                    "host_available_ram_bytes",
+                    "host_free_swap_bytes",
+                    "disk_free_bytes",
+                    "disk_free_inodes",
+                    "projected_disk_free_bytes",
+                    "projected_disk_free_inodes",
+                )
+            )
+            peak_rss: int | None = None
+            peak_swap: int | None = None
+            peak_device: int | None = None
+            peak_added_bytes: int | None = None
+            peak_added_inodes: int | None = None
+            sample_count = 0
+            violations: list[str] = []
+            monitor_error = False
+            terminating_at: float | None = None
             while True:
                 try:
                     observation = sample(
@@ -1168,6 +1202,12 @@ def monitor_command(
                             break
                 time.sleep(policy.interval_seconds)
         except BaseException:
+            if process is None:
+                raise  # Spawn failed; there is no owned child to stop.
+            if root is None:
+                # A returned, unreaped direct child still belongs to this Popen.
+                root = _identity(psutil.Process(process.pid))
+                known[root.pid] = root
             if enhanced:
                 _stop_enhanced_supervisor(
                     process,
