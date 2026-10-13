@@ -129,18 +129,18 @@ def load_workflow(path: Path, bindings: Path) -> LoadedWorkflow:
         parse_document(raw.decode(), source=path)
     )
     context = snapshot_inventory(path, raw, descriptor.files)
-    binding_bytes = _metadata_bytes(bindings)
-    local = LocalBindings.model_validate(
-        parse_document(binding_bytes.decode(), source=bindings)
-    )
-    if set(local.artifacts) != set(descriptor.artifacts):
-        raise ValueError("local artifact bindings differ from workflow identity names")
     if bindings == path or bindings in [
         context.root / name for name in context.documents
     ]:
         raise ValueError(
             "local bindings must be separate from inventoried portable declarations"
         )
+    binding_bytes = _metadata_bytes(bindings)
+    local = LocalBindings.model_validate(
+        parse_document(binding_bytes.decode(), source=bindings)
+    )
+    if set(local.artifacts) != set(descriptor.artifacts):
+        raise ValueError("local artifact bindings differ from workflow identity names")
     source = context.reference(
         context.root / descriptor.entrypoint, descriptor.entrypoint
     )
@@ -182,7 +182,7 @@ def load_workflow(path: Path, bindings: Path) -> LoadedWorkflow:
         )
     config_source = context.reference(source, plan.base_run)
     if (
-        next(m.role for m in descriptor.files if m.path == plan.base_run)
+        next((m.role for m in descriptor.files if m.path == plan.base_run), None)
         != "run_config"
     ):
         raise ValueError("workflow base_run must reference a run_config member")

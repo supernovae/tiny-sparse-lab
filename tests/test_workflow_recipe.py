@@ -422,3 +422,197 @@ def test_binding_relocation_preserves_native_science_and_does_not_overwrite_lock
     with pytest.raises(ValueError, match="different availability binding"):
         publish_workflow(source, bindings, workspace)
     assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize("overlap", ["descriptor", "inventory"])
+def test_binding_overlap_refused_before_interpreting_local_document(
+    tmp_path, monkeypatch, overlap
+):
+    from sparselab.experiments import workflow_recipe
+
+    source, bindings = write_workflow(tmp_path / "recipe")
+    if overlap == "inventory":
+        raw = json.loads(source.read_text())
+        raw["files"].append(
+            {
+                "path": bindings.name,
+                "role": "metadata",
+                "sha256": hashlib.sha256(bindings.read_bytes()).hexdigest(),
+            }
+        )
+        source.write_text(json.dumps(raw))
+    else:
+        bindings = source
+    read = workflow_recipe._metadata_bytes
+    calls = []
+
+    def metadata(path):
+        calls.append(path)
+        if len(calls) != 1:
+            pytest.fail("overlapping file interpreted as local bindings")
+        return read(path)
+
+    monkeypatch.setattr(workflow_recipe, "_metadata_bytes", metadata)
+    with pytest.raises(
+        ValueError,
+        match="^local bindings must be separate from inventoried portable declarations$",
+    ):
+        load_workflow(source, bindings)
+    assert calls == [source]
+
+
+@pytest.mark.parametrize("damage", ["port_kind", "workspace", "worker"])
+def test_workflow_port_and_execution_location_refusals(tmp_path, monkeypatch, damage):
+    from sparselab.experiments import workflow_recipe
+
+    source, bindings = write_workflow(tmp_path / "recipe")
+    if damage == "port_kind":
+        update(
+            source.parent / "plans/plan.json",
+            inputs={"tokenizer": "packed", "prepared_data": "token"},
+        )
+        message = "workflow inputs must bind tokenizer and prepared_data ports"
+    else:
+        update(
+            source.parent / "plans/plan.json",
+            execution={"backend": "cpu", damage: "local"},
+        )
+        message = "workflow execution locations belong to later native admission"
+    repin(source)
+    monkeypatch.setattr(
+        workflow_recipe,
+        "recipe_run_config",
+        lambda *a, **kw: pytest.fail("config binding before port/location refusal"),
+    )
+    with pytest.raises(ValueError, match=f"^{message}$"):
+        load_workflow(source, bindings)
+
+
+@pytest.mark.parametrize(
+    "damage,match",
+    [
+        ("role", "^workflow base_run must reference a run_config member$"),
+        ("undeclared", "^undeclared recipe reference:"),
+    ],
+)
+def test_base_run_role_and_inventory_refusals_precede_config_reads(
+    tmp_path, monkeypatch, damage, match
+):
+    from sparselab.declaration_context import RecipeContext
+
+    source, bindings = write_workflow(tmp_path / "recipe")
+    raw = json.loads(source.read_text())
+    if damage == "role":
+        next(member for member in raw["files"] if member["role"] == "run_config")[
+            "role"
+        ] = "metadata"
+    else:
+        raw["files"] = [
+            member for member in raw["files"] if member["role"] != "run_config"
+        ]
+    source.write_text(json.dumps(raw))
+    read = RecipeContext.read_document
+    calls = []
+
+    def document(context, path):
+        calls.append(path)
+        assert path == source.parent / "plans/plan.json", (
+            "config read before inventory/role refusal"
+        )
+        return read(context, path)
+
+    monkeypatch.setattr(RecipeContext, "read_document", document)
+    with pytest.raises(ValueError, match=match):
+        load_workflow(source, bindings)
+    assert calls == [source.parent / "plans/plan.json"]
+
+
+def test_native_path_binder_rejects_undeclared_field(tmp_path):
+    from sparselab.config.models import RunConfig
+    from sparselab.config.recipe_paths import _bind_config
+    from sparselab.declaration_context import RecipeContext
+
+    raw = FIXTURE.read_bytes()
+    context = RecipeContext(tmp_path, {"run.json": raw})
+    config = RunConfig.model_validate(json.loads(raw))
+    with pytest.raises(
+        ValueError, match="^binding does not name a declared native config path$"
+    ):
+        _bind_config(
+            config,
+            tmp_path / "run.json",
+            context,
+            bindings={"plugin.path": tmp_path / "opaque"},
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_context_rejects_bindings_for_undeclared_config(tmp_path):
+    from sparselab.declaration_context import RecipeContext
+
+    with pytest.raises(
+        ValueError, match="^bindings for undeclared config: absent.json$"
+    ):
+        RecipeContext(
+            tmp_path,
+            {"run.json": FIXTURE.read_bytes()},
+            {"absent.json": {"tokenizer.path": tmp_path / "tokenizer.json"}},
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("feature", ["variant", "suite", "attempt_contract"])
+def test_direct_contextual_resolver_refuses_external_declarations_before_inputs(
+    tmp_path, monkeypatch, feature
+):
+    from sparselab.experiments import lock as native
+
+    source, bindings = write_workflow(tmp_path / "recipe")
+    loaded = load_workflow(source, bindings)
+    raw = loaded.plan.model_dump(mode="json")
+    if feature == "variant":
+        raw["corpus_variants"] = [
+            {"id": "extra", "project": "absent.yaml", "vocab_size": 260}
+        ]
+    elif feature == "suite":
+        raw["evaluation_suite"] = "absent.yaml"
+    else:
+        raw["execution"]["attempt_contract"] = {
+            "path": "absent.yaml",
+            "sha256": "a" * 64,
+        }
+    plan = ExperimentPlan.model_validate(raw)
+    monkeypatch.setattr(
+        native,
+        "recipe_run_config",
+        lambda *a, **kw: pytest.fail(
+            "config resolution before unsupported-context refusal"
+        ),
+    )
+    monkeypatch.setattr(
+        native,
+        "verify_inputs",
+        lambda *a, **kw: pytest.fail(
+            "artifact verification before unsupported-context refusal"
+        ),
+    )
+    with pytest.raises(
+        ValueError,
+        match="^recipe context does not yet support variant, suite or attempt-contract references$",
+    ):
+        native.resolve_plan(plan, loaded.source, context=loaded.context)
+    assert not (source.parent / "payload").exists()
+
+
+def test_published_workflow_iteration_does_not_propose_execution(
+    native_workflow, tmp_path
+):
+    from sparselab.iteration import check_iteration
+
+    source, bindings = native_workflow
+    lock = publish_workflow(source, bindings, tmp_path / "published")
+    report = check_iteration(lock, work_dir=tmp_path / "inspection", cold_verify=True)
+    assert report["state"] == "BLOCKED"
+    assert "experiment run" not in report["next_command"]
+    assert "experiment explain" in report["next_command"]
+    assert not (tmp_path / "inspection").exists()

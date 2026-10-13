@@ -137,3 +137,28 @@ run-evidence linkage. Those must connect to CampaignEngine/Controller and their
 current gates; this profile is not a replacement executor. Actual TinyStories
 CPU/GPU portability proof, publication to Workshop and any release remain
 separately admitted later work. Full LAB-73/LAB-74 acceptance is still partial.
+
+## Refusal and guidance follow-up
+
+The focused guards also cover binding documents overlapping the descriptor or
+inventory, artifact kinds at input ports, execution workspace/worker fields,
+base-config inventory role, undeclared native path bindings, context bindings for
+uninventoried configs, and direct native contextual resolution of unsupported
+variants/suites/attempt contracts. Exact errors and read/verifier spies distinguish
+these guards from incidental failures. Overlap is rejected before interpreting a
+file as local bindings. Member-role lookup has an explicit `None` default;
+uninventoried references still fail earlier in `RecipeContext.reference`.
+
+The nested `workflow_profile.execution: unavailable` value is explanatory. The
+existing execution authority tests the **presence of `workflow_profile`** in the
+authenticated availability sidecar. Removing the explanatory value does not grant
+execution; no test treats that informational mutation as a security failure.
+
+An actual published-profile iteration check currently returns `BLOCKED` and an
+`experiment explain` command, not `experiment run`. Its native declaration walker
+cannot interpret the workflow entrypoint's descriptor-supplied artifacts, so it
+reports `DECLARATION_OR_LOCK_INVALID` and `DELTA_UNRESOLVED`, alongside missing
+pilot/runtime evidence. A read-only regression covers this outcome. No iteration
+guidance code is changed here, and ordinary-lock guidance is unchanged. Dedicated
+workflow-context guidance remains part of the future context/admission work; that
+work must retain the profile execution authority before permitting readiness.
