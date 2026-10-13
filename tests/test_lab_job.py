@@ -72,8 +72,13 @@ def job(tmp_path, monkeypatch):
         ),
         python_version=platform.python_version(),
         torch_version=str(torch.__version__),
-        pytest_version=pytest.__version__,
-        nodes=["tests/test_tiny.py::test_one"],
+        runtime_sha256=jobs.runtime_identity()["runtime_sha256"],
+        workload=jobs.PytestWorkload(
+            kind="pytest",
+            profile="cpu-regression",
+            pytest_version=pytest.__version__,
+            nodes=["tests/test_tiny.py::test_one"],
+        ),
         policy=MonitorPolicy(
             monitor_policy_version=1,
             max_wall_seconds=20,
@@ -235,8 +240,13 @@ def test_unsafe_cleanup_plan_refuses_without_deletion(job, monkeypatch, target):
 def test_manifest_rejects_gpu_and_broad_nodes(job, tmp_path):
     for updates in (
         {"backend": "rocm"},
-        {"nodes": ["tests/"]},
-        {"nodes": [job.nodes[0]] * 6},
+        {"workload": {**job.workload.model_dump(), "nodes": ["tests/"]}},
+        {
+            "workload": {
+                **job.workload.model_dump(),
+                "nodes": [job.workload.nodes[0]] * 6,
+            }
+        },
     ):
         with pytest.raises(ValueError):
             jobs.Job.model_validate({**job.payload(), **updates})

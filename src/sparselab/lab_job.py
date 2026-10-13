@@ -1,4 +1,4 @@
-"""Bounded CPU pytest handoffs over the native host runner; no scheduler or retry."""
+"""Immutable native lab handoffs over the host runner; no scheduler or retry."""
 
 from __future__ import annotations
 
@@ -7,15 +7,24 @@ import json
 import os
 import re
 import subprocess
+import sys
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from sparselab import runner_control as runner
 from sparselab.campaign.state import digest, publish_immutable, read_canonical
+from sparselab.lab_job_workload import (
+    PytestWorkload,
+    TryWorkload,
+    declarations,
+    runtime_identity,
+    snapshot_inputs,
+    verify_native_result,
+)
 from sparselab.operational_monitor import MonitorCompletion, MonitorPolicy
 from sparselab.training.manifest import canonical_json, sha256_file
 from sparselab.workdir import ensure_scratch_dir
@@ -65,22 +74,10 @@ class Job(BaseModel):
     host: Host
     python_version: str
     torch_version: str
-    pytest_version: str
-    nodes: list[str] = Field(min_length=1, max_length=5)
+    runtime_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    workload: Annotated[PytestWorkload | TryWorkload, Field(discriminator="kind")]
     policy: MonitorPolicy
     max_evidence_bytes: int = Field(strict=True, gt=0)
-
-    @field_validator("nodes")
-    @classmethod
-    def explicit_nodes(cls, nodes: list[str]) -> list[str]:
-        if len(set(nodes)) != len(nodes) or any(
-            not re.fullmatch(r"tests/test_[a-zA-Z0-9_]+\.py::test_[a-zA-Z0-9_]+", node)
-            for node in nodes
-        ):
-            raise ValueError(
-                "select unique explicit test function nodes (maximum five)"
-            )
-        return nodes
 
     @model_validator(mode="after")
     def bounded(self) -> Job:
@@ -195,6 +192,12 @@ def admit(job: Job) -> dict:
         check=True,
     )
     runner._unblocked(job.host.blocked)
+    if isinstance(job.workload, TryWorkload):
+        if job.host.work.stat().st_dev != job.host.evidence.stat().st_dev:
+            raise ValueError(
+                "native evidence and scratch must share the monitored filesystem"
+            )
+        declarations(job.workload, job.workload.root)
     native_id = uuid.uuid4().hex
     prepared = _binding(job, native_id)
     try:
@@ -206,6 +209,8 @@ def admit(job: Job) -> dict:
     # Exclusive authorized-attempt index across job IDs. Never replace or reclaim.
     runner._write(job.host.evidence / f"attempt-{job.attempt_id}.json", prepared)
     publish_immutable(evidence / "prepared.json", prepared)
+    if isinstance(job.workload, TryWorkload):
+        snapshot_inputs(job.workload, evidence / "inputs")
     ensure_scratch_dir(job.host.work)
     scratch.mkdir(mode=0o700)
     runner._sync_dir(scratch.parent)
@@ -259,14 +264,76 @@ def _runtime_probe(job: Job, source: Path) -> list[str]:
     code = (
         "import sys,platform,json; "
         f"sys.path.insert(0,{str(source / 'src')!r}); "
-        "import sparselab,torch,pytest; "
-        "from pathlib import Path; "
-        "actual=[platform.python_version(),str(torch.__version__),pytest.__version__]; "
-        "print(json.dumps({'versions':actual,'import':sparselab.__file__})); "
-        f"assert actual == {[job.python_version, job.torch_version, job.pytest_version]!r}, 'stale runtime'; "
+        "import sparselab,torch; from pathlib import Path; "
+        "from sparselab.lab_job_workload import runtime_identity; "
+        "actual=[platform.python_version(),str(torch.__version__)]; "
+        "identity=runtime_identity(); print(json.dumps({'versions':actual,'runtime':identity,'import':sparselab.__file__})); "
+        f"assert actual == {[job.python_version, job.torch_version]!r}, 'stale runtime'; "
+        f"assert identity['runtime_sha256'] == {job.runtime_sha256!r}, 'stale runtime distribution identity'; "
         f"assert Path(sparselab.__file__).resolve() == Path({str(source / 'src/sparselab/__init__.py')!r}), 'stale import'"
     )
+    if isinstance(job.workload, PytestWorkload):
+        code += f"; import pytest; assert pytest.__version__ == {job.workload.pytest_version!r}"
     return [str(job.host.python), "-I", "-B", "-c", code]
+
+
+def _gate_names(job: Job) -> tuple[str, ...]:
+    if isinstance(job.workload, PytestWorkload):
+        return ("source", "runtime", "pytest")
+    return ("source", "runtime", "inputs", "tokenizer", "try", "report")
+
+
+def _command(
+    job: Job, source: Path, evidence: Path, scratch: Path, gate: str
+) -> list[str]:
+    if gate == "runtime":
+        return _runtime_probe(job, source)
+    prefix = [str(job.host.python), "-I", "-B", "-c"]
+    bootstrap = f"import sys; sys.path.insert(0,{str(source / 'src')!r}); "
+    if isinstance(job.workload, PytestWorkload):
+        if os.path.lexists(scratch / "pytest"):
+            raise ValueError("pytest scratch already exists; refusing implicit cleanup")
+        return [
+            *prefix,
+            bootstrap + "import pytest; raise SystemExit(pytest.main(sys.argv[1:]))",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-o",
+            "addopts=",
+            "-m",
+            "not mps and not mlx and not cuda and not rocm and not xpu and not network",
+            "--basetemp",
+            str(scratch / "pytest"),
+            "--junitxml",
+            str(evidence / "pytest.xml"),
+            *job.workload.nodes,
+        ]
+    if gate == "try":
+        return [
+            *prefix,
+            bootstrap + "from sparselab.lab_job_workload import run_native_try; "
+            f"raise SystemExit(run_native_try({str(evidence / 'manifest.json')!r}))",
+        ]
+    cli = [*prefix, bootstrap + "from sparselab.cli.entry import main; main()"]
+    if gate == "tokenizer":
+        return [
+            *cli,
+            "--work-dir",
+            str(scratch / "work"),
+            "tokenizer",
+            "train",
+            str(evidence / "inputs" / job.workload.tokenizer),
+        ]
+    reference = read_canonical(evidence / "native-result.json")
+    return [
+        *cli,
+        "--work-dir",
+        str(evidence / "native"),
+        "report",
+        reference["record"],
+        "--json",
+    ]
 
 
 def execute(manifest: str) -> int:
@@ -304,47 +371,21 @@ def execute(manifest: str) -> int:
     env.update(dict.fromkeys(("TMPDIR", "TEMP", "TMP"), str(temporary)))
     failed = False
     gates = []
-    for name in ("source", "runtime", "pytest"):
+    for name in _gate_names(job):
         code = None
         detail = None
         if not failed:
-            if name == "source":
+            if name in {"source", "inputs"}:
                 try:
-                    _source(job, source, detached=True)
+                    if name == "source":
+                        _source(job, source, detached=True)
+                    else:
+                        declarations(job.workload, evidence / "inputs")
                     code = 0
                 except (ValueError, OSError, subprocess.CalledProcessError) as error:
                     detail, code = str(error), 1
             else:
-                if name == "pytest" and os.path.lexists(scratch / "pytest"):
-                    raise ValueError(
-                        "pytest scratch already exists; refusing implicit cleanup"
-                    )
-                command = (
-                    _runtime_probe(job, source)
-                    if name == "runtime"
-                    else [
-                        str(job.host.python),
-                        "-I",
-                        "-B",
-                        "-c",
-                        (
-                            f"import sys; sys.path.insert(0,{str(source / 'src')!r}); "
-                            "import pytest; raise SystemExit(pytest.main(sys.argv[1:]))"
-                        ),
-                        "-q",
-                        "-p",
-                        "no:cacheprovider",
-                        "-o",
-                        "addopts=",
-                        "-m",
-                        "not mps and not mlx and not cuda and not rocm and not xpu and not network",
-                        "--basetemp",
-                        str(scratch / "pytest"),
-                        "--junitxml",
-                        str(evidence / "pytest.xml"),
-                        *job.nodes,
-                    ]
-                )
+                command = _command(job, source, evidence, scratch, name)
                 with (
                     (evidence / f"{name}.stdout").open("xb") as out,
                     (evidence / f"{name}.stderr").open("xb") as err,
@@ -404,14 +445,14 @@ def collect(job: Job) -> dict:
     gates = read_canonical(evidence / "gates.json")
     if {k: gates[k] for k in prepared} != prepared:
         raise ValueError("gate binding mismatch")
-    for name, gate in zip(("source", "runtime", "pytest"), gates["gates"], strict=True):
+    for name, gate in zip(_gate_names(job), gates["gates"], strict=True):
         if gate["name"] != name or read_canonical(evidence / f"gate-{name}.json") != {
             **prepared,
             **gate,
         }:
             raise ValueError("missing or conflicting gate evidence")
     for gate in gates["gates"]:
-        if gate["executed"] and gate["name"] != "source":
+        if gate["executed"] and gate["name"] not in {"source", "inputs"}:
             for suffix in ("stdout", "stderr"):
                 runner._safe(evidence / f"{gate['name']}.{suffix}")
     for name in ("command.stdout.log", "command.stderr.log", "events.jsonl"):
@@ -420,7 +461,7 @@ def collect(job: Job) -> dict:
         g["executed"] and g["returncode"] == 0 for g in gates["gates"]
     )
     tests = skipped = failures = 0
-    if gates["gates"][-1]["executed"]:
+    if isinstance(job.workload, PytestWorkload) and gates["gates"][-1]["executed"]:
         junit_path = evidence / "pytest.xml"
         runner._safe(junit_path)
         if junit_path.stat().st_size > job.max_evidence_bytes:
@@ -438,8 +479,14 @@ def collect(job: Job) -> dict:
             for case in cases
         }
         passed = (
-            passed and set(job.nodes) <= observed and skipped == 0 and failures == 0
+            passed
+            and set(job.workload.nodes) <= observed
+            and skipped == 0
+            and failures == 0
         )
+    native = None
+    if isinstance(job.workload, TryWorkload) and passed:
+        native = verify_native_result(job, evidence, prepared)
     files = {}
     for path in sorted(evidence.rglob("*")):
         if path == evidence / "summary.json":
@@ -472,10 +519,13 @@ def collect(job: Job) -> dict:
         "native_status": completion.status,
         "native_returncode": completion.returncode,
         "gates": gates["gates"],
+        "native_workflow": native,
         "tests": tests,
         "skipped": skipped,
         "failures": failures,
         "elapsed_seconds": completion.elapsed_seconds,
+        "peak_tree_rss_bytes": completion.peak_tree_rss_bytes,
+        "peak_tree_swap_bytes": completion.peak_tree_swap_bytes,
         "evidence_bytes": size,
         "checks": checks,
         "files": files,
@@ -536,7 +586,7 @@ def cleanup_preview(job: Job, candidate: Path) -> dict:
 
 def register_job_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
-        "lab-job", help="Admit or collect a bounded CPU test handoff"
+        "lab-job", help="Admit or collect an immutable native lab handoff"
     )
     _arguments(parser)
     parser.set_defaults(handler=_handle)
@@ -544,13 +594,89 @@ def register_job_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def _arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "action", choices=("admit", "status", "collect", "cleanup-preview")
+        "action",
+        choices=(
+            "admit",
+            "status",
+            "collect",
+            "cleanup-preview",
+            "runtime-identity",
+            "seal",
+        ),
     )
-    parser.add_argument("manifest", type=Path)
+    parser.add_argument("manifest", type=Path, nargs="?")
     parser.add_argument("--candidate", type=Path)
+    parser.add_argument("--output", type=Path)
 
 
 def _handle(args: argparse.Namespace) -> None:
+    if args.action == "runtime-identity":
+        if (
+            args.manifest is not None
+            or args.candidate is not None
+            or args.output is not None
+        ):
+            raise ValueError("runtime-identity takes no manifest or candidate")
+        print(json.dumps(runtime_identity(), sort_keys=True))
+        return
+    if args.manifest is None:
+        raise ValueError("a job manifest is required")
+    if args.action == "seal":
+        if args.output is None or args.candidate is not None:
+            raise ValueError("seal requires an unused --output and no --candidate")
+        raw = _strict_json(args.manifest.read_bytes())
+        if Path(raw["host"]["python"]) != Path(sys.executable):
+            raise ValueError("seal must run in the exact selected interpreter")
+        import torch
+
+        identity = runtime_identity()
+        raw.update(
+            runtime_sha256=identity["runtime_sha256"],
+            python_version=identity["python_version"],
+            torch_version=str(torch.__version__),
+        )
+        workload = raw["workload"]
+        if workload["kind"] == "lab_try":
+            files = workload["files"]
+            if (
+                not isinstance(files, list)
+                or any(
+                    not isinstance(name, str)
+                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name)
+                    for name in files
+                )
+                or len(files) != len(set(files))
+            ):
+                raise ValueError("seal requires a list of unique flat input filenames")
+            workload["files"] = {
+                name: sha256_file(Path(workload["root"]) / name) for name in files
+            }
+        else:
+            import pytest
+
+            workload["pytest_version"] = pytest.__version__
+        job = Job.model_validate(raw)
+        _source(job, job.host.repository, detached=False)
+        if isinstance(job.workload, TryWorkload):
+            declarations(job.workload, job.workload.root)
+        if os.path.lexists(args.output):
+            raise FileExistsError(args.output)
+        publish_immutable(args.output, job.payload())
+        print(
+            json.dumps(
+                {
+                    "job_id": job.job_id,
+                    "attempt_id": job.attempt_id,
+                    "manifest_sha256": job.identity(),
+                    "manifest": str(args.output),
+                    "status": "SEALED_NOT_ADMITTED",
+                },
+                sort_keys=True,
+            )
+        )
+        return
+    if args.output is not None:
+        raise ValueError("--output is only valid for seal")
     job = load_job(args.manifest)
     if args.action == "cleanup-preview":
         if args.candidate is None:

@@ -20,9 +20,11 @@ continues. Legacy `sparselab-work/` is selectable explicitly and never migrated
 automatically; branches or worktrees do not create scientific or storage IDs.
 
 
-For a bounded shared-host CPU test pilot, [lab jobs](lab-jobs.md) adds immutable
-external job/attempt bindings and collection over the native host monitor. It
-does not submit training or change the worker PREPARED/claim/replay protocol.
+For bounded shared-host CPU work, [lab jobs](lab-jobs.md) adds immutable external
+job/attempt bindings and collection over the native host monitor. Its native
+tokenizer → `try` → `report` profile delegates model work to the existing lab
+lifecycle. Queue workers retain their PREPARED/claim/replay protocol; the adapter
+does not introduce another scheduler.
 
 ## Local operation
 

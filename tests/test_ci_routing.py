@@ -45,6 +45,7 @@ NODES = (
 
 
 LAB_NODES = (
+    "tests/test_lab_job_native.py",
     "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
     "tests/test_probes.py",
     "tests/test_references.py",

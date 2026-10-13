@@ -7,8 +7,10 @@ queue dispatch. Waiting is a submission option: `experiment submit CONFIG
 non-waiting submissions; [workers](workers.md) describes their operation.
 
 The optional [bounded lab-job adapter](lab-jobs.md) binds an external handoff
-to the existing native host runner for up to five CPU pytest nodes. It does not
-replace a training launch path or add a worker/controller scheduler.
+to the existing native host runner. Its tiny CPU profile delegates tokenizer
+training, paired model work and reporting to the native lab lifecycle. A separate
+restricted profile accepts up to five CPU regression nodes. Neither profile adds
+a worker/controller scheduler.
 
 ## Contract and caller audit
 
