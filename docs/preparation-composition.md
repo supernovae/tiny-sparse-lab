@@ -68,12 +68,17 @@ remains open; this slice does not claim repository-wide component separation.
 
 | Boundary | Evidence |
 | --- | --- |
-| Native graph → typed projection | Two distinct graphs, native ordering, missing/wrong edges, cycles, duplicate producers, version and port refusals |
-| Compiled binding → engine request | Dispatch spies reject decoy stage config/producer fields; immutable copies prevent row mutation changing a request |
+| Native graph → typed projection | Two distinct graphs, native ordering, missing/wrong edges, cycles, duplicate producers, version and port refusals; campaigns with no preparation stages |
+| Compiled binding → engine request | Dispatch spies reject decoy stage config/producer fields; immutable copies prevent row mutation changing a request; zero/two upstream output refusals |
 | Request → native operation | Config/path/type checks; exact native computation and artifact-verification spies; native tiny synthetic train/reuse parity |
 | Metadata-only compilation | Fresh-process import/write/network/process fences, including forbidden config/artifact reads |
-| Legacy formats and lifecycle | Pre-change declaration hash goldens, unchanged result shape, native replay, parent binding, snapshot interruption and verifier-authority checks |
+| Legacy formats and lifecycle | Pre-change declaration hash goldens, unchanged result shape, native replay, recorded versus reverified identity mismatch, prepared-output location refusal before artifact access, parent binding, snapshot interruption and verifier-authority checks |
 | Readiness / runtime / recovery | Existing focused policy, runtime, campaign recovery tests; normal safe/fast/tiny CPU lab-loop CI |
+
+Focused mutation checks remove each of the replay identity, upstream cardinality
+and prepared-output location guards in isolation. The new tests detect every
+removal (two, two and one failing cases respectively); source is restored before
+normal validation. These checks exercise refusal boundaries without model work.
 
 LAB-74 is not complete: typed bindings for other operations, full compiled-plan
 coverage, broader dependency-direction gates and recorded runtime-capability

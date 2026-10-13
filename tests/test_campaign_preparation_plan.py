@@ -517,3 +517,105 @@ def test_tiny_native_train_and_reuse_graphs_have_equal_preparation_and_replay(
             "pack"
         ]["outputs"]
     assert outputs[0] == outputs[1]
+
+
+@pytest.mark.parametrize("kind", ["tokenizer_train", "data_prepare"])
+def test_replay_rejects_reverified_identity_drift(tmp_path, monkeypatch, kind):
+    from sparselab.campaign import preparation
+
+    request = request_for(tmp_path, kind)
+    recorded = PreparationResult(
+        path=tmp_path
+        / ("tok/tokenizer.json" if kind == "tokenizer_train" else "cache/packed"),
+        artifact=PreparationArtifact(
+            kind=request.operation.output.kind, identifier="recorded", sha256="a" * 64
+        ),
+    )
+    calls = []
+
+    def reverify(artifact, source, **options):
+        calls.append(artifact)
+        assert source == request.source
+        assert artifact.sha256 == recorded.artifact.sha256
+        assert options["dataset"] == request.config.dataset
+        return {**artifact.model_dump(mode="json"), "sha256": "b" * 64}
+
+    monkeypatch.setattr(preparation, "verify_artifact", reverify)
+    with pytest.raises(ValueError, match="^preparation output identity changed$"):
+        preparation.verify(request, recorded)
+    assert len(calls) == 1
+    assert recorded.artifact.sha256 == "a" * 64
+    assert not recorded.path.exists()
+
+
+def test_replay_rejects_prepared_location_before_artifact_verification(
+    tmp_path, monkeypatch
+):
+    from sparselab.campaign import preparation
+
+    request = request_for(tmp_path)
+    recorded = PreparationResult(
+        path=tmp_path / "outside/packed",
+        artifact=PreparationArtifact(
+            kind="prepared_data", identifier="recorded", sha256="a" * 64
+        ),
+    )
+    monkeypatch.setattr(
+        preparation,
+        "verify_artifact",
+        lambda *a, **kw: pytest.fail("artifact opened before location validation"),
+    )
+    with pytest.raises(ValueError, match="^prepared output differs from declaration$"):
+        preparation.verify(request, recorded)
+    assert not recorded.path.exists()
+
+
+@pytest.mark.parametrize("count", [0, 2])
+def test_engine_request_rejects_upstream_output_cardinality(
+    tmp_path, monkeypatch, count
+):
+    from sparselab.campaign.engine import CampaignEngine
+
+    source = tmp_path / "campaign.yaml"
+    source.write_text(yaml.safe_dump(declaration(True)))
+    run, _ = configs(tmp_path)
+    (tmp_path / "run.yaml").write_text(yaml.safe_dump(run.model_dump(mode="json")))
+    engine = CampaignEngine(source, tmp_path / "work")
+    artifact = {"kind": "tokenizer", "identifier": "tok", "sha256": "a" * 64}
+    row = {
+        "outputs": [dict(artifact) for _ in range(count)],
+        "availability": {"path": str(run.tokenizer.path)},
+    }
+    rows = {"reuse": row}
+    calls = []
+
+    def upstream(actual_rows, producer):
+        assert actual_rows is rows
+        calls.append(producer)
+        return row
+
+    # Isolate the request boundary from the upstream verifier's own refusals.
+    # Both artifacts are otherwise valid, so accepting the first is observable.
+    monkeypatch.setattr(engine, "_upstream", upstream)
+    with pytest.raises(
+        ValueError, match="^preparation input requires one immutable output$"
+    ):
+        engine._preparation_request("pack", rows)
+    assert calls == ["reuse"]
+    assert not engine.work_dir.exists()
+
+
+def test_campaign_without_preparation_loads_without_resolving_artifacts(tmp_path):
+    from sparselab.campaign.engine import CampaignEngine
+
+    raw = declaration(True)
+    raw["stages"] = [raw["stages"][1]]
+    source = tmp_path / "campaign.yaml"
+    source.write_text(yaml.safe_dump(raw))
+    engine = CampaignEngine(source, tmp_path / "work")
+    assert engine.preparation_plan.operations == ()
+    assert engine.preparation_plan.ordered_stage_ids == ("reuse",)
+    assert tuple(stage.id for stage in engine.plan.ordered_stages()) == ("reuse",)
+    assert set(engine.stages) == {"reuse"}
+    assert not engine.work_dir.exists()
+    assert not (tmp_path / "tok/tokenizer.json").exists()
