@@ -205,6 +205,13 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
             raise ValueError(
                 f"unavailable recipe preview feature: {field}; use native planning for this declaration"
             )
+    # Native attempt-contract validation imports execution dependencies. Refuse
+    # any non-null declaration before invoking that validator, even if malformed.
+    execution = raw.get("execution")
+    if isinstance(execution, dict) and execution.get("attempt_contract") is not None:
+        raise ValueError(
+            "unavailable recipe preview feature: execution.attempt_contract"
+        )
     plan = ExperimentPlan.model_validate(raw)
     if plan.execution.attempt_contract is not None:
         raise ValueError(

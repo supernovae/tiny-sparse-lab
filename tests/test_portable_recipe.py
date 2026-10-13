@@ -352,15 +352,23 @@ def test_metadata_read_limits(tmp_path, monkeypatch):
         load_recipe(source)
 
 
-@pytest.mark.parametrize("help_only", [False, True])
+@pytest.mark.parametrize(
+    "mode", ["help", "plain", "null-contract", "attempt-contract", "empty-contract"]
+)
 @pytest.mark.parametrize(
     "prefix",
     [[], ["--work-dir", "forbidden-work", "--hf-token-file", "/forbidden-token"]],
 )
-def test_real_entry_has_no_execution_heavy_imports_or_writes(
-    tmp_path, prefix, help_only
-):
-    source = write_recipe(tmp_path / "recipe")
+def test_real_entry_has_no_execution_heavy_imports_or_writes(tmp_path, prefix, mode):
+    updates = {}
+    if mode.endswith("-contract"):
+        contract = {"path": "attempt.yaml", "sha256": "a" * 64}
+        if mode == "null-contract":
+            contract = None
+        elif mode == "empty-contract":
+            contract = {}
+        updates = {"execution": {"attempt_contract": contract}}
+    source = write_recipe(tmp_path / "recipe", plan_updates=updates)
     # Existing payloads must remain unopened as well as unverified.
     assets = source.parent / "configs/artifacts"
     assets.mkdir()
@@ -368,11 +376,10 @@ def test_real_entry_has_no_execution_heavy_imports_or_writes(
     code = """
 import importlib.abc
 import os
-import re
 import sys
 class Fence(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname.split('.')[0] in {'torch', 'mlx', 'numpy', 'datasets', 'tokenizers', 'huggingface_hub'} or fullname in {'sparselab.runtime', 'sparselab.cli.main', 'sparselab.experiments.lock', 'sparselab.verification_proofs', 'sparselab.campaign.engine'}:
+        if fullname.split('.')[0] in {'torch', 'mlx', 'numpy', 'datasets', 'tokenizers', 'huggingface_hub'} or fullname in {'sparselab.runtime', 'sparselab.cli.main', 'sparselab.experiments.lock', 'sparselab.verification_proofs', 'sparselab.campaign.engine', 'sparselab.campaign.plan', 'sparselab.data'}:
             raise AssertionError('unexpected import: ' + fullname)
 sys.meta_path.insert(0, Fence())
 def guard(event, args):
@@ -390,7 +397,7 @@ sys.argv = ['sparselab', *sys.argv[1:]]
 main()
 """
     args = [*prefix, "experiment", "recipe", "inspect", str(source), "--json"]
-    if help_only:
+    if mode == "help":
         args = [*prefix, "experiment", "recipe", "--help"]
     result = subprocess.run(
         [sys.executable, "-B", "-c", code, *args],
@@ -401,8 +408,15 @@ main()
         timeout=20,
         check=False,
     )
-    assert result.returncode == 0, result.stderr
-    if not help_only:
+    if mode in {"attempt-contract", "empty-contract"}:
+        assert result.returncode == 1
+        assert result.stdout == ""
+        assert result.stderr == (
+            "sparselab: unavailable recipe preview feature: execution.attempt_contract\n"
+        )
+    else:
+        assert result.returncode == 0, result.stderr
+    if mode in {"plain", "null-contract"}:
         output = json.loads(result.stdout)
         assert output["requirements"][0]["status"] == "unverified"
         assert output["executable"] is False
