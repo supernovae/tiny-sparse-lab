@@ -35,6 +35,12 @@ disk monitor. Use the actual existing CPU **state-v2** directory,
 `.lab-rocm.blocked.json`; no state/marker is migrated or renamed. Do not wrap this
 command in another `flock` or launcher taking the same lock.
 
+The operational monitor creates new output directories, including missing ancestors,
+with private mode `0700`, and output files with private mode `0600`. Newly created
+directories therefore do not allow group traversal, even under a permissive caller
+umask. Existing directories and evidence are not permission-repaired; unsafe
+existing evidence remains subject to the collector's refusal.
+
 The provisioned interpreter must already contain the locked dependencies.
 `seal` records exact Python/Torch versions and a fingerprint of interpreter bytes
 plus installed distribution names/versions. The monitored runtime gate rechecks

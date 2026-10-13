@@ -40,6 +40,7 @@ def _living(identity):
 
 
 def _exercise(tmp: Path, site: str) -> None:
+    os.umask(0o002)  # Isolated test owner; helper interruption inherits this mask.
     policy = monitor.MonitorPolicy(
         monitor_policy_version=1,
         interval_seconds=0.02,
@@ -193,6 +194,8 @@ def _exercise(tmp: Path, site: str) -> None:
         assert len(pending) == 1
         assert not list(state.glob("*/completion.json"))
         assert not (logs / "completion.json").exists()
+        assert logs.stat().st_mode & 0o777 == 0o700
+        assert all(path.stat().st_mode & 0o777 == 0o600 for path in logs.iterdir())
         retained = {path: path.read_bytes() for path in state.rglob("*.json")}
         with pytest.raises(ValueError, match="runner blocked"):
             runner.run_controlled([sys.executable, "-c", "pass"], **options)

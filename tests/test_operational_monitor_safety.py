@@ -544,3 +544,72 @@ def test_early_parent_and_detached_term_ignoring_worker_are_gone_before_return(
     finally:
         sentinel.kill()
         sentinel.wait(timeout=2)
+
+
+@pytest.mark.parametrize("mask", [0o000, 0o002, 0o022])
+@pytest.mark.parametrize("spawn_error", [False, True])
+def test_private_monitor_outputs_and_baseline(tmp_path, monkeypatch, mask, spawn_error):
+    policy_path = tmp_path / "policy.yaml"
+    policy = _policy(policy_path, interval_seconds=0.02)
+    logs = tmp_path / "new-parent" / "nested" / "logs"
+    baseline = tmp_path / "baseline.json"
+    parent_mode = tmp_path.stat().st_mode
+    if spawn_error:
+
+        def fail(*args, **kwargs):
+            raise OSError("injected spawn error")
+
+        monkeypatch.setattr(monitor.subprocess, "Popen", fail)
+    previous = os.umask(mask)
+    try:
+        monitor.capture_workspace_baseline(tmp_path, baseline)
+        options = {"workspace": tmp_path, "log_dir": logs, "policy_path": policy_path}
+        if spawn_error:
+            with pytest.raises(OSError, match="injected spawn error"):
+                monitor.monitor_command(
+                    [sys.executable, "-c", "pass"], policy, **options
+                )
+        else:
+            result = monitor.monitor_command(
+                [sys.executable, "-c", "print('tiny')"], policy, **options
+            )
+            assert result.status == "COMPLETE"
+        retained = baseline.read_bytes()
+        with pytest.raises(FileExistsError):
+            monitor.capture_workspace_baseline(tmp_path, baseline)
+        assert baseline.read_bytes() == retained
+        with pytest.raises(FileExistsError):
+            monitor.monitor_command([sys.executable, "-c", "pass"], policy, **options)
+    finally:
+        observed = os.umask(previous)
+    assert observed == mask
+    assert tmp_path.stat().st_mode == parent_mode
+    for directory in (logs, logs.parent, logs.parent.parent):
+        assert directory.stat().st_mode & 0o777 == 0o700
+    assert baseline.stat().st_mode & 0o777 == 0o600
+    assert all(path.stat().st_mode & 0o777 == 0o600 for path in logs.iterdir())
+    assert (logs / "completion.json").exists() is not spawn_error
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux owned helper/subreaper")
+def test_pending_readiness_is_private_on_publication_error(tmp_path):
+    # Run the real helper in isolation: prctl and signal state belong to the child.
+    code = """
+import os
+from pathlib import Path
+from unittest.mock import patch
+from sparselab.owned_process import supervise
+root = Path(__import__('sys').argv[1])
+os.umask(0)
+with patch('os.replace', side_effect=OSError('publication failed')):
+    try:
+        supervise(['must-not-launch'], completion=root / 'completion.json', ready=root / 'ready.json')
+    except OSError as error:
+        assert str(error) == 'publication failed'
+    else:
+        raise AssertionError('expected publication failure')
+"""
+    subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, timeout=10)
+    assert (tmp_path / "ready.json.pending").stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / "completion.json").stat().st_mode & 0o777 == 0o600
+    assert not (tmp_path / "ready.json").exists()

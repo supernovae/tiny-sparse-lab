@@ -177,8 +177,26 @@ def job(job_factory):
     return job_factory()
 
 
-def test_end_to_end_and_duplicate_returns_verified_result(job):
-    result = jobs.admit(job)
+@pytest.mark.parametrize("mask", [0o000, 0o002, 0o022])
+def test_end_to_end_and_duplicate_returns_verified_result(job, mask):
+    previous = os.umask(mask)
+    try:
+        result = jobs.admit(job)
+    finally:
+        observed = os.umask(previous)
+    assert observed == mask
+    evidence, _, _ = jobs._paths(job)
+    logs = evidence / "monitor"
+    assert logs.stat().st_mode & 0o777 == 0o700
+    assert {path.name for path in logs.iterdir()} == {
+        "command.stdout.log",
+        "command.stderr.log",
+        "events.jsonl",
+        "owned-ready.json",
+        "owned-completion.json",
+        "completion.json",
+    }
+    assert all(path.stat().st_mode & 0o777 == 0o600 for path in logs.iterdir())
     assert result["summary"]["controller_completion"] == "PASS"
     assert result["summary"]["coordinator_acceptance"] == "PENDING"
     assert result["summary"]["cleanup_verified"] is True
@@ -197,6 +215,14 @@ def test_end_to_end_and_duplicate_returns_verified_result(job):
     plan = jobs.cleanup_preview(job, scratch)
     assert plan["preview_only"] and not plan["delete_implemented"]
     assert scratch.exists()
+    # Deliberately unsafe fixture evidence must still refuse, without repair.
+    target = logs / "command.stdout.log"
+    target.chmod(0o664)
+    retained = target.read_bytes(), target.stat().st_mtime_ns
+    with pytest.raises(ValueError, match="unsafe runner state"):
+        jobs.collect(job)
+    assert target.stat().st_mode & 0o777 == 0o664
+    assert (target.read_bytes(), target.stat().st_mtime_ns) == retained
 
 
 def test_conflicting_handoff_and_reused_authorization(job, monkeypatch):
