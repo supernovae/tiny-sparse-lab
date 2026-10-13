@@ -21,6 +21,7 @@ from sparselab.workdir import storage_checks, warn_storage_checks
 
 if TYPE_CHECKING:
     from sparselab.campaign.preparation_plan import PreparationRequest
+    from sparselab.experiments.preparation_execution import PreparationExecution
 
 
 def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
@@ -64,9 +65,28 @@ class CampaignEngine:
         runtime_profile: RuntimeProfile | None = None,
         observer: Any | None = None,
         cold_verify: bool = False,
+        preparation_context: PreparationExecution | None = None,
     ) -> None:
         self.source = Path(source).resolve()
-        self.plan = load_campaign(self.source)
+        self.preparation_context = preparation_context
+        if preparation_context is not None:
+            preparation_context.refresh()
+            expected = (
+                preparation_context.loaded.context.root
+                / preparation_context.loaded.descriptor.entrypoint
+            )
+            if (
+                self.source != expected
+                or Path(work_dir).absolute() != preparation_context.work_dir
+            ):
+                raise ValueError(
+                    "preparation engine source/work root differs from context"
+                )
+        self.plan = (
+            preparation_context.loaded.plan
+            if preparation_context is not None
+            else load_campaign(self.source)
+        )
         from sparselab.campaign.preparation_plan import compile_preparation
 
         self.preparation_plan = compile_preparation(self.plan)
@@ -166,7 +186,11 @@ class CampaignEngine:
             if operation.kind == "tokenizer_train"
             else load_config
         )
-        config = loader(self._path(operation.config_reference))
+        config = (
+            self.preparation_context.loaded.configs[stage_id].model_copy(deep=True)
+            if self.preparation_context is not None
+            else loader(self._path(operation.config_reference))
+        )
         bindings = []
         for reference in operation.inputs:
             # Existing verification/replay authority authenticates the output
@@ -187,6 +211,11 @@ class CampaignEngine:
             config=config,
             inputs=tuple(bindings),
         )
+
+    def _artifact_declaration(self, stage: Any) -> Any:
+        if self.preparation_context is not None:
+            return self.preparation_context.artifact(stage)
+        return stage.artifact
 
     def _snapshot_identity(self, stage: Any, path: Path) -> dict:
         from sparselab.data.sources import verify_lock, verify_snapshot
@@ -243,6 +272,10 @@ class CampaignEngine:
                     for item in operation.inputs
                 ):
                     continue
+                if self.preparation_context is not None:
+                    return self.preparation_context.loaded.configs[
+                        consumer.id
+                    ].dataset.model_copy(deep=True)
                 path = self._path(operation.config_reference)
                 if path.is_file():
                     return load_config(path).dataset
@@ -455,6 +488,10 @@ class CampaignEngine:
                     f"DECLARATION_IDENTITY_UNKNOWN: stage {row['id']} "
                     "has no committed closure binding"
                 )
+            if prior.get("preparation_context") != provenance.get(
+                "preparation_context"
+            ):
+                raise ValueError("PREPARATION_CONTEXT_CHANGED: receipt context differs")
             if prior["closure"] != current and not self._allow_recovery_publication(
                 prior, provenance
             ):
@@ -557,7 +594,7 @@ class CampaignEngine:
             from sparselab.experiments.artifacts import verify_artifact
 
             artifact = verify_artifact(
-                stage.artifact,
+                self._artifact_declaration(stage),
                 self.source,
                 dataset=self._artifact_dataset(stage),
                 **self._verification(),
@@ -868,6 +905,9 @@ class CampaignEngine:
             verify_lock(path)
             return None
         if stage.kind in {"tokenizer_train", "data_prepare"}:
+            if self.preparation_context is not None:
+                self.preparation_context.refresh()
+                return None
             from sparselab.config.loading import load_config, load_tokenizer_config
 
             operation = self.preparation_plan.operation(stage.id)
@@ -882,7 +922,7 @@ class CampaignEngine:
             loader(path)
             return None
         if stage.kind in {"artifact_reference", "tokenizer_reference"}:
-            path = self._operational_path(stage.artifact.path)
+            path = self._operational_path(self._artifact_declaration(stage).path)
         elif stage.kind == "corpus_release":
             path = self._path(stage.project)
         elif stage.kind == "experiment_plan":
@@ -905,7 +945,7 @@ class CampaignEngine:
             from sparselab.experiments.artifacts import verify_artifact
 
             verify_artifact(
-                stage.artifact,
+                self._artifact_declaration(stage),
                 self.source,
                 dataset=self._artifact_dataset(stage),
                 **self._verification(),
@@ -1312,6 +1352,18 @@ class CampaignEngine:
         if command not in {"plan", "next", "status", "explain"}:
             raise ValueError(f"unknown inspection command {command}")
         persisted = self.store.read()
+        if self.preparation_context is not None:
+            provenance = self.preparation_context.refresh()
+            self._assert_declaration_identity(
+                self.store.reconcile(persisted or self.store.initial()), provenance
+            )
+        elif persisted is not None and any(
+            row.get("declaration_provenance", {}).get("preparation_context")
+            for row in persisted["stages"]
+        ):
+            raise ValueError(
+                "portable preparation receipts require their execution context"
+            )
         if command == "status" and persisted is not None:
             rows = self._rows(persisted)
             for stage in self.plan.stages:
@@ -1332,6 +1384,13 @@ class CampaignEngine:
         state = persisted or self.store.initial()
         if command != "status":
             state = self.store.reconcile(state)
+        if self.preparation_context is None and any(
+            row.get("declaration_provenance", {}).get("preparation_context")
+            for row in state["stages"]
+        ):
+            raise ValueError(
+                "portable preparation receipts require their execution context"
+            )
         projected = self._project(state)
         if command == "status":
             projected["recoverability"] = self._recoverability(state)
@@ -1363,8 +1422,18 @@ class CampaignEngine:
             raise ValueError("max wait seconds must be finite and nonnegative")
         if only_stage is not None and only_stage not in self.stages:
             raise ValueError("selected Campaign stage does not exist")
-        provenance = declaration_preflight(
-            self.source, "campaign", allow_uncommitted=allow_uncommitted_declaration
+        if self.preparation_context is not None and (
+            allow_uncommitted_declaration or execute_runs
+        ):
+            raise ValueError(
+                "preparation context does not allow overrides or model execution"
+            )
+        provenance = (
+            self.preparation_context.refresh()
+            if self.preparation_context is not None
+            else declaration_preflight(
+                self.source, "campaign", allow_uncommitted=allow_uncommitted_declaration
+            )
         )
         provenance = {
             **provenance,
@@ -1372,6 +1441,17 @@ class CampaignEngine:
             "closure": self._provenance_closure(provenance),
         }
         self._require_declaration_files(provenance)
+        if self.preparation_context is not None:
+            preview = self.store.reconcile(self.store.read() or self.store.initial())
+            self._assert_declaration_identity(preview, provenance)
+            for stage in self.plan.stages:
+                row = self._rows(preview)[stage.id]
+                if stage.kind == "artifact_reference":
+                    missing = self._availability(stage)
+                    if missing:
+                        raise ValueError(missing)
+                if not row.get("attempts"):
+                    self.preparation_context.before_dispatch(stage, row)
         checks = warn_storage_checks(storage_checks(self.work_dir))
         with self.store.locked():
             previous = self.store.read()
@@ -1459,6 +1539,8 @@ class CampaignEngine:
                         ],
                     }
                     self._record(state, row)
+                if self.preparation_context is not None:
+                    self.preparation_context.before_dispatch(stage, row)
                 row = {
                     **row,
                     "state": "RUNNING",
@@ -1475,6 +1557,8 @@ class CampaignEngine:
                 try:
                     if dispatch_error is not None:
                         raise dispatch_error
+                    if self.preparation_context is not None:
+                        self.preparation_context.refresh()
                     result = self.dispatch(
                         stage,
                         rows,
@@ -1493,10 +1577,16 @@ class CampaignEngine:
                     git_provenance,
                 )
 
-                current = git_provenance(declaration_paths(self.source, "campaign"))
+                current = (
+                    self.preparation_context.refresh()
+                    if self.preparation_context is not None
+                    else git_provenance(declaration_paths(self.source, "campaign"))
+                )
                 current["closure"] = self._provenance_closure(current)
                 self._assert_declaration_identity(state, current)
                 row.update(result)
+                if self.preparation_context is not None and row["state"] == "COMPLETE":
+                    self._verify(stage, row, rows)
                 row["attempts"][-1] = {"state": row["state"], "reason": row["reason"]}
                 if row["state"] in {
                     "COMPLETE",
@@ -1783,11 +1873,16 @@ class CampaignEngine:
         if kind in {"tokenizer_train", "data_prepare"}:
             from sparselab.campaign.preparation import dispatch
 
-            result = dispatch(
-                self._preparation_request(stage.id, rows),
-                observer=self.observer,
-                **self._verification(),
-            )
+            with (
+                self.preparation_context.dispatch_scope()
+                if self.preparation_context is not None
+                else nullcontext()
+            ):
+                result = dispatch(
+                    self._preparation_request(stage.id, rows),
+                    observer=self.observer,
+                    **self._verification(),
+                )
             return self._result(
                 outputs=[result.artifact.model_dump(mode="json")],
                 availability={"path": str(result.path)},
@@ -1795,7 +1890,7 @@ class CampaignEngine:
         if kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            path = self._operational_path(stage.artifact.path)
+            path = self._operational_path(self._artifact_declaration(stage).path)
             if not path.exists():
                 return self._result(
                     "BLOCKED",
@@ -1803,7 +1898,7 @@ class CampaignEngine:
                     reason=f"missing declared artifact: {path}",
                 )
             verified = verify_artifact(
-                stage.artifact,
+                self._artifact_declaration(stage),
                 self.source,
                 dataset=self._artifact_dataset(stage),
                 **self._verification(),

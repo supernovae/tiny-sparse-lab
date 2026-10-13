@@ -455,6 +455,19 @@ def test_unsupported_native_path_reaches_portable_allowlist(tmp_path, monkeypatc
     repin(source)
     reads = []
     original = preparation_recipe.RecipeContext.read_document
+    read_bytes = Path.read_bytes
+    read_text = Path.read_text
+
+    def guard_read_bytes(path, *args, **kwargs):
+        assert path.name != "mixture.json", "unsupported mixture payload opened"
+        return read_bytes(path, *args, **kwargs)
+
+    def guard_read_text(path, *args, **kwargs):
+        assert path.name != "mixture.json", "unsupported mixture payload opened"
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", guard_read_bytes)
+    monkeypatch.setattr(Path, "read_text", guard_read_text)
 
     def read(context, path):
         reads.append(path.name)

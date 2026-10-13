@@ -16,7 +16,7 @@ def add_commands(parser: argparse.ArgumentParser) -> None:
     inspect.set_defaults(handler=handle)
     preparation = commands.add_parser(
         "preparation",
-        help="Inspect an inventoried native preparation graph; never execute",
+        help="Inspect or explicitly apply an inventoried local CPU preparation graph",
     )
     preparation_actions = preparation.add_subparsers(
         dest="preparation_command", required=True
@@ -26,6 +26,14 @@ def add_commands(parser: argparse.ArgumentParser) -> None:
     preview.add_argument("--bindings", type=Path, required=True)
     preview.add_argument("--json", action="store_true")
     preview.set_defaults(handler=handle_preparation)
+    for name in ("apply", "resume"):
+        execution = preparation_actions.add_parser(name)
+        execution.add_argument("source", type=Path)
+        execution.add_argument("--bindings", type=Path, required=True)
+        execution.add_argument("--admission", type=Path, required=True)
+        execution.add_argument("--work-dir", type=Path, required=True)
+        execution.add_argument("--json", action="store_true")
+        execution.set_defaults(handler=handle_preparation_execution)
     workflow = commands.add_parser(
         "workflow", help="Inspect, resolve or publish prepared-input workflow metadata"
     )
@@ -69,6 +77,26 @@ def handle_preparation(args: argparse.Namespace) -> None:
 
     try:
         result = inspect_preparation_recipe(args.source, args.bindings)
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(f"sparselab: {error}") from None
+    print(json.dumps(result, sort_keys=True, allow_nan=False))
+
+
+def handle_preparation_execution(args: argparse.Namespace) -> None:
+    from sparselab.documents import read_document
+    from sparselab.experiments.preparation_execution import (
+        PreparationAdmission,
+        PreparationExecution,
+    )
+
+    try:
+        context = PreparationExecution(
+            args.source,
+            args.bindings,
+            args.work_dir,
+            PreparationAdmission.model_validate(read_document(args.admission)),
+        )
+        result = context.engine().apply(resume=args.preparation_command == "resume")
     except (OSError, TypeError, ValueError) as error:
         raise SystemExit(f"sparselab: {error}") from None
     print(json.dumps(result, sort_keys=True, allow_nan=False))
