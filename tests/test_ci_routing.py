@@ -24,6 +24,7 @@ NODES = (
     "tests/test_snapshot_warm_reuse.py",
     "tests/test_snapshot_inheritance.py",
     "tests/test_study_recovery.py",
+    "tests/test_lab_job.py",
     "tests/test_corpus_acquisition.py::test_bounded_resource_readings_exact_expansion_cap",
     "tests/test_corpus_acquisition.py::test_bounded_overlong_line_retains_measured_prefix",
     "tests/test_corpus_acquisition.py::test_required_staging_reading_failure_is_closed",

@@ -129,6 +129,8 @@ def run_controlled(
     lock_path: Path,
     state_dir: Path,
     blocked_path: Path,
+    run_id: str | None = None,
+    job_binding: dict[str, str] | None = None,
     **monitor_options: Any,
 ) -> MonitorCompletion:
     """One flock owner; never reclaim incomplete state or remove a blocked marker.
@@ -155,7 +157,9 @@ def run_controlled(
         **monitor_options,
         "log_dir": log_dir.parent.resolve(strict=True) / log_dir.name,
     }
-    run_id = uuid.uuid4().hex
+    run_id = uuid.uuid4().hex if run_id is None else run_id
+    if len(run_id) != 32 or any(c not in "0123456789abcdef" for c in run_id):
+        raise ValueError("runner run_id must be a UUID hex string")
     stopping = False
     started = False
 
@@ -215,6 +219,8 @@ def run_controlled(
                 "log_dir": str(monitor_options["log_dir"]),
                 "owner_pid": os.getpid(),
             }
+            if job_binding is not None:
+                pending["job_binding"] = dict(job_binding)
             # Durable before the monitor can spawn anything, including its helper.
             _write(run / "pending.json", pending)
             result = monitor_command(

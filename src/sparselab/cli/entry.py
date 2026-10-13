@@ -19,6 +19,12 @@ def main() -> None:
         if args.work_dir is not None:
             os.environ["SPARSELAB_WORK_DIR"] = str(resolve_work_dir(args.work_dir))
         environment_main(args.command[2:])
+    elif not extras and args.command[:1] == ["lab-job"]:
+        from sparselab.lab_job import main as job_main
+
+        if args.work_dir is not None:
+            prefix.error("lab-job paths come only from its immutable manifest")
+        job_main(args.command[1:])
     else:
         from sparselab.cli.main import main as application_main
 
