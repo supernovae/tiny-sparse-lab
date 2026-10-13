@@ -502,3 +502,25 @@ def test_reused_tokenizer_vocabulary_must_fit_admission(tmp_path):
     with pytest.raises(ValueError, match="vocabulary limits"):
         PreparationExecution(source, bindings, work, smaller)
     assert not work.exists()
+
+
+@pytest.mark.parametrize("package", ["torch", "datasets"])
+def test_missing_transitive_cpu_dependency_refuses_before_work(
+    tmp_path, monkeypatch, package
+):
+    from importlib.metadata import PackageNotFoundError
+
+    from sparselab.experiments import preparation_execution
+
+    args = setup(tmp_path)
+    original = preparation_execution.version
+
+    def missing(name):
+        if name == package:
+            raise PackageNotFoundError(name)
+        return original(name)
+
+    monkeypatch.setattr(preparation_execution, "version", missing)
+    with pytest.raises(ValueError, match="dependencies are unavailable"):
+        PreparationExecution(*args)
+    assert not args[2].exists()

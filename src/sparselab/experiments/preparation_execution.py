@@ -39,7 +39,20 @@ class PreparationAdmission(StrictModel):
 def _environment() -> dict:
     # Metadata only: do not import tokenizers, numpy, torch or probe devices.
     try:
-        packages = {name: version(name) for name in ("tokenizers", "numpy", "pydantic")}
+        packages = {
+            name: version(name)
+            for name in (
+                "tokenizers",
+                "numpy",
+                "pydantic",
+                "PyYAML",
+                "datasets",
+                "huggingface-hub",
+                "pyarrow",
+                "psutil",
+                "torch",
+            )
+        }
     except PackageNotFoundError as error:
         raise ValueError(
             "local CPU preparation dependencies are unavailable"
