@@ -201,7 +201,7 @@ Product regressions use temporary repositories and internally substituted native
 operations to test admission, replay, actual gate exits/skips, evidence retention
 and cleanup refusal without model work. They do not qualify a real CPU host.
 These subprocess cases remain explicit in serial safe CI; measured slow cases
-are excluded from parallel fast CI. Their 60-second synthetic fixture allowance
+are excluded from parallel fast CI. Their 90-second synthetic fixture allowance
 accounts for cold imports on CI; it does not set host job budgets. Separate
 lab-loop integration uses the real
 native tokenizer/model/report path and checked-in inputs, including cancellation

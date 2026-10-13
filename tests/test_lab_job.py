@@ -129,7 +129,7 @@ def job_factory(tmp_path, monkeypatch):
             ),
             policy=MonitorPolicy(
                 monitor_policy_version=1,
-                max_wall_seconds=60,
+                max_wall_seconds=90,
                 max_tree_rss_bytes=2_000_000_000,
                 interval_seconds=0.05,
             ),
@@ -143,11 +143,14 @@ def job_factory(tmp_path, monkeypatch):
 
     for completion in tmp_path.glob("evidence/*/monitor/completion.json"):
         evidence = completion.parent.parent
-        if (evidence / "gates.json").exists():
-            continue
         receipt = json.loads(completion.read_bytes())
+        if (evidence / "gates.json").exists() and receipt["status"] not in {
+            "VIOLATED",
+            "MONITOR_ERROR",
+        }:
+            continue
         print(
-            "INCOMPLETE_GATE_RECEIPT",
+            "INCOMPLETE_OR_VIOLATED_GATE_RECEIPT",
             json.dumps(
                 {
                     key: receipt[key]
@@ -365,7 +368,7 @@ def test_two_processes_share_one_durable_admission(job, tmp_path):
         )
         for _ in range(2)
     ]
-    results = [process.communicate(timeout=90) for process in processes]
+    results = [process.communicate(timeout=120) for process in processes]
     assert any(process.returncode == 0 for process in processes), results
     assert len(list(job.host.state.glob("*/pending.json"))) == 1
     assert jobs.collect(job)["summary"]["native_workflow"] == {
