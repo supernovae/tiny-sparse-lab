@@ -10,6 +10,8 @@ def main() -> None:
     # REMAINDER keeps command-local flags out of global prefix selection.
     prefix = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     prefix.add_argument("--work-dir", type=Path)
+    # Consume the global value without configuring credentials for runtime env.
+    prefix.add_argument("--hf-token-file", type=Path)
     prefix.add_argument("command", nargs=argparse.REMAINDER)
     args, extras = prefix.parse_known_args(sys.argv[1:])
     if not extras and args.command[:2] == ["runtime", "env"]:
