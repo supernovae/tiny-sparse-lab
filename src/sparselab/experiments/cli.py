@@ -368,6 +368,13 @@ def _derive(args: argparse.Namespace) -> None:
     )
 
 
+def _require_executable_profile(locked: Any) -> None:
+    if "workflow_profile" in locked.availability:
+        raise ValueError(
+            "WORKFLOW_EXECUTION_UNAVAILABLE: this profile supports native locking only; evaluation/context admission is not implemented"
+        )
+
+
 def locked_cell_request(
     locked: Any,
     cell: Any,
@@ -379,6 +386,7 @@ def locked_cell_request(
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Construct the same lock-bound worker request for CLI and campaign runs."""
+    _require_executable_profile(locked)
     phase = next(phase for phase in locked.phases if phase.id == cell.phase)
     parent_path: Path | None = None
     parent_digest: str | None = None
@@ -514,6 +522,7 @@ def _run(args: argparse.Namespace) -> None:
 
     verification = _verification(args)
     locked = open_lock(Path(args.lock), **verification)
+    _require_executable_profile(locked)
     selected = _run_cells(locked, args)
     for cell in selected:
         require_current_dataset(cell.config.dataset)

@@ -82,7 +82,7 @@ normal validation. These checks exercise refusal boundaries without model work.
 
 LAB-74 is not complete: typed bindings for other operations, full compiled-plan
 coverage, broader dependency-direction gates and recorded runtime-capability
-preflight remain. LAB-73/PR B still owns the versioned external workflow profile,
-explicit local binding and declaration closure, native lock/publication integration
-and evidence linkage. Actual external CPU/GPU portability proof remains separately
+preflight remain. The first [LAB-73/PR B workflow slice](workflow-recipes.md) adds explicit external
+prepared-input bindings and native lock publication. Preparation-graph context,
+evaluation closures, admission and evidence linkage remain open. Actual external CPU/GPU portability proof remains separately
 admitted later work. Historical seed and mixture identity decisions are unchanged.

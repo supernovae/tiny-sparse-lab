@@ -548,7 +548,8 @@ finally:
         assert result.returncode == 1
         assert result.stdout == ""
         assert result.stderr == (
-            f"sparselab: unavailable recipe preview feature: {refusal}\n"
+            f"sparselab: unavailable recipe preview feature: {refusal}; native declarations can use "
+            "`sparselab experiment inspect PLAN --json` (native path rules; recipe bindings are not inferred)\n"
         )
     else:
         assert result.returncode == 0, result.stderr

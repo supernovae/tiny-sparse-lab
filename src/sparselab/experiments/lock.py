@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import Field, PrivateAttr, model_validator
 
 from sparselab.config.models import DatasetConfig, RunConfig, StrictModel
+from sparselab.declaration_context import RecipeContext
 from sparselab.experiments.artifacts import (
     _reuse_verified_artifact,
     _VerifiedArtifact,
@@ -35,6 +36,7 @@ from sparselab.experiments.plan import (
     ExperimentPlan,
     Phase,
     base_run_config,
+    recipe_run_config,
 )
 from sparselab.experiments.source_compatibility import locked_source_identity
 from sparselab.training.manifest import (
@@ -707,6 +709,7 @@ def resolve_plan(
     source: Path,
     *,
     prepared: dict[str, Any] | None = None,
+    context: RecipeContext | None = None,
     max_runs: int = 1000,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
@@ -714,7 +717,17 @@ def resolve_plan(
     """Resolve verifiable scientific inputs without asserting runtime capability."""
     source = Path(source).resolve()
     package = locked_source_identity()
-    base = base_run_config(plan, source)
+    if context is not None and (
+        plan.corpus_variants or plan.evaluation_suite or plan.execution.attempt_contract
+    ):
+        raise ValueError(
+            "recipe context does not yet support variant, suite or attempt-contract references"
+        )
+    base = (
+        base_run_config(plan, source)
+        if context is None
+        else recipe_run_config(plan, source, context)
+    )
     phases = _phases(plan)
     variants = _prepared_variants(plan, prepared)
     memo: dict[tuple[object, ...], Any] = {}
@@ -738,11 +751,19 @@ def resolve_plan(
     }
     from sparselab.recovery.provenance import declaration_paths, repository_root
 
-    declaration_root = repository_root(source) or source.parent
-    availability["declaration_hashes"] = {
-        path.relative_to(declaration_root).as_posix(): sha256_file(path)
-        for path in declaration_paths(source, "experiment")
-    }
+    if context is None:
+        declaration_root = repository_root(source) or source.parent
+        availability["declaration_hashes"] = {
+            path.relative_to(declaration_root).as_posix(): sha256_file(path)
+            for path in declaration_paths(source, "experiment")
+        }
+    else:
+        context.document_name(source)
+        availability["declaration_hashes"] = {
+            name: hashlib.sha256(data).hexdigest()
+            for name, data in sorted(context.documents.items())
+        }
+        availability["declaration_root"] = str(context.root)
     if plan.execution.attempt_contract is not None:
         from sparselab.campaign.plan import safe_path
         from sparselab.training.attempt_budget import load_attempt_contract

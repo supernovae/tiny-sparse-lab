@@ -1,4 +1,4 @@
-"""Lightweight read-only portable recipe inspection."""
+"""Lightweight recipe routing with explicit inspection and publication operations."""
 
 import argparse
 import json
@@ -14,6 +14,19 @@ def add_commands(parser: argparse.ArgumentParser) -> None:
     inspect.add_argument("--max-runs", type=int, default=1000)
     inspect.add_argument("--json", action="store_true")
     inspect.set_defaults(handler=handle)
+    workflow = commands.add_parser(
+        "workflow", help="Inspect, resolve or publish prepared-input workflow metadata"
+    )
+    actions = workflow.add_subparsers(dest="workflow_command", required=True)
+    for name in ("inspect", "resolve", "publish"):
+        action = actions.add_parser(name)
+        action.add_argument("source", type=Path)
+        action.add_argument("--bindings", type=Path, required=True)
+        action.add_argument("--max-runs", type=int, default=1000)
+        action.add_argument("--json", action="store_true")
+        if name == "publish":
+            action.add_argument("--workspace", type=Path, required=True)
+        action.set_defaults(handler=handle_workflow)
 
 
 def handle(args: argparse.Namespace) -> None:
@@ -39,10 +52,48 @@ def handle(args: argparse.Namespace) -> None:
             print(limitation)
 
 
+def handle_workflow(args: argparse.Namespace) -> None:
+    from sparselab.experiments.workflow_recipe import (
+        inspect_workflow,
+        publish_workflow,
+        resolve_workflow,
+    )
+
+    try:
+        if args.workflow_command == "inspect":
+            result = inspect_workflow(
+                args.source, args.bindings, max_runs=args.max_runs
+            )
+        elif args.workflow_command == "resolve":
+            lock = resolve_workflow(args.source, args.bindings, max_runs=args.max_runs)
+            result = {
+                "format": "sparselab-workflow-resolution-v1",
+                "scientific_sha256": lock.scientific_sha256,
+                "plan_sha256": lock.plan_sha256,
+                "published": False,
+                "executable": False,
+                "runtime_capability": "unknown",
+                "cells": len(lock.cells),
+            }
+        else:
+            path = publish_workflow(
+                args.source, args.bindings, args.workspace, max_runs=args.max_runs
+            )
+            result = {
+                "format": "sparselab-workflow-publication-v1",
+                "lock": str(path),
+                "executable": False,
+                "runtime_capability": "unknown",
+            }
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(f"sparselab: {error}") from None
+    print(json.dumps(result, sort_keys=True, allow_nan=False))
+
+
 def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="sparselab experiment recipe", allow_abbrev=False
     )
     add_commands(parser)
     args = parser.parse_args(argv)
-    handle(args)
+    args.handler(args)

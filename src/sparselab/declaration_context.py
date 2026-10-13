@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from types import MappingProxyType
 
@@ -61,11 +61,14 @@ class RecipeContext:
     """An explicit root and authenticated declaration-byte snapshot.
 
     Only callers that opt into this context use recipe-root references. Legacy
-    declaration lookup continues to discover its own repository root.
+    declaration lookup continues to discover its own repository root. Optional
+    config_paths bind explicitly selected native fields to local locations; they
+    do not alter the authenticated declaration snapshots or their byte identity.
     """
 
     root: Path
     documents: Mapping[str, bytes]
+    config_paths: Mapping[str, Mapping[str, Path]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         root = self.root.absolute()
@@ -75,6 +78,19 @@ class RecipeContext:
         for name in self.documents:
             canonical_reference(name)
             safe_path(root, name)
+        for name in self.config_paths:
+            if name not in self.documents:
+                raise ValueError(f"bindings for undeclared config: {name}")
+        object.__setattr__(
+            self,
+            "config_paths",
+            MappingProxyType(
+                {
+                    name: MappingProxyType(dict(paths))
+                    for name, paths in self.config_paths.items()
+                }
+            ),
+        )
         object.__setattr__(self, "root", root.resolve())
         object.__setattr__(self, "documents", MappingProxyType(dict(self.documents)))
 

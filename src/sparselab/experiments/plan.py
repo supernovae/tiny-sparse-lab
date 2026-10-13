@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from sparselab.config.models import RunConfig, StrictModel
+from sparselab.declaration_context import RecipeContext
 from sparselab.documents import read_document
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
@@ -323,6 +324,24 @@ def base_run_config(plan: ExperimentPlan, source: Path) -> RunConfig:
         )
     except ValueError as error:
         raise ValueError(f"invalid base_run {candidate}: {error}") from error
+
+
+def recipe_run_config(
+    plan: ExperimentPlan, source: Path, context: RecipeContext
+) -> RunConfig:
+    """Read the native config through an explicit authenticated recipe context."""
+    from sparselab.config.recipe_paths import _bind_config
+
+    if not isinstance(plan.base_run, str):
+        raise TypeError("recipe context requires an inventoried base_run file")
+    candidate = context.reference(source, plan.base_run)
+    config = RunConfig.model_validate(context.read_document(candidate))
+    return _bind_config(
+        config,
+        candidate,
+        context,
+        bindings=context.config_paths.get(context.document_name(candidate)),
+    )
 
 
 def schema() -> dict[str, Any]:
