@@ -22,6 +22,28 @@ from sparselab.training.manifest import config_sha256, source_identity
 FIXTURE = Path(__file__).parent / "fixtures/contracts/run_config_v2.json"
 
 
+_PROCESS_FENCE = """
+import importlib.abc
+import os
+import sys
+class Fence(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'torch', 'mlx', 'numpy', 'datasets', 'tokenizers', 'huggingface_hub'} or fullname in {'sparselab.runtime', 'sparselab.cli.main', 'sparselab.experiments.lock', 'sparselab.verification_proofs', 'sparselab.campaign.engine', 'sparselab.campaign.plan', 'sparselab.data'}:
+            raise AssertionError('unexpected import: ' + fullname)
+sys.meta_path.insert(0, Fence())
+def guard(event, args):
+    if event in {'subprocess.Popen', 'os.system', 'socket.connect', 'os.mkdir', 'os.rename', 'os.remove'}:
+        raise AssertionError('unexpected effect: ' + event)
+    if event == 'open':
+        path, mode, flags = args
+        if '/configs/artifacts/' in str(path) or str(path) == '/forbidden-token':
+            raise AssertionError('payload or credential read')
+        if flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT):
+            raise AssertionError('write open: ' + str(path))
+sys.addaudithook(guard)
+"""
+
+
 def write_recipe(root, *, seed=7, backend="cpu", plan_updates=None):
     root.mkdir(parents=True)
     (root / "plans").mkdir()
@@ -353,7 +375,30 @@ def test_metadata_read_limits(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "mode", ["help", "plain", "null-contract", "attempt-contract", "empty-contract"]
+    "mode",
+    [
+        "help",
+        "plain",
+        "null-contract",
+        "attempt-contract",
+        "empty-contract",
+        "local_stories",
+        "snapshot",
+        "axis-local_stories",
+        "axis-snapshot",
+        "local_text",
+        "local_chat",
+        "tinystories",
+        "fineweb_edu",
+        "cosmopedia",
+        "model-variants",
+        "mlx-variant",
+        "empty-suite",
+        "false-suite",
+        "list-suite",
+        "dict-suite",
+        "null-suite",
+    ],
 )
 @pytest.mark.parametrize(
     "prefix",
@@ -368,34 +413,118 @@ def test_real_entry_has_no_execution_heavy_imports_or_writes(tmp_path, prefix, m
         elif mode == "empty-contract":
             contract = {}
         updates = {"execution": {"attempt_contract": contract}}
+    if mode.endswith("-suite"):
+        updates = {
+            "evaluation_suite": {
+                "empty-suite": "",
+                "false-suite": False,
+                "list-suite": [],
+                "dict-suite": {},
+                "null-suite": None,
+            }[mode]
+        }
+    if mode.startswith("axis-"):
+        updates = {
+            "axes": [
+                {
+                    "name": "source",
+                    "choices": [
+                        {
+                            "label": "changed",
+                            "set": {"dataset.source": mode.removeprefix("axis-")},
+                        }
+                    ],
+                }
+            ],
+            "comparisons": [],
+        }
     source = write_recipe(tmp_path / "recipe", plan_updates=updates)
+    config = json.loads((source.parent / "configs/run.json").read_text())
+    inputs = []
+    if mode in {
+        "local_stories",
+        "snapshot",
+        "axis-local_stories",
+        "axis-snapshot",
+        "local_text",
+        "local_chat",
+    }:
+        # Source-changing axes keep the same native input bindings.
+        dataset_source = {
+            "axis-local_stories": "snapshot",
+            "axis-snapshot": "local_stories",
+        }.get(mode, mode)
+        config["dataset"].update(
+            source=dataset_source,
+            revision="f54c09fd23315a6f9c86f9dc80f725de7d8f9c64",
+            license="CDLA-Sharing-1.0",
+            train_path="artifacts/train.jsonl",
+            validation_path="artifacts/validation.jsonl",
+        )
+        inputs += ["dataset.train_path", "dataset.validation_path"]
+        if dataset_source in {"local_stories", "snapshot"}:
+            config["dataset"]["source_manifest_path"] = "artifacts/source.json"
+            inputs += ["dataset.source_manifest_path"]
+        else:
+            config["dataset"].update(
+                revision="a" * 64,
+                corpus_release_path="artifacts/release.json",
+                corpus_export_path="artifacts/export.json",
+            )
+            inputs += ["dataset.corpus_release_path", "dataset.corpus_export_path"]
+            if dataset_source == "local_chat":
+                config["dataset"]["allocation_manifest_path"] = (
+                    "artifacts/allocation.json"
+                )
+                config["model"]["semantic_memory_dim"] = 8
+                inputs += ["dataset.allocation_manifest_path"]
+    elif mode in {"tinystories", "fineweb_edu", "cosmopedia"}:
+        config["dataset"].update(
+            source=mode, revision="a" * 40, dataset_config="sample"
+        )
+    elif mode == "model-variants":
+        config["model"].update(
+            ffn="moe",
+            num_experts=2,
+            memory="portable",
+            memory_table_size=16,
+            memory_dim=8,
+            memory_ngram_size=2,
+            memory_package_path="artifacts/memory.json",
+            memory_injection="embedding",
+        )
+        config["attention"].update(kind="mla", latent_dim=4)
+        config["optimizer"] = {"name": "adafactor", "warmup_steps": 2}
+        config["training"].update(
+            trainable_parameters=["model.weight"],
+            portability_manifest_path="artifacts/portability.json",
+        )
+        config["checkpoint"]["steps"] = [0, 2]
+        config["runtime"]["memory"].update(
+            allowed_sequence_lengths=[8, 16], allowed_optimizers=["adafactor"]
+        )
+        inputs += ["model.memory_package_path", "training.portability_manifest_path"]
+    elif mode == "mlx-variant":
+        config["runtime"].update(engine="mlx", backend="metal")
+    update_member(source, "configs/run.json", json.dumps(config))
+    descriptor = yaml.safe_load(source.read_text())
+    descriptor["artifacts"].update({field: "b" * 64 for field in inputs})
+    source.write_text(yaml.safe_dump(descriptor))
     # Existing payloads must remain unopened as well as unverified.
     assets = source.parent / "configs/artifacts"
     assets.mkdir()
     (assets / "tokenizer.json").write_text("payload must not be read")
-    code = """
-import importlib.abc
-import os
-import sys
-class Fence(importlib.abc.MetaPathFinder):
-    def find_spec(self, fullname, path=None, target=None):
-        if fullname.split('.')[0] in {'torch', 'mlx', 'numpy', 'datasets', 'tokenizers', 'huggingface_hub'} or fullname in {'sparselab.runtime', 'sparselab.cli.main', 'sparselab.experiments.lock', 'sparselab.verification_proofs', 'sparselab.campaign.engine', 'sparselab.campaign.plan', 'sparselab.data'}:
-            raise AssertionError('unexpected import: ' + fullname)
-sys.meta_path.insert(0, Fence())
-def guard(event, args):
-    if event in {'subprocess.Popen', 'os.system', 'socket.connect', 'os.mkdir', 'os.rename', 'os.remove'}:
-        raise AssertionError('unexpected effect: ' + event)
-    if event == 'open':
-        path, mode, flags = args
-        if str(path).endswith('/configs/artifacts/tokenizer.json') or str(path) == '/forbidden-token':
-            raise AssertionError('payload or credential read')
-        if flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT):
-            raise AssertionError('write open: ' + str(path))
-sys.addaudithook(guard)
+    code = (
+        _PROCESS_FENCE
+        + """
 from sparselab.cli.entry import main
 sys.argv = ['sparselab', *sys.argv[1:]]
-main()
+try:
+    main()
+finally:
+    assert not any(name.split('.')[0] in {'torch', 'mlx', 'numpy', 'datasets', 'tokenizers', 'huggingface_hub'} or name in {'sparselab.runtime', 'sparselab.campaign.plan', 'sparselab.data'} for name in sys.modules)
 """
+    )
     args = [*prefix, "experiment", "recipe", "inspect", str(source), "--json"]
     if mode == "help":
         args = [*prefix, "experiment", "recipe", "--help"]
@@ -408,17 +537,35 @@ main()
         timeout=20,
         check=False,
     )
-    if mode in {"attempt-contract", "empty-contract"}:
+    refusal = (
+        "evaluation_suite"
+        if mode in {"empty-suite", "false-suite", "list-suite", "dict-suite"}
+        else "execution.attempt_contract"
+        if mode in {"attempt-contract", "empty-contract"}
+        else None
+    )
+    if refusal:
         assert result.returncode == 1
         assert result.stdout == ""
         assert result.stderr == (
-            "sparselab: unavailable recipe preview feature: execution.attempt_contract\n"
+            f"sparselab: unavailable recipe preview feature: {refusal}\n"
         )
     else:
         assert result.returncode == 0, result.stderr
-    if mode in {"plain", "null-contract"}:
+    if not refusal and mode != "help":
         output = json.loads(result.stdout)
-        assert output["requirements"][0]["status"] == "unverified"
+        tokenizer = next(
+            item
+            for item in output["requirements"]
+            if item.get("field") == "tokenizer.path"
+        )
+        assert tokenizer["status"] == "unverified"
+        if mode.startswith("axis-"):
+            assert output["cells"][0]["config"]["dataset"][
+                "source"
+            ] == mode.removeprefix("axis-")
+        if mode in {"local_stories", "snapshot"}:
+            assert output["cells"][0]["config"]["dataset"]["source"] == mode
         assert output["executable"] is False
     assert not (tmp_path / "forbidden-work").exists()
 
@@ -528,3 +675,29 @@ def test_context_reference_rejects_uninventoried_existing_document(tmp_path):
     (source.parent / "extra.yaml").write_text("{}")
     with pytest.raises(ValueError, match="undeclared recipe reference: 'extra.yaml'"):
         context.reference(source.parent / "plans/plan.yaml", "extra.yaml")
+
+
+@pytest.mark.parametrize("kind", ["attempt", "suite"])
+def test_native_reference_schema_validation_is_lightweight(tmp_path, kind):
+    code = (
+        _PROCESS_FENCE
+        + """
+from sparselab.experiments.plan import AttemptContractReference, ExperimentPlan
+if sys.argv[1] == 'attempt':
+    AttemptContractReference.model_validate({'path': 'attempt.yaml', 'sha256': 'a' * 64})
+else:
+    ExperimentPlan.model_validate({'plan_version': 1, 'id': 'preview', 'base_run': 'run.yaml', 'evaluation_suite': 'suite.yaml'})
+assert not any(name.split('.')[0] in {'torch', 'numpy', 'datasets'} or name in {'sparselab.campaign.plan', 'sparselab.data'} for name in sys.modules)
+"""
+    )
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", code, kind],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""

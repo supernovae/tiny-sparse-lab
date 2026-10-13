@@ -199,14 +199,15 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
         "phases",
         "corpus_variants",
         "evaluations",
-        "evaluation_suite",
     ):
         if raw.get(field):
             raise ValueError(
                 f"unavailable recipe preview feature: {field}; use native planning for this declaration"
             )
-    # Native attempt-contract validation imports execution dependencies. Refuse
-    # any non-null declaration before invoking that validator, even if malformed.
+    if raw.get("evaluation_suite") is not None:
+        raise ValueError("unavailable recipe preview feature: evaluation_suite")
+    # Unsupported references are refused before native schema validation,
+    # including malformed falsey values; schema checks themselves stay lightweight.
     execution = raw.get("execution")
     if isinstance(execution, dict) and execution.get("attempt_contract") is not None:
         raise ValueError(

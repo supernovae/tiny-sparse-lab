@@ -113,6 +113,18 @@ The inventory regression fences also cover order-independent fingerprints, dupli
 non-plan entries with specific refusal reasons, the aggregate metadata limit at an
 exact tiny boundary, attempt-contract refusal, descriptor self-inventory before
 its downstream digest mismatch, and direct uninventoried context references.
+The lightweight schema audit covers all `RunConfig` and `ExperimentPlan`
+validators reachable through base loading, rebinding and native axis expansion.
+Dataset source pins now live in dependency-free `local_stories_pins`, re-exported
+unchanged by `data.local_stories`; plan reference validators use
+`declaration_context.safe_path`. Remaining validators perform only schema,
+arithmetic, string and path checks. Fresh-process fences cover local_stories and
+snapshot bases and source-changing axes, local corpus/allocation inputs, remote
+source declarations, portable memory/MoE/MLA/Adafactor settings, MLX declarations,
+and malformed falsey evaluation-suite refusals. They also check native plan
+reference validation independently of preview refusal and assert heavy modules
+remain absent. These are metadata checks, not runtime capability or data proofs.
+
 Some guards intentionally overlap: document/root symlink checks complement
 `safe_path`, and config containment complements binding beneath an inventoried
 config directory. Removing one can leave end-to-end rejection intact. These

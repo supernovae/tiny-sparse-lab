@@ -223,7 +223,7 @@ class DatasetConfig(StrictModel):
             ):
                 raise ValueError("corpus export requires full SHA-256 dataset.revision")
         if self.source in {"local_stories", "snapshot"}:
-            from sparselab.data.local_stories import LICENSE, REVISION
+            from sparselab.local_stories_pins import LICENSE, REVISION
 
             if self.source == "local_stories" and (
                 self.revision != REVISION or self.license != LICENSE

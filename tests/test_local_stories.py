@@ -166,3 +166,14 @@ def test_selection_threshold_and_ties() -> None:
     assert choose_candidate(candidates) == 8192
     candidates[0]["valid"] = False
     assert choose_candidate(candidates) == 12000
+
+
+def test_source_pins_keep_legacy_values_and_exports():
+    from sparselab import local_stories_pins
+
+    assert (
+        REVISION
+        == local_stories_pins.REVISION
+        == "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64"
+    )
+    assert LICENSE == local_stories_pins.LICENSE == "CDLA-Sharing-1.0"
