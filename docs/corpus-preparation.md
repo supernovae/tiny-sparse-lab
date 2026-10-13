@@ -114,3 +114,20 @@ remains supported; do not strip companions from legacy bundles. Explicit bundle
 verification and family finalization always require the receipt. Recovery does
 not rewrite old unmarked YAML into the new format; such byte differences are
 conflicts, preserving historical evidence.
+
+
+### Large-build rights header limit
+
+The large builder reads file-level rights evidence from at most the first 30
+LF-delimited lines within 64 KiB (65,536 bytes), allowing one additional byte
+only to detect overflow. CRLF and a final line without a newline retain the
+rights resolver's existing semantics. If 30 complete lines or EOF cannot be
+reached within that ceiling, the build fails before rights classification or
+prepared-shard reuse; a partial header never grants admission. JSON, JSONL and
+Parquet names with the resolver's exact lowercase suffixes need no header read.
+
+This limit only removes the redundant full-file rights read. Full-file admission
+screening, acquisition budgets and normalizer identities are unchanged. Fallback
+preparation still materializes complete inputs (including JSON arrays, Parquet
+and monolithic text normalization); bounding that memory remains separate LAB-52
+work. The rights-header fix does not make all fallback formats memory-bounded.
