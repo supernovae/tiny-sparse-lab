@@ -19,7 +19,12 @@ from pathlib import Path
 
 import psutil
 
-from sparselab.operational_monitor import _identity, _owned, _signal_owned
+from sparselab.operational_monitor import (
+    _identity,
+    _owned,
+    _private_output,
+    _signal_owned,
+)
 
 
 def supervise(
@@ -60,7 +65,7 @@ def supervise(
     try:
         if ready is not None:
             pending = ready.with_name(ready.name + ".pending")
-            with pending.open("x", encoding="utf-8") as stream:
+            with open(pending, "x", encoding="utf-8", opener=_private_output) as stream:
                 stream.write(
                     json.dumps({"pid": root.pid, "create_time": root.create_time})
                     + "\n"

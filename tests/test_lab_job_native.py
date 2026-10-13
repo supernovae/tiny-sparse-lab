@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 
 import pytest
@@ -46,8 +47,13 @@ def test_native_model_workflow_and_collection_never_retrain(
         return publish(path, payload)
 
     monkeypatch.setattr(jobs, "publish_immutable", fail_publication)
-    with pytest.raises(OSError, match="publication unavailable"):
-        jobs.admit(native_job)
+    previous = os.umask(0o002)
+    try:
+        with pytest.raises(OSError, match="publication unavailable"):
+            jobs.admit(native_job)
+    finally:
+        observed = os.umask(previous)
+    assert observed == 0o002
     assert jobs.admit(native_job)["status"] == "COLLECTABLE"
     monkeypatch.setattr(jobs, "publish_immutable", publish)
     result = jobs.collect(native_job)

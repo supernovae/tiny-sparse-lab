@@ -31,6 +31,24 @@ from pydantic import (
 
 from sparselab import host_capacity
 
+
+def _private_output(path: str, flags: int) -> int:
+    """Create private evidence without changing the process-wide umask."""
+    return os.open(path, flags, 0o600)
+
+
+def _private_parents(path: Path) -> None:
+    """Create missing ancestors privately; never repair existing directories."""
+    try:
+        path.mkdir(mode=0o700)
+    except FileNotFoundError:
+        _private_parents(path.parent)
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        if not path.is_dir():
+            raise
+
+
 _NEW_POLICY_FIELDS = (
     "max_device_memory_bytes",
     "expected_device_uuid",
@@ -332,7 +350,7 @@ def capture_workspace_baseline(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     baseline = WorkspaceBaseline.model_validate({**payload, "sha256": digest})
-    with path.open("x", encoding="utf-8") as stream:
+    with open(path, "x", encoding="utf-8", opener=_private_output) as stream:
         stream.write(baseline.model_dump_json() + "\n")
         stream.flush()
         os.fsync(stream.fileno())
@@ -969,7 +987,8 @@ def monitor_command(
         )
     ):
         raise ValueError("insufficient free workspace margin before launch")
-    log_dir.mkdir(parents=True, exist_ok=False)
+    _private_parents(log_dir.parent)
+    log_dir.mkdir(mode=0o700, exist_ok=False)
     events = log_dir / "events.jsonl"
     completion_path = log_dir / "completion.json"
     source_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -978,9 +997,9 @@ def monitor_command(
     stderr_path = log_dir / "command.stderr.log"
     start = time.monotonic()
     with (
-        events.open("x", encoding="utf-8") as stream,
-        stdout_path.open("xb") as command_stdout,
-        stderr_path.open("xb") as command_stderr,
+        open(events, "x", encoding="utf-8", opener=_private_output) as stream,
+        open(stdout_path, "xb", opener=_private_output) as command_stdout,
+        open(stderr_path, "xb", opener=_private_output) as command_stderr,
     ):
         enhanced = (
             owned_supervisor
