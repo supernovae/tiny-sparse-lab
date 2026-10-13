@@ -74,3 +74,43 @@ All four fixture sources are retained; real Wikimedia acquisition is not exercis
 The independent `test_corpus_source_effects` public-CLI tests cover the mixed
 production effect policy using an explicit mocked Wikimedia transport and network
 tripwires. Neither fixture result admits a real corpus or qualifies real transfer.
+
+## Split bundle commit and explicit recovery
+
+`corpus freeze-splits` publishes family candidates, split YAML, then the schema-1
+receipt as the commit record. Consumers require all three regular files and
+matching split/candidate digests. Publication uses exclusive hard links, file
+fsync, and directory fsync through the existing work root (including newly
+created output directories, but never ancestors above the work root). Receipt publication follows durable data publication.
+An error after any link, including a directory-sync error after the receipt,
+means the operation's durability is uncertain: keep all evidence. A complete
+matching visible receipt is readable, but a failed call does not establish
+successful durable completion.
+
+For an interrupted operation on an authorized work area, repeat the identical
+`corpus freeze-splits PROJECT --inventory INVENTORY --clusters CLUSTERS --output
+SPLITS --recover` command. Recovery is a separately authorized operator step
+**outside attempt contracts**: their reviewed option allowlist refuses `--recover`.
+An interrupted budgeted attempt must retain its failure/accounting evidence;
+operator recovery does not replay or reset that attempt. Adding recovery to the
+attempt protocol requires a separately reviewed policy change.
+
+The operator command explicitly revalidates acquisition, admission,
+inventory and reviewed clusters, recomputes deterministic bytes, checks **every**
+existing member before writing, and exclusively publishes only missing members.
+Existing identical members are fsynced again without replacement; any conflicting
+file or symlink stops recovery. Ordinary retries still refuse existing outputs.
+Never delete conflicting evidence or use recovery to repair historical real runs.
+Concurrent writers may cause an exclusive-publication failure; preserve outputs
+and explicitly revalidate instead of assuming the other writer completed.
+
+New YAML includes a deterministic comment identifying a frozen bundle; this
+requires a receipt even when both companions are missing. Assignments and parsed
+scientific identity are unchanged, JSONL serialization remains unchanged, and the
+receipt binds the new exact YAML bytes. Complete pre-marker schema-1 bundles
+remain readable without migration. Legacy unmarked YAML with neither companion
+is indistinguishable from a standalone hand-authored split declaration, which
+remains supported; do not strip companions from legacy bundles. Explicit bundle
+verification and family finalization always require the receipt. Recovery does
+not rewrite old unmarked YAML into the new format; such byte differences are
+conflicts, preserving historical evidence.

@@ -878,7 +878,11 @@ def load_project(path: Path | str, *, verify_inputs: bool = True) -> Project:
 
     for transform in transforms:
         check_inputs(transform.id)
-    splits = SplitDeclaration.model_validate(_yaml(project_path(root, config.splits)))
+    from sparselab.corpus.split_freeze import verify_split_bundle
+
+    split_path = project_path(root, config.splits)
+    verify_split_bundle(split_path, required=False)
+    splits = SplitDeclaration.model_validate(_yaml(split_path))
     release = ReleaseDeclaration.model_validate(
         _yaml(project_path(root, config.release))
     )

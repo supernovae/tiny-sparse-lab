@@ -146,6 +146,7 @@ def _handle(args: argparse.Namespace) -> None:
             Path(args.inventory),
             Path(args.clusters),
             Path(args.output),
+            recover=args.recover,
         )
         print(json.dumps(result, sort_keys=True))
         return
@@ -400,6 +401,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("project")
     command.add_argument("--inventory", required=True)
     command.add_argument("--clusters", required=True)
+    command.add_argument(
+        "--recover",
+        action="store_true",
+        help="Validate identical evidence and publish missing split bundle members",
+    )
     command.add_argument("--output", required=True)
     command.add_argument("--json", action="store_true")
     command.set_defaults(handler=_handle)
