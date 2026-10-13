@@ -11,6 +11,9 @@ from sparselab.operational_monitor import load_monitor_policy, monitor_command
 
 def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register `sparselab monitor` on the top-level CLI's subparsers."""
+    from sparselab.lab_job import register_job_parser
+
+    register_job_parser(subparsers)
     parser = subparsers.add_parser(
         "monitor", help="Guard one owned command and record operational evidence"
     )

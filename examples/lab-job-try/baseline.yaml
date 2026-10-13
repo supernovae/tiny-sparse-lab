@@ -1,0 +1,71 @@
+checkpoint:
+  every_minutes: null
+  every_steps: 3
+  every_tokens: null
+  keep_periodic: true
+dataset:
+  cache_dir: ../outputs/data
+  license: synthetic fixture (locally generated)
+  source: local_text
+  synthetic_seed: 42
+  train_max_documents: 8
+  train_max_tokens: 2048
+  train_path: train.jsonl
+  validation_max_documents: 4
+  validation_max_tokens: 512
+  validation_path: validation.jsonl
+evaluation:
+  every_steps: 3
+  max_batches: 2
+logging:
+  every_steps: 1
+  root_dir: ../outputs/unused-runs
+model:
+  ffn_dim: 32
+  hidden_dim: 16
+  max_seq_len: 32
+  num_heads: 2
+  num_layers: 1
+  vocab_size: 260
+name: smoke-cpu
+optimizer:
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1e-8
+  floor: 0.0003
+  name: adamw
+  peak: 0.003
+  state_offload: false
+  warmup_steps: 1
+  weight_decay: 0.1
+runtime:
+  backend: cpu
+  device_index: 0
+  engine: pytorch
+  memory:
+    activation_checkpointing:
+      enabled: false
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_optimizers: []
+    allowed_sequence_lengths: []
+    budget_bytes: null
+    max_device_memory_fraction: 0.9
+    policy: balanced
+  precision: fp32
+schema_version: 2
+seed: 42
+staging:
+  smoke_steps: 2
+  warmup_steps: 5
+tokenizer:
+  path: ../outputs/tokenizer/tokenizer.json
+training:
+  deterministic: true
+  gradient_accumulation: 1
+  max_steps: 3
+  max_tokens: 96
+  micro_batch_size: 2
+  seq_len: 16

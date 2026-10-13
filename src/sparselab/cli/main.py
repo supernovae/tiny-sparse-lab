@@ -2764,6 +2764,7 @@ RELEASE_COMMANDS = (
     "hosted",
     "monitor",
     "monitor-baseline",
+    "lab-job",
 )
 
 
@@ -4456,7 +4457,7 @@ def main() -> None:
     args.storage_checks = _command_storage_checks(args)
     read_only = _read_only_command(args)
     deferred = (
-        args.command in {"campaign", "recovery", "archive", "attempt"}
+        args.command in {"campaign", "recovery", "archive", "attempt", "lab-job"}
         or (
             args.command == "experiment"
             and args.experiment_command in {"prepare", "run"}

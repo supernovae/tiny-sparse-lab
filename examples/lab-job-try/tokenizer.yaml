@@ -1,0 +1,16 @@
+dataset:
+  cache_dir: ../outputs/data
+  license: synthetic fixture (locally generated)
+  source: local_text
+  synthetic_seed: 42
+  train_max_documents: 8
+  train_max_tokens: 2048
+  train_path: train.jsonl
+  validation_max_documents: 4
+  validation_max_tokens: 512
+  validation_path: validation.jsonl
+max_documents: 8
+min_frequency: 1
+output_dir: ../outputs/tokenizer
+schema_version: 1
+vocab_size: 260

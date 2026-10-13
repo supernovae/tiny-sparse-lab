@@ -1,0 +1,6 @@
+try_config_version: 1
+seed: 7
+fresh_baseline: true
+probe_tier: fast
+lab_dir: ../native/lab
+resource_envelope: bounds.yaml

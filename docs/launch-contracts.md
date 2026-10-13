@@ -6,6 +6,11 @@ queue dispatch. Waiting is a submission option: `experiment submit CONFIG
 --wait`. The queue, worker protocol and receipt ingestion are shared with
 non-waiting submissions; [workers](workers.md) describes their operation.
 
+The optional [bounded lab-job adapter](lab-jobs.md) binds an external handoff
+to the existing native host runner. Its tiny CPU profile delegates tokenizer
+training, paired model work and reporting to the native lab lifecycle. It accepts
+no pytest or arbitrary-command workload and adds no worker/controller scheduler.
+
 ## Contract and caller audit
 
 The audit covers the eight requested executable command paths at revision

@@ -20,6 +20,12 @@ continues. Legacy `sparselab-work/` is selectable explicitly and never migrated
 automatically; branches or worktrees do not create scientific or storage IDs.
 
 
+For bounded shared-host CPU work, [lab jobs](lab-jobs.md) adds immutable external
+job/attempt bindings and collection over the native host monitor. Its native
+tokenizer → `try` → `report` profile delegates model work to the existing lab
+lifecycle. Queue workers retain their PREPARED/claim/replay protocol; the adapter
+does not introduce another scheduler.
+
 ## Local operation
 
 Prepare the tokenizer and use a concrete configuration whose backend and precision the worker supports:

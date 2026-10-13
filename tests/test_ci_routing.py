@@ -24,6 +24,7 @@ NODES = (
     "tests/test_snapshot_warm_reuse.py",
     "tests/test_snapshot_inheritance.py",
     "tests/test_study_recovery.py",
+    "tests/test_lab_job.py",
     "tests/test_corpus_acquisition.py::test_bounded_resource_readings_exact_expansion_cap",
     "tests/test_corpus_acquisition.py::test_bounded_overlong_line_retains_measured_prefix",
     "tests/test_corpus_acquisition.py::test_required_staging_reading_failure_is_closed",
@@ -44,6 +45,7 @@ NODES = (
 
 
 LAB_NODES = (
+    "tests/test_lab_job_native.py",
     "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
     "tests/test_probes.py",
     "tests/test_references.py",

@@ -118,6 +118,11 @@ Sampling cannot discover a process that was born and orphaned entirely between
 samples; plan critical workloads accordingly. Missing requested metrics fail
 closed; monitoring does not resume, retry or authenticate scientific inputs.
 
+For immutable bounded native CPU lab handoffs with job IDs, replay-safe admission and
+retained finalization, use [lab jobs](lab-jobs.md). Its host configuration is
+explicit; existing CPU state-v2 and `.lab-cpu.blocked.json`, and ROCm
+`.lab-rocm.blocked.json`, must not be renamed to match the illustrative paths below.
+
 ## Shared Linux runner ownership
 
 Opt into the same native monitor with all three paths below. Every contender

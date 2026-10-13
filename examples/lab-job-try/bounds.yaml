@@ -1,0 +1,5 @@
+resource_envelope_version: 1
+lab_try:
+  max_wall_seconds_per_arm: 30
+  tokenizer_batch_documents: 8
+  tokenizer_batch_source_bytes: 1024
