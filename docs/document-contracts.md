@@ -28,7 +28,7 @@ there is no second parser. Internal parser-only consumers now import `documents`
 directly: plans/Campaigns, lab candidate/seed preflight, derivation, source and
 family declarations, evaluation suites/panels/readiness, corpus policy and
 memorization declarations, preparation benchmarks, iteration, research lint and
-recovery evidence. Existing raw-byte/hash readers keep their read/verification
+recovery manifests/provenance/snapshots. Existing raw-byte/hash readers keep their read/verification
 sequence and only move the parser import. `recovery.evidence.export_evidence`
 retains its import through the plan re-export because its whole function body
 is bound by reviewed verifier-exclusion signatures; those signatures are unchanged.
@@ -98,6 +98,15 @@ still contribute to historical config identity as before. Same bytes in differen
 roots are not newly declared identical. No exclusions, hash algorithms, receipt
 bytes, fixtures or historical records change. Content-versus-location identity
 for future portable contracts remains a separate versioned decision.
+
+Verifier-authority closure digests do change when their source modules change,
+including the addition of `documents` to the affected closures. Existing warm
+proofs bound to the old authority fail closed and require cold re-verification;
+successful verification can issue a new proof for reuse under the current
+closure. This is expected operational cache invalidation, not a change to
+historical artifact/config identities or a rewrite of old proofs. Hash algorithms
+and reviewed exclusion signatures remain unchanged. `file` and `prepared_array`
+closures do not include `documents`.
 
 ## Change-impact test map
 

@@ -49,12 +49,12 @@ def _unique_mapping(
     result: dict[object, object] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node)
+        mark = key_node.start_mark
+        location = f"line {mark.line + 1}, column {mark.column + 1}"
         if not isinstance(key, str):
-            raise TypeError(
-                f"experiment mapping keys must be strings at {key_node.start_mark}"
-            )
+            raise TypeError(f"experiment mapping keys must be strings at {location}")
         if key in result:
-            raise ValueError(f"duplicate YAML key: {key!r} at {key_node.start_mark}")
+            raise ValueError(f"duplicate YAML key: {key!r} at {location}")
         result[key] = loader.construct_object(value_node)
     return result
 

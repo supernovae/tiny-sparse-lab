@@ -54,11 +54,31 @@ def test_rejected_data_has_source(tmp_path, suffix, text, match):
     assert str(path) in str(error.value)
 
 
-def test_duplicate_diagnostic_has_yaml_line_and_column(tmp_path):
+@pytest.mark.parametrize("exact_decimals", [False, True])
+@pytest.mark.parametrize(
+    "key,error_type,diagnostic",
+    [
+        ("key", ValueError, "duplicate YAML key: 'key'"),
+        ('"key"', ValueError, "duplicate YAML key: 'key'"),
+        ("true", TypeError, "experiment mapping keys must be strings"),
+    ],
+)
+def test_mapping_diagnostics_are_concise_for_direct_and_file_readers(
+    tmp_path, exact_decimals, key, error_type, diagnostic
+):
+    from sparselab.documents import _ExactUniqueLoader, _UniqueLoader
+
     path = tmp_path / "bad.yaml"
-    path.write_text("nested:\n  key: 1\n  key: 2\n")
-    with pytest.raises(ValueError, match="line 3, column 3"):
-        read_document(path)
+    text = f"nested:\n  key: 1\n  {key}: 2\n"
+    path.write_text(text)
+    expected = f"{diagnostic} at line 3, column 3"
+    loader = _ExactUniqueLoader if exact_decimals else _UniqueLoader
+    with pytest.raises(error_type) as direct_error:
+        yaml.load(text, Loader=loader)
+    assert str(direct_error.value) == expected
+    with pytest.raises(error_type) as file_error:
+        read_document(path, exact_decimals=exact_decimals)
+    assert str(file_error.value) == f"invalid experiment document {path}: {expected}"
 
 
 @pytest.mark.parametrize(
@@ -157,3 +177,34 @@ def test_model_components_do_not_import_workflow_consumers():
                 for name in imports
                 for prefix in forbidden
             ), (path, imports)
+
+
+@pytest.mark.parametrize("levels", [1, 8, 25])
+def test_alias_doubling_visits_shared_leaves_once(tmp_path, monkeypatch, levels):
+    from sparselab import documents
+
+    path = tmp_path / "doubling.yaml"
+    path.write_text(
+        "l0: &a0 [1.0, 2.0]\n"
+        + "".join(
+            f"l{level}: &a{level} [*a{level - 1}, *a{level - 1}]\n"
+            for level in range(1, levels + 1)
+        )
+    )
+    finite = documents.math.isfinite
+    visits = 0
+
+    def count_leaf(value):
+        nonlocal visits
+        visits += 1
+        # Fail immediately if a shared container is revisited: even the mutated
+        # 25-level case stays tiny instead of performing an exponential walk.
+        assert visits <= 2, "shared alias leaves were traversed again"
+        return finite(value)
+
+    monkeypatch.setattr(documents.math, "isfinite", count_leaf)
+    raw = documents.read_document(path)
+    assert visits == 2
+    for level in range(1, levels + 1):
+        assert raw[f"l{level}"][0] is raw[f"l{level - 1}"]
+        assert raw[f"l{level}"][1] is raw[f"l{level - 1}"]
