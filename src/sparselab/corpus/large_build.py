@@ -169,6 +169,34 @@ def _bounded_jsonl_shard(path: Path) -> bool:
     return True
 
 
+# Rights resolution inspects only 30 LF-delimited lines. This is a header
+# evidence limit, not a bound on fallback normalization or admission screening.
+_RIGHTS_HEADER_MAX_BYTES = 64 * 1024
+
+
+def _read_rights_header(path: Path, name: str) -> bytes:
+    """Read complete rights evidence within 64 KiB, plus one overflow probe byte.
+
+    Match resolve_file_rights' case-sensitive dataset suffixes and binary LF
+    boundaries (including CRLF and a final unterminated line). Never classify a
+    truncated header: fewer than 30 lines require EOF within the byte ceiling.
+    """
+    if name.endswith((".jsonl", ".json", ".parquet")):
+        return b""
+    header = bytearray()
+    with path.open("rb") as stream:
+        for _ in range(30):
+            line = stream.readline(_RIGHTS_HEADER_MAX_BYTES - len(header) + 1)
+            if len(header) + len(line) > _RIGHTS_HEADER_MAX_BYTES:
+                raise ValueError(
+                    f"rights header exceeds {_RIGHTS_HEADER_MAX_BYTES} bytes: {name}"
+                )
+            header.extend(line)
+            if not line.endswith(b"\n"):
+                break
+    return bytes(header)
+
+
 def _prepare_file(
     *,
     build_id: str,
@@ -1124,7 +1152,7 @@ def build_large(
                 resolve_file_rights(
                     source.rights,
                     name,
-                    b"" if name.endswith(".jsonl") else path.read_bytes(),
+                    _read_rights_header(path, name),
                     nested_metadata=nested_metadata,
                     prospective_private_research=source.schema_version == 3,
                 )
