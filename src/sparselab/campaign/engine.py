@@ -12,12 +12,15 @@ from contextlib import nullcontext
 from dataclasses import asdict
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.campaign.plan import load_campaign, operational_path, safe_path
 from sparselab.campaign.state import CampaignStore, digest
 from sparselab.runtime_profile import RuntimeProfile
 from sparselab.workdir import storage_checks, warn_storage_checks
+
+if TYPE_CHECKING:
+    from sparselab.campaign.preparation_plan import PreparationRequest
 
 
 def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
@@ -64,6 +67,9 @@ class CampaignEngine:
     ) -> None:
         self.source = Path(source).resolve()
         self.plan = load_campaign(self.source)
+        from sparselab.campaign.preparation_plan import compile_preparation
+
+        self.preparation_plan = compile_preparation(self.plan)
         self.store = CampaignStore(self.plan, Path(work_dir))
         self.work_dir = Path(work_dir).resolve()
         self.after_commit = after_commit
@@ -144,6 +150,81 @@ class CampaignEngine:
     def _path(self, reference: str) -> Path:
         return safe_path(self.source.parent, reference)
 
+    def _preparation_request(
+        self, stage_id: str, rows: dict[str, dict]
+    ) -> PreparationRequest:
+        from sparselab.campaign.preparation_plan import (
+            BoundPreparationInput,
+            PreparationArtifact,
+            PreparationRequest,
+        )
+        from sparselab.config.loading import load_config, load_tokenizer_config
+
+        operation = self.preparation_plan.operation(stage_id)
+        loader = (
+            load_tokenizer_config
+            if operation.kind == "tokenizer_train"
+            else load_config
+        )
+        config = loader(self._path(operation.config_reference))
+        bindings = []
+        for reference in operation.inputs:
+            # Existing verification/replay authority authenticates the output
+            # before it is copied into an immutable, operation-local request.
+            upstream = self._upstream(rows, reference.producer)
+            if len(upstream["outputs"]) != 1:
+                raise ValueError("preparation input requires one immutable output")
+            bindings.append(
+                BoundPreparationInput(
+                    reference=reference,
+                    path=Path(upstream["availability"]["path"]),
+                    artifact=PreparationArtifact.model_validate(upstream["outputs"][0]),
+                )
+            )
+        return PreparationRequest(
+            operation=operation,
+            source=self.source,
+            config=config,
+            inputs=tuple(bindings),
+        )
+
+    def _snapshot_identity(self, stage: Any, path: Path) -> dict:
+        from sparselab.data.sources import verify_lock, verify_snapshot
+
+        lock = verify_lock(self._operational_path(stage.lock))
+        manifest = verify_snapshot(path)
+        if manifest["lock"] != lock:
+            raise ValueError("snapshot differs from declared source lock")
+        return {
+            "kind": "dataset_snapshot",
+            "identifier": lock["lock_sha256"],
+            "sha256": manifest["manifest_sha256"],
+        }
+
+    def _dispatch_snapshot(self, stage: Any, *, resume_acquisition: bool) -> dict:
+        from sparselab.data.sources import snapshot_source
+
+        output = self._operational_path(stage.output)
+        # A published snapshot left by an interrupted receipt commit is verified,
+        # never acquired again. Partial acquisition requires explicit resume.
+        path = output / "manifest.json"
+        if not output.exists():
+            output.parent.mkdir(parents=True, exist_ok=True)
+            journal = output.with_name(f".{output.name}.work")
+            try:
+                path = snapshot_source(
+                    self._operational_path(stage.lock),
+                    output,
+                    self._operational_path(stage.cache_dir),
+                    resume=stage.resume or (resume_acquisition and journal.exists()),
+                )
+            except (OSError, RuntimeError) as error:
+                if not journal.is_dir() or journal.is_symlink():
+                    raise
+                return self._result("INTERRUPTED", "DO_NOT_ADVANCE", reason=str(error))
+        identity = self._snapshot_identity(stage, path)
+        return self._result(outputs=[identity], availability={"path": str(path)})
+
     def _operational_path(self, reference: str) -> Path:
         return operational_path(self.source.parent, reference)
 
@@ -155,13 +236,17 @@ class CampaignEngine:
         from sparselab.experiments.plan import base_run_config, load_plan
 
         for consumer in self.plan.stages:
-            if getattr(consumer, "tokenizer", None) != stage.id:
-                continue
             if consumer.kind == "data_prepare":
-                path = self._path(consumer.config)
+                operation = self.preparation_plan.operation(consumer.id)
+                if not any(
+                    item.port == "tokenizer" and item.producer == stage.id
+                    for item in operation.inputs
+                ):
+                    continue
+                path = self._path(operation.config_reference)
                 if path.is_file():
                     return load_config(path).dataset
-            elif consumer.kind == "experiment_plan":
+            elif consumer.kind == "experiment_plan" and consumer.tokenizer == stage.id:
                 path = self._path(consumer.source)
                 if path.is_file():
                     return base_run_config(load_plan(path), path).dataset
@@ -447,10 +532,27 @@ class CampaignEngine:
         kind = stage.kind
         output = row["outputs"][0] if row.get("outputs") else None
         path = Path(row.get("availability", {}).get("path", ""))
-        if kind in {"dataset_snapshot", "tokenizer_train", "data_prepare"}:
+        if kind == "dataset_snapshot":
+            path = self._operational_path(row["availability"]["path"])
+            if path != self._operational_path(stage.output) / "manifest.json":
+                raise ValueError("snapshot output location differs from declaration")
+            if row["outputs"] != [self._snapshot_identity(stage, path)]:
+                raise ValueError("preparation output identity changed")
+        elif kind in {"tokenizer_train", "data_prepare"}:
             from sparselab.campaign.preparation import verify
+            from sparselab.campaign.preparation_plan import PreparationResult
 
-            verify(self, stage, row, rows)
+            if len(row["outputs"]) != 1:
+                raise ValueError("preparation output identity changed")
+            result = PreparationResult(
+                path=self._operational_path(row["availability"]["path"]),
+                artifact=row["outputs"][0],
+            )
+            verify(
+                self._preparation_request(stage.id, rows),
+                result,
+                **self._verification(),
+            )
         elif kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
@@ -768,12 +870,13 @@ class CampaignEngine:
         if stage.kind in {"tokenizer_train", "data_prepare"}:
             from sparselab.config.loading import load_config, load_tokenizer_config
 
-            path = self._path(stage.config)
+            operation = self.preparation_plan.operation(stage.id)
+            path = self._path(operation.config_reference)
             if not path.exists():
                 return f"missing declared preparation config: {path}"
             loader = (
                 load_tokenizer_config
-                if stage.kind == "tokenizer_train"
+                if operation.kind == "tokenizer_train"
                 else load_config
             )
             loader(path)
@@ -1675,10 +1778,20 @@ class CampaignEngine:
         """Run one declared adapter; return science identities separately from availability."""
         kind = stage.kind
         input_sha = rows[stage.id]["stage_input_sha256"]
-        if kind in {"dataset_snapshot", "tokenizer_train", "data_prepare"}:
+        if kind == "dataset_snapshot":
+            return self._dispatch_snapshot(stage, resume_acquisition=resume_acquisition)
+        if kind in {"tokenizer_train", "data_prepare"}:
             from sparselab.campaign.preparation import dispatch
 
-            return dispatch(self, stage, rows, resume_acquisition=resume_acquisition)
+            result = dispatch(
+                self._preparation_request(stage.id, rows),
+                observer=self.observer,
+                **self._verification(),
+            )
+            return self._result(
+                outputs=[result.artifact.model_dump(mode="json")],
+                availability={"path": str(result.path)},
+            )
         if kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 

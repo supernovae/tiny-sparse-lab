@@ -381,10 +381,16 @@ def test_campaign_runtime_rejects_new_legacy_execution(source):
 
 @pytest.mark.parametrize("kind", ["tokenizer_train", "data_prepare"])
 def test_preparation_rejects_legacy_before_compute(kind, monkeypatch):
+    from test_campaign_preparation_plan import request_for
+
     from sparselab.campaign import preparation
 
-    config = SimpleNamespace(dataset=SimpleNamespace(source="tinystories"))
-    monkeypatch.setattr(preparation, "config_for", lambda *args: config)
+    request = request_for(Path("/tmp/legacy-preparation"), kind)
+    config = request.config.model_dump(mode="python")
+    config["dataset"].update(source="tinystories", revision="a" * 40)
+    request = type(request).model_validate(
+        {**request.model_dump(mode="python"), "config": config}
+    )
     monkeypatch.setattr(
         "sparselab.data.tokenizer.train_tokenizer",
         lambda *a, **kw: pytest.fail("legacy training"),
@@ -394,7 +400,7 @@ def test_preparation_rejects_legacy_before_compute(kind, monkeypatch):
         lambda *a, **kw: pytest.fail("legacy packing"),
     )
     with pytest.raises(ValueError, match="retired for new execution"):
-        preparation.dispatch(SimpleNamespace(), SimpleNamespace(kind=kind), {})
+        preparation.dispatch(request)
 
 
 def test_snapshot_upstream_mismatch_blocks_tokenizer_before_training(
