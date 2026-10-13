@@ -139,7 +139,9 @@ Digest placeholders above must be replaced with real hexadecimal identities.
 The selected Python must be the interpreter running the command; the command
 never provisions or launches another environment. Recipe descriptor and every
 inventoried declaration must be clean and committed at `reviewed_commit` in their
-own repository. Selecting that commit asserts that the owner reviewed the recipe.
+own repository: `reviewed_commit` must equal the recipe repository's current
+HEAD. Any later commit, including an unrelated change elsewhere in that repository,
+invalidates the admission. Selecting that commit asserts that the owner reviewed the recipe.
 Git proves committed bytes, **not trusted authorship** or review. No uncommitted
 or model-execution override is accepted on this route. Legacy Campaign overrides
 and readers retain their existing behavior for legacy records.

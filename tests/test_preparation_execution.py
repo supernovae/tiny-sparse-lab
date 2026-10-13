@@ -524,3 +524,172 @@ def test_missing_transitive_cpu_dependency_refuses_before_work(
     with pytest.raises(ValueError, match="dependencies are unavailable"):
         PreparationExecution(*args)
     assert not args[2].exists()
+
+
+def rebind_admission(source, bindings, admission):
+    """Validate the native recipe first, then select its changed local binding."""
+    loaded = load_preparation_recipe(source, bindings)
+    return admission.model_copy(update={"binding_sha256": loaded.binding_sha256})
+
+
+def forbid_directory_creation(monkeypatch):
+    def create(*args, **kwargs):
+        pytest.fail("admission/constructor attempted to create a directory")
+
+    monkeypatch.setattr(Path, "mkdir", create)
+
+
+def test_admission_refuses_work_root_inside_git_without_creating_it(
+    tmp_path, monkeypatch
+):
+    source, bindings, old_work, admission = setup(tmp_path)
+    work = source.parent / "uncreated-work"
+    local = json.loads(bindings.read_text())
+    for fields in local["config_paths"].values():
+        for field, value in fields.items():
+            fields[field] = str(work / Path(value).relative_to(old_work))
+    bindings.write_text(json.dumps(local))
+    admission = rebind_admission(source, bindings, admission)
+    forbid_directory_creation(monkeypatch)
+    with pytest.raises(ValueError, match="^preparation work root must be outside Git$"):
+        PreparationExecution(source, bindings, work, admission)
+    assert not work.exists() and not old_work.exists()
+
+
+@pytest.mark.parametrize("reserved", ["campaigns", "scratch", "execution", "ownership"])
+def test_admission_refuses_each_reserved_storage_name(tmp_path, monkeypatch, reserved):
+    source, bindings, work, admission = setup(tmp_path)
+    local = json.loads(bindings.read_text())
+    for fields in local["config_paths"].values():
+        fields["dataset.cache_dir"] = str(work / reserved / "cache")
+    bindings.write_text(json.dumps(local))
+    admission = rebind_admission(source, bindings, admission)
+    forbid_directory_creation(monkeypatch)
+    with pytest.raises(
+        ValueError, match="^preparation output overlaps native operational storage$"
+    ):
+        PreparationExecution(source, bindings, work, admission)
+    assert not work.exists()
+
+
+@pytest.mark.parametrize(
+    "relationship", ["equal", "cache_inside_tokenizer", "tokenizer_inside_cache"]
+)
+def test_admission_refuses_equal_and_nested_output_directories(
+    tmp_path, monkeypatch, relationship
+):
+    source, bindings, work, admission = setup(tmp_path)
+    local = json.loads(bindings.read_text())
+    tokenizer = Path(local["config_paths"]["tokenizer.yaml"]["output_dir"])
+    cache = {
+        "equal": tokenizer,
+        "cache_inside_tokenizer": tokenizer / "cache",
+        "tokenizer_inside_cache": tokenizer.parent,
+    }[relationship]
+    for fields in local["config_paths"].values():
+        fields["dataset.cache_dir"] = str(cache)
+    bindings.write_text(json.dumps(local))
+    admission = rebind_admission(source, bindings, admission)
+    forbid_directory_creation(monkeypatch)
+    with pytest.raises(
+        ValueError, match="^preparation output directories must not overlap$"
+    ):
+        PreparationExecution(source, bindings, work, admission)
+    assert not work.exists()
+
+
+@pytest.mark.parametrize("field,bound", [("max_documents", 12), ("max_tokens", 210)])
+@pytest.mark.parametrize("offset", [-1, 0])
+def test_admission_caps_use_train_plus_validation_and_accept_exact_bound(
+    tmp_path, monkeypatch, field, bound, offset
+):
+    source, bindings, work, admission = setup(tmp_path)
+    loaded = load_preparation_recipe(source, bindings)
+    suffix = "documents" if field == "max_documents" else "tokens"
+    for config in loaded.configs.values():
+        train = getattr(config.dataset, f"train_max_{suffix}")
+        validation = getattr(config.dataset, f"validation_max_{suffix}")
+        assert train + validation == bound
+        assert max(train, validation) <= bound + offset
+    admission = admission.model_copy(update={field: bound + offset})
+    forbid_directory_creation(monkeypatch)
+    if offset:
+        with pytest.raises(
+            ValueError,
+            match="^preparation exceeds explicit document/token/vocabulary limits$",
+        ):
+            PreparationExecution(source, bindings, work, admission)
+    else:
+        context = PreparationExecution(source, bindings, work, admission)
+        assert context.loaded == loaded
+    assert not work.exists()
+
+
+@pytest.mark.parametrize("field,limit", [("max_documents", 32), ("vocab_size", 512)])
+def test_admission_caps_isolate_tokenizer_config_from_dataset_and_model(
+    tmp_path, monkeypatch, field, limit
+):
+    source, bindings, work, admission = setup(tmp_path)
+    tokenizer = source.parent / "tokenizer.yaml"
+    raw = json.loads(tokenizer.read_text())
+    raw[field] = limit + 1
+    tokenizer.write_text(json.dumps(raw))
+    repin(source)
+    git(source.parent, "add", ".")
+    git(
+        source.parent,
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "-qm",
+        "isolated tokenizer cap fixture",
+    )
+    loaded = load_preparation_recipe(source, bindings)
+    assert loaded.configs["train"].model_dump()[field] == limit + 1
+    assert loaded.configs["pack"].model.vocab_size <= admission.max_vocab_size
+    for config in loaded.configs.values():
+        assert (
+            config.dataset.train_max_documents + config.dataset.validation_max_documents
+            <= admission.max_documents
+        )
+        assert (
+            config.dataset.train_max_tokens + config.dataset.validation_max_tokens
+            <= admission.max_tokens
+        )
+    admission = admission.model_copy(
+        update={
+            "reviewed_commit": git(source.parent, "rev-parse", "HEAD"),
+            "recipe_sha256": loaded.recipe_sha256,
+        }
+    )
+    forbid_directory_creation(monkeypatch)
+    with pytest.raises(
+        ValueError,
+        match="^preparation exceeds explicit document/token/vocabulary limits$",
+    ):
+        PreparationExecution(source, bindings, work, admission)
+    assert not work.exists()
+
+
+@pytest.mark.parametrize("mismatch", ["source", "work_root"])
+def test_direct_engine_constructor_refuses_context_location_mismatch(
+    tmp_path, monkeypatch, mismatch
+):
+    from sparselab.campaign.engine import CampaignEngine
+
+    source, bindings, work, admission = setup(tmp_path)
+    context = PreparationExecution(source, bindings, work, admission)
+    native_source = context.loaded.context.root / context.loaded.descriptor.entrypoint
+    other_work = tmp_path / "other-work"
+    forbid_directory_creation(monkeypatch)
+    with pytest.raises(
+        ValueError, match="^preparation engine source/work root differs from context$"
+    ):
+        CampaignEngine(
+            source if mismatch == "source" else native_source,
+            other_work if mismatch == "work_root" else work,
+            preparation_context=context,
+        )
+    assert not work.exists() and not other_work.exists()
