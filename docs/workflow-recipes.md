@@ -154,11 +154,11 @@ existing execution authority tests the **presence of `workflow_profile`** in the
 authenticated availability sidecar. Removing the explanatory value does not grant
 execution; no test treats that informational mutation as a security failure.
 
-An actual published-profile iteration check currently returns `BLOCKED` and an
-`experiment explain` command, not `experiment run`. Its native declaration walker
-cannot interpret the workflow entrypoint's descriptor-supplied artifacts, so it
-reports `DECLARATION_OR_LOCK_INVALID` and `DELTA_UNRESOLVED`, alongside missing
-pilot/runtime evidence. A read-only regression covers this outcome. No iteration
-guidance code is changed here, and ordinary-lock guidance is unchanged. Dedicated
-workflow-context guidance remains part of the future context/admission work; that
-work must retain the profile execution authority before permitting readiness.
+A published-profile iteration check reconstructs descriptor-supplied declarations
+from the authenticated sidecar, verifies descriptor/binding/inventory identities,
+and returns the explicit `WORKFLOW_EXECUTION_UNAVAILABLE` gate. The former
+`DECLARATION_OR_LOCK_INVALID` regression was replaced with this stronger boundary;
+malformed or changed declarations still retain their own errors. Inventory
+integrity does not establish committed provenance. CLI/shared Campaign execution
+refusal remains unchanged. See [preparation planning](preparation-recipes.md) for
+the new separate inspect-only contract and remaining admission/context work.

@@ -614,7 +614,44 @@ def test_published_workflow_iteration_does_not_propose_execution(
     report = check_iteration(lock, work_dir=tmp_path / "inspection", cold_verify=True)
     assert report["state"] == "BLOCKED"
     codes = {gate["code"] for gate in report["missing_gates"]}
-    assert "DECLARATION_OR_LOCK_INVALID" in codes
+    assert "WORKFLOW_EXECUTION_UNAVAILABLE" in codes
+    assert "DECLARATION_OR_LOCK_INVALID" not in codes
     assert "experiment run" not in report["next_command"]
     assert "experiment explain" in report["next_command"]
     assert not (tmp_path / "inspection").exists()
+
+
+@pytest.mark.parametrize("damage", ["binding", "descriptor", "config"])
+def test_iteration_preserves_invalid_workflow_declaration_errors(
+    native_workflow, tmp_path, damage
+):
+    from sparselab.iteration import check_iteration
+
+    source, bindings = native_workflow
+    lock = publish_workflow(source, bindings, tmp_path / "published")
+    if damage == "binding":
+        update(bindings, logging_root="changed")
+    elif damage == "descriptor":
+        update(source, portable_workflow_version=99)
+    else:
+        update(source.parent / "configs/run.json", seed=8)
+        repin(source)
+    report = check_iteration(lock, work_dir=tmp_path / "inspection", cold_verify=True)
+    codes = {gate["code"] for gate in report["missing_gates"]}
+    assert "DECLARATION_OR_LOCK_INVALID" in codes
+    assert "WORKFLOW_EXECUTION_UNAVAILABLE" in codes
+    assert report["state"] == "BLOCKED"
+    assert not (tmp_path / "inspection").exists()
+
+
+def test_workflow_iteration_gate_blocks_without_other_missing_evidence():
+    from sparselab.iteration import _classification
+
+    state, _ = _classification(
+        [{"code": "WORKFLOW_EXECUTION_UNAVAILABLE", "reason": "not admitted"}],
+        campaign=None,
+        runtime_needed=False,
+        locked=True,
+        pilot_needed=False,
+    )
+    assert state == "BLOCKED"

@@ -263,15 +263,19 @@ def _declaration_delta(
 
 
 def _fresh_delta(
-    plan: Any, source: Path
+    plan: Any, source: Path, *, context=None
 ) -> tuple[list[str], list[dict[str, Any]], Any]:
     """Compare one fresh phase's authored patch with its native expanded base."""
     from sparselab.config.models import RunConfig
     from sparselab.experiments.compiler import apply_patch, expand_axes
+    from sparselab.experiments.plan import recipe_run_config
 
-    expanded = expand_axes(
-        base_run_config(plan, source), plan.axes, max_runs=1000, base_dir=source.parent
+    base = (
+        base_run_config(plan, source)
+        if context is None
+        else recipe_run_config(plan, source, context=context)
     )
+    expanded = expand_axes(base, plan.axes, max_runs=1000, base_dir=source.parent)
     fresh = [phase for phase in plan.phases if phase.transition == "fresh"]
     if len(expanded) != 1 or len(plan.phases) != 1 or len(fresh) != 1:
         raise ValueError("parent-free inspection requires one unambiguous fresh cell")
@@ -398,6 +402,7 @@ def check_iteration(
     locked = None
     plan = None
     authored_plan = None
+    authored_context = None
     campaign = None
     pilot_needed = True
     runtime_needed = True
@@ -433,7 +438,17 @@ def check_iteration(
                         from sparselab.campaign.plan import safe_path
 
                         authored_path = safe_path(source.parent, stage.source)
-                        if not _source_closure_matches(locked, authored_path):
+                        if "workflow_profile" in locked.availability:
+                            from sparselab.experiments.workflow_recipe import (
+                                locked_workflow_context,
+                            )
+
+                            workflow = locked_workflow_context(locked, authored_path)
+                            authored_plan, authored_context = (
+                                workflow.plan,
+                                workflow.context,
+                            )
+                        elif not _source_closure_matches(locked, authored_path):
                             _gate(
                                 gates,
                                 "DECLARATION_IDENTITY_CHANGED",
@@ -511,7 +526,14 @@ def check_iteration(
                 )
             else:
                 declaration_path = Path(authored)
-                if not _source_closure_matches(locked, declaration_path):
+                if "workflow_profile" in locked.availability:
+                    from sparselab.experiments.workflow_recipe import (
+                        locked_workflow_context,
+                    )
+
+                    workflow = locked_workflow_context(locked, declaration_path)
+                    authored_plan, authored_context = workflow.plan, workflow.context
+                elif not _source_closure_matches(locked, declaration_path):
                     _gate(
                         gates,
                         "DECLARATION_IDENTITY_CHANGED",
@@ -565,6 +587,12 @@ def check_iteration(
         )
         _gate(gates, code, message)
 
+    if locked is not None and "workflow_profile" in locked.availability:
+        _gate(
+            gates,
+            "WORKFLOW_EXECUTION_UNAVAILABLE",
+            "workflow inventory integrity is not execution admission; this profile cannot execute",
+        )
     if locked is not None:
         result["artifacts"] = {
             "verification_status": "VERIFIED",
@@ -636,7 +664,9 @@ def check_iteration(
                 )
                 if authored is not None and authored_source is not None:
                     try:
-                        declared, delta, phase = _fresh_delta(authored, authored_source)
+                        declared, delta, phase = _fresh_delta(
+                            authored, authored_source, context=authored_context
+                        )
                         result["declared_delta"], result["delta"] = declared, delta
                         result["transition"] = phase.transition
                         if locked is not None:

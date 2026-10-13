@@ -86,3 +86,7 @@ preflight remain. The first [LAB-73/PR B workflow slice](workflow-recipes.md) ad
 prepared-input bindings and native lock publication. Preparation-graph context,
 evaluation closures, admission and evidence linkage remain open. Actual external CPU/GPU portability proof remains separately
 admitted later work. Historical seed and mixture identity decisions are unchanged.
+
+[Portable preparation planning](preparation-recipes.md) now supplies inventoried
+external graphs/configs to this same compiler. It adds no engine admission or
+execution route; the remaining execution/provenance boundaries still apply.
