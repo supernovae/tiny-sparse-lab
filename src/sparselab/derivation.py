@@ -13,6 +13,7 @@ import yaml
 
 from sparselab.config.loading import _resolve_paths, load_config
 from sparselab.config.models import RunConfig
+from sparselab.documents import _reject_constant, _unique_json_pairs, read_document
 from sparselab.experiments.compiler import (
     apply_patch,
     flatten_config,
@@ -20,11 +21,6 @@ from sparselab.experiments.compiler import (
     patchable_config,
 )
 from sparselab.experiments.lock import _exclusive_bytes
-from sparselab.experiments.plan import (
-    _reject_constant,
-    _unique_json_pairs,
-    read_document,
-)
 from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
 
 

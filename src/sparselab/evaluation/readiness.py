@@ -12,8 +12,8 @@ from pydantic import Field, field_validator, model_validator
 
 from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
 from sparselab.config.models import StrictModel
+from sparselab.documents import read_document
 from sparselab.evaluation.suite import load_suite, verify_evaluation_index
-from sparselab.experiments.plan import read_document
 from sparselab.training.manifest import canonical_json, sha256_file
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")

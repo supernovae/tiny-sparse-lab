@@ -10,7 +10,8 @@ from pydantic import Field, field_validator, model_validator
 
 from sparselab.campaign.policy import CorpusReadinessPolicy
 from sparselab.config.models import StrictModel
-from sparselab.experiments.plan import Artifact, read_document
+from sparselab.documents import read_document
+from sparselab.experiments.plan import Artifact
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 Scope = Literal["corpus", "tokenizer", "model", "runtime", "evaluation", "release"]

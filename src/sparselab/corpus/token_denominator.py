@@ -67,7 +67,7 @@ def _operation(
 def _policy(path: Path) -> tuple[CorpusReadinessPolicy, str]:
     # Lazy: campaign.policy imports this module to share the streaming primitive.
     from sparselab.campaign.policy import CorpusReadinessPolicy
-    from sparselab.experiments.plan import _ExactUniqueLoader
+    from sparselab.documents import _ExactUniqueLoader
 
     raw = path.read_bytes()
     policy = CorpusReadinessPolicy.model_validate(

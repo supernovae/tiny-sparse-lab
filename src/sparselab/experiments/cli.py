@@ -253,7 +253,7 @@ def _prepare(args: argparse.Namespace) -> None:
     path = workspace / "preparation.json"
     encoded = canonical_json(record) + b"\n"
     if path.exists():
-        from sparselab.experiments.plan import read_document
+        from sparselab.documents import read_document
 
         previous = read_document(path)
         operational = {"declaration_provenance", "storage_checks"}

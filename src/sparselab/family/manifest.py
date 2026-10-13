@@ -11,7 +11,7 @@ from pydantic import Field, field_validator, model_validator
 from sparselab.campaign.plan import safe_path
 from sparselab.campaign.state import digest
 from sparselab.config.models import StrictModel
-from sparselab.experiments.plan import read_document
+from sparselab.documents import read_document
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")

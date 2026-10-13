@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from sparselab.experiments.plan import read_document
+from sparselab.documents import read_document
 from sparselab.recovery.evidence import KINDS
 from sparselab.recovery.provenance import declaration_paths, declaration_reference
 

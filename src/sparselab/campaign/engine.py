@@ -249,7 +249,7 @@ class CampaignEngine:
         import yaml
 
         from sparselab.campaign.state import read_canonical
-        from sparselab.experiments.plan import (
+        from sparselab.documents import (
             _reject_constant,
             _unique_json_pairs,
             _UniqueLoader,
@@ -809,7 +809,7 @@ class CampaignEngine:
             )
         elif stage.kind == "corpus_release":
             from sparselab.corpus.project import ProjectConfig, load_project
-            from sparselab.experiments.plan import read_document
+            from sparselab.documents import read_document
 
             config = ProjectConfig.model_validate(read_document(path))
             for reference in (

@@ -15,8 +15,8 @@ from pydantic import Field, StrictInt, StrictStr, model_validator
 
 from sparselab.config.models import StrictModel
 from sparselab.corpus.memorization import SourcePassage, diagnose_memorization
+from sparselab.documents import read_document
 from sparselab.evaluation.panel import verify_panel_result
-from sparselab.experiments.plan import read_document
 
 _SHA256_LENGTH = 64
 

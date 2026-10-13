@@ -30,8 +30,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from sparselab.corpus import acquisition as forge
 from sparselab.corpus.project import safe_name
+from sparselab.documents import read_document
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.experiments.plan import read_document
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 from sparselab.training.manifest import canonical_json, sha256_file
 from sparselab.verification_proofs import VerificationMode

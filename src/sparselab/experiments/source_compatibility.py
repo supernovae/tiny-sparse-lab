@@ -15,7 +15,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from sparselab.config.models import StrictModel
-from sparselab.experiments.plan import read_document
+from sparselab.documents import read_document
 from sparselab.training.manifest import canonical_json, source_identity
 
 _ENV = (
