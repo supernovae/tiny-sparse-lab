@@ -10,41 +10,12 @@ from pydantic import Field, field_validator, model_validator
 
 from sparselab.campaign.policy import CorpusReadinessPolicy
 from sparselab.config.models import StrictModel
+from sparselab.declaration_context import safe_path
 from sparselab.documents import read_document
 from sparselab.experiments.plan import Artifact
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 Scope = Literal["corpus", "tokenizer", "model", "runtime", "evaluation", "release"]
-
-
-def safe_path(base: Path, reference: str) -> Path:
-    """Resolve a declaration-relative path without accepting traversal or symlinks.
-
-    The target need not exist: availability is checked by the consumer, not by
-    declaration validation. Existing components beneath the base may not be links.
-    """
-    if (
-        not reference
-        or "\\" in reference
-        or "\x00" in reference
-        or Path(reference).is_absolute()
-        or PureWindowsPath(reference).is_absolute()
-        or bool(PureWindowsPath(reference).drive)
-        or any(part == ".." for part in Path(reference).parts)
-        or not Path(reference).parts
-        or Path(reference) == Path(".")
-    ):
-        raise ValueError(f"unsafe declaration-relative path: {reference!r}")
-    root = base.resolve(strict=False)
-    parts = Path(reference).parts
-    target = root / reference
-    for index in range(len(parts) + 1):
-        component = root.joinpath(*parts[:index])
-        if component.is_symlink():
-            raise ValueError(f"symlinked declaration path: {component}")
-    if not target.resolve(strict=False).is_relative_to(root):
-        raise ValueError(f"path escapes declaration directory: {reference!r}")
-    return target
 
 
 def operational_path(base: Path, reference: str) -> Path:

@@ -134,3 +134,7 @@ work: portable identity/contracts, plan-owned composition/preflight, evidence
 rendering and independently admitted external TinyStories CPU/GPU proof. This
 slice changes no runner assignments/holds, experiment retirement, workshop,
 website, release or tag.
+
+The first strict portable descriptor and explicit declaration context are documented
+in [portable recipe inspection](portable-recipes.md), including the native compiler
+adapter, identity boundaries, unsupported features and its regression map.

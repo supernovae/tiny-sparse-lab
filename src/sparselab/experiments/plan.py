@@ -206,7 +206,7 @@ class AttemptContractReference(StrictModel):
 
     @model_validator(mode="after")
     def valid_reference(self) -> AttemptContractReference:
-        from sparselab.campaign.plan import safe_path
+        from sparselab.declaration_context import safe_path
 
         safe_path(Path("."), self.path)
         if not _HEX.fullmatch(self.sha256):
@@ -252,7 +252,7 @@ class ExperimentPlan(StrictModel):
         if not _ID.fullmatch(self.id):
             raise ValueError("plan id must be a safe nonempty identifier")
         if self.evaluation_suite is not None:
-            from sparselab.campaign.plan import safe_path
+            from sparselab.declaration_context import safe_path
 
             safe_path(Path.cwd(), self.evaluation_suite)
         for label, values in (

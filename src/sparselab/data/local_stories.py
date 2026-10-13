@@ -13,9 +13,8 @@ from pathlib import Path
 
 from sparselab.config.models import DatasetConfig
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
+from sparselab.local_stories_pins import LICENSE, REVISION
 
-REVISION = "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64"
-LICENSE = "CDLA-Sharing-1.0"
 DATASET = "roneneldan/TinyStories"
 
 

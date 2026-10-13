@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Literal
 
-from sparselab.campaign.plan import safe_path
+from sparselab.declaration_context import RecipeContext, safe_path
 from sparselab.documents import read_document
 
 DeclarationKind = Literal["campaign", "experiment", "corpus", "recovery"]
@@ -39,8 +39,12 @@ def repository_root(path: Path) -> Path | None:
         return None
 
 
-def declaration_reference(source: Path, reference: str) -> Path:
+def declaration_reference(
+    source: Path, reference: str, *, context: RecipeContext | None = None
+) -> Path:
     """Resolve a safe local or repository-relative declaration, without traversal."""
+    if context is not None:
+        return context.reference(source, reference)
     source = Path(source).absolute()
     root = repository_root(source) or source.parent.resolve()
     local = safe_path(source.parent, reference)

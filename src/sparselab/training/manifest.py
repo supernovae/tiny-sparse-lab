@@ -10,10 +10,12 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.address_hash import memory_addressing_identity, memory_schemes
-from sparselab.runtime import RuntimeInfo
+
+if TYPE_CHECKING:
+    from sparselab.runtime import RuntimeInfo
 
 MANIFEST_VERSION = 1
 IDENTITY_VERSION = "run-identity-v2"
