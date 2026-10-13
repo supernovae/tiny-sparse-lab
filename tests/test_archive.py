@@ -872,10 +872,13 @@ def addfile(tar, *args, **kwargs):
     original_addfile(tar, *args, **kwargs)
     if point == "member":
         os._exit(47)
-def link(source, destination):
+def link(source, destination, *args, **kwargs):
+    # Fail only the archive publication, not optional dependencies' link probes.
+    if Path(destination) != Path(output):
+        return original_link(source, destination, *args, **kwargs)
     if point == "before-link":
         os._exit(47)
-    original_link(source, destination)
+    original_link(source, destination, *args, **kwargs)
     os._exit(47)
 tarfile.TarFile.addfile = addfile
 os.link = link

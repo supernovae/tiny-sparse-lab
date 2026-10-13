@@ -234,12 +234,11 @@ def test_token_only_receipt_uses_authenticated_counts_without_encoding(
         verify_release(release)
         monkeypatch.setattr(Path, "read_text", no_corpus_read_text)
 
-        def no_lineage(path: Path):
-            if "lineage" in path.name:
-                raise AssertionError("token-only readiness must not scan lineage")
-            return iter(())
+        def no_ancillary(*args, **kwargs):
+            raise AssertionError("token-only readiness must not scan ancillary lineage")
 
-        monkeypatch.setattr(readiness_module, "_iter_rows", no_lineage)
+        # The scanner imports its readers lazily; fence the operation itself.
+        monkeypatch.setattr(readiness_module, "_ancillary_facts", no_ancillary)
         assert (
             measure_readiness(
                 release,

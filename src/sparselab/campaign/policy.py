@@ -15,12 +15,6 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, WithJsonSchema, field_validator, model_validator
 
 from sparselab.config.models import StrictModel
-from sparselab.corpus.release import _iter_rows, _verification_operation, verify_release
-from sparselab.corpus.token_denominator import (
-    _measure_source_domains,
-    _scratch_dir,
-    read_source_token_receipt,
-)
 from sparselab.training.manifest import sha256_file
 
 NonnegativeInt = Annotated[int, Field(strict=True, ge=0)]
@@ -124,6 +118,12 @@ def measure_readiness(
     A zero-availability mixture domain has no finite projected number of passes.
     Mixture weights do not partition overlapping source documents.
     """
+    from sparselab.corpus.release import _verification_operation, verify_release
+    from sparselab.corpus.token_denominator import (
+        _measure_source_domains,
+        read_source_token_receipt,
+    )
+
     if (measurement_receipt is None) != (measurement_sha256 is None):
         raise ValueError("measurement receipt and SHA-256 must be supplied together")
     need_tokens = bool(policy.min_unique_train_tokens_by_domain) or (
@@ -282,6 +282,9 @@ def _ancillary_facts(
     release: Path, manifest: dict[str, Any], *, scratch: Path | None = None
 ) -> tuple[dict[str, int], dict[str, int], int]:
     """Disk-backed joins preserve selected-view shape and heldout semantics."""
+    from sparselab.corpus.release import _iter_rows
+    from sparselab.corpus.token_denominator import _scratch_dir
+
     scratch = scratch if scratch is not None else _scratch_dir()
     scratch.mkdir(parents=True, exist_ok=True)
     languages: dict[str, int] = defaultdict(int)
