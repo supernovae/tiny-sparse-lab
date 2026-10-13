@@ -366,3 +366,142 @@ def test_authored_paths_are_checked_before_path_normalization(tmp_path, path):
     repin(source)
     with pytest.raises(ValueError, match="unsafe or ambiguous"):
         load_preparation_recipe(source, bindings)
+
+
+@pytest.mark.parametrize(
+    "damage,match",
+    [
+        ("no_operations", "preparation requires at least one preparation operation"),
+        (
+            "extra_config",
+            "config bindings must name exactly the compiled config references",
+        ),
+        (
+            "missing_config",
+            "config bindings must name exactly the compiled config references",
+        ),
+        ("external_kind", "preparation supports only external tokenizer references"),
+    ],
+)
+def test_preparation_inventory_guards_precede_config_interpretation(
+    tmp_path, monkeypatch, damage, match
+):
+    from sparselab.experiments import preparation_recipe
+
+    source, bindings = recipe(tmp_path / "recipe", reuse=damage == "no_operations")
+    campaign = json.loads((source.parent / "campaign.json").read_text())
+    local = json.loads(bindings.read_text())
+    if damage == "no_operations":
+        campaign["stages"] = [
+            stage
+            for stage in campaign["stages"]
+            if stage["kind"] == "artifact_reference"
+        ]
+        local["config_paths"] = {}
+    elif damage == "extra_config":
+        local["config_paths"]["notes.json"] = {}
+    elif damage == "missing_config":
+        del local["config_paths"]["run.yaml"]
+    else:
+        # A valid native external prepared-data stage is intentionally disconnected
+        # from the train/pack graph. The portable profile independently forbids it.
+        stage = declaration(True)["stages"][1]
+        stage["scope"] = "model"
+        stage["artifact"]["kind"] = "prepared_data"
+        campaign["stages"].append(stage)
+        local["artifacts"][stage["id"]] = "payload/prepared"
+    CampaignPlan.model_validate(campaign)  # Not a native schema/cycle failure.
+    (source.parent / "campaign.json").write_text(json.dumps(campaign))
+    bindings.write_text(json.dumps(local))
+    repin(source)
+    monkeypatch.setattr(
+        preparation_recipe,
+        "_config",
+        lambda *a, **kw: pytest.fail("config interpretation reached"),
+    )
+    with pytest.raises(ValueError, match=f"^{match}$"):
+        load_preparation_recipe(source, bindings)
+
+
+def test_unsupported_native_path_reaches_portable_allowlist(tmp_path, monkeypatch):
+    from sparselab.config.models import RunConfig
+    from sparselab.experiments import preparation_recipe
+
+    source, bindings = recipe(tmp_path / "recipe")
+    config_path = source.parent / "run.yaml"
+    raw = json.loads(config_path.read_text())
+    raw["dataset"].update(
+        source="local_token_mixture",
+        license="test-fixture",
+        train_path="mixture-output/train.bin",
+        validation_path="mixture-output/validation.bin",
+        mixture_declaration_path="mixture.json",
+        mixture_output_path="mixture-output",
+    )
+    RunConfig.model_validate(
+        raw
+    )  # Real supported native fields, not fabricated fields.
+    config_path.write_text(json.dumps(raw))
+    local = json.loads(bindings.read_text())
+    local["config_paths"]["run.yaml"].update(
+        {
+            "dataset.train_path": "payload/mixture-output/train.bin",
+            "dataset.validation_path": "payload/mixture-output/validation.bin",
+            "dataset.mixture_declaration_path": "payload/mixture.json",
+            "dataset.mixture_output_path": "payload/mixture-output",
+        }
+    )
+    bindings.write_text(json.dumps(local))
+    repin(source)
+    reads = []
+    original = preparation_recipe.RecipeContext.read_document
+
+    def read(context, path):
+        reads.append(path.name)
+        return original(context, path)
+
+    monkeypatch.setattr(preparation_recipe.RecipeContext, "read_document", read)
+    with pytest.raises(
+        ValueError,
+        match="^unsupported preparation path field: dataset.mixture_declaration_path$",
+    ):
+        load_preparation_recipe(source, bindings)
+    assert "run.yaml" in reads
+    assert not (source.parent / "payload").exists()
+
+
+@pytest.mark.parametrize(
+    "damage,match",
+    [
+        ("role", "preparation config must reference a run_config member"),
+        ("bindings", "missing preparation config bindings: run.yaml"),
+        ("reference", "undeclared recipe reference"),
+    ],
+)
+def test_config_helper_explicit_missing_metadata_refusals(
+    tmp_path, monkeypatch, damage, match
+):
+    from sparselab.declaration_context import RecipeContext
+    from sparselab.experiments.preparation_recipe import _config
+
+    source, bindings = recipe(tmp_path / "recipe")
+    loaded = load_preparation_recipe(source, bindings)
+    context = loaded.context
+    roles = {member.path: member.role for member in loaded.descriptor.files}
+    reference = "run.yaml"
+    if damage == "role":
+        del roles[reference]
+    elif damage == "bindings":
+        context = RecipeContext(context.root, context.documents)
+    else:
+        reference = "absent.json"
+        roles = {}  # Reference guard must still precede role lookup.
+    monkeypatch.setattr(
+        RecipeContext,
+        "read_document",
+        lambda *a: pytest.fail("config read before metadata refusal"),
+    )
+    with pytest.raises(ValueError, match=match):
+        _config(
+            context, source.parent / "campaign.json", reference, "run_config", roles
+        )

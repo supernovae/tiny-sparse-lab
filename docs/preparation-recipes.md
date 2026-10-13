@@ -85,3 +85,24 @@ Evaluation closure, recovery/replay context and run-evidence linkage remain open
 
 These are bounded software contracts, not actual TinyStories portability or GPU
 qualification. Full LAB-73/LAB-74 acceptance remains partial.
+
+## Guard coverage after review
+
+The preparation-only operation requirement, exact config-reference binding set,
+external-tokenizer-only profile and unsupported native path allowlist have direct
+loader regressions. The allowlist case uses a valid native `local_token_mixture`
+config with all required paths and provenance fields; it fails at the portable
+profile boundary without reading mixture payloads. Other cases validate their
+native Campaign schema first and use config-read spies where appropriate.
+
+The workflow `declaration_hashes`, declaration source and declaration root checks
+are redundant consistency checks alongside the authenticated descriptor/binding
+and inventory identities. Direct helper tests vary only those redundant fields,
+after a successful normal context load. These tests do not claim altered sidecars
+pass `open_lock`, nor grant committed provenance or execution authority.
+
+The private `_config` helper explicitly refuses missing role metadata or config
+bindings. Normal loading already establishes both through inventory/reference and
+exact binding-set checks. Direct helper regressions protect those diagnostics and
+prove undeclared references are still refused first, before config reads. This is
+defence in depth for future callers/reordering, not a new admission mechanism.

@@ -655,3 +655,55 @@ def test_workflow_iteration_gate_blocks_without_other_missing_evidence():
         pilot_needed=False,
     )
     assert state == "BLOCKED"
+
+
+@pytest.mark.parametrize("damage", ["hashes", "source", "root"])
+def test_locked_context_redundant_availability_consistency(
+    tmp_path, monkeypatch, damage
+):
+    from sparselab.experiments import workflow_recipe
+
+    source, bindings = write_workflow(tmp_path / "recipe")
+    loaded = load_workflow(source, bindings)
+    # Direct helper input models an already-authenticated caller's metadata.
+    # This is a consistency test, not a forged-sidecar/open_lock acceptance test.
+    availability = {
+        "workflow_profile": {
+            "version": 1,
+            "descriptor_path": str(source),
+            "binding_path": str(bindings),
+            "recipe_sha256": loaded.recipe_sha256,
+            "descriptor_sha256": loaded.descriptor_sha256,
+            "binding_sha256": loaded.binding_sha256,
+        },
+        "declaration_hashes": {
+            name: hashlib.sha256(raw).hexdigest()
+            for name, raw in loaded.context.documents.items()
+        },
+        "declaration_root": str(loaded.context.root),
+    }
+    lock = SimpleNamespace(availability=availability)
+    assert (
+        workflow_recipe.locked_workflow_context(lock, loaded.source).plan == loaded.plan
+    )
+    actual_source = loaded.source
+    if damage == "hashes":
+        availability["declaration_hashes"]["configs/run.json"] = "0" * 64
+    elif damage == "source":
+        actual_source = tmp_path / "decoy-plan.json"
+    else:
+        availability["declaration_root"] = str(tmp_path / "decoy-root")
+    reads = []
+    original = workflow_recipe.load_workflow
+
+    def reload(*args):
+        result = original(*args)
+        reads.append(result.recipe_sha256)
+        return result
+
+    monkeypatch.setattr(workflow_recipe, "load_workflow", reload)
+    with pytest.raises(
+        ValueError, match="^workflow declaration or binding identity changed$"
+    ):
+        workflow_recipe.locked_workflow_context(lock, actual_source)
+    assert reads == [loaded.recipe_sha256]  # Descriptor/binding/inventory passed.

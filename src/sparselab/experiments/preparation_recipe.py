@@ -83,13 +83,15 @@ def _config(
     roles: Mapping[str, str],
 ) -> RunConfig | TokenizerTrainConfig:
     target = context.reference(source, reference)
-    if roles[reference] != role:
+    if roles.get(reference) != role:
         raise ValueError(f"preparation config must reference a {role} member")
+    bindings = context.config_paths.get(reference)
+    if bindings is None:
+        raise ValueError(f"missing preparation config bindings: {reference}")
     model = RunConfig if role == "run_config" else TokenizerTrainConfig
     document = context.read_document(target)
     config = model.model_validate(document)
     paths = _paths(config)
-    bindings = context.config_paths[reference]
     if set(bindings) != set(paths):
         raise ValueError("config_paths must bind exactly the declared native paths")
     allowed = _INPUT_FIELDS | _OUTPUT_FIELDS | {"output_dir"}
