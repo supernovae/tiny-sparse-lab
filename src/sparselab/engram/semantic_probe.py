@@ -23,6 +23,7 @@ from pydantic import (
 )
 
 from sparselab.config.models import AttentionConfig, ModelConfig, StrictModel
+from sparselab.documents import read_document
 from sparselab.engram.packs import EncoderIdentity
 from sparselab.engram.semantic import (
     MAX_ADAPTER_TRACE_ITEMS,
@@ -30,7 +31,6 @@ from sparselab.engram.semantic import (
     SemanticRetriever,
 )
 from sparselab.evaluation.inference import load_run
-from sparselab.experiments.plan import read_document
 from sparselab.model.transformer import DenseLM
 from sparselab.training.manifest import canonical_json, sha256_file
 

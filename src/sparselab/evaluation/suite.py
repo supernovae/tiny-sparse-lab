@@ -13,8 +13,8 @@ from pydantic import Field, field_validator, model_validator
 from sparselab.campaign.plan import safe_path
 from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
 from sparselab.config.models import StrictModel
+from sparselab.documents import read_document
 from sparselab.engines.base import EngineCapabilityError
-from sparselab.experiments.plan import read_document
 from sparselab.runtime_profile import RuntimeAuthorization, RuntimeAuthorizationRequired
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file

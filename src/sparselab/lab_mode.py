@@ -85,7 +85,7 @@ def lab_root(work_dir: Path, override: Path | None = None) -> Path:
 def read_candidate(path: Path) -> Candidate:
     """Classify CANDIDATE as a lab delta document or a full RunConfig."""
     from sparselab.derivation import _settings
-    from sparselab.experiments.plan import read_document
+    from sparselab.documents import read_document
 
     path = Path(path).absolute()
     document = read_document(path)
@@ -685,8 +685,8 @@ def run_try(
     from sparselab.config.models import RunSeed
     from sparselab.data.legacy import require_current_dataset
     from sparselab.derivation import _config, _delta, derive_config
+    from sparselab.documents import read_document
     from sparselab.experiments.compiler import patchable_config
-    from sparselab.experiments.plan import read_document
     from sparselab.resource_envelope import (
         check_envelope,
         current_process_rss_bytes,

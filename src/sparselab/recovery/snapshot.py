@@ -8,7 +8,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from sparselab.experiments.plan import base_run_config, load_plan, read_document
+from sparselab.documents import read_document
+from sparselab.experiments.plan import base_run_config, load_plan
 from sparselab.recovery.provenance import (
     declaration_paths,
     declaration_reference,

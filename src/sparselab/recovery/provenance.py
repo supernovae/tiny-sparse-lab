@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sparselab.campaign.plan import safe_path
-from sparselab.experiments.plan import read_document
+from sparselab.documents import read_document
 
 DeclarationKind = Literal["campaign", "experiment", "corpus", "recovery"]
 

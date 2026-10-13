@@ -8,9 +8,10 @@ from typing import Any, Literal
 
 from sparselab.campaign.plan import load_campaign
 from sparselab.config.models import StrictModel
+from sparselab.documents import read_document
 from sparselab.experiments.compiler import describe_differences, flatten_config
 from sparselab.experiments.lock import open_lock, resolve_plan, storage_preview
-from sparselab.experiments.plan import base_run_config, load_plan, read_document
+from sparselab.experiments.plan import base_run_config, load_plan
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.verification_proofs import verification_options
 from sparselab.workdir import resolve_work_dir, storage_checks

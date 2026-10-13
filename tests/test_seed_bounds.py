@@ -166,3 +166,47 @@ def test_try_merged_baseline_uses_effective_valid_seed(tmp_path, monkeypatch, se
     with pytest.raises(Validated):
         run_try(candidate, baseline, work_dir=tmp_path / "work", train_fn=lambda: None)
     assert not (tmp_path / "work").exists()
+
+
+@pytest.mark.parametrize("seed,expected", [(True, 1), ("7", 7), (7.0, 7)])
+@pytest.mark.parametrize("suffix", ["yaml", "json"])
+def test_legacy_seed_coercion_is_preserved_across_callers(
+    tmp_path, seed, expected, suffix
+):
+    """LAB-67: stricter future contracts must not silently narrow RunConfig v2."""
+    raw = _raw(seed)
+    typed = RunConfig.model_validate(raw)
+    assert typed.seed == expected
+    assert config_sha256(typed.model_dump(mode="json")) == config_sha256(
+        RunConfig.model_validate(_raw(expected)).model_dump(mode="json")
+    )
+    source = tmp_path / f"source.{suffix}"
+    source.write_text(json.dumps(raw) if suffix == "json" else yaml.safe_dump(raw))
+    assert load_config(source).seed == expected
+    output = tmp_path / "derived.yaml"
+    derive_config(source, output, {"seed": seed})
+    assert load_config(output).seed == expected
+    assert (
+        json.loads(receipt_path(output).read_text())["declared_delta"]["seed"] == seed
+    )
+    with pytest.raises(ValueError, match="seed"):
+        TryConfig(seed=seed)
+
+
+@pytest.mark.parametrize("seed", [True, "7", 7.0])
+def test_strict_try_override_rejected_before_setup(tmp_path, monkeypatch, seed):
+    from sparselab import resource_envelope
+
+    monkeypatch.setattr(
+        resource_envelope,
+        "resolve_lab_try_limits",
+        lambda *a, **kw: pytest.fail("resource preparation reached"),
+    )
+    with pytest.raises(ValueError, match="seed"):
+        run_try(
+            tmp_path / "delta.yaml",
+            tmp_path / "base.yaml",
+            work_dir=tmp_path / "work",
+            seed=seed,
+        )
+    assert not list(tmp_path.iterdir())
