@@ -24,10 +24,7 @@ def main() -> None:
     elif not extras and args.command[:1] == ["lab-job"]:
         from sparselab.lab_job import main as job_main
 
-        if (
-            args.work_dir is not None
-            or getattr(args, "hf_token_file", None) is not None
-        ):
+        if args.work_dir is not None or args.hf_token_file is not None:
             prefix.error(
                 "lab-job paths come only from its immutable manifest; global work/token options are unsupported"
             )

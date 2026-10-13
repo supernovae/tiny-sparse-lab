@@ -463,28 +463,27 @@ def test_worktree_preparation_never_runs_host_checkout_hook(job, tmp_path):
     assert config.returncode == 1  # No persistent hook setting was written.
 
 
-def test_public_entry_rejects_unused_global_token_without_reading(monkeypatch):
-    import argparse
-
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        ["--hf-token-file", "/never-read/token"],
+        ["--hf-token-file=/never-read/token"],
+    ],
+)
+def test_public_entry_rejects_unused_global_token_without_reading(
+    monkeypatch, capsys, prefix
+):
     from sparselab.cli import entry
 
-    # PR115 owns global prefix parsing. Test this branch's contract for its
-    # parsed namespace without duplicating that parser change or reading a token.
+    # Exercise the merged LAB69 parser, not a fabricated parsed namespace.
     monkeypatch.setattr(
-        argparse.ArgumentParser,
-        "parse_known_args",
-        lambda *args: (
-            argparse.Namespace(
-                work_dir=None,
-                hf_token_file=Path("/never-read/token"),
-                command=["lab-job", "status", "/job.json"],
-            ),
-            [],
-        ),
+        sys, "argv", ["sparselab", *prefix, "lab-job", "status", "/job.json"]
     )
     monkeypatch.setattr(jobs, "main", lambda argv: pytest.fail("must not dispatch"))
     monkeypatch.setattr(
         Path, "read_bytes", lambda path: pytest.fail("must not read token")
     )
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as error:
         entry.main()
+    assert error.value.code == 2
+    assert "global work/token options are unsupported" in capsys.readouterr().err
