@@ -625,11 +625,14 @@ def test_admission_caps_use_train_plus_validation_and_accept_exact_bound(
     assert not work.exists()
 
 
-@pytest.mark.parametrize("field,limit", [("max_documents", 32), ("vocab_size", 512)])
+@pytest.mark.parametrize("field", ["max_documents", "vocab_size"])
 def test_admission_caps_isolate_tokenizer_config_from_dataset_and_model(
-    tmp_path, monkeypatch, field, limit
+    tmp_path, monkeypatch, field
 ):
     source, bindings, work, admission = setup(tmp_path)
+    limit = getattr(
+        admission, "max_documents" if field == "max_documents" else "max_vocab_size"
+    )
     tokenizer = source.parent / "tokenizer.yaml"
     raw = json.loads(tokenizer.read_text())
     raw[field] = limit + 1
