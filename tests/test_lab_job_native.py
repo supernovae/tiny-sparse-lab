@@ -34,6 +34,10 @@ def native_job(job_factory):
 def test_native_model_workflow_and_collection_never_retrain(
     native_job, monkeypatch, tmp_path
 ):
+    # Preserve the former ambient-pytest contamination regression on the real
+    # native workflow, without a public pytest workload or another model run.
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--lab70-nonexistent-option")
+    monkeypatch.setenv("PYTEST_PLUGINS", "lab70_nonexistent_host_plugin")
     publish = jobs.publish_immutable
 
     def fail_publication(path, payload):
