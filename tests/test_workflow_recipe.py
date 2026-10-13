@@ -613,6 +613,8 @@ def test_published_workflow_iteration_does_not_propose_execution(
     lock = publish_workflow(source, bindings, tmp_path / "published")
     report = check_iteration(lock, work_dir=tmp_path / "inspection", cold_verify=True)
     assert report["state"] == "BLOCKED"
+    codes = {gate["code"] for gate in report["missing_gates"]}
+    assert "DECLARATION_OR_LOCK_INVALID" in codes
     assert "experiment run" not in report["next_command"]
     assert "experiment explain" in report["next_command"]
     assert not (tmp_path / "inspection").exists()
