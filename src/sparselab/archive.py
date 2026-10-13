@@ -1435,7 +1435,7 @@ def _verify_portable_closure(
     """Reopen bundled recovery intent, never trusting rewritten outer membership."""
     import yaml
 
-    from sparselab.experiments.plan import _UniqueLoader
+    from sparselab.documents import _UniqueLoader
     from sparselab.recovery.manifest import RecoveryManifest
 
     if index["external"]:
