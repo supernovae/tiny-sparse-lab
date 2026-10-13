@@ -212,10 +212,53 @@ settings; it must not rediscover Python or download a substitute.
 The receipt records recipe/file SHA, source commit/SHA, Python/Torch/device,
 package inventory, indexes, commands, profile/probe and tested optimizer
 identity. Registration occurs only after the full import, matching real device
-and recipe-precision doctor succeed and `provision-receipt.json` is fsynced.
-A failed provision retains its environment, logs and `provision-failure.json`,
-unregistered. Choose a fresh ID rather than repurposing it; unregister never
-deletes an environment.
+and recipe-precision doctor succeed. Before attempting registration, the
+provisioner fsyncs `provision-registration.json`: a `REGISTRATION_PENDING` intent
+containing the full evidence, intended profile and exact registry path. Only
+after registration returns successfully does it stage and fsync the READY
+receipt, then exclusively link it as `provision-receipt.json` and fsync the
+directory. `provision-ready-staged.json` alone is not a completed receipt.
+
+After a successful return, the target retains the environment and common
+requirements plus three evidence files: `provision-registration.json`,
+`provision-ready-staged.json`, and `provision-receipt.json`. The staged file and
+canonical receipt are two hard links to the same inode. READY supersedes the
+retained intent's `REGISTRATION_PENDING` / `unknown` fields; the intent is an
+immutable audit trail, not a current-state projection. The READY receipt also
+records the exact registry path. There is no failure record on success.
+
+Failure and interruption states require different recovery decisions:
+
+| Evidence / outcome | Meaning | Recovery |
+| --- | --- | --- |
+| Failure before intent, no READY | Validation or preparation failed before registration. | Preserve the environment and logs; do not reuse the reserved target. |
+| Failure with `registration_state: refused`, no READY | Registration raised `ValueError` before publication; this call did not modify the registry. | Preserve any conflicting entry; do not overwrite or unregister it. |
+| Failure with `registration_state: unknown`, no READY | Registration raised `OSError`; registry replacement may have happened before failure. | Inspect the recorded registry path; a matching entry alone does not prove durability. |
+| Failure with `registration_state: registered` | Registration returned successfully; receipt publication failed. | Preserve staged evidence and resolve receipt durability before use. |
+| Intent only, possibly staged evidence | The process may have stopped before or after registration. Staging alone is not completion. | Inspect the recorded registry; do not infer success or absence. |
+| READY after an interrupted or failed call | Registration succeeded, but receipt directory durability may be unconfirmed. | Retain all evidence and reconcile the storage failure before use. |
+| Successful READY return, retained intent and staged link | Registration and receipt publication completed. | READY supersedes intent; keep all three evidence files. |
+
+A caught receipt-directory fsync failure attempts to withdraw only the newly
+created receipt link, retaining staged evidence. If withdrawal fails, the
+reported error includes both publication and withdrawal errors, and READY can
+remain visible. Failure recording is also fallible: `provision-failure.json`
+may be absent, partial, or visible without confirmed durability. If its write or
+fsync fails, the call raises with both the original provisioning error and the
+failure-recording error; it does not report a completed failure record. The
+pre-registration intent remains the recovery anchor. An ERROR describes the
+provisioning operation, not a claim that the registry entry is absent.
+
+For uncertain outcomes, compare the entry's Python, engine, backend, device and
+requirements with the intent's profile at the **recorded** registry path. An
+absent entry requires a separately authorized registration decision; a different
+entry is a conflict and must not be overwritten. A matching entry is visible
+evidence only: it does not prove a failed directory fsync succeeded. Resolve
+filesystem durability and revalidate through the existing registration/doctor
+workflow under separate authorization before use. Do not synthesize a historical
+READY receipt or rerun provisioning into the reserved target. Choose a fresh ID
+for a new provision; unregister never deletes an environment. No automatic
+registry repair is performed.
 
 `cuda-cu126-v1` is the analogous bounded Linux x86_64/Python 3.14 CUDA recipe.
 It pins the CUDA 12.6 Torch closure in

@@ -20,6 +20,7 @@ from sparselab.runtime_environments import (
     RuntimeEntry,
     read_registry,
     register_runtime,
+    resolve_registry_path,
     resolve_runtime_dir,
     validate_id,
 )
@@ -116,6 +117,32 @@ def _source_commit(checkout: Path) -> str:
             "provisioning requires a source checkout with a commit identity"
         )
     return commit
+
+
+def _publish_ready(path: Path, receipt: dict) -> None:
+    # A partial JSON write must never appear at the canonical READY path.
+    # Keep staged evidence on failure; never overwrite an existing receipt.
+    staged = path.with_name("provision-ready-staged.json")
+    _record(staged, receipt)
+    os.link(staged, path)
+    try:
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except OSError as publication_error:
+        # Withdraw only the link we just created, retaining staged evidence.
+        # A process death here may leave a truthful READY (registration already
+        # returned); the intent still identifies the durability recovery window.
+        try:
+            path.unlink()
+        except OSError as withdrawal_error:
+            raise OSError(
+                f"READY publication failed: {publication_error}; "
+                f"receipt withdrawal failed: {withdrawal_error}"
+            ) from withdrawal_error
+        raise
 
 
 def _check_common(path: Path) -> None:
@@ -345,13 +372,42 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
             "logs": str(logs),
         }
         receipt_path = target / "provision-receipt.json"
-        _record(receipt_path, receipt)
-        register_runtime(
-            identifier,
-            RuntimeEntry.model_validate(
-                profile.model_dump(exclude={"id", "runtime_profile_version"})
-            ),
+        registry_path = resolve_registry_path()
+        entry = RuntimeEntry.model_validate(
+            profile.model_dump(exclude={"id", "runtime_profile_version"})
         )
+        receipt["registry_path"] = str(registry_path)
+        intent_path = target / "provision-registration.json"
+        recovery = {
+            "registration_record": str(intent_path),
+            "registry_path": str(registry_path),
+            "receipt_path": str(receipt_path),
+            "registration_state": "unknown",
+            "recovery": (
+                "Inspect the recorded registry path and compare the exact entry with "
+                "the retained profile. An absent or different entry is not success; "
+                "a matching entry does not prove directory durability. Preserve all "
+                "evidence and resolve durability before using the runtime. Do not "
+                "rerun provision, overwrite receipts, or unregister automatically."
+            ),
+        }
+        _record(intent_path, {**receipt, **recovery, "status": "REGISTRATION_PENDING"})
+        failure.update(recovery)
+        try:
+            register_runtime(identifier, entry, registry_path=registry_path)
+        except ValueError:
+            # Validation, registry reads and duplicate-ID refusal precede
+            # publication. OSError may follow replacement and stays unknown.
+            failure["registration_state"] = "refused"
+            failure["recovery"] = (
+                "Registration was refused before publication; this call did not "
+                "modify the registry. Preserve the evidence and any conflicting "
+                "entry. Do not overwrite or unregister it, or rerun provision "
+                "into the reserved target."
+            )
+            raise
+        failure["registration_state"] = "registered"
+        _publish_ready(receipt_path, receipt)
         return {
             **checked,
             "runtime_provision_version": 1,
@@ -362,5 +418,11 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
     except (OSError, ValueError, TypeError, subprocess.SubprocessError) as error:
         failure["reason"] = f"{type(error).__name__}: {error}"
         failure_path = target / "provision-failure.json"
-        _record(failure_path, failure)
+        try:
+            _record(failure_path, failure)
+        except OSError as recording_error:
+            raise OSError(
+                f"{failure['reason']}; failure recording at {failure_path} "
+                f"failed: {recording_error}"
+            ) from recording_error
         return {**failure, "failure_record": str(failure_path)}

@@ -163,7 +163,8 @@ decision:
   exclusive sources, early failures, interpreter handoff and acceleration gates.
 - `test_runtime_environments.py`, `test_runtime_env_cli.py`,
   `test_runtime_env_provision.py`: separate roots/registry, no install on
-  read-only commands, receipt-first registration and retained failures.
+  read-only commands, registration-before-READY publication and retained recovery
+  evidence.
 
 Fixture checks establish software contracts. They do not qualify hardware,
 providers, throughput or scientific outcomes. Accelerator execution,
