@@ -244,6 +244,31 @@ def test_stale_source_refuses_before_binding(job, damage):
     assert not (job.host.evidence / job.job_id).exists()
 
 
+def test_different_filesystem_refuses_before_claim_or_scratch(job, monkeypatch):
+    actual_stat = Path.stat
+    different_device = job.host.evidence.stat().st_dev + 1
+
+    def stat(path, *args, **kwargs):
+        result = actual_stat(path, *args, **kwargs)
+        if path == job.host.work:
+            fields = list(result)
+            fields[2] = different_device  # os.stat_result.st_dev
+            return os.stat_result(fields)
+        return result
+
+    def unexpected_launch(*args, **kwargs):
+        pytest.fail("different-filesystem admission reached launch")
+
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(jobs.runner, "run_controlled", unexpected_launch)
+    with pytest.raises(ValueError, match="must share the monitored filesystem"):
+        jobs.admit(job)
+    assert not list(job.host.state.glob("*/pending.json"))
+    assert not (job.host.evidence / f"attempt-{job.attempt_id}.json").exists()
+    assert not (job.host.evidence / job.job_id).exists()
+    assert not (job.host.work / "scratch").exists()
+
+
 def test_stale_runtime_records_real_exit_and_skips_workload(job):
     result = jobs.admit(job.model_copy(update={"torch_version": "not-installed"}))
     gates = result["summary"]["gates"]
