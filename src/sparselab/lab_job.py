@@ -9,16 +9,14 @@ import re
 import subprocess
 import sys
 import uuid
-import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from sparselab import runner_control as runner
 from sparselab.campaign.state import digest, publish_immutable, read_canonical
 from sparselab.lab_job_workload import (
-    PytestWorkload,
     TryWorkload,
     declarations,
     runtime_identity,
@@ -75,7 +73,7 @@ class Job(BaseModel):
     python_version: str
     torch_version: str
     runtime_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    workload: Annotated[PytestWorkload | TryWorkload, Field(discriminator="kind")]
+    workload: TryWorkload
     policy: MonitorPolicy
     max_evidence_bytes: int = Field(strict=True, gt=0)
 
@@ -192,12 +190,11 @@ def admit(job: Job) -> dict:
         check=True,
     )
     runner._unblocked(job.host.blocked)
-    if isinstance(job.workload, TryWorkload):
-        if job.host.work.stat().st_dev != job.host.evidence.stat().st_dev:
-            raise ValueError(
-                "native evidence and scratch must share the monitored filesystem"
-            )
-        declarations(job.workload, job.workload.root)
+    if job.host.work.stat().st_dev != job.host.evidence.stat().st_dev:
+        raise ValueError(
+            "native evidence and scratch must share the monitored filesystem"
+        )
+    declarations(job.workload, job.workload.root)
     native_id = uuid.uuid4().hex
     prepared = _binding(job, native_id)
     try:
@@ -209,8 +206,7 @@ def admit(job: Job) -> dict:
     # Exclusive authorized-attempt index across job IDs. Never replace or reclaim.
     runner._write(job.host.evidence / f"attempt-{job.attempt_id}.json", prepared)
     publish_immutable(evidence / "prepared.json", prepared)
-    if isinstance(job.workload, TryWorkload):
-        snapshot_inputs(job.workload, evidence / "inputs")
+    snapshot_inputs(job.workload, evidence / "inputs")
     ensure_scratch_dir(job.host.work)
     scratch.mkdir(mode=0o700)
     runner._sync_dir(scratch.parent)
@@ -272,14 +268,10 @@ def _runtime_probe(job: Job, source: Path) -> list[str]:
         f"assert identity['runtime_sha256'] == {job.runtime_sha256!r}, 'stale runtime distribution identity'; "
         f"assert Path(sparselab.__file__).resolve() == Path({str(source / 'src/sparselab/__init__.py')!r}), 'stale import'"
     )
-    if isinstance(job.workload, PytestWorkload):
-        code += f"; import pytest; assert pytest.__version__ == {job.workload.pytest_version!r}"
     return [str(job.host.python), "-I", "-B", "-c", code]
 
 
 def _gate_names(job: Job) -> tuple[str, ...]:
-    if isinstance(job.workload, PytestWorkload):
-        return ("source", "runtime", "pytest")
     return ("source", "runtime", "inputs", "tokenizer", "try", "report")
 
 
@@ -290,27 +282,6 @@ def _command(
         return _runtime_probe(job, source)
     prefix = [str(job.host.python), "-I", "-B", "-c"]
     bootstrap = f"import sys; sys.path.insert(0,{str(source / 'src')!r}); "
-    if isinstance(job.workload, PytestWorkload):
-        if os.path.lexists(scratch / "pytest"):
-            raise ValueError("pytest scratch already exists; refusing implicit cleanup")
-        return [
-            *prefix,
-            bootstrap + "import pytest; raise SystemExit(pytest.main(sys.argv[1:]))",
-            "-q",
-            "-p",
-            "no:cacheprovider",
-            "-o",
-            "addopts=",
-            "-m",
-            "not mps and not mlx and not cuda and not rocm and not xpu and not network",
-            "--rootdir",
-            str(source),
-            "--basetemp",
-            str(scratch / "pytest"),
-            "--junitxml",
-            str(evidence / "pytest.xml"),
-            *job.workload.nodes,
-        ]
     if gate == "try":
         return [
             *prefix,
@@ -340,7 +311,7 @@ def _command(
 
 def execute(manifest: str) -> int:
     """Fixed gate payload, invoked only as the native monitor's owned child."""
-    os.umask(0o077)  # Private evidence from this owned child, including pytest JUnit.
+    os.umask(0o077)  # Private evidence from this owned child.
     job = load_job(Path(manifest))
     prepared = _record(job)
     evidence, scratch, source = _paths(job)
@@ -356,7 +327,6 @@ def execute(manifest: str) -> int:
                 "HF_DATASETS_OFFLINE",
                 "TRANSFORMERS_OFFLINE",
                 "PYTHONDONTWRITEBYTECODE",
-                "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
             ),
             "1",
         )
@@ -366,8 +336,6 @@ def execute(manifest: str) -> int:
             ("CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"), ""
         )
     )
-    env.pop("PYTEST_ADDOPTS", None)
-    env.pop("PYTEST_PLUGINS", None)
     env["SPARSELAB_WORK_DIR"] = str(scratch / "work")
     temporary = ensure_scratch_dir(scratch / "work")
     env.update(dict.fromkeys(("TMPDIR", "TEMP", "TMP"), str(temporary)))
@@ -411,11 +379,6 @@ def execute(manifest: str) -> int:
         }
         publish_immutable(evidence / f"gate-{name}.json", {**prepared, **gate})
         gates.append(gate)
-    junit = evidence / "pytest.xml"
-    if junit.exists():
-        runner._safe(junit)
-        with junit.open("rb") as stream:
-            os.fsync(stream.fileno())
     publish_immutable(evidence / "gates.json", {**prepared, "gates": gates})
     return int(failed)
 
@@ -462,33 +425,7 @@ def collect(job: Job) -> dict:
     passed = completion.status == "COMPLETE" and all(
         g["executed"] and g["returncode"] == 0 for g in gates["gates"]
     )
-    tests = skipped = failures = 0
-    if isinstance(job.workload, PytestWorkload) and gates["gates"][-1]["executed"]:
-        junit_path = evidence / "pytest.xml"
-        runner._safe(junit_path)
-        if junit_path.stat().st_size > job.max_evidence_bytes:
-            raise ValueError("JUnit evidence exceeds manifest size cap")
-        junit = ET.parse(junit_path)
-        cases = list(junit.iter("testcase"))
-        tests = len(cases)
-        skipped = sum(case.find("skipped") is not None for case in cases)
-        failures = sum(
-            case.find("failure") is not None or case.find("error") is not None
-            for case in cases
-        )
-        observed = {
-            f"{case.get('classname', '').replace('.', '/')}.py::{case.get('name', '').split('[')[0]}"
-            for case in cases
-        }
-        passed = (
-            passed
-            and set(job.workload.nodes) <= observed
-            and skipped == 0
-            and failures == 0
-        )
-    native = None
-    if isinstance(job.workload, TryWorkload) and passed:
-        native = verify_native_result(job, evidence, prepared)
+    native = verify_native_result(job, evidence, prepared) if passed else None
     files = {}
     for path in sorted(evidence.rglob("*")):
         if path == evidence / "summary.json":
@@ -522,9 +459,6 @@ def collect(job: Job) -> dict:
         "native_returncode": completion.returncode,
         "gates": gates["gates"],
         "native_workflow": native,
-        "tests": tests,
-        "skipped": skipped,
-        "failures": failures,
         "elapsed_seconds": completion.elapsed_seconds,
         "peak_tree_rss_bytes": completion.peak_tree_rss_bytes,
         "peak_tree_swap_bytes": completion.peak_tree_swap_bytes,
@@ -638,29 +572,23 @@ def _handle(args: argparse.Namespace) -> None:
             torch_version=str(torch.__version__),
         )
         workload = raw["workload"]
-        if workload["kind"] == "lab_try":
-            files = workload["files"]
-            if (
-                not isinstance(files, list)
-                or any(
-                    not isinstance(name, str)
-                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name)
-                    for name in files
-                )
-                or len(files) != len(set(files))
-            ):
-                raise ValueError("seal requires a list of unique flat input filenames")
-            workload["files"] = {
-                name: sha256_file(Path(workload["root"]) / name) for name in files
-            }
-        else:
-            import pytest
-
-            workload["pytest_version"] = pytest.__version__
+        files = workload["files"]
+        if (
+            not isinstance(files, list)
+            or any(
+                not isinstance(name, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name)
+                for name in files
+            )
+            or len(files) != len(set(files))
+        ):
+            raise ValueError("seal requires a list of unique flat input filenames")
+        workload["files"] = {
+            name: sha256_file(Path(workload["root"]) / name) for name in files
+        }
         job = Job.model_validate(raw)
         _source(job, job.host.repository, detached=False)
-        if isinstance(job.workload, TryWorkload):
-            declarations(job.workload, job.workload.root)
+        declarations(job.workload, job.workload.root)
         if os.path.lexists(args.output):
             raise FileExistsError(args.output)
         publish_immutable(args.output, job.payload())

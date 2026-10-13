@@ -8,9 +8,8 @@ non-waiting submissions; [workers](workers.md) describes their operation.
 
 The optional [bounded lab-job adapter](lab-jobs.md) binds an external handoff
 to the existing native host runner. Its tiny CPU profile delegates tokenizer
-training, paired model work and reporting to the native lab lifecycle. A separate
-restricted profile accepts up to five CPU regression nodes. Neither profile adds
-a worker/controller scheduler.
+training, paired model work and reporting to the native lab lifecycle. It accepts
+no pytest or arbitrary-command workload and adds no worker/controller scheduler.
 
 ## Contract and caller audit
 

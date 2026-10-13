@@ -15,40 +15,14 @@ from sparselab.lab_mode import read_record
 from sparselab.training.manifest import sha256_file
 
 pytestmark = test_lab_job.pytestmark
-job = test_lab_job.job
+job_factory = test_lab_job.job_factory
 
 
 @pytest.fixture
-def native_job(job, tmp_path):
-    root = tmp_path / "declarations"
-    root.mkdir()
-    import shutil
-
-    repository = Path(__file__).resolve().parents[1]
-    inputs = repository / "examples/lab-job-try"
-    for name in (
-        "baseline.yaml",
-        "tokenizer.yaml",
-        "delta.yaml",
-        "try.yaml",
-        "bounds.yaml",
-        "train.jsonl",
-        "validation.jsonl",
-    ):
-        shutil.copyfile(inputs / name, root / name)
-    workload = jobs.TryWorkload(
-        kind="lab_try",
-        profile="tiny-cpu-lab",
-        root=root,
-        tokenizer="tokenizer.yaml",
-        baseline="baseline.yaml",
-        candidate="delta.yaml",
-        declaration="try.yaml",
-        files={path.name: sha256_file(path) for path in root.iterdir()},
-    )
+def native_job(job_factory):
+    job = job_factory(synthetic=False)
     return job.model_copy(
         update={
-            "workload": workload,
             "policy": job.policy.model_copy(
                 update={"max_wall_seconds": 90.0, "termination_grace_seconds": 5.0}
             ),

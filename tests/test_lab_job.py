@@ -22,78 +22,126 @@ def git(root, *args):
 
 
 @pytest.fixture
-def job(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    original = Path(jobs.__file__).resolve().parents[1]
-    shutil.copytree(
-        original, repo / "src", ignore=shutil.ignore_patterns("__pycache__")
-    )
-    (repo / "tests").mkdir()
-    (repo / "tests/test_tiny.py").write_text(
-        "def test_one():\n    assert sum(range(4)) == 6\n"
-    )
-    git(repo, "init", "-q")
-    git(repo, "add", ".")
-    git(
-        repo,
-        "-c",
-        "user.name=Fixture",
-        "-c",
-        "user.email=fixture@example.invalid",
-        "commit",
-        "-qm",
-        "fixture",
-    )
-    sha = git(repo, "rev-parse", "HEAD")
-    git(repo, "update-ref", "refs/remotes/origin/main", sha)
-    for name in ("state", "evidence", "work"):
-        (tmp_path / name).mkdir(mode=0o700)
-    import platform
+def job_factory(tmp_path, monkeypatch):
+    """Use actual admission/runner/gates; substitute only native model operations.
 
-    import torch
+    The private substitution is committed into the temporary fixture repository,
+    never exposed as a manifest kind, environment switch or production hook.
+    Native integration calls this factory with synthetic=False.
+    """
 
-    monkeypatch.setattr(jobs, "__file__", str(repo / "src/sparselab/lab_job.py"))
-    admitted = jobs.Job(
-        format="sparselab-lab-job-v1",
-        job_id="one",
-        attempt_id="authorized-one",
-        source_sha=sha,
-        validation_reference="synthetic fixture only",
-        backend="cpu",
-        host=jobs.Host(
-            repository=repo,
-            state=tmp_path / "state",
-            evidence=tmp_path / "evidence",
-            work=tmp_path / "work",
-            lock=tmp_path / "lock",
-            blocked=tmp_path / "blocked",
-            python=Path(sys.executable),
-        ),
-        python_version=platform.python_version(),
-        torch_version=str(torch.__version__),
-        runtime_sha256=jobs.runtime_identity()["runtime_sha256"],
-        workload=jobs.PytestWorkload(
-            kind="pytest",
-            profile="cpu-regression",
-            pytest_version=pytest.__version__,
-            nodes=["tests/test_tiny.py::test_one"],
-        ),
-        policy=MonitorPolicy(
-            monitor_policy_version=1,
-            max_wall_seconds=20,
-            max_tree_rss_bytes=2_000_000_000,
-            interval_seconds=0.05,
-        ),
-        max_evidence_bytes=4_000_000,
-    )
+    def make(*, synthetic=True):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        original = Path(jobs.__file__).resolve().parents[1]
+        shutil.copytree(
+            original, repo / "src", ignore=shutil.ignore_patterns("__pycache__")
+        )
+        if synthetic:
+            (repo / "fixture_payload.py").write_text(
+                "import sys\nassert sum(range(4)) == 6\nprint(sys.argv[1])\n"
+            )
+            fixture = repo / "src/sparselab/_lab_job_fixture.py"
+            fixture.write_text(
+                "def command(job, source, evidence, scratch, gate):\n"
+                "    if gate == 'runtime':\n"
+                "        from sparselab.lab_job import _runtime_probe\n"
+                "        return _runtime_probe(job, source)\n"
+                "    return [str(job.host.python), '-I', '-B', str(source / 'fixture_payload.py'), gate]\n"
+                "def verify(job, evidence, binding):\n"
+                "    return {'fixture': 'arithmetic-only'}\n"
+            )
+            module = repo / "src/sparselab/lab_job.py"
+            # CLI dispatch imports this module; no executable test-only surface
+            # is added to the product. Native verification has separate coverage.
+            module.write_text(
+                module.read_text()
+                + "\nfrom sparselab._lab_job_fixture import command as _command, verify as verify_native_result\n"
+            )
+            monkeypatch.setattr(
+                jobs,
+                "verify_native_result",
+                lambda *args: {"fixture": "arithmetic-only"},
+            )
+        git(repo, "init", "-q")
+        git(repo, "add", ".")
+        git(
+            repo,
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "fixture",
+        )
+        sha = git(repo, "rev-parse", "HEAD")
+        git(repo, "update-ref", "refs/remotes/origin/main", sha)
+        for name in ("state", "evidence", "work"):
+            (tmp_path / name).mkdir(mode=0o700)
+        root = tmp_path / "declarations"
+        root.mkdir()
+        inputs = Path(__file__).resolve().parents[1] / "examples/lab-job-try"
+        names = (
+            "baseline.yaml",
+            "tokenizer.yaml",
+            "delta.yaml",
+            "try.yaml",
+            "bounds.yaml",
+            "train.jsonl",
+            "validation.jsonl",
+        )
+        for name in names:
+            shutil.copyfile(inputs / name, root / name)
+        import platform
 
-    yield admitted
+        import torch
+
+        monkeypatch.setattr(jobs, "__file__", str(repo / "src/sparselab/lab_job.py"))
+        return jobs.Job(
+            format="sparselab-lab-job-v1",
+            job_id="one",
+            attempt_id="authorized-one",
+            source_sha=sha,
+            validation_reference="synthetic fixture only",
+            backend="cpu",
+            host=jobs.Host(
+                repository=repo,
+                state=tmp_path / "state",
+                evidence=tmp_path / "evidence",
+                work=tmp_path / "work",
+                lock=tmp_path / "lock",
+                blocked=tmp_path / "blocked",
+                python=Path(sys.executable),
+            ),
+            python_version=platform.python_version(),
+            torch_version=str(torch.__version__),
+            runtime_sha256=jobs.runtime_identity()["runtime_sha256"],
+            workload=jobs.TryWorkload(
+                kind="lab_try",
+                profile="tiny-cpu-lab",
+                root=root,
+                tokenizer="tokenizer.yaml",
+                baseline="baseline.yaml",
+                candidate="delta.yaml",
+                declaration="try.yaml",
+                files={name: jobs.sha256_file(root / name) for name in names},
+            ),
+            policy=MonitorPolicy(
+                monitor_policy_version=1,
+                max_wall_seconds=60,
+                max_tree_rss_bytes=2_000_000_000,
+                interval_seconds=0.05,
+            ),
+            max_evidence_bytes=4_000_000,
+        )
+
+    yield make
     # Keep actual supervisor evidence in failing CI output, where temporary
     # fixture directories are otherwise unavailable after the runner exits.
     import json
 
-    for completion in admitted.host.evidence.glob("*/monitor/completion.json"):
+    for completion in tmp_path.glob("evidence/*/monitor/completion.json"):
         evidence = completion.parent.parent
         if (evidence / "gates.json").exists():
             continue
@@ -121,14 +169,17 @@ def job(tmp_path, monkeypatch):
                 print(name, path.read_text()[-4096:])
 
 
+@pytest.fixture
+def job(job_factory):
+    return job_factory()
+
+
 def test_end_to_end_and_duplicate_returns_verified_result(job):
-    # An ancestor config must not change JUnit's named-node identities.
-    (job.host.work / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")
     result = jobs.admit(job)
     assert result["summary"]["controller_completion"] == "PASS"
     assert result["summary"]["coordinator_acceptance"] == "PENDING"
     assert result["summary"]["cleanup_verified"] is True
-    assert result["summary"]["tests"] == 1
+    assert result["summary"]["native_workflow"] == {"fixture": "arithmetic-only"}
     evidence, _, _ = jobs._paths(job)
     assert result["summary"]["evidence_bytes"] == sum(
         path.stat().st_size for path in evidence.rglob("*") if path.is_file()
@@ -256,7 +307,7 @@ def test_missing_evidence_and_failed_final_publication_never_relaunch(job, monke
     assert jobs.collect(job)["summary"]["controller_completion"] == "PASS"
     assert len(list(job.host.state.glob("*/pending.json"))) == 1
     evidence, _, _ = jobs._paths(job)
-    (evidence / "pytest.xml").rename(evidence / "retained.xml")
+    (evidence / "report.stdout").rename(evidence / "retained-report.stdout")
     with pytest.raises(FileNotFoundError):
         jobs.collect(job)
     with pytest.raises(FileNotFoundError):
@@ -271,16 +322,17 @@ def test_unsafe_cleanup_plan_refuses_without_deletion(job, monkeypatch, target):
     assert job.host.state.exists() and job.host.evidence.exists()
 
 
-def test_manifest_rejects_gpu_and_broad_nodes(job, tmp_path):
+def test_manifest_rejects_gpu_pytest_and_arbitrary_commands(job, tmp_path):
     for updates in (
         {"backend": "rocm"},
-        {"workload": {**job.workload.model_dump(), "nodes": ["tests/"]}},
         {
             "workload": {
-                **job.workload.model_dump(),
-                "nodes": [job.workload.nodes[0]] * 6,
+                "kind": "pytest",
+                "profile": "cpu-regression",
+                "nodes": ["tests/test_tiny.py::test_one"],
             }
         },
+        {"workload": {**job.workload.model_dump(), "command": ["sh", "-c", "true"]}},
     ):
         with pytest.raises(ValueError):
             jobs.Job.model_validate({**job.payload(), **updates})
@@ -313,18 +365,18 @@ def test_two_processes_share_one_durable_admission(job, tmp_path):
         )
         for _ in range(2)
     ]
-    results = [process.communicate(timeout=30) for process in processes]
+    results = [process.communicate(timeout=90) for process in processes]
     assert any(process.returncode == 0 for process in processes), results
     assert len(list(job.host.state.glob("*/pending.json"))) == 1
-    assert jobs.collect(job)["summary"]["tests"] == 1
+    assert jobs.collect(job)["summary"]["native_workflow"] == {
+        "fixture": "arithmetic-only"
+    }
 
 
-@pytest.mark.parametrize(
-    "body", ["import pytest; pytest.skip('unavailable')", "assert False"]
-)
-def test_failed_or_skipped_node_is_not_acceptance(job, body):
-    (job.host.repository / "tests/test_tiny.py").write_text(
-        f"def test_one():\n    {body}\n"
+@pytest.mark.parametrize("failed_gate", ["tokenizer", "try"])
+def test_failed_gate_and_skipped_dependencies_are_not_acceptance(job, failed_gate):
+    (job.host.repository / "fixture_payload.py").write_text(
+        f"import sys\nraise SystemExit(3 if sys.argv[1] == {failed_gate!r} else 0)\n"
     )
     git(job.host.repository, "add", ".")
     git(
@@ -342,7 +394,15 @@ def test_failed_or_skipped_node_is_not_acceptance(job, body):
     job = job.model_copy(update={"source_sha": sha})
     result = jobs.admit(job)
     assert result["summary"]["controller_completion"] == "FAIL"
-    assert result["summary"]["failures"] + result["summary"]["skipped"] == 1
+    gates = result["summary"]["gates"]
+    failed = next(
+        index for index, gate in enumerate(gates) if gate["name"] == failed_gate
+    )
+    assert gates[failed]["executed"] and gates[failed]["returncode"] == 3
+    assert all(
+        not gate["executed"] and gate["returncode"] is None
+        for gate in gates[failed + 1 :]
+    )
     assert jobs.admit(job) == result
 
 
@@ -373,15 +433,6 @@ def test_public_entry_uses_manifest_paths_without_default_workdir(monkeypatch):
     assert len(seen) == 1
 
 
-def test_inherited_pytest_options_and_plugins_cannot_change_pilot(job, monkeypatch):
-    monkeypatch.setenv("PYTEST_ADDOPTS", "--lab70-nonexistent-option")
-    monkeypatch.setenv("PYTEST_PLUGINS", "lab70_nonexistent_host_plugin")
-    result = jobs.admit(job)
-    assert result["summary"]["controller_completion"] == "PASS"
-    assert result["summary"]["tests"] == 1
-    assert result["summary"]["gates"][-1]["returncode"] == 0
-
-
 def test_worktree_preparation_never_runs_host_checkout_hook(job, tmp_path):
     marker = tmp_path / "host-hook-ran"
     hook = job.host.repository / ".git/hooks/post-checkout"
@@ -407,3 +458,30 @@ def test_worktree_preparation_never_runs_host_checkout_hook(job, tmp_path):
         check=False,
     )
     assert config.returncode == 1  # No persistent hook setting was written.
+
+
+def test_public_entry_rejects_unused_global_token_without_reading(monkeypatch):
+    import argparse
+
+    from sparselab.cli import entry
+
+    # PR115 owns global prefix parsing. Test this branch's contract for its
+    # parsed namespace without duplicating that parser change or reading a token.
+    monkeypatch.setattr(
+        argparse.ArgumentParser,
+        "parse_known_args",
+        lambda *args: (
+            argparse.Namespace(
+                work_dir=None,
+                hf_token_file=Path("/never-read/token"),
+                command=["lab-job", "status", "/job.json"],
+            ),
+            [],
+        ),
+    )
+    monkeypatch.setattr(jobs, "main", lambda argv: pytest.fail("must not dispatch"))
+    monkeypatch.setattr(
+        Path, "read_bytes", lambda path: pytest.fail("must not read token")
+    )
+    with pytest.raises(SystemExit):
+        entry.main()

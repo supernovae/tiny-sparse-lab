@@ -192,14 +192,20 @@ After external review, merge and applicable CI for the selected merged source:
 4. GPU rollout requires separate parent approval after CPU verification. This
    profile neither executes nor qualifies ROCm or other accelerators.
 
-`cpu-regression` is a separate restricted workload profile for one to five
-explicit pytest functions (`kind: pytest`, `profile: cpu-regression`, `nodes`).
-Seal fills its pytest version. The adapter’s subprocess regression tests run
-explicitly in serial safe CI; measured slow cases are excluded from parallel
-fast CI to avoid competing against their fixture watchdog. Native model tests
-run explicitly in lab-loop. Named-node JUnit coverage, zero failures and zero
-skips are required. Plugin autoload is disabled and inherited `PYTEST_ADDOPTS` /
-`PYTEST_PLUGINS` are removed. These test limits do not define native lab jobs.
+The public workload is the typed native `lab_try` profile; pytest and arbitrary
+command payloads are rejected. The original pytest pilot surface was removed
+because it had no product use beyond the pilot scaffold. Global work-directory
+and token-file options are unsupported: this path is offline and manifest-bound.
+
+Product regressions use temporary repositories and internally substituted native
+operations to test admission, replay, actual gate exits/skips, evidence retention
+and cleanup refusal without model work. They do not qualify a real CPU host.
+These subprocess cases remain explicit in serial safe CI; measured slow cases
+are excluded from parallel fast CI. Their 60-second synthetic fixture allowance
+accounts for cold imports on CI; it does not set host job budgets. Separate
+lab-loop integration uses the real
+native tokenizer/model/report path and checked-in inputs, including cancellation
+and verifier refusal mutations against one completed result.
 
 Cleanup is **preview only**:
 

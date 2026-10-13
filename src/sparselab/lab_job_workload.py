@@ -15,30 +15,10 @@ import sys
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from sparselab.campaign.state import digest, publish_immutable, read_canonical
 from sparselab.training.manifest import sha256_file
-
-
-class PytestWorkload(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["pytest"]
-    profile: Literal["cpu-regression"]
-    pytest_version: str
-    nodes: list[str] = Field(min_length=1, max_length=5)
-
-    @field_validator("nodes")
-    @classmethod
-    def explicit_nodes(cls, nodes: list[str]) -> list[str]:
-        if len(set(nodes)) != len(nodes) or any(
-            not re.fullmatch(r"tests/test_[a-zA-Z0-9_]+\.py::test_[a-zA-Z0-9_]+", node)
-            for node in nodes
-        ):
-            raise ValueError(
-                "regression profile requires unique explicit function nodes"
-            )
-        return nodes
 
 
 class TryWorkload(BaseModel):
