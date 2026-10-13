@@ -1,0 +1,142 @@
+"""Global-prefix dispatch regressions (LAB69); no real credentials or models."""
+
+import os
+import subprocess
+import sys
+import sysconfig
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from sparselab.cli import entry
+
+TOKEN = "/nonexistent-lab69/token"
+PREFIXES = [
+    [],
+    ["--hf-token-file", TOKEN],
+    [f"--hf-token-file={TOKEN}"],
+    *[
+        prefix
+        for token in (["--hf-token-file", TOKEN], [f"--hf-token-file={TOKEN}"])
+        for work in (["--work-dir", "selected"], ["--work-dir=selected"])
+        for prefix in (token + work, work + token)
+    ],
+]
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_installed_environment_help_is_framework_and_credential_free(tmp_path, prefix):
+    # Run the actual installed console script in a fresh guarded interpreter.
+    script = """
+import importlib.abc
+import runpy
+import sys
+
+class RefuseExecution(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'torch', 'mlx'} or fullname in {
+            'sparselab.cli.main', 'sparselab.hf_auth',
+        }:
+            raise AssertionError('unexpected import: ' + fullname)
+sys.meta_path.insert(0, RefuseExecution())
+def guard(event, args):
+    if event == 'open' and str(args[0]) == '/nonexistent-lab69/token':
+        raise AssertionError('token file opened')
+    if event in {'subprocess.Popen', 'os.system', 'socket.connect'}:
+        raise AssertionError('unexpected execution: ' + event)
+sys.addaudithook(guard)
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name='__main__')
+"""
+    console = Path(sysconfig.get_path("scripts")) / "sparselab"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(console),
+            *prefix,
+            "runtime",
+            "env",
+            "--help",
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "SPARSELAB_WORK_DIR": str(tmp_path / "work")},
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "usage: sparselab runtime env" in result.stdout
+    assert not (tmp_path / "selected").exists()
+    assert not (tmp_path / "work").exists()
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_environment_handoff_preserves_remainder_and_work_root(
+    monkeypatch, tmp_path, prefix
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "original"))
+    child = ["list", "--", "child", "--hf-token-file", "--work-dir"]
+    seen = []
+    monkeypatch.setitem(
+        sys.modules, "sparselab.runtime_env_cli", SimpleNamespace(main=seen.append)
+    )
+    monkeypatch.setattr(sys, "argv", ["sparselab", *prefix, "runtime", "env", *child])
+    entry.main()
+    assert seen == [child]
+    selected = (
+        "selected"
+        if any(arg.startswith("--work-dir") for arg in prefix)
+        else "original"
+    )
+    assert os.environ["SPARSELAB_WORK_DIR"] == str(tmp_path / selected)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--help"],
+        ["--hf-token-file", TOKEN, "--help"],
+        [f"--hf-token-file={TOKEN}", "inspect", "config.yaml", "--json"],
+        ["--work-dir", "root", "--hf-token-file", TOKEN, "report", "example"],
+        ["monitor", "--", "child", "--hf-token-file", "--work-dir"],
+        ["runtime", "status", "--hf-token-file", "--work-dir"],
+        ["--unknown", "runtime", "env"],
+        ["--unknown", "value", "runtime", "env"],
+    ],
+)
+def test_ordinary_dispatch_receives_unchanged_argv(monkeypatch, argv):
+    seen = []
+    monkeypatch.setitem(
+        sys.modules,
+        "sparselab.cli.main",
+        SimpleNamespace(main=lambda: seen.append(sys.argv[1:])),
+    )
+    monkeypatch.setattr(sys, "argv", ["sparselab", *argv])
+    entry.main()
+    assert seen == [argv]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--hf-token-file"], ["--hf-token-file", "--work-dir=root"], ["--work-dir"]],
+)
+def test_missing_prefix_values_fail_cleanly(monkeypatch, capsys, argv):
+    monkeypatch.setattr(sys, "argv", ["sparselab", *argv])
+    with pytest.raises(SystemExit) as error:
+        entry.main()
+    assert error.value.code == 2
+    assert "expected one argument" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("option", ["--unknown", "--hf-token-file", "--work-dir"])
+def test_runtime_local_options_are_not_consumed(monkeypatch, capsys, option):
+    monkeypatch.setattr(sys, "argv", ["sparselab", "runtime", "env", "list", option])
+    with pytest.raises(SystemExit) as error:
+        entry.main()
+    assert error.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err
