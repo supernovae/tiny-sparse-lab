@@ -1,0 +1,16 @@
+{
+  "fixture_version": 1,
+  "description": "Synthetic renderer observations only; not scientific or verifier acceptance evidence.",
+  "cases": [
+    {"name": "positive", "status": "complete", "loss": 0.75},
+    {"name": "negative", "status": "complete", "loss": 3.25},
+    {"name": "missing", "status": "pending", "loss": null},
+    {"name": "failed", "status": "failed", "loss": null},
+    {"name": "censored", "status": "censored", "loss": null},
+    {"name": "invalid", "status": "invalid", "loss": null},
+    {"name": "skipped", "status": "skipped", "loss": null},
+    {"name": "unavailable", "status": "unavailable", "loss": null},
+    {"name": "ingestion-error", "status": "ingestion_error", "loss": null},
+    {"name": "incompatible-baseline", "status": "complete", "loss": 0.5}
+  ]
+}
