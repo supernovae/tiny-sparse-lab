@@ -11,22 +11,8 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from sparselab.config.loading import _resolve_paths
+from sparselab.config.loading import _PATH_KEYS, _resolve_paths
 from sparselab.config.models import RunConfig
-
-_PATH_KEYS = frozenset(
-    {
-        "path",
-        "cache_dir",
-        "root_dir",
-        "output_dir",
-        "memory_package_path",
-        "train_path",
-        "validation_path",
-        "mixture_declaration_path",
-        "mixture_output_path",
-    }
-)
 
 
 def migrate_v1(raw: dict[str, Any]) -> dict[str, Any]:
@@ -87,6 +73,7 @@ def _rebase_paths(value: Any, output_base: Path, key: str | None = None) -> Any:
         }
     if isinstance(value, list):
         return [_rebase_paths(item, output_base) for item in value]
+    # Rebase exactly the fields anchored by loading, including optional manifests.
     if key in _PATH_KEYS and isinstance(value, Path):
         return os.path.relpath(value, output_base)
     return value

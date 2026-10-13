@@ -60,6 +60,63 @@ def test_migration_rebases_relative_paths_for_moved_output(tmp_path: Path) -> No
     assert config.logging.root_dir == source.parent / "runs"
 
 
+@pytest.mark.parametrize("absolute", [False, True])
+@pytest.mark.parametrize("kind", ["allocation", "snapshot", "corpus", "portability"])
+def test_migration_preserves_manifest_targets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, absolute: bool, kind: str
+) -> None:
+    source = tmp_path / "source" / "nested" / "legacy.yaml"
+    source.parent.mkdir(parents=True)
+    raw = _v1()
+    dataset = raw["dataset"]
+    section = dataset
+    if kind == "portability":
+        section = raw["training"]
+        section["trainable_parameters"] = ["lm_head.weight"]
+        fields = ["portability_manifest_path"]
+    else:
+        dataset.update(
+            source="snapshot" if kind == "snapshot" else "local_chat",
+            train_path="train.jsonl",
+            validation_path="validation.jsonl",
+            license="CC0-1.0",
+            revision="a" * 64,
+        )
+        fields = {
+            "allocation": ["allocation_manifest_path"],
+            "snapshot": ["source_manifest_path"],
+            "corpus": ["corpus_release_path", "corpus_export_path"],
+        }[kind]
+    targets = {}
+    for field in fields:
+        target = source.parent / f"{field}.json"
+        target.write_text(f"{field} fixture\n", encoding="utf-8")
+        targets[field] = target
+        section[field] = str(target) if absolute else target.name
+    original = yaml.safe_dump(raw, sort_keys=False)
+    source.write_text(original, encoding="utf-8")
+    output = tmp_path / "destination" / "nested" / "migrated.yaml"
+    cwd = tmp_path / "unrelated"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    migrate_file(source, output)
+    published = yaml.safe_load(output.read_text(encoding="utf-8"))
+    for reload_cwd in (cwd, source.parent):
+        monkeypatch.chdir(reload_cwd)
+        loaded = load_config(output)
+        loaded_section = loaded.training if kind == "portability" else loaded.dataset
+        for field, target in targets.items():
+            assert getattr(loaded_section, field) == target
+            assert getattr(loaded_section, field).read_bytes() == target.read_bytes()
+            value = published["training" if kind == "portability" else "dataset"][field]
+            assert isinstance(value, str)
+            assert (output.parent / value).resolve() == target
+    assert source.read_text(encoding="utf-8") == original
+    assert published["model"] == raw["model"]
+    assert published["seed"] == raw["seed"]
+    assert published["dataset"]["train_max_tokens"] == dataset["train_max_tokens"]
+
+
 def test_invalid_migration_does_not_publish_output(tmp_path: Path) -> None:
     source = tmp_path / "invalid.yaml"
     invalid = _v1()
