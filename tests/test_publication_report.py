@@ -397,3 +397,90 @@ def test_forged_plan_identity_and_wrong_evidence_location_refuse(native, monkeyp
         publication.build_publication_report(
             path, workspace=workspace, index_path=forged
         )
+
+
+@pytest.mark.parametrize("nested", [{"secret": "must-not-export"}, ["must-not-export"]])
+def test_allowlisted_names_drop_nested_values(native, monkeypatch, nested):
+    path, lock, _ = native
+    views = retrospective_views(lock)
+    cell = views["views"]["evidence_coverage"]["facts"]["cells"][0]
+    cell["evidence"] = {
+        "attempts": [
+            {
+                "status": nested,
+                "run_id": nested,
+                "receipt_sha256": None,
+                "checkpoints": [
+                    {
+                        "digest": nested,
+                        "verification_scope": nested,
+                        "step": 0,
+                        "validation_loss": 1.25,
+                    }
+                ],
+                "quality_observations": [
+                    {
+                        "kind": nested,
+                        "loss": nested,
+                        "step": 0,
+                        "identities": {"protocol": nested, "tokenizer.json": "a" * 64},
+                    }
+                ],
+            }
+        ],
+    }
+    monkeypatch.setattr(publication, "retrospective_views", lambda *a, **kw: views)
+    report = publication.build_publication_report(path)
+    attempt = report["cells"][0]["attempts"][0]
+    assert "status" not in attempt and "run_id" not in attempt
+    assert attempt["receipt_sha256"] is None
+    assert attempt["checkpoints"] == [{"step": 0, "validation_loss": 1.25}]
+    assert attempt["quality_observations"] == [
+        {"step": 0, "identities": {"tokenizer.json": "a" * 64}}
+    ]
+    for encoded in (publication._json(report), publication._markdown(report)):
+        assert b"must-not-export" not in encoded
+        assert b'"secret"' not in encoded
+
+
+def test_markdown_escapes_prose_and_preserves_fenced_json_values(native, monkeypatch):
+    import re
+
+    path, lock, _ = native
+    views = retrospective_views(lock)
+    cell = views["views"]["evidence_coverage"]["facts"]["cells"][0]
+    run_id = "run\n```<script>|](target)\r"
+    status = "state|](target)"
+    observation = "</script>```|](target)"
+    cell["status"] = status
+    cell["evidence"] = {
+        "selected_run_id": run_id,
+        "attempts": [
+            {
+                "run_id": run_id,
+                "status": status,
+                "quality_observations": [
+                    {"kind": observation, "identities": {"protocol": observation}}
+                ],
+            }
+        ],
+    }
+    monkeypatch.setattr(publication, "retrospective_views", lambda *a, **kw: views)
+    report = publication.build_publication_report(path)
+    markdown = publication._markdown(report).decode()
+    escaped_run = r"run \`\`\`&lt;script&gt;\|\]\(target\) "
+    escaped_status = r"state\|\]\(target\)"
+    # Literal prose must preserve one table row and escape link/fence delimiters.
+    assert f"| {cell['cell_id']} | {escaped_status} | {escaped_run} |" in markdown
+    assert f"Recorded status: {escaped_status}\n" in markdown
+    blocks = re.findall(r"```json\n(.*?)\n```", markdown, flags=re.DOTALL)
+    assert len(blocks) == len(report["cells"])
+    assert markdown.count("```") == 2 * len(blocks)
+    for block, expected in zip(blocks, report["cells"], strict=True):
+        # Pipes/link punctuation are inert inside JSON; do not corrupt their values.
+        assert json.loads(block) == expected
+        assert "`" not in block and "<" not in block and ">" not in block
+    assert "|](target)" in blocks[0]
+    assert r"\u003c/script\u003e\u0060\u0060\u0060" in blocks[0]
+    prose = re.sub(r"```json\n.*?\n```", "", markdown, flags=re.DOTALL)
+    assert "<script>" not in prose and "](target)" not in prose
