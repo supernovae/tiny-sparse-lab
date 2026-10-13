@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -206,6 +207,7 @@ def test_changed_bytes_fail_pin_and_resealing_changes_recipe_only(tmp_path):
         "bool-version",
         "unknown",
         "duplicate",
+        "duplicate-metadata",
         "contracts",
         "bool-contract",
         "undeclared",
@@ -227,7 +229,9 @@ def test_descriptor_rejects_ambiguity_and_unavailable_contracts(tmp_path, mutati
     elif mutation == "unknown":
         raw["plugin"] = "arbitrary.python:entry"
     elif mutation == "duplicate":
-        raw["files"].append(raw["files"][0])
+        raw["files"].append({**raw["files"][1], "role": "metadata"})
+    elif mutation == "duplicate-metadata":
+        raw["files"].append(dict(raw["files"][2]))
     elif mutation == "contracts":
         raw["contracts"]["new_backend"] = 1
     elif mutation == "bool-contract":
@@ -247,7 +251,23 @@ def test_descriptor_rejects_ambiguity_and_unavailable_contracts(tmp_path, mutati
     elif mutation == "wrong-role":
         raw["files"][1]["role"] = "metadata"
     source.write_text(yaml.safe_dump(raw))
-    with pytest.raises((ValueError, TypeError)):
+    expected = {
+        "version": "portable_recipe_version must be integer 1",
+        "bool-version": "portable_recipe_version must be integer 1",
+        "unknown": "Extra inputs are not permitted",
+        "duplicate": "duplicate recipe file path",
+        "duplicate-metadata": "duplicate recipe file path",
+        "contracts": "unavailable recipe contracts",
+        "bool-contract": "Input should be a valid integer",
+        "undeclared": "undeclared recipe reference",
+        "absolute": "unsafe or ambiguous recipe reference",
+        "traversal": "unsafe or ambiguous recipe reference",
+        "alias-path": "unsafe or ambiguous recipe reference",
+        "bad-artifact": "unsupported artifact field: plugin.path",
+        "missing-artifact": "recipe artifacts must declare exactly the native input path fields",
+        "wrong-role": "base_run must reference a declared run_config",
+    }
+    with pytest.raises(ValueError, match=re.escape(expected[mutation])):
         inspect_recipe(source)
 
 
@@ -348,6 +368,7 @@ def test_real_entry_has_no_execution_heavy_imports_or_writes(
     code = """
 import importlib.abc
 import os
+import re
 import sys
 class Fence(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
@@ -420,3 +441,76 @@ def test_matrix_cap_uses_native_compiler(tmp_path):
     source = write_recipe(tmp_path / "recipe")
     with pytest.raises(ValueError, match="max_runs"):
         inspect_recipe(source, max_runs=1)
+
+
+def test_inventory_order_does_not_change_recipe_fingerprint(tmp_path):
+    source = write_recipe(tmp_path / "recipe")
+    first = load_recipe(source)
+    descriptor = yaml.safe_load(source.read_text())
+    descriptor["files"].reverse()
+    source.write_text(yaml.safe_dump(descriptor))
+    reordered = load_recipe(source)
+    assert first.fingerprint == reordered.fingerprint
+    assert first.descriptor_sha256 != reordered.descriptor_sha256
+    assert first.context.documents == reordered.context.documents
+
+
+def test_total_metadata_limit_counts_descriptor_and_all_members(tmp_path, monkeypatch):
+    from sparselab.experiments import recipe
+
+    source = write_recipe(tmp_path / "recipe")
+    descriptor = yaml.safe_load(source.read_text())
+    sizes = [source.stat().st_size] + [
+        (source.parent / member["path"]).stat().st_size
+        for member in descriptor["files"]
+    ]
+    # Tiny fixture only: isolate aggregate accounting from the per-document cap.
+    monkeypatch.setattr(recipe, "MAX_DOCUMENT_BYTES", max(sizes))
+    monkeypatch.setattr(recipe, "MAX_RECIPE_BYTES", sum(sizes))
+    load_recipe(source)
+    monkeypatch.setattr(recipe, "MAX_RECIPE_BYTES", sum(sizes) - 1)
+    with pytest.raises(
+        ValueError, match=f"recipe metadata exceeds {sum(sizes) - 1} bytes"
+    ):
+        load_recipe(source)
+
+
+def test_attempt_contract_is_explicitly_unavailable(tmp_path):
+    source = write_recipe(
+        tmp_path / "recipe",
+        plan_updates={
+            "execution": {
+                "attempt_contract": {"path": "attempt.yaml", "sha256": "a" * 64}
+            }
+        },
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"unavailable recipe preview feature: execution\.attempt_contract",
+    ):
+        inspect_recipe(source)
+
+
+def test_descriptor_cannot_inventory_itself_before_digest_validation(tmp_path):
+    source = write_recipe(tmp_path / "recipe")
+    descriptor = yaml.safe_load(source.read_text())
+    descriptor["files"].append(
+        {
+            "path": source.name,
+            "role": "metadata",
+            "sha256": "0" * 64,
+        }
+    )
+    source.write_text(yaml.safe_dump(descriptor))
+    # No self-referential digest is manufactured: the dedicated refusal must
+    # precede the downstream digest mismatch that would otherwise reject this.
+    with pytest.raises(ValueError, match="recipe descriptor cannot inventory itself"):
+        load_recipe(source)
+
+
+def test_context_reference_rejects_uninventoried_existing_document(tmp_path):
+    source = write_recipe(tmp_path / "recipe")
+    context = load_recipe(source).context
+    (source.parent / "extra.yaml").write_text("{}")
+    with pytest.raises(ValueError, match="undeclared recipe reference: 'extra.yaml'"):
+        context.reference(source.parent / "plans/plan.yaml", "extra.yaml")

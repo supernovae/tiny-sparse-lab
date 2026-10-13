@@ -109,6 +109,16 @@ are not consumed by inspection.
 | Installed CLI → inspect/help | Guarded subprocess tests with global prefixes | No heavy optional/runtime imports, process/network calls, filesystem writes, token/payload reads |
 | Existing execution/readers | Normal safe/fast/lab-loop CI; declaration, manifest, seed and verifier-authority focused suites | Compatibility fences plus existing tiny CPU end-to-end coverage |
 
+The inventory regression fences also cover order-independent fingerprints, duplicate
+non-plan entries with specific refusal reasons, the aggregate metadata limit at an
+exact tiny boundary, attempt-contract refusal, descriptor self-inventory before
+its downstream digest mismatch, and direct uninventoried context references.
+Some guards intentionally overlap: document/root symlink checks complement
+`safe_path`, and config containment complements binding beneath an inventoried
+config directory. Removing one can leave end-to-end rejection intact. These
+checks remain as defense in depth; tests do not bypass upstream validation merely
+to force every redundant branch to fail independently.
+
 Remaining milestone work includes broader typed component interfaces and workflow
 connections, artifact selection/local binding contracts, complete resolved-plan
 compilation/admission through the existing executor, packaging/publication, and
