@@ -22,64 +22,20 @@ job = test_lab_job.job
 def native_job(job, tmp_path):
     root = tmp_path / "declarations"
     root.mkdir()
-    for name, sentence in (
-        ("train.jsonl", "The small red robot learns to stack a blue block."),
-        ("validation.jsonl", "A green robot carefully stacks the small yellow blocks."),
-    ):
-        (root / name).write_text(
-            "".join(
-                json.dumps({"text": sentence + f" Example {index}."}) + "\n"
-                for index in range(80)
-            )
-        )
+    import shutil
+
     repository = Path(__file__).resolve().parents[1]
-    config = yaml.safe_load((repository / "configs/smoke_cpu.yaml").read_text())
-    config["tokenizer"]["path"] = "../outputs/tokenizer/tokenizer.json"
-    config["dataset"].update(
-        source="local_text",
-        license="synthetic fixture (locally generated)",
-        train_path="train.jsonl",
-        validation_path="validation.jsonl",
-        cache_dir="../outputs/data",
-        train_max_documents=8,
-        validation_max_documents=4,
-        train_max_tokens=2048,
-        validation_max_tokens=512,
-    )
-    config["logging"]["root_dir"] = "../outputs/unused-runs"
-    config["model"].update(
-        vocab_size=260,
-        hidden_dim=16,
-        num_layers=1,
-        num_heads=2,
-        ffn_dim=32,
-        max_seq_len=32,
-    )
-    config["training"].update(
-        seq_len=16, max_steps=3, max_tokens=96, micro_batch_size=2
-    )
-    config["evaluation"].update(every_steps=3, max_batches=2)
-    config["checkpoint"].update(every_steps=3, keep_periodic=True)
-    config["optimizer"]["warmup_steps"] = 1
-    (root / "baseline.yaml").write_text(yaml.safe_dump(config))
-    token = {
-        "schema_version": 1,
-        "vocab_size": 260,
-        "min_frequency": 1,
-        "max_documents": 8,
-        "output_dir": "../outputs/tokenizer",
-        "dataset": config["dataset"],
-    }
-    (root / "tokenizer.yaml").write_text(yaml.safe_dump(token))
-    (root / "delta.yaml").write_text(
-        "question: Does FFN width change held-out loss after the same tiny training budget?\nset:\n  model.ffn_dim: 48\n"
-    )
-    (root / "try.yaml").write_text(
-        "try_config_version: 1\nseed: 7\nfresh_baseline: true\nprobe_tier: fast\nlab_dir: ../native/lab\nresource_envelope: bounds.yaml\n"
-    )
-    (root / "bounds.yaml").write_text(
-        "resource_envelope_version: 1\nlab_try:\n  max_wall_seconds_per_arm: 30\n  tokenizer_batch_documents: 8\n  tokenizer_batch_source_bytes: 1024\n"
-    )
+    inputs = repository / "examples/lab-job-try"
+    for name in (
+        "baseline.yaml",
+        "tokenizer.yaml",
+        "delta.yaml",
+        "try.yaml",
+        "bounds.yaml",
+        "train.jsonl",
+        "validation.jsonl",
+    ):
+        shutil.copyfile(inputs / name, root / name)
     workload = jobs.TryWorkload(
         kind="lab_try",
         profile="tiny-cpu-lab",
@@ -192,6 +148,42 @@ def test_native_model_workflow_and_collection_never_retrain(
         assert len(list(native_job.host.state.glob("*/pending.json"))) == 1
     finally:
         retained.rename(observation)
+    assert jobs.collect(native_job) == result
+    # Reuse this completed workflow for verifier fault injection. Match the
+    # specific refusal so a later report/hash check cannot mask a missing guard.
+    import copy
+
+    from sparselab import lab_mode
+
+    for damage, message in (
+        ("job-binding", "native record identity mismatch"),
+        ("reused-arm", "native arm did not execute"),
+        ("short-steps", "native optimizer did not reach declared"),
+        ("short-tokens", "native optimizer did not reach declared"),
+    ):
+        altered = copy.deepcopy(record)
+        if damage == "job-binding":
+            altered["request"]["job_binding"]["manifest_sha256"] = "0" * 64
+        elif damage == "reused-arm":
+            altered["arms"]["baseline"]["reused"] = True
+        elif damage == "short-steps":
+            altered["arms"]["baseline"]["step"] -= 1
+        else:
+            altered["arms"]["baseline"]["tokens_seen"] -= 1
+        with monkeypatch.context() as patch:
+            patch.setattr(lab_mode, "read_record", lambda path, value=altered: value)
+            with pytest.raises(ValueError, match=message):
+                jobs.collect(native_job)
+        assert len(list(native_job.host.state.glob("*/pending.json"))) == 1
+    report = evidence / "report.stdout"
+    original_report = report.read_bytes()
+    try:
+        report.write_text("{}\n")
+        with pytest.raises(ValueError, match="report did not consume the exact"):
+            jobs.collect(native_job)
+        assert len(list(native_job.host.state.glob("*/pending.json"))) == 1
+    finally:
+        report.write_bytes(original_report)
     assert jobs.collect(native_job) == result
     print(
         json.dumps(
@@ -311,3 +303,33 @@ def test_native_profile_refuses_unsafe_declarations_before_admission(
     with pytest.raises(ValueError):
         declarations(workload, root)
     assert not list(native_job.host.state.iterdir())
+
+
+@pytest.mark.parametrize("same_path", [True, False])
+def test_identical_native_splits_refuse_before_admission(native_job, same_path):
+    from sparselab.lab_job_workload import declarations
+
+    root = native_job.workload.root
+    if same_path:
+        for name in ("baseline.yaml", "tokenizer.yaml"):
+            path = root / name
+            data = yaml.safe_load(path.read_text())
+            data["dataset"]["validation_path"] = "train.jsonl"
+            path.write_text(yaml.safe_dump(data))
+    else:
+        (root / "validation.jsonl").write_bytes((root / "train.jsonl").read_bytes())
+    workload = native_job.workload.model_copy(
+        update={
+            "files": {
+                name: sha256_file(root / name) for name in native_job.workload.files
+            }
+        }
+    )
+    message = (
+        "local_text training and validation must be separate files"
+        if same_path
+        else "training and held-out inputs must be distinct"
+    )
+    with pytest.raises(ValueError, match=message):
+        declarations(workload, root)
+    assert not list(native_job.host.state.glob("*/pending.json"))

@@ -367,8 +367,17 @@ def verify_native_result(job, evidence: Path, binding: dict) -> dict:
         run = evidence / "native/lab/runs" / arm["run_id"]
         if str(run) != arm["run_dir"] or arm["reused"] or arm["status"] != "completed":
             raise ValueError("native arm did not execute in the admitted root")
-        if arm["step"] != config.training.max_steps or arm["tokens_seen"] <= 0:
-            raise ValueError("native optimizer did not reach declared updates")
+        expected_targets = min(
+            config.training.max_tokens,
+            config.training.max_steps
+            * config.training.seq_len
+            * config.training.micro_batch_size,
+        )
+        if (
+            arm["step"] != config.training.max_steps
+            or arm["tokens_seen"] != expected_targets
+        ):
+            raise ValueError("native optimizer did not reach declared updates/tokens")
         heldout = arm["heldout"]
         if not math.isfinite(heldout["loss"]) or heldout["valid_targets"] <= 0:
             raise ValueError("missing finite held-out model output")

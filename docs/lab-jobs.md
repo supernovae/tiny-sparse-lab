@@ -48,7 +48,9 @@ under the same UID. No installation or persistent environment mutation occurs.
 local JSONL: a 260-token tokenizer, one-layer 16-wide CPU fp32 models, an explicit
 FFN width delta 32 → 48, paired seed 7, **3 updates / 96 targets per arm** and
 64 held-out targets per arm. A higher, lower or tied candidate loss is a valid
-result; this wiring fixture makes no quality claim. The manifest names native
+result; this wiring fixture makes no quality claim. Distinct file hashes do not
+prove document-level split disjointness; inspect selected data before using other
+inputs. This example uses distinct generated training and validation sentences. The manifest names native
 YAML declarations and hashes their complete input closure. Relative producer and
 consumer paths resolve inside retained evidence after the exact bytes are copied.
 
@@ -158,7 +160,9 @@ executed/skipped status. The final verifier checks native completion and owned
 cleanup, manifest/source/size/time, sealed try/report equality, declaration and
 data/tokenizer bindings, executed non-reused arms, checkpoint hashes/counters,
 finite held-out output and its checkpoint identity. It does no training or
-scoring. Missing evidence refuses finalization. Failed/skipped gates cannot pass.
+scoring. Missing or semantically inconsistent evidence refuses finalization and
+remains available as `COLLECTABLE` for inspection; no replacement failure summary
+or launch is invented. Failed/skipped gates cannot pass.
 All native artifacts live in durable evidence, separately from disposable scratch.
 `summary.json` indexes retained bytes/hashes and includes native IDs, comparison,
 measured RSS/time and checks. `controller_completion` remains distinct from

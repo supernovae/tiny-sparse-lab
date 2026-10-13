@@ -122,6 +122,8 @@ def job(tmp_path, monkeypatch):
 
 
 def test_end_to_end_and_duplicate_returns_verified_result(job):
+    # An ancestor config must not change JUnit's named-node identities.
+    (job.host.work / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")
     result = jobs.admit(job)
     assert result["summary"]["controller_completion"] == "PASS"
     assert result["summary"]["coordinator_acceptance"] == "PENDING"

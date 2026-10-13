@@ -303,6 +303,8 @@ def _command(
             "addopts=",
             "-m",
             "not mps and not mlx and not cuda and not rocm and not xpu and not network",
+            "--rootdir",
+            str(source),
             "--basetemp",
             str(scratch / "pytest"),
             "--junitxml",
