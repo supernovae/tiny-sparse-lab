@@ -625,9 +625,10 @@ def test_admission_caps_use_train_plus_validation_and_accept_exact_bound(
     assert not work.exists()
 
 
+@pytest.mark.parametrize("offset", [0, 1])
 @pytest.mark.parametrize("field", ["max_documents", "vocab_size"])
 def test_admission_caps_isolate_tokenizer_config_from_dataset_and_model(
-    tmp_path, monkeypatch, field
+    tmp_path, monkeypatch, field, offset
 ):
     source, bindings, work, admission = setup(tmp_path)
     limit = getattr(
@@ -635,7 +636,7 @@ def test_admission_caps_isolate_tokenizer_config_from_dataset_and_model(
     )
     tokenizer = source.parent / "tokenizer.yaml"
     raw = json.loads(tokenizer.read_text())
-    raw[field] = limit + 1
+    raw[field] = limit + offset
     tokenizer.write_text(json.dumps(raw))
     repin(source)
     git(source.parent, "add", ".")
@@ -650,7 +651,7 @@ def test_admission_caps_isolate_tokenizer_config_from_dataset_and_model(
         "isolated tokenizer cap fixture",
     )
     loaded = load_preparation_recipe(source, bindings)
-    assert loaded.configs["train"].model_dump()[field] == limit + 1
+    assert loaded.configs["train"].model_dump()[field] == limit + offset
     assert loaded.configs["pack"].model.vocab_size <= admission.max_vocab_size
     for config in loaded.configs.values():
         assert (
@@ -668,11 +669,15 @@ def test_admission_caps_isolate_tokenizer_config_from_dataset_and_model(
         }
     )
     forbid_directory_creation(monkeypatch)
-    with pytest.raises(
-        ValueError,
-        match="^preparation exceeds explicit document/token/vocabulary limits$",
-    ):
-        PreparationExecution(source, bindings, work, admission)
+    if offset:
+        with pytest.raises(
+            ValueError,
+            match="^preparation exceeds explicit document/token/vocabulary limits$",
+        ):
+            PreparationExecution(source, bindings, work, admission)
+    else:
+        context = PreparationExecution(source, bindings, work, admission)
+        assert context.loaded == loaded
     assert not work.exists()
 
 
