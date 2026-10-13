@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import (
-    BaseModel,
     Field,
     StrictInt,
     StrictStr,
@@ -20,6 +19,12 @@ from pydantic import (
 )
 
 from sparselab.config.models import RunConfig, StrictModel
+from sparselab.config.recipe_paths import (
+    _INPUT_FIELDS,
+    _OUTPUT_FIELDS,
+    _bind_config,
+    _paths,
+)
 from sparselab.declaration_context import RecipeContext, canonical_reference, safe_path
 from sparselab.documents import parse_document
 from sparselab.experiments.compiler import compare_configs, expand_axes, flatten_config
@@ -31,20 +36,6 @@ MAX_DOCUMENT_BYTES = 1024 * 1024
 MAX_RECIPE_BYTES = 8 * MAX_DOCUMENT_BYTES
 MAX_DOCUMENTS = 64
 _CONTRACTS = {"experiment_plan": 1, "run_config": 2}
-_INPUT_FIELDS = frozenset(
-    {
-        "tokenizer.path",
-        "model.memory_package_path",
-        "dataset.train_path",
-        "dataset.validation_path",
-        "dataset.source_manifest_path",
-        "dataset.allocation_manifest_path",
-        "dataset.corpus_release_path",
-        "dataset.corpus_export_path",
-        "training.portability_manifest_path",
-    }
-)
-_OUTPUT_FIELDS = frozenset({"dataset.cache_dir", "logging.root_dir"})
 
 
 class RecipeFile(StrictModel):
@@ -120,6 +111,27 @@ def _metadata_bytes(path: Path) -> bytes:
     return data
 
 
+def snapshot_inventory(
+    path: Path, raw: bytes, files: tuple[RecipeFile, ...]
+) -> RecipeContext:
+    snapshots: dict[str, bytes] = {}
+    total = len(raw)
+    for member in files:
+        target = safe_path(path.parent, member.path)
+        if target == path:
+            raise ValueError("recipe descriptor cannot inventory itself")
+        data = _metadata_bytes(target)
+        total += len(data)
+        if total > MAX_RECIPE_BYTES:
+            raise ValueError(f"recipe metadata exceeds {MAX_RECIPE_BYTES} bytes")
+        if hashlib.sha256(data).hexdigest() != member.sha256:
+            raise ValueError(f"recipe document digest mismatch: {target}")
+        # Every inventoried member is metadata, never a model/corpus payload.
+        parse_document(data.decode("utf-8"), source=target)
+        snapshots[member.path] = data
+    return RecipeContext(path.parent, snapshots)
+
+
 def load_recipe(path: Path) -> LoadedRecipe:
     """Authenticate only explicitly inventoried bounded declaration bytes."""
     path = Path(path).absolute()
@@ -128,22 +140,7 @@ def load_recipe(path: Path) -> LoadedRecipe:
         descriptor = PortableRecipe.model_validate(
             parse_document(raw.decode("utf-8"), source=path)
         )
-        snapshots: dict[str, bytes] = {}
-        total = len(raw)
-        for member in descriptor.files:
-            target = safe_path(path.parent, member.path)
-            if target == path:
-                raise ValueError("recipe descriptor cannot inventory itself")
-            data = _metadata_bytes(target)
-            total += len(data)
-            if total > MAX_RECIPE_BYTES:
-                raise ValueError(f"recipe metadata exceeds {MAX_RECIPE_BYTES} bytes")
-            if hashlib.sha256(data).hexdigest() != member.sha256:
-                raise ValueError(f"recipe document digest mismatch: {target}")
-            # Every inventoried member is metadata, never a model/corpus payload.
-            parse_document(data.decode("utf-8"), source=target)
-            snapshots[member.path] = data
-        context = RecipeContext(path.parent, snapshots)
+        context = snapshot_inventory(path, raw, descriptor.files)
         canonical = descriptor.model_dump(mode="json")
         canonical["files"] = sorted(canonical["files"], key=lambda item: item["path"])
         fingerprint = hashlib.sha256(
@@ -156,33 +153,11 @@ def load_recipe(path: Path) -> LoadedRecipe:
         raise ValueError(f"invalid portable recipe {path}: {error}") from error
 
 
-def _paths(value: BaseModel, prefix: str = "") -> dict[str, Path]:
-    """Traverse native model-owned Path values, never arbitrary dict keys."""
-    paths = {}
-    for name in type(value).model_fields:
-        item = getattr(value, name)
-        field = f"{prefix}.{name}" if prefix else name
-        if isinstance(item, Path):
-            paths[field] = item
-        elif isinstance(item, BaseModel):
-            paths.update(_paths(item, field))
-    return paths
-
-
-def _bind_config(config: RunConfig, source: Path, context: RecipeContext) -> RunConfig:
-    raw = config.model_dump(mode="python")
-    for field, value in _paths(config).items():
-        if field not in _INPUT_FIELDS | _OUTPUT_FIELDS:
-            raise ValueError(
-                f"unsupported portable path field: {field}; native loaders are unchanged"
-            )
-        canonical_reference(value.as_posix())
-        path = safe_path(source.parent, value.as_posix())
-        if not path.is_relative_to(context.root):
-            raise ValueError(f"config path escapes recipe: {field}")
-        section, name = field.split(".")
-        raw[section][name] = path
-    return RunConfig.model_validate(raw)
+def _unavailable(field: str) -> ValueError:
+    return ValueError(
+        f"unavailable recipe preview feature: {field}; native declarations can use "
+        "`sparselab experiment inspect PLAN --json` (native path rules; recipe bindings are not inferred)"
+    )
 
 
 def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
@@ -201,23 +176,17 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
         "evaluations",
     ):
         if raw.get(field):
-            raise ValueError(
-                f"unavailable recipe preview feature: {field}; use native planning for this declaration"
-            )
+            raise _unavailable(field)
     if raw.get("evaluation_suite") is not None:
-        raise ValueError("unavailable recipe preview feature: evaluation_suite")
+        raise _unavailable("evaluation_suite")
     # Unsupported references are refused before native schema validation,
     # including malformed falsey values; schema checks themselves stay lightweight.
     execution = raw.get("execution")
     if isinstance(execution, dict) and execution.get("attempt_contract") is not None:
-        raise ValueError(
-            "unavailable recipe preview feature: execution.attempt_contract"
-        )
+        raise _unavailable("execution.attempt_contract")
     plan = ExperimentPlan.model_validate(raw)
     if plan.execution.attempt_contract is not None:
-        raise ValueError(
-            "unavailable recipe preview feature: execution.attempt_contract"
-        )
+        raise _unavailable("execution.attempt_contract")
     if not isinstance(plan.base_run, str):
         raise TypeError("portable recipe requires an inventoried base_run file")
     base_path = declaration_reference(source, plan.base_run, context=context)

@@ -200,7 +200,11 @@ def test_locked_child_request_uses_one_ingested_controller_attempt(
         config_sha256="b" * 64,
     )
     locked = SimpleNamespace(
-        id="fixture", phases=[phase], plan_sha256="a" * 64, scientific_sha256="c" * 64
+        id="fixture",
+        phases=[phase],
+        plan_sha256="a" * 64,
+        scientific_sha256="c" * 64,
+        availability={},
     )
     binding = tmp_path / "binding.json"
     binding.write_text("{}")

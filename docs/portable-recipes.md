@@ -11,6 +11,10 @@ complete LAB-71 portable experiment workflow. Computation stays in native Python
 components. The adapter calls `expand_axes` and `compare_configs`; there is no
 second scheduler, DAG, component registry, or plugin loader.
 
+A separate [prepared-input workflow profile](workflow-recipes.md) now connects
+explicit artifact bindings to native verification and lock publication. It does
+not change this v1 matrix profile or grant execution.
+
 ## Descriptor and declaration context
 
 A descriptor has these fields (replace the illustrative digests with exact
