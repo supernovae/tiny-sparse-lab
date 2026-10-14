@@ -8,17 +8,18 @@ workflow v1 formats, identities and commands are unchanged.
 The descriptor has `id`, `entrypoint`, `contracts` and `files`. Contracts must be
 `{campaign: 1, run_config: 2, tokenizer_config: 1}`. Each file has a canonical
 recipe-root-relative `path`, SHA-256 of its bytes, and a role: `campaign`,
-`run_config`, `tokenizer_config` or `metadata`. The entrypoint is the sole Campaign
+`run_config`, `tokenizer_config`, `source_lock` or `metadata`. The entrypoint is the sole Campaign
 member. All declaration references use the inventory root, never CWD or Git
 fallback. The existing 64-document, 1 MiB per-document and 8 MiB total limits apply.
 
 The entrypoint is a native CampaignPlan restricted to `tokenizer_train`,
-`data_prepare` and external tokenizer `artifact_reference` stages. CampaignPlan
+`data_prepare`, native `dataset_snapshot` and external tokenizer/snapshot
+`artifact_reference` stages. CampaignPlan
 remains the sole graph validator/order authority; `compile_preparation` produces
 its existing immutable operation projection. No second DAG or temporary YAML is
-created. Snapshot acquisition/edges, recovery and other stage kinds are refused
-before their validators can import computation. Broader contracts remain future
-work. Two supported compositions are:
+created. Snapshot edges use the existing typed preparation ports; acquisition
+uses the native Campaign snapshot stage with the separate admission below. Other
+stage kinds are refused before their validators can import computation. Two supported compositions are:
 
 - `tokenizer_train → data_prepare` with an unresolved future tokenizer output.
 - `artifact_reference(tokenizer) → data_prepare` with a declared, unverified identity.
@@ -201,8 +202,8 @@ publication CLI wiring and the remaining LAB-73/LAB-74 milestone work remain ope
 ## Verified local dataset snapshots
 
 Portable preparation can consume an already materialized native dataset snapshot.
-It cannot acquire one: `dataset_snapshot` **stages** remain unavailable in this
-profile. Use an `artifact_reference` of kind `dataset_snapshot` (corpus scope),
+This version-2 consumption profile does not authorize acquisition. Use an
+`artifact_reference` of kind `dataset_snapshot` (corpus scope),
 distinct from the existing corpus/Forge `source_snapshot` artifact:
 
 ```yaml
@@ -326,3 +327,107 @@ all three snapshot locations, and the per-split record ceiling at 39/40. Direct
 artifact-domain tests verify the envelope and refuse a genuinely verified legacy
 import without relying on verifier-authority pins. Malformed manifest metadata
 gets a descriptive admission error; unrelated internal KeyErrors remain visible.
+
+## Bounded Hub acquisition
+
+An inventoried native `source.lock.json` with role `source_lock` may now feed a
+native `dataset_snapshot` stage. Its `lock`, `output` and `cache_dir` placeholders
+are canonical recipe-relative references. `lock` resolves inside the inventory;
+local output/cache locations come exclusively from bindings version 2:
+
+```yaml
+preparation_bindings_version: 2
+artifacts: {}
+acquisitions:
+  input:
+    output: /absolute/work/snapshot
+    cache_dir: /absolute/work/acquisition-cache
+config_paths: # the same exact typed config bindings as above
+  # ...
+```
+
+Use native stage `kind: dataset_snapshot`, `id: input`, `scope: corpus`,
+`lock: source.lock.json`, `output: snapshot`, `cache_dir: acquisition-cache`.
+Consumers declare `snapshot: input` and `requires: [input]` as above. CampaignPlan
+still owns ordering, and CampaignEngine still owns snapshot journals, immutable
+receipts and recovery. No Forge Project, release workflow, plugin registry or
+second graph is introduced. `stage.resume` must remain false; use public
+`experiment recipe preparation resume` for explicit continuation.
+
+Preparation admission version 3 retains every version-2 field and adds
+`acquisitions`, keyed exactly by snapshot stage ID. Each entry requires:
+
+| Field | Contract |
+| --- | --- |
+| `acquisition_version`, `provider`, `decoder_profile` | `1`, `huggingface`, `scalar-parquet-v1` |
+| `repo_id`, `revision`, `lock_sha256` | Exact native lock authority; immutable 40-hex revision and 64-hex lock digest |
+| `allow_network` | Explicit `true`; inspection never uses this authority |
+| `max_source_body_bytes`, `max_transfers`, `max_retries_per_shard` | Full pinned file size reserved durably before a request, including each retry |
+| `max_metadata_body_bytes`, `max_requests` | Separate response-body reservations for redirects/errors and request count |
+| `max_wall_seconds` | Persistent deadline from ledger initialization, not reset on resume |
+| `max_cache_bytes`, `max_cache_files` | Private payload reservation ceilings, including retained partial files |
+| `max_scanned_rows` | Cumulative conservative row reservations before decoding, including replayed prefixes |
+| `max_verification_bytes` | Cumulative logical input-byte reservations for file authentication and each native snapshot verification call |
+| `max_observed_owned_bytes`, `max_observed_owned_inodes` | Aggregate work-root observations with stop-on-exceed behavior, **not a hard filesystem quota** |
+
+Integers are strict and positive except retries, which may be zero. Optional
+`require_hard_disk_bytes`, `require_hard_decoder_memory_bytes` and
+`require_expanded_bytes` are unavailable: setting any refuses before network or
+output. Parquet batch size is bounded by rows; that is not a bound on decoded
+bytes or peak decoder memory. Directory observations can miss transient peaks.
+Verification reservations count logical file lengths, not physical I/O bytes.
+
+The source lock must already contain reviewed ordered file inventories and
+loader options. Lock-time Hub discovery is outside this invocation. Only pinned
+whole Parquet files with scalar/text columns and supported scalar `Value`
+features are admitted; projection, filters, feature casts, media/external-file
+features, malformed-file skipping and unknown loader options are refused.
+Embedded feature metadata is checked too. Native selected-row ordering,
+deduplication, normalization, rights provenance and snapshot hashes are retained.
+Git blob IDs authenticate the Git blob header plus content; LFS SHA-256 values
+authenticate content directly. No global SDK cache or SDK streaming is used.
+Requests use HTTPS with explicit Hub delivery-host redirects; credentials are
+removed across origins, and transfer responses must have exact Content-Length
+and identity encoding.
+
+Operational state lives at `WORK/execution/acquisition/<binding>/transport.sqlite`
+with a `guard`, optional `CANCEL`, and diagnostic `receipt.json`. The cache has
+an exclusive `.owner` binding. Missing ledgers with existing payloads/journals,
+foreign caches and symlinks fail closed. The operation holds a native file lock;
+this is not a sandbox against malicious concurrent filesystem replacement.
+Native verifier databases and process scratch stay under the accounted work
+root. Snapshot record/byte limits cover declared inputs cumulatively; source
+journal limits remain distinct from downloaded cache allowances.
+
+Receipts distinguish `source_charged`/`metadata_charged` reservations from observed
+`source_actual`/`metadata_actual`. Observations may be incomplete after a crash;
+reservations are never refunded. `scanned_rows` is charged work and
+`scanned_rows_observed` is decoded rows observed. No wire-byte claim is made.
+Published files are authenticated on reuse, and repeated verification consumes
+the original allowance. Exhausting an allowance or the persistent deadline can
+therefore refuse replay. Cancellation retains both native journals and spent
+reservations; remove the owned `CANCEL` only when explicitly resuming. Successful
+snapshot publication followed by interrupted Campaign receipt commit reuses the
+published snapshot without another transfer.
+
+Version-1/2 admission and binding serialization, native source/snapshot/config
+hash algorithms, legacy seeds and historical readers remain unchanged. Direct
+native acquisition retains its existing loader capabilities. This new admission
+selects a deliberately narrower supported decoder contract.
+
+| Change boundary | Focused evidence |
+| --- | --- |
+| HTTP → authenticated private file | `test_bounded_acquisition`: loopback framing, typed Git/LFS hashes, auth stripping, redirect/error accounting, pre-request full-file/cache refusals |
+| Persistent admission → resume | Crash reservations, retry/request/deadline/cancel ceilings, missing/foreign ledger/cache, verification and scan exhaustion |
+| Recipe → native Campaign | `test_portable_acquisition`: inspect fences, authority/overlap/version refusals, public apply/resume, cancellation, interrupted publication commit |
+| Native scientific identity | Bounded HTTP and historical local Parquet decoder produce equal native manifests on the same locked bytes |
+| Legacy component boundaries | Existing preparation recipe/local-snapshot, registered verifier authority, source lifecycle and typed-plan regressions; normal safe/fast/lab-loop CI |
+
+This is fixture wiring and compatibility evidence. Real TinyStories acquisition
+needs its own immutable inventory, network/cache/storage admission and decoder
+resource qualification. Its first whole train+validation files require roughly
+259 MB of transfer/cache capacity; the full inventory is roughly 1 GB. The prior
+256 MiB snapshot-work allowance is not a download budget. Full migration,
+independent Workshop proof, paired training/comparison, continuation, evaluation,
+GPU qualification and legacy retirement remain separately gated in the
+[migration acceptance map](portable-experiment-migration.md).

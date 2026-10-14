@@ -547,6 +547,12 @@ def _stream_parquet(
 def _stream(
     source: DatasetSource, split: str, cache_dir: Path, *, inventory: dict | None = None
 ) -> Iterator[dict]:
+    from sparselab.data.acquisition_scope import current_transport
+
+    transport = current_transport.get()
+    if transport is not None:
+        yield from transport.stream(source, split, inventory)
+        return
     if source.kind == "forge_files":
         binding = source.forge_files[split]
         for name in binding.files:
@@ -1021,6 +1027,11 @@ def verify_snapshot(
     if state is not None:
         state.statistics["calls"] += 1
     locator = str(_manifest_path(config).absolute())
+    from sparselab.data.acquisition_scope import verification_transport
+
+    transport = verification_transport(Path(locator))
+    if transport is not None:
+        transport.before_verification(Path(locator))
     try:
         path, manifest, source = _snapshot_preflight(config)
         reuse = (
@@ -1141,7 +1152,13 @@ def _verify_snapshot_cold(path: Path, manifest: dict, source: DatasetSource) -> 
     ):
         raise ValueError("snapshot exclusions digest mismatch")
     counts = {split: _counts() for split in source.splits}
-    with tempfile.TemporaryDirectory(prefix="sparselab-verify-") as temporary:
+    from sparselab.data.acquisition_scope import verification_transport
+
+    transport = verification_transport(path.absolute())
+    with tempfile.TemporaryDirectory(
+        prefix="sparselab-verify-",
+        dir=transport.scratch() if transport is not None else None,
+    ) as temporary:
         db = sqlite3.connect(Path(temporary) / "seen.sqlite")
         try:
             db.execute("PRAGMA temp_store=FILE")
@@ -1304,7 +1321,11 @@ def _verify_snapshot_cold(path: Path, manifest: dict, source: DatasetSource) -> 
                     ):
                         raise ValueError("snapshot stop reason contradicts selection")
         finally:
-            db.close()
+            try:
+                if transport is not None:
+                    transport.observe()
+            finally:
+                db.close()
     if (
         sum(item["text_bytes"] for item in counts.values())
         > source.resources.max_text_bytes
