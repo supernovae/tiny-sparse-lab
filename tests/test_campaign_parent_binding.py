@@ -144,6 +144,7 @@ def test_existing_child_attempt_reconciles_distinct_parent_identities(
         "sparselab.experiments.cli.locked_cell_request", lambda *a, **kw: request
     )
     engine = object.__new__(CampaignEngine)
+    engine.workflow_context = None
     engine._upstream = lambda *a: {"availability": {}}
     attempt = {"spec": spec.model_dump(mode="json"), "run_id": "child"}
     controller = SimpleNamespace(

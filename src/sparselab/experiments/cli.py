@@ -384,9 +384,13 @@ def locked_cell_request(
     *,
     runtime_binding_sha256: str | None = None,
     read_only: bool = False,
+    workflow_context: Any = None,
 ) -> dict[str, Any]:
     """Construct the same lock-bound worker request for CLI and campaign runs."""
-    _require_executable_profile(locked)
+    if workflow_context is None:
+        _require_executable_profile(locked)
+    else:
+        workflow_context.authorize_lock(locked)
     phase = next(phase for phase in locked.phases if phase.id == cell.phase)
     parent_path: Path | None = None
     parent_digest: str | None = None

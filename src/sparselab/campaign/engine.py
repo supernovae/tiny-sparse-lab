@@ -22,6 +22,7 @@ from sparselab.workdir import storage_checks, warn_storage_checks
 if TYPE_CHECKING:
     from sparselab.campaign.preparation_plan import PreparationRequest
     from sparselab.experiments.preparation_execution import PreparationExecution
+    from sparselab.experiments.workflow_execution import WorkflowExecution
 
 
 def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
@@ -66,9 +67,23 @@ class CampaignEngine:
         observer: Any | None = None,
         cold_verify: bool = False,
         preparation_context: PreparationExecution | None = None,
+        workflow_context: WorkflowExecution | None = None,
     ) -> None:
         self.source = Path(source).resolve()
         self.preparation_context = preparation_context
+        self.workflow_context = workflow_context
+        if preparation_context is not None and workflow_context is not None:
+            raise ValueError("select one portable execution context")
+        self.execution_context = preparation_context or workflow_context
+        if workflow_context is not None:
+            workflow_context.refresh()
+            if (
+                self.source != workflow_context.campaign_source
+                or Path(work_dir).absolute() != workflow_context.work_dir
+            ):
+                raise ValueError(
+                    "workflow engine source/work root differs from context"
+                )
         if preparation_context is not None:
             preparation_context.refresh()
             expected = (
@@ -85,6 +100,8 @@ class CampaignEngine:
         self.plan = (
             preparation_context.loaded.plan
             if preparation_context is not None
+            else workflow_context.campaign
+            if workflow_context is not None
             else load_campaign(self.source)
         )
         from sparselab.campaign.preparation_plan import compile_preparation
@@ -168,6 +185,10 @@ class CampaignEngine:
         }
 
     def _path(self, reference: str) -> Path:
+        if self.workflow_context is not None:
+            return self.workflow_context.loaded.context.reference(
+                self.source, reference
+            )
         return safe_path(self.source.parent, reference)
 
     def _preparation_request(
@@ -282,6 +303,10 @@ class CampaignEngine:
             elif consumer.kind == "experiment_plan" and consumer.tokenizer == stage.id:
                 path = self._path(consumer.source)
                 if path.is_file():
+                    if self.workflow_context is not None:
+                        return self.workflow_context.config.dataset.model_copy(
+                            deep=True
+                        )
                     return base_run_config(load_plan(path), path).dataset
         return None
 
@@ -488,6 +513,8 @@ class CampaignEngine:
                     f"DECLARATION_IDENTITY_UNKNOWN: stage {row['id']} "
                     "has no committed closure binding"
                 )
+            if prior.get("workflow_context") != provenance.get("workflow_context"):
+                raise ValueError("WORKFLOW_CONTEXT_CHANGED: receipt context differs")
             if prior.get("preparation_context") != provenance.get(
                 "preparation_context"
             ):
@@ -1352,13 +1379,16 @@ class CampaignEngine:
         if command not in {"plan", "next", "status", "explain"}:
             raise ValueError(f"unknown inspection command {command}")
         persisted = self.store.read()
-        if self.preparation_context is not None:
-            provenance = self.preparation_context.refresh()
+        if self.execution_context is not None:
+            provenance = self.execution_context.refresh()
             self._assert_declaration_identity(
                 self.store.reconcile(persisted or self.store.initial()), provenance
             )
         elif persisted is not None and any(
-            row.get("declaration_provenance", {}).get("preparation_context")
+            (
+                row.get("declaration_provenance", {}).get("preparation_context")
+                or row.get("declaration_provenance", {}).get("workflow_context")
+            )
             for row in persisted["stages"]
         ):
             raise ValueError(
@@ -1384,8 +1414,11 @@ class CampaignEngine:
         state = persisted or self.store.initial()
         if command != "status":
             state = self.store.reconcile(state)
-        if self.preparation_context is None and any(
-            row.get("declaration_provenance", {}).get("preparation_context")
+        if self.execution_context is None and any(
+            (
+                row.get("declaration_provenance", {}).get("preparation_context")
+                or row.get("declaration_provenance", {}).get("workflow_context")
+            )
             for row in state["stages"]
         ):
             raise ValueError(
@@ -1422,6 +1455,8 @@ class CampaignEngine:
             raise ValueError("max wait seconds must be finite and nonnegative")
         if only_stage is not None and only_stage not in self.stages:
             raise ValueError("selected Campaign stage does not exist")
+        if self.workflow_context is not None and allow_uncommitted_declaration:
+            raise ValueError("workflow context does not allow uncommitted declarations")
         if self.preparation_context is not None and (
             allow_uncommitted_declaration or execute_runs
         ):
@@ -1429,8 +1464,8 @@ class CampaignEngine:
                 "preparation context does not allow overrides or model execution"
             )
         provenance = (
-            self.preparation_context.refresh()
-            if self.preparation_context is not None
+            self.execution_context.refresh()
+            if self.execution_context is not None
             else declaration_preflight(
                 self.source, "campaign", allow_uncommitted=allow_uncommitted_declaration
             )
@@ -1557,8 +1592,8 @@ class CampaignEngine:
                 try:
                     if dispatch_error is not None:
                         raise dispatch_error
-                    if self.preparation_context is not None:
-                        self.preparation_context.refresh()
+                    if self.execution_context is not None:
+                        self.execution_context.refresh()
                     result = self.dispatch(
                         stage,
                         rows,
@@ -1578,8 +1613,8 @@ class CampaignEngine:
                 )
 
                 current = (
-                    self.preparation_context.refresh()
-                    if self.preparation_context is not None
+                    self.execution_context.refresh()
+                    if self.execution_context is not None
                     else git_provenance(declaration_paths(self.source, "campaign"))
                 )
                 current["closure"] = self._provenance_closure(current)
@@ -1704,13 +1739,19 @@ class CampaignEngine:
     ) -> dict:
         if decision not in {"approve", "reject"}:
             raise ValueError("approval decision must be approve or reject")
+        if self.execution_context is not None:
+            self.execution_context.refresh()
         with self.store.locked():
             state = self.store.read()
             if state is None:
                 raise ValueError("campaign has no pending gate")
             from sparselab.recovery.provenance import declaration_paths, git_provenance
 
-            provenance = git_provenance(declaration_paths(self.source, "campaign"))
+            provenance = (
+                self.execution_context.refresh()
+                if self.execution_context is not None
+                else git_provenance(declaration_paths(self.source, "campaign"))
+            )
             provenance["closure"] = self._provenance_closure(provenance)
             self._require_declaration_files(provenance)
             self._assert_declaration_identity(state, provenance)
@@ -1791,6 +1832,7 @@ class CampaignEngine:
                 controller,
                 read_only=True,
                 runtime_binding_sha256=runtime_digest,
+                workflow_context=self.workflow_context,
             )
             if (
                 spec.config.model_dump(mode="json")
@@ -2018,7 +2060,11 @@ class CampaignEngine:
                     "DO_NOT_ADVANCE",
                     reason=f"missing experiment plan: {source}",
                 )
-            plan = load_plan(source)
+            plan = (
+                self.workflow_context.loaded.plan
+                if self.workflow_context is not None
+                else load_plan(source)
+            )
             if stage.mode == "bind":
                 from sparselab.experiments.direct_inputs import bind_direct_inputs
 
@@ -2061,7 +2107,11 @@ class CampaignEngine:
                 source = destination
             from sparselab.experiments.plan import base_run_config
 
-            config = base_run_config(plan, source)
+            config = (
+                self.workflow_context.config
+                if self.workflow_context is not None
+                else base_run_config(plan, source)
+            )
             configured_checks = [
                 check
                 for kind, target in (
@@ -2106,9 +2156,17 @@ class CampaignEngine:
                             handle.write(canonical_json(prepared) + b"\n")
                             handle.flush()
                             os.fsync(handle.fileno())
-                lock = resolve_plan(
-                    plan, source, prepared=prepared, **self._verification()
-                )
+                if self.workflow_context is not None:
+                    from sparselab.experiments.workflow_recipe import resolve_workflow
+
+                    self.workflow_context.refresh()
+                    lock = resolve_workflow(
+                        self.workflow_context.source, self.workflow_context.bindings
+                    )
+                else:
+                    lock = resolve_plan(
+                        plan, source, prepared=prepared, **self._verification()
+                    )
                 from sparselab.data.legacy import require_current_dataset
 
                 for cell in lock.cells:
@@ -2348,6 +2406,7 @@ class CampaignEngine:
                     workspace,
                     controller,
                     runtime_binding_sha256=runtime_digest,
+                    workflow_context=self.workflow_context,
                 )
                 request["declaration_provenance"] = rows[stage.id][
                     "declaration_provenance"

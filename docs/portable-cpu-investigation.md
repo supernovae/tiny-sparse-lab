@@ -1,7 +1,9 @@
 # Portable CPU investigation: partial LAB-73/74 verification
 
-As of 2026-10-14, revision `61269a2a8c7ce55b6b1a2027325f99be73b56048`
-provides partial LAB-73/74 verification. Neither card is resolved, and end-to-end
+The historical PR126 investigation snapshot was revision
+`61269a2a8c7ce55b6b1a2027325f99be73b56048`; the final regression correction was
+`d5ab0b4816572364870d12f9f5ab3da3a036c7d8`, merged as
+`fdf1a09edc0661e107b30e9941ff7b954aa2738c`. That PR supplied partial LAB-73/74 verification. Neither card is resolved, and end-to-end
 portable execution has not been proved. The retained contract coverage is:
 
 | Card / boundary | Retained verification | Still missing |
@@ -37,3 +39,16 @@ also needs shared committed-inventory provenance and bounded evaluation/runtime
 admission in the existing planner and request path.
 TinyStories qualification, LAB-75 CLI, Workshop, website and release remain outside
 this slice; historical hashes, seed acceptance and runner holds are unchanged.
+
+
+A subsequent, separately authorized native synthetic CPU proof at `d5ab0b4`
+completed in 153.2 seconds, including ingestion, diagnostic suite evaluation,
+collection, publication-report rendering and replay with one retained attempt.
+Its envelope included smoke and warmup pilots plus runtime optimizer probes;
+measured peak process-tree RSS was 1,558,810,624 bytes and workspace growth was
+3,752,253 bytes. The native cleanup receipt recorded no living descendants.
+Artifact transfer/verification took 62.2 seconds, consistent with the earlier
+interrupted ingestion. This used an explicitly authored native Campaign;
+it did not establish portable workflow execution admission or scientific quality.
+The [prepared-input bridge](workflow-recipes.md#prepared-input-cpu-execution)
+carries the external declaration context through that existing native path.

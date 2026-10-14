@@ -599,7 +599,11 @@ def test_direct_contextual_resolver_refuses_external_declarations_before_inputs(
     )
     with pytest.raises(
         ValueError,
-        match="^recipe context does not yet support variant, suite or attempt-contract references$",
+        match=(
+            "undeclared recipe reference"
+            if feature == "suite"
+            else "^recipe context does not yet support variant or attempt-contract references$"
+        ),
     ):
         native.resolve_plan(plan, loaded.source, context=loaded.context)
     assert not (source.parent / "payload").exists()
@@ -708,3 +712,16 @@ def test_locked_context_redundant_availability_consistency(
     ):
         workflow_recipe.locked_workflow_context(lock, actual_source)
     assert reads == [loaded.recipe_sha256]  # Descriptor/binding/inventory passed.
+
+
+def test_legacy_fingerprint_uses_pre_campaign_canonical_form(tmp_path):
+    from sparselab.training.manifest import canonical_json
+
+    source, bindings = write_workflow(tmp_path / "legacy")
+    legacy = json.loads(source.read_text())
+    assert "campaign" not in legacy
+    legacy["files"] = sorted(legacy["files"], key=lambda member: member["path"])
+    expected = hashlib.sha256(
+        b"sparselab-portable-workflow-v1\0" + canonical_json(legacy)
+    ).hexdigest()
+    assert load_workflow(source, bindings).recipe_sha256 == expected
