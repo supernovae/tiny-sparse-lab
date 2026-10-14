@@ -431,3 +431,40 @@ resource qualification. Its first whole train+validation files require roughly
 independent Workshop proof, paired training/comparison, continuation, evaluation,
 GPU qualification and legacy retirement remain separately gated in the
 [migration acceptance map](portable-experiment-migration.md).
+
+### Acquisition guard coverage after external review
+
+`test_acquisition_guards.py` and `test_acquisition_authority.py` add direct
+behavioral fences below the public lifecycle tests. They use in-memory HTTP
+responses, a fake bearer token and a socket-connection tripwire; no credential
+store or external endpoint is accessed. Their checks are independent of source
+hash pins. The production implementation is unchanged by this coverage revision.
+
+| Boundary | Added cases |
+| --- | --- |
+| HTTP authority | HTTPS, userinfo, port, delivery-host allowlist and misleading hostname; host-based and cross-netloc credential stripping independently |
+| HTTP response | Encoding, non-200 status, missing redirect location, redirect count, missing/mismatched Content-Length and Transfer-Encoding |
+| Cache/storage | Size before hashing with otherwise valid LFS content; symlinked locations/ancestors and operational files; absent/changed owner; invalid member names; existing byte/file quotas; observed owned-storage stop |
+| Admission/recipe | Work-root containment, all reserved directories, distinct paths, equal/nested output and log collisions, exact admission/binding stage sets, source-lock role, explicit resume/network permission |
+| Invocation ownership | Independent file descriptions refuse concurrent entry, then admit entry after lock release; no scheduling assumptions or sleep |
+| Decoder/verification | Loader, extension, nonempty inventory, feature dtype, changed inventory, scalar columns, string text field, compatible-but-forbidden feature casts, over-reservation batches, cumulative snapshot bytes and repeated verification charges |
+
+Targeted one-at-a-time removal of 39 guard raises/calls caused the corresponding
+new tests to fail; unmodified code passes. This includes removing each credential
+strip independently, the exclusive flock, the observed-storage stop, and the
+verification charge. Source bytes were restored after every mutation. Decoder
+column/batch tests explicitly isolate their boundary from feature/ledger checks
+that could otherwise mask a removed guard; a castable schema avoids unrelated
+Arrow conversion errors. These checks supplement the existing interruption,
+cancellation, publication recovery and replay tests, rather than treating the
+session's measured proof as guard coverage.
+
+The existing measured proofs remain attributed to head
+`5275a4302f7895a816807eefd3d2c823d6ae94a5`; they are not relabeled as measurements
+of later test-only revisions. Real-data/decoder qualification remains open.
+
+The observation-cost suggestion is valid: walking the entire work root for each
+64 KiB read and each decoded batch scales with both entry count and observation
+frequency. This revision preserves those accounting checkpoints. Rate limiting
+would change stop-detection latency and missed-peak behavior; it needs a separate
+bounded benchmark and explicit sampling policy before altering the contract.
