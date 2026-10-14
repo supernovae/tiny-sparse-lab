@@ -1,4 +1,4 @@
-"""Versioned admission of inventoried prepared-input CPU Campaigns.
+"""Current admission of inventoried prepared-input CPU Campaigns.
 
 The authored native Campaign owns connections; this context authenticates them.
 A reviewed commit is a caller assertion, not author attestation or compute credit.
@@ -24,7 +24,7 @@ from sparselab.experiments.workflow_recipe import (
 from sparselab.recovery.provenance import git_provenance, repository_root
 
 
-class PairLimits(StrictModel):
+class WorkflowLimits(StrictModel):
     """Declared ceilings, not allocation or an operating-system resource quota."""
 
     max_training_updates: StrictInt = Field(gt=0)
@@ -33,18 +33,23 @@ class PairLimits(StrictModel):
 
 
 class WorkflowAdmission(StrictModel):
-    workflow_admission_version: StrictInt = Field(ge=1, le=3)
     reviewed_commit: StrictStr = Field(pattern=r"^[0-9a-f]{40}$")
     recipe_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     binding_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     cpu_python: Path
-    pair_limits: PairLimits | None = Field(default=None, exclude_if=lambda v: v is None)
+    limits: WorkflowLimits
 
-    @model_validator(mode="after")
-    def versioned_limits(self):
-        if (self.workflow_admission_version >= 2) != (self.pair_limits is not None):
-            raise ValueError("pair_limits are required for workflow admission v2/v3")
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def current_contract(cls, value):
+        if isinstance(value, dict) and (
+            "workflow_admission_version" in value or "pair_limits" in value
+        ):
+            raise ValueError(
+                "obsolete workflow admission; regenerate admission with explicit limits "
+                "for the current authored workflow and reviewed commit"
+            )
+        return value
 
 
 class WorkflowExecution:
@@ -84,128 +89,61 @@ class WorkflowExecution:
                     raise ValueError("Campaign artifact differs from workflow identity")
                 stage["artifact"] = loaded.plan.artifacts[name].model_dump(mode="json")
         self.campaign = CampaignPlan.model_validate(document)
-        if admission.workflow_admission_version >= 2:
-            self._validate_pair()
-        else:
-            self._validate_single()
+        self._validate_workflow()
         self.refresh()
 
-    def _validate_single(self):
-        if any(getattr(s, "evaluations", ()) for s in self.campaign.stages):
-            raise ValueError("final collection requires workflow admission v3")
-        loaded = self.loaded
-        kinds = [s.kind for s in self.campaign.stages]
-        if (
-            sorted(kinds)
-            != sorted(
-                [
-                    "artifact_reference",
-                    "artifact_reference",
-                    "experiment_plan",
-                    "runtime_acceptance",
-                    "approval",
-                    "experiment_run",
-                    "experiment_collect",
-                    "evaluation",
-                ]
-            )
-            or self.campaign.recovery is not None
-        ):
-            raise ValueError("workflow supports one prepared-input CPU Campaign")
-        stages = {s.kind: s for s in self.campaign.stages}
-        plan, runtime, gate, run, collect, evaluation = (
-            stages[k]
-            for k in (
-                "experiment_plan",
-                "runtime_acceptance",
-                "approval",
-                "experiment_run",
-                "experiment_collect",
-                "evaluation",
-            )
-        )
-        if (
-            plan.source != loaded.descriptor.entrypoint
-            or plan.mode != "lock"
-            or plan.tokenizer != loaded.plan.inputs["tokenizer"]
-            or plan.prepared != loaded.plan.inputs["prepared_data"]
-            or runtime.plan != plan.id
-            or runtime.profile_id is not None
-            or runtime.worker is not None
-            or set(gate.bind) != {plan.id, runtime.id}
-            or run.plan != plan.id
-            or run.runtime != runtime.id
-            or gate.id not in run.requires
-            or run.cell != "main:single"
-            or collect.plan != plan.id
-            or collect.run != run.id
-            or evaluation.collect != collect.id
-            or evaluation.backend not in (None, "cpu")
-            or evaluation.runtime is not None
-            or evaluation.suite != loaded.plan.evaluation_suite
-        ):
-            raise ValueError("unsupported portable Campaign connections")
-        if loaded.plan.axes or loaded.plan.comparisons:
-            raise ValueError("workflow execution supports one unexpanded cell")
-        self.config = recipe_run_config(
-            loaded.plan, loaded.source, context=loaded.context
-        )
-        if (
-            self.config.dataset.source != "synthetic"
-            or self.config.runtime.backend != "cpu"
-            or self.config.runtime.engine != "pytorch"
-            or loaded.plan.execution.backend not in (None, "cpu")
-        ):
-            raise ValueError("workflow execution supports synthetic CPU PyTorch only")
-
-    def _validate_pair(self):
+    def _validate_workflow(self):
         loaded = self.loaded
         plan = loaded.plan
-        if (
-            len(plan.axes) != 1
-            or len(plan.axes[0].choices) != 2
-            or len(plan.comparisons) != 1
-            or plan.comparisons[0].mode != "controlled"
-            or len(plan.comparisons[0].interventions) != 1
-            or plan.comparisons[0].phases
-        ):
-            raise ValueError(
-                "paired workflow requires two choices and one controlled comparison"
-            )
-        comparison = plan.comparisons[0]
-        # A pair shares its observation protocol and data. Native lock comparison
-        # checks the exact actual intervention, invariants and artifact identities.
-        intervention = comparison.interventions[0]
-        if intervention.split(".")[0] not in {"model", "attention", "optimizer"}:
-            raise ValueError(
-                "paired workflow intervention must preserve data, seed, runtime and evaluation"
-            )
+        paired = bool(plan.axes or plan.comparisons)
+        if paired:
+            if (
+                len(plan.axes) != 1
+                or len(plan.axes[0].choices) != 2
+                or len(plan.comparisons) != 1
+                or plan.comparisons[0].mode != "controlled"
+                or len(plan.comparisons[0].interventions) != 1
+                or plan.comparisons[0].phases
+            ):
+                raise ValueError(
+                    "paired workflow requires two choices and one controlled comparison"
+                )
+            comparison = plan.comparisons[0]
+            intervention = comparison.interventions[0]
+            if intervention.split(".")[0] not in {"model", "attention", "optimizer"}:
+                raise ValueError(
+                    "paired workflow intervention must preserve data, seed, runtime and evaluation"
+                )
         self.config = recipe_run_config(plan, loaded.source, context=loaded.context)
         expanded = expand_axes(
             self.config, plan.axes, max_runs=2, base_dir=loaded.source.parent
         )
         coordinates = [coordinate for _, coordinate in expanded]
-        if (
+        if paired and (
             comparison.baseline not in coordinates
             or comparison.variant not in coordinates
         ):
             raise ValueError(
                 "paired comparison must select both concrete configurations"
             )
-        limits = self.admission.pair_limits
-        assert limits is not None
+        # Data and graph determine supported capabilities; admission never selects
+        # a historical execution behavior.
+        expected_source = "snapshot" if paired else "synthetic"
+        limits = self.admission.limits
         updates = positions = 0
         for config, _ in expanded:
             if (
-                self.config.dataset.source != "snapshot"
+                self.config.dataset.source != expected_source
                 or config.dataset != self.config.dataset
                 or config.tokenizer != self.config.tokenizer
-                or config.dataset.source != "snapshot"
+                or config.dataset.source != expected_source
                 or config.runtime.backend != "cpu"
                 or config.runtime.engine != "pytorch"
                 or plan.execution.backend not in (None, "cpu")
             ):
-                raise ValueError("paired workflow supports snapshot CPU PyTorch only")
+                raise ValueError(
+                    f"workflow supports {expected_source} CPU PyTorch only"
+                )
             count = (
                 config.training.max_steps
                 + config.staging.smoke_steps
@@ -219,26 +157,26 @@ class WorkflowExecution:
                 * config.training.gradient_accumulation
             )
             if config.evaluation.max_batches > limits.max_eval_batches:
-                raise ValueError("paired workflow exceeds declared evaluation limit")
+                raise ValueError("workflow exceeds declared evaluation limit")
         if (
             updates > limits.max_training_updates
             or positions > limits.max_target_positions
         ):
             raise ValueError(
-                "paired workflow exceeds declared training limits (including pilots)"
+                "workflow exceeds declared training limits (including pilots)"
             )
         groups = {}
         for stage in self.campaign.stages:
             groups.setdefault(stage.kind, []).append(stage)
         finals = [s for s in groups.get("experiment_collect", []) if s.evaluations]
-        if self.admission.workflow_admission_version == 3:
-            if len(finals) != 1:
-                raise ValueError("workflow admission v3 requires one final collection")
-            groups["experiment_collect"] = [
-                s for s in groups["experiment_collect"] if not s.evaluations
-            ]
-        elif finals:
-            raise ValueError("final collection requires workflow admission v3")
+        if len(finals) != 1:
+            raise ValueError(
+                "current workflow requires one final collection; regenerate recipe"
+            )
+        groups["experiment_collect"] = [
+            s for s in groups["experiment_collect"] if not s.evaluations
+        ]
+        cell_count = len(expanded)
         counts = {kind: len(stages) for kind, stages in groups.items()}
         if (
             counts
@@ -247,14 +185,14 @@ class WorkflowExecution:
                 "experiment_plan": 1,
                 "runtime_acceptance": 1,
                 "approval": 1,
-                "experiment_run": 2,
-                "experiment_collect": 2,
-                "evaluation": 2,
+                "experiment_run": cell_count,
+                "experiment_collect": cell_count,
+                "evaluation": cell_count,
             }
             or self.campaign.recovery is not None
         ):
             raise ValueError(
-                "paired workflow requires one native plan and two run/collect/evaluation branches"
+                "workflow requires one native plan and one run/collect/evaluation branch per cell"
             )
         planning = groups["experiment_plan"][0]
         runtime = groups["runtime_acceptance"][0]
@@ -263,10 +201,14 @@ class WorkflowExecution:
         collects = groups["experiment_collect"]
         evaluations = groups["evaluation"]
         run_ids = {run.id for run in runs}
-        expected_cells = {
-            f"main:{plan.axes[0].name}={choice.label}"
-            for choice in plan.axes[0].choices
-        }
+        expected_cells = (
+            {
+                f"main:{plan.axes[0].name}={choice.label}"
+                for choice in plan.axes[0].choices
+            }
+            if paired
+            else {"main:single"}
+        )
         base_dependencies = {planning.id, runtime.id, gate.id}
         first = [run for run in runs if set(run.requires) == base_dependencies]
         if (
@@ -305,7 +247,7 @@ class WorkflowExecution:
                 for evaluation in evaluations
             )
         ):
-            raise ValueError("unsupported paired Campaign connections")
+            raise ValueError("unsupported portable Campaign connections")
         if finals:
             final = finals[0]
             evaluation_ids = {s.id for s in evaluations}
@@ -317,7 +259,7 @@ class WorkflowExecution:
                 or any(final.id in s.requires for s in self.campaign.stages)
             ):
                 raise ValueError(
-                    "final collection must follow both paired evaluations and be terminal"
+                    "final collection must follow all evaluations and be terminal"
                 )
 
     def refresh(self):

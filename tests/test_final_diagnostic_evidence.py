@@ -169,7 +169,8 @@ def test_verified_binding_roundtrip_and_report_projection(recorded):
     f = recorded
     result = bind_diagnostics(f.lock, f.payload, f.root, [f.ref])
     assert f.selected
-    assert result["version"] == 2 and f.payload["version"] == 1
+    assert result["diagnostic_status"] == "collected"
+    assert f.payload["diagnostic_status"] == "not_collected"
     assert result["diagnostic_evaluations"][0]["result"]["loss"] == 2.5
     projected = report_diagnostics(result)
     assert projected[0]["status"] == "COMPLETED"
@@ -208,13 +209,14 @@ def test_missing_record_is_not_computed(recorded, target):
         bind_diagnostics(recorded.lock, recorded.payload, recorded.root, [recorded.ref])
 
 
-def test_unavailable_result_remains_unavailable(recorded):
+@pytest.mark.parametrize("unavailable_result", [None, {"loss": 1.2, "batches": 1}])
+def test_unavailable_result_remains_unavailable(recorded, unavailable_result):
     f = recorded
     f.record["evaluations"][0].update(
         status="UNAVAILABLE",
         path=None,
         sha256=None,
-        result=None,
+        result=unavailable_result,
         reason="private failed evaluation",
     )
     path = seal_index(f.record, f.index.parent)
@@ -249,7 +251,7 @@ def test_coverage_and_checkpoint_membership(recorded, mutation):
         bind_diagnostics(f.lock, f.payload, f.root, refs)
 
 
-def test_versioned_snapshot_replay_and_reverification(recorded, monkeypatch):
+def test_interim_and_final_snapshot_replay_and_reverification(recorded, monkeypatch):
     f = recorded
     monkeypatch.setattr(
         evidence, "_build_index", lambda *a, **k: copy.deepcopy(f.payload)
@@ -259,8 +261,8 @@ def test_versioned_snapshot_replay_and_reverification(recorded, monkeypatch):
     old_bytes = Path(old["index_path"]).read_bytes()
     new = evidence.collect_evidence(f.lock, f.root, diagnostic_references=[f.ref])
     assert (
-        old["version"] == 1
-        and new["version"] == 2
+        old["diagnostic_status"] == "not_collected"
+        and new["diagnostic_status"] == "collected"
         and old["index_path"] != new["index_path"]
     )
     assert (
@@ -276,34 +278,12 @@ def test_versioned_snapshot_replay_and_reverification(recorded, monkeypatch):
 
 
 def final_fixture(root):
-    source, bindings = pair_fixture(root)
-    path = root / "campaign.json"
-    raw = json.loads(path.read_text())
-    raw["stages"].append(
-        {
-            "id": "final",
-            "kind": "experiment_collect",
-            "scope": "evaluation",
-            "plan": "plan",
-            "run": "run-baseline",
-            "evaluations": ["eval-baseline", "eval-candidate"],
-            "requires": [
-                "plan",
-                "run-baseline",
-                "run-candidate",
-                "eval-baseline",
-                "eval-candidate",
-            ],
-        }
-    )
-    path.write_text(json.dumps(raw))
-    repin(source)
-    return source, bindings
+    return pair_fixture(root)
 
 
-def test_v3_admission_is_metadata_only(tmp_path):
+def test_current_admission_is_metadata_only(tmp_path):
     source, bindings = final_fixture(tmp_path / "recipe")
-    context = admit(source, bindings, tmp_path / "work", workflow_admission_version=3)
+    context = admit(source, bindings, tmp_path / "work")
     assert len(context.campaign.stages) == 12 and not context.work_dir.exists()
     assert context.campaign.stages[-1].evaluations == (
         "eval-baseline",
@@ -314,8 +294,8 @@ def test_v3_admission_is_metadata_only(tmp_path):
 @pytest.mark.parametrize(
     "damage",
     [
-        "v2",
         "missing-final",
+        "two-finals",
         "missing-eval",
         "duplicate",
         "wrong-producer",
@@ -330,6 +310,8 @@ def test_final_graph_refuses_before_store(tmp_path, damage):
     final = raw["stages"][-1]
     if damage == "missing-final":
         raw["stages"].pop()
+    if damage == "two-finals":
+        raw["stages"].append({**copy.deepcopy(final), "id": "second-final"})
     if damage == "missing-eval":
         final["evaluations"].pop()
     if damage == "duplicate":
@@ -355,12 +337,13 @@ def test_final_graph_refuses_before_store(tmp_path, damage):
             source,
             bindings,
             tmp_path / "work",
-            workflow_admission_version=2 if damage == "v2" else 3,
         )
     assert not (tmp_path / "work").exists()
 
 
-def test_report_v2_includes_only_verified_qualified_diagnostics(recorded, monkeypatch):
+def test_current_report_includes_only_verified_qualified_diagnostics(
+    recorded, monkeypatch
+):
     from sparselab.experiments import publication_report
 
     f = recorded
@@ -374,19 +357,25 @@ def test_report_v2_includes_only_verified_qualified_diagnostics(recorded, monkey
     report = publication_report.build_publication_report(
         f.root / "lock.json", workspace=f.root, index_path=Path(index["index_path"])
     )
-    assert report["format"] == "sparselab-publication-report-v2"
+    assert report["format"] == "sparselab-publication-report"
     assert report["diagnostic_evaluations"][0]["metrics"]["loss"] == 2.5
     assert report["readiness"]["scientific_result"] == "not_assessed"
     assert str(f.root) not in publication_report._json(report).decode()
-    assert b"Recorded diagnostic evaluations" in publication_report._markdown(report)
+    markdown = publication_report._markdown(report)
+    assert f"Format: {report['format']}".encode() in markdown
+    assert b"Coverage: collected" in markdown
+    assert b"Recorded diagnostic evaluations" in markdown
+    assert rb"metrics \{" in markdown
+    assert rb"2\.5" in markdown
     assert before == {p: p.read_bytes() for p in f.root.rglob("*") if p.is_file()}
     legacy = evidence.collect_evidence(f.lock, f.root)
     old = publication_report.build_publication_report(
         f.root / "lock.json", workspace=f.root, index_path=Path(legacy["index_path"])
     )
     assert (
-        old["format"] == "sparselab-publication-report-v1"
-        and "diagnostic_evaluations" not in old
+        old["format"] == "sparselab-publication-report"
+        and old["diagnostic_evaluations"] == []
+        and old["diagnostic_status"] == "not_collected"
     )
     f.result.write_text("{}")
     with pytest.raises(ValueError):
@@ -448,9 +437,9 @@ def test_native_final_collection_dispatch_and_receipt_reopen(recorded, monkeypat
     assert first["state"] == "COMPLETE"
     assert (
         evidence.read_evidence(f.lock, f.root, Path(first["availability"]["path"]))[
-            "version"
+            "diagnostic_status"
         ]
-        == 2
+        == "collected"
     )
     second = CampaignEngine.dispatch.__wrapped__(
         engine, final, rows, 0, execute_runs=False
@@ -537,13 +526,15 @@ def test_unordered_final_graph_rejects_invalid_evaluation_collection(
 ):
     from sparselab.campaign.plan import CampaignPlan
 
-    source, _ = final_fixture(tmp_path / "recipe")
-    raw = json.loads((source.parent / "campaign.json").read_text())
+    source, bindings = final_fixture(tmp_path / "recipe")
+    context = admit(source, bindings, tmp_path / "work")
+    raw = context.campaign.model_dump(mode="json")
     final = raw["stages"].pop()
     raw["stages"].insert(0, final)
     evaluation = next(s for s in raw["stages"] if s["id"] == "eval-baseline")
+    CampaignPlan.model_validate(raw)  # The unordered, bound graph is valid first.
     evaluation["collect"] = producer
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="final collection evaluation belongs"):
         CampaignPlan.model_validate(raw)
 
 
@@ -590,6 +581,10 @@ def test_paired_results_keep_each_cell_binding_and_unavailable_observation(
     assert [row["status"] for row in report] == ["COMPLETED", "UNAVAILABLE"]
     assert report[1]["metrics"] == {} and report[1]["reason_present"]
     assert "private failure" not in json.dumps(report)
+    with pytest.raises(ValueError, match="exactly one diagnostic per cell"):
+        bind_diagnostics(
+            f.lock, f.payload, f.root, [f.ref, {**second, "stage": f.ref["stage"]}]
+        )
     with pytest.raises(ValueError, match="run differs"):
         bind_diagnostics(
             f.lock,
@@ -600,3 +595,148 @@ def test_paired_results_keep_each_cell_binding_and_unavailable_observation(
                 {**second, "cell_id": f.ref["cell_id"]},
             ],
         )
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        (
+            {"limits": None},
+            "valid dictionary",
+        ),
+        ({"workflow_admission_version": 4}, "obsolete workflow admission"),
+    ],
+)
+def test_admission_version_and_limits_fail_as_value_errors(
+    tmp_path, overrides, message
+):
+    # An otherwise valid current pair must reject obsolete selectors.
+    source, bindings = pair_fixture(tmp_path / "recipe")
+    with pytest.raises(ValueError, match=message):
+        admit(source, bindings, tmp_path / "work", **overrides)
+    assert not (tmp_path / "work").exists()
+
+
+def test_two_distinct_stages_cannot_bind_the_same_cell(recorded):
+    f = recorded
+    bind_diagnostics(f.lock, f.payload, f.root, [f.ref])
+    with pytest.raises(ValueError, match="exactly one diagnostic per cell"):
+        bind_diagnostics(
+            f.lock, f.payload, f.root, [f.ref, {**f.ref, "stage": "another"}]
+        )
+
+
+@pytest.mark.parametrize(
+    "field,value", [("path", "other-generation"), ("digest", "b" * 64)]
+)
+def test_checkpoint_membership_axes_are_independent(recorded, field, value):
+    f = recorded
+    suite.verify_evaluation_index(f.index)  # Ref and native index still agree.
+    checkpoint = f.payload["cells"][f.ref["cell_id"]]["attempts"][0]["checkpoints"][0]
+    checkpoint[field] = value
+    with pytest.raises(ValueError, match="checkpoint is absent"):
+        bind_diagnostics(f.lock, f.payload, f.root, [f.ref])
+
+
+def test_index_checkpoint_must_match_selected_inventoried_generation(recorded):
+    f = recorded
+    # The real index/result describe gen 2. Gen 3 is also inventoried and selected
+    # by the ref, so membership cannot mask the index/ref identity check.
+    selected = {
+        **f.ref,
+        "checkpoint": "checkpoints/step_00000003_gen_000003",
+        "checkpoint_sha256": "b" * 64,
+    }
+    f.payload["cells"][f.ref["cell_id"]]["attempts"][0]["checkpoints"].append(
+        {"path": "step_00000003_gen_000003", "digest": "b" * 64}
+    )
+    suite.verify_evaluation_index(f.index)
+    with pytest.raises(ValueError, match="index differs from declared"):
+        bind_diagnostics(f.lock, f.payload, f.root, [selected])
+
+
+@pytest.mark.parametrize("changed_bytes", [False, True])
+def test_index_suite_must_match_locked_reference(recorded, changed_bytes):
+    f = recorded
+    other = f.root / "other-suite.json"
+    declaration = json.loads(f.source.read_text())
+    if changed_bytes:
+        declaration["id"] = "other-diagnostic"
+    other.write_bytes(
+        canonical_json(declaration) if changed_bytes else f.source.read_bytes()
+    )
+    f.record.update(
+        suite=str(other), suite_sha256=hashlib.sha256(other.read_bytes()).hexdigest()
+    )
+    index = seal_index(f.record, f.index.parent)
+    ref = {**f.ref, "index": str(index), "index_sha256": f.record["index_sha256"]}
+    suite.verify_evaluation_index(index)
+    with pytest.raises(ValueError, match="index differs from declared"):
+        bind_diagnostics(f.lock, f.payload, f.root, [ref])
+
+
+def test_resealed_suite_changed_after_lock_is_refused(recorded):
+    f = recorded
+    declaration = json.loads(f.source.read_text())
+    declaration["id"] = "edited-after-lock"
+    f.source.write_bytes(canonical_json(declaration))
+    changed_sha = hashlib.sha256(f.source.read_bytes()).hexdigest()
+    f.record["suite_sha256"] = changed_sha
+    index = seal_index(f.record, f.index.parent)
+    ref = {
+        **f.ref,
+        "suite_sha256": changed_sha,
+        "index": str(index),
+        "index_sha256": f.record["index_sha256"],
+    }
+    suite.verify_evaluation_index(index)
+    with pytest.raises(ValueError, match="locked declaration"):
+        bind_diagnostics(f.lock, f.payload, f.root, [ref])
+
+
+def test_absent_locked_suite_raises_value_error(recorded):
+    f = recorded
+    lock = f.lock.model_copy(update={"evaluation_suite": None})
+    with pytest.raises(ValueError, match="locked declaration"):
+        bind_diagnostics(lock, f.payload, f.root, [f.ref])
+
+
+def test_completed_null_perplexity_is_preserved(recorded):
+    f = recorded
+    result = json.loads(f.result.read_text())
+    result["metrics"]["perplexity"] = None
+    f.result.write_bytes(canonical_json(result) + b"\n")
+    f.record["evaluations"][0].update(
+        result=result["metrics"],
+        sha256=hashlib.sha256(f.result.read_bytes()).hexdigest(),
+    )
+    index = seal_index(f.record, f.index.parent)
+    ref = {**f.ref, "index": str(index), "index_sha256": f.record["index_sha256"]}
+    report = report_diagnostics(bind_diagnostics(f.lock, f.payload, f.root, [ref]))
+    assert report[0]["metrics"]["perplexity"] is None
+    assert report[0]["metrics"]["loss"] == 2.5
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_obsolete_evidence_refuses_without_controller_or_rewrite(
+    recorded, monkeypatch, version
+):
+    f = recorded
+    payload = {**f.payload, "version": version}
+    payload.pop("diagnostic_status")
+    payload.pop("diagnostic_evaluations")
+    directory = f.root / "evidence"
+    directory.mkdir()
+    path = directory / f"{digest(payload)}.json"
+    original = canonical_json(payload) + b"\n"
+    path.write_bytes(original)
+    monkeypatch.setattr(
+        evidence,
+        "Controller",
+        lambda *a, **k: pytest.fail("obsolete evidence opened controller"),
+    )
+    with pytest.raises(
+        ValueError, match="obsolete or unsupported evidence contract; collect fresh"
+    ):
+        evidence.read_evidence(f.lock, f.root, path)
+    assert path.read_bytes() == original

@@ -345,7 +345,8 @@ def _build_index(
     ]
     return {
         "format": _FORMAT,
-        "version": 1,
+        "diagnostic_status": "not_collected",
+        "diagnostic_evaluations": [],
         "plan_id": lock.id,
         "plan_sha256": lock.plan_sha256,
         "scientific_sha256": lock.scientific_sha256,
@@ -432,6 +433,15 @@ def read_evidence(
     digest = _digest(payload)
     if path.name != f"{digest}.json" or raw != canonical_json(payload) + b"\n":
         raise ValueError("evidence index digest or canonical encoding differs")
+    if (
+        payload.get("format") != _FORMAT
+        or "version" in payload
+        or payload.get("diagnostic_status") not in {"not_collected", "collected"}
+        or not isinstance(payload.get("diagnostic_evaluations"), list)
+    ):
+        raise ValueError(
+            "obsolete or unsupported evidence contract; collect fresh evidence with the current lab"
+        )
     if payload.get("plan_sha256") != lock.plan_sha256:
         raise ValueError("evidence index belongs to a different locked plan")
     controller = Controller(Path(workspace) / "controller", read_only=True)
@@ -449,7 +459,7 @@ def read_evidence(
         proof_store=proof_store,
         verification_mode=verification_mode,
     )
-    if payload.get("version") == 2:
+    if payload["diagnostic_status"] == "collected":
         from sparselab.experiments.diagnostic_evidence import bind_diagnostics
 
         rebuilt = bind_diagnostics(

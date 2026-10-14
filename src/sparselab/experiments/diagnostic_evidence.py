@@ -116,7 +116,11 @@ def bind_diagnostics(
                 "reason_present": row.get("reason") is not None,
             }
         )
-    return {**payload, "version": 2, "diagnostic_evaluations": observations}
+    return {
+        **payload,
+        "diagnostic_status": "collected",
+        "diagnostic_evaluations": observations,
+    }
 
 
 def report_diagnostics(evidence: dict) -> list[dict]:

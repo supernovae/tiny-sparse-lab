@@ -48,9 +48,9 @@ def test_expanded_configuration_contract(context, monkeypatch, field, value):
 
     monkeypatch.setattr(workflow_execution, "expand_axes", expanded)
     with pytest.raises(
-        ValueError, match="^paired workflow supports snapshot CPU PyTorch only$"
+        ValueError, match="^workflow supports snapshot CPU PyTorch only$"
     ):
-        context._validate_pair()
+        context._validate_workflow()
     assert not context.work_dir.exists()
 
 
@@ -70,7 +70,7 @@ def test_snapshot_profile_at_public_admission(tmp_path):
     change(source, "configs/run.json", synthetic)
     update(bindings, config_paths={})
     with pytest.raises(
-        ValueError, match="^paired workflow supports snapshot CPU PyTorch only$"
+        ValueError, match="^workflow supports snapshot CPU PyTorch only$"
     ):
         admit(source, bindings, tmp_path / "work")
     assert not (tmp_path / "work").exists()
@@ -100,9 +100,9 @@ def test_recovery_is_not_a_paired_workflow(context):
     context.campaign = context.campaign.model_copy(update={"recovery": "recovery.json"})
     with pytest.raises(
         ValueError,
-        match="^paired workflow requires one native plan and two run/collect/evaluation branches$",
+        match="^workflow requires one native plan and one run/collect/evaluation branch per cell$",
     ):
-        context._validate_pair()
+        context._validate_workflow()
     assert not context.work_dir.exists()
 
 
@@ -165,8 +165,8 @@ def test_stage_connection_contract(context, stage_id, updates):
             )
         }
     )
-    with pytest.raises(ValueError, match="^unsupported paired Campaign connections$"):
-        context._validate_pair()
+    with pytest.raises(ValueError, match="^unsupported portable Campaign connections$"):
+        context._validate_workflow()
     assert not context.work_dir.exists()
 
 
@@ -180,7 +180,7 @@ def test_shared_dataset_at_public_admission(tmp_path):
         ),
     )
     with pytest.raises(
-        ValueError, match="^paired workflow supports snapshot CPU PyTorch only$"
+        ValueError, match="^workflow supports snapshot CPU PyTorch only$"
     ):
         admit(source, bindings, tmp_path / "work")
     assert not (tmp_path / "work").exists()
@@ -198,7 +198,7 @@ def test_caller_allowance_accepts_full_horizon_without_launching(tmp_path):
         source,
         bindings,
         tmp_path / "work",
-        pair_limits={
+        limits={
             "max_training_updates": 2_000_014,
             "max_target_positions": 32_000_224,
             "max_eval_batches": 4,

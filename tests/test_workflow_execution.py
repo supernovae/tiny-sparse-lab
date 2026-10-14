@@ -91,6 +91,17 @@ def execution_fixture(root, config=None, artifacts=None):
             "suite": "suite.json",
         },
     ]
+    stages.append(
+        {
+            "id": "final",
+            "kind": "experiment_collect",
+            "scope": "evaluation",
+            "plan": "plan",
+            "run": "run",
+            "evaluations": ["evaluation"],
+            "requires": ["plan", "run", "evaluation"],
+        }
+    )
     (root / "campaign.json").write_text(
         json.dumps({"campaign_version": 1, "id": "portable", "stages": stages})
     )
@@ -127,7 +138,11 @@ def admitted(source, bindings, work):
         bindings,
         work,
         WorkflowAdmission(
-            workflow_admission_version=1,
+            limits={
+                "max_training_updates": 54,
+                "max_target_positions": 1728,
+                "max_eval_batches": 4,
+            },
             reviewed_commit=git(source.parent, "rev-parse", "HEAD"),
             recipe_sha256=loaded.recipe_sha256,
             binding_sha256=loaded.binding_sha256,
@@ -326,7 +341,7 @@ def test_public_admission_requires_synthetic_cpu(tmp_path, unsupported):
     # them without probing a runtime, reading payloads or creating a work store.
     load_workflow(source, bindings)
     with pytest.raises(
-        ValueError, match="^workflow execution supports synthetic CPU PyTorch only$"
+        ValueError, match="^workflow supports synthetic CPU PyTorch only$"
     ):
         admitted(source, bindings, tmp_path / "work")
     assert not (tmp_path / "work").exists()
