@@ -1,7 +1,8 @@
 # Portable CPU investigation: partial LAB-73/74 verification
 
-This PR resolves no backlog card and proves no end-to-end portable execution.
-Its retained regressions are small extensions of the existing contract tests:
+As of 2026-10-14, revision `61269a2a8c7ce55b6b1a2027325f99be73b56048`
+provides partial LAB-73/74 verification. Neither card is resolved, and end-to-end
+portable execution has not been proved. The retained contract coverage is:
 
 | Card / boundary | Retained verification | Still missing |
 | --- | --- | --- |
@@ -25,14 +26,14 @@ One development attempt exceeded the assigned envelope because this transitive
 work was missed before dispatch: smoke 2, warmup 5, main 1 model-training updates.
 The driver was interrupted. Worker receipt was COMPLETE, controller ingestion
 PENDING; suite evaluation, collection and completed reporting were not reached.
-No subsequent model proof was run. Exact run IDs, timings, resource readings,
+No subsequent model proof had run at that revision. Exact run IDs, timings, resource readings,
 retained paths and cleanup state are in the [PR126 evidence addendum](https://github.com/supernovae/tiny-sparse-lab/pull/126#issuecomment-6157874827).
 These are development observations, not acceptance thresholds or scientific claims.
 
-The next owner decision is a separately bounded pilot-inclusive CPU proof, or a
-reviewed native total-budget admission change that refuses before dispatch when
-all requested work cannot fit. Neither is implemented here. Portable execution
+At that revision, the open decision was a separately bounded pilot-inclusive CPU
+proof or a native total-budget admission change that refuses before dispatch when
+all requested work cannot fit. Neither was implemented by that revision. Portable execution
 also needs shared committed-inventory provenance and bounded evaluation/runtime
-admission in the existing planner and request path. No second executor is needed.
+admission in the existing planner and request path.
 TinyStories qualification, LAB-75 CLI, Workshop, website and release remain outside
 this slice; historical hashes, seed acceptance and runner holds are unchanged.
