@@ -187,6 +187,7 @@ _ARRAY_EXCLUDED_EDGES = frozenset(
 )
 
 _ARTIFACT_BRANCHES = {
+    "dataset_snapshot": "data.sources",
     "source_snapshot": "corpus.acquisition",
     "corpus_build": "corpus.release",
     "corpus_release": "corpus.release",
@@ -235,7 +236,18 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # load_prepared_data/_verified_receipt and prepared artifact verification do not
 # call it. Pin that import and its complete owner, as for the other preparation
 # edges, so any new verifier use or owner change requires another audit.
+# experiments.artifacts re-audited 2026-10-14: the new dataset_snapshot branch
+# calls only data.sources.verify_snapshot (cold) and existing identity checks.
+# Existing artifact branches and their excluded imports/uses are unchanged.
+# The pins cover the complete dispatch owner. The new data.sources import is
+# used only by dataset_snapshot, so exclude that branch for other artifact kinds
+# using the existing branch map. Semantic domains retain their native source
+# chains; prepared-data inventory proofs remain independent of preparation.
 _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
+    (
+        "experiments.artifacts",
+        "data.sources",
+    ): "59400a133cadd8c521204da9dd44d4ad36716e9cd359f0a6b8637987540510f0",
     (
         "data.packing",
         "corpus.mixture",
@@ -335,15 +347,15 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "experiments.artifacts",
         "corpus.acquisition",
-    ): "765ebe867dcc53f4ec5f8c679c5fb608351d8b5e8c087bb8aba8e23cdac289c6",
+    ): "9744c3d2d0da2dec449dbc3a8a0faeb7ff42bd504822c3123188f57a05b66d26",
     (
         "experiments.artifacts",
         "corpus.export",
-    ): "726af4acaeda7b667bc027a94130a9b2c2548ee2b087f2721815929fbe4c99da",
+    ): "5458a195fe630b4c0a5cba2ce73f9a681197a0c1b1bc4b2d6542cf29c339a3a3",
     (
         "experiments.artifacts",
         "corpus.release",
-    ): "90fba91cbbd13abe676b9683ca82b67ad6f4de7d914d4bd59c590edc9e1500a5",
+    ): "c4c6aa6c331c2697495cc0b38d92f61aa5d3cad016c8ff3da04e9facb8950dfa",
     (
         "experiments.artifacts",
         "data.packing",
@@ -351,19 +363,19 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "experiments.artifacts",
         "data.tokenizer",
-    ): "26da295472250276e5450be139d4421119a35217f09afe4fff6581d69c9726ed",
+    ): "1dcb44a3c9ded6ec87d429086c7c4c4873227c7d04e294fb1326780d47f1b822",
     (
         "experiments.artifacts",
         "evaluation.capabilities",
-    ): "79b3f8607bf4ad9dbf8d2767c519fd410526ff2b67fc4002ce884cf955aadd11",
+    ): "434d3459db0c03d03e54bedf84d91ab9482c867a2eff28b02935d2745b29dc6c",
     (
         "experiments.artifacts",
         "staging",
-    ): "7cf11f9a7dd7c2a2bb44773d2bd43b733d41cc4c397fc21ccb5f32a72bfefbf8",
+    ): "68b5c1bd897d08316bb55d37d6e616de97a3372da489a7d31ddc94d83b854727",
     (
         "experiments.artifacts",
         "training.checkpoints",
-    ): "35a4e48b51a3938851b12844837fd20a297a5020776221cda54bc77e0d5c4ba6",
+    ): "49b95d47ac8400b8905328e8cdc731ee5034f5b0b97f977803d39ef5f4879c40",
     (
         "experiments.plan",
         "campaign.plan",

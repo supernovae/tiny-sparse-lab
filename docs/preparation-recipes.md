@@ -304,3 +304,13 @@ snapshot/tokenizer/packing/verifier and public CLI. Snapshot fixture constructio
 substitutes only Hub metadata/transport with local rows; it is not real-data
 acquisition evidence. The [migration checklist](portable-experiment-migration.md)
 tracks the remaining work through replacement proof and retirement.
+
+The verifier-authority regression boundary is covered by
+`test_snapshot_warm_reuse.py`, `test_snapshot_authority.py`,
+`test_verifier_authority_current.py`, and `test_verification_reuse.py`:
+registered authorities remain available; authenticated legacy snapshot reuse
+still works; new uses of excluded artifact imports require re-audit; prepared
+inventory proofs remain independent of source preparation. The new artifact
+branch uses cold native verification and does not add a persistent authority
+kind. Existing dispatch-owner exclusion pins were explicitly re-audited for
+this addition; historical content hashes and records are not rewritten.
