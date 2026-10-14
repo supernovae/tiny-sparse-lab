@@ -721,7 +721,7 @@ def resolve_plan(
         plan.corpus_variants or plan.execution.attempt_contract
     ):
         raise ValueError(
-            "recipe context does not yet support variant, suite or attempt-contract references"
+            "recipe context does not yet support variant or attempt-contract references"
         )
     if context is not None and plan.evaluation_suite is not None:
         from sparselab.evaluation.suite_models import EvaluationSuite

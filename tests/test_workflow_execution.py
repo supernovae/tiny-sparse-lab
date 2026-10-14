@@ -265,3 +265,68 @@ def test_campaign_metadata_inspection_has_no_runtime_effects(tmp_path):
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_public_engine_refuses_two_execution_contexts(tmp_path):
+    from test_preparation_execution import setup
+
+    from sparselab.campaign.engine import CampaignEngine
+    from sparselab.experiments.preparation_execution import PreparationExecution
+
+    prep_root = tmp_path / "preparation"
+    prep_root.mkdir()
+    preparation = PreparationExecution(*setup(prep_root))
+    source, bindings = execution_fixture(tmp_path / "workflow")
+    workflow = admitted(source, bindings, tmp_path / "work")
+    with pytest.raises(ValueError, match="^select one portable execution context$"):
+        CampaignEngine(
+            workflow.campaign_source,
+            workflow.work_dir,
+            preparation_context=preparation,
+            workflow_context=workflow,
+        )
+    assert not preparation.work_dir.exists()
+    assert not workflow.work_dir.exists()
+
+
+def test_public_apply_refuses_uncommitted_override(tmp_path, monkeypatch):
+    source, bindings = execution_fixture(tmp_path / "recipe")
+    context = admitted(source, bindings, tmp_path / "work")
+    engine = context.engine()
+    monkeypatch.setattr(
+        engine,
+        "dispatch",
+        lambda *a, **kw: pytest.fail("dispatch with uncommitted override"),
+    )
+    with pytest.raises(
+        ValueError, match="^workflow context does not allow uncommitted declarations$"
+    ):
+        engine.apply(allow_uncommitted_declaration=True)
+    assert not context.work_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "unsupported", ["remote_dataset", "cuda_runtime", "mlx_runtime", "cuda_plan"]
+)
+def test_public_admission_requires_synthetic_cpu(tmp_path, unsupported):
+    source, bindings = execution_fixture(tmp_path / "recipe")
+    config_path = source.parent / "configs/run.json"
+    config = json.loads(config_path.read_text())
+    if unsupported == "remote_dataset":
+        config["dataset"].update(source="tinystories", revision="a" * 40)
+    elif unsupported == "cuda_runtime":
+        config["runtime"].update(engine="pytorch", backend="cuda")
+    elif unsupported == "mlx_runtime":
+        config["runtime"].update(engine="mlx", backend="metal")
+    else:
+        update(source.parent / "plans/plan.json", execution={"backend": "cuda"})
+    config_path.write_text(json.dumps(config))
+    repin(source)
+    # These are valid native declarations. The narrower public admission refuses
+    # them without probing a runtime, reading payloads or creating a work store.
+    load_workflow(source, bindings)
+    with pytest.raises(
+        ValueError, match="^workflow execution supports synthetic CPU PyTorch only$"
+    ):
+        admitted(source, bindings, tmp_path / "work")
+    assert not (tmp_path / "work").exists()
