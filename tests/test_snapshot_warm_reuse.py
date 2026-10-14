@@ -126,3 +126,35 @@ def test_snapshot_unsafe_proof_falls_back(tmp_path, monkeypatch, mutation):
         foreign = ProofStore(root)
         verify_snapshot(path, proof_store=foreign, verification_mode="verified_reuse")
         assert foreign.hits == 0
+
+
+@pytest.mark.parametrize(
+    "imported, name",
+    [
+        ("training.checkpoints", "CheckpointManager"),
+        ("data.sources", "verify_snapshot"),
+    ],
+)
+def test_snapshot_artifact_excluded_import_new_use_requires_reaudit(
+    monkeypatch, imported, name
+):
+    before = authority.verifier_authority("source_snapshot", 1)
+    assert before
+    assert (
+        "experiments.artifacts",
+        imported,
+    ) in authority._excluded_edges("source_snapshot")
+    original = authority.Path.read_bytes
+
+    def changed(path):
+        raw = original(path)
+        if path.name == "artifacts.py" and path.parent.name == "experiments":
+            raw += (
+                f"\ndef new_verifier(path):\n    from sparselab.{imported} import {name}\n"
+                f"    return {name}(path)\n"
+            ).encode()
+        return raw
+
+    monkeypatch.setattr(authority.Path, "read_bytes", changed)
+    with pytest.raises(ValueError, match="exclusion needs review"):
+        authority.verifier_authority("source_snapshot", 1)

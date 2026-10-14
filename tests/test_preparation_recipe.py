@@ -203,7 +203,7 @@ def test_relocation_inventory_order_snapshot_and_opaque_paths(tmp_path, monkeypa
         ("version", "less than or equal"),
         ("boolean", "valid integer"),
         ("operation", "unsupported preparation operation"),
-        ("snapshot", "snapshot context"),
+        ("snapshot", "must be in requires"),
         ("recovery", "recovery context"),
         ("cycle", "cycle"),
         ("duplicate", "duplicate campaign"),
@@ -380,7 +380,10 @@ def test_authored_paths_are_checked_before_path_normalization(tmp_path, path):
             "missing_config",
             "config bindings must name exactly the compiled config references",
         ),
-        ("external_kind", "preparation supports only external tokenizer references"),
+        (
+            "external_kind",
+            "preparation supports only external tokenizer and dataset_snapshot references",
+        ),
     ],
 )
 def test_preparation_inventory_guards_precede_config_interpretation(

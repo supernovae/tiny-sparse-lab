@@ -145,15 +145,14 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
             "artifact_reference",
         }:
             raise ValueError("unsupported preparation operation")
-        if stage.get("snapshot") is not None:
-            raise ValueError(
-                "preparation snapshot context is unavailable; acquisition is separate"
-            )
         if stage["kind"] == "artifact_reference":
             artifact = stage.get("artifact")
-            if not isinstance(artifact, dict) or artifact.get("kind") != "tokenizer":
+            if not isinstance(artifact, dict) or artifact.get("kind") not in {
+                "tokenizer",
+                "dataset_snapshot",
+            }:
                 raise ValueError(
-                    "preparation supports only external tokenizer references"
+                    "preparation supports only external tokenizer and dataset_snapshot references"
                 )
             canonical_reference(artifact.get("path", ""))
     plan = CampaignPlan.model_validate(authored)
@@ -193,6 +192,20 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
             roles,
         )
         configs[op.stage_id] = config
+        snapshots = [item for item in op.inputs if item.port == "snapshot"]
+        if (config.dataset.source == "snapshot") != bool(snapshots):
+            raise ValueError("snapshot config requires a compiled snapshot input")
+        if snapshots:
+            expected = locations[snapshots[0].producer]
+            if (
+                config.dataset.source_manifest_path != expected
+                or config.dataset.train_path != expected.parent / "train.jsonl"
+                or config.dataset.validation_path
+                != expected.parent / "validation.jsonl"
+            ):
+                raise ValueError(
+                    "configured dataset differs from compiled snapshot location"
+                )
     for op in compiled.operations:
         if op.kind != "data_prepare":
             continue

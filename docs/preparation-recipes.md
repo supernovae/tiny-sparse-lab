@@ -197,3 +197,132 @@ manual workload gate is introduced.
 Validation is tiny synthetic wiring only. Actual pinned CPU/GPU TinyStories
 portability proof, broader local datasets, model admission, evaluation closure,
 publication CLI wiring and the remaining LAB-73/LAB-74 milestone work remain open.
+
+## Verified local dataset snapshots
+
+Portable preparation can consume an already materialized native dataset snapshot.
+It cannot acquire one: `dataset_snapshot` **stages** remain unavailable in this
+profile. Use an `artifact_reference` of kind `dataset_snapshot` (corpus scope),
+distinct from the existing corpus/Forge `source_snapshot` artifact:
+
+```yaml
+- id: input
+  kind: artifact_reference
+  scope: corpus
+  artifact:
+    kind: dataset_snapshot
+    version: 1
+    producer: native dataset snapshot
+    identifier: <source lock_sha256>
+    sha256: <snapshot manifest_sha256>
+    path: snapshot/manifest.json
+- id: tokenizer
+  kind: tokenizer_train
+  scope: tokenizer
+  requires: [input]
+  snapshot: input
+  config: tokenizer.json
+- id: packed
+  kind: data_prepare
+  scope: model
+  requires: [input, tokenizer]
+  snapshot: input
+  tokenizer: tokenizer
+  config: run.json
+```
+
+These are native Campaign stages; the compiled preparation projection owns their
+ports. The descriptor and bindings remain version 1. Inventory the Campaign and
+config files as usual. Bind `artifacts.input` to the local `manifest.json`.
+In each config, declare `dataset.source: snapshot` and canonical relative
+`dataset.source_manifest_path`, `dataset.train_path`, and
+`dataset.validation_path`; bind these exact typed fields in that config's
+`config_paths`. The manifest must be the input producer's location, and splits
+must be its sibling `train.jsonl` and `validation.jsonl`. Output locations remain
+under the explicit work root and may not overlap snapshot inputs in either
+direction. Snapshot inputs also cannot overlap the native operational namespaces
+`campaigns`, `scratch`, `execution`, or `ownership`. Retained inputs in a distinct
+work-root directory such as `inputs` are allowed; admission does not initialize
+operational storage.
+
+### Admission version 2
+
+The existing version-1 admission and its serialization stay unchanged and cannot
+authorize snapshot consumption. Use version 2 for this capability:
+
+```json
+{
+  "preparation_admission_version": 2,
+  "reviewed_commit": "<full recipe commit SHA>",
+  "recipe_sha256": "<preparation inspect recipe_sha256>",
+  "binding_sha256": "<preparation inspect binding_sha256>",
+  "cpu_python": "/absolute/provisioned/bin/python",
+  "max_documents": 32,
+  "max_tokens": 1024,
+  "max_vocab_size": 512,
+  "min_free_bytes": 1073741824,
+  "min_free_inodes": 128,
+  "max_snapshot_bytes": 1048576,
+  "max_snapshot_records": 40
+}
+```
+
+All numeric limits are strict positive integers (vocabulary minimum 260).
+Snapshot ceilings are cumulative across declared snapshot references, counting
+repeated references again. `max_snapshot_bytes` counts every regular file in
+each flat snapshot directory, including manifest, events and exclusions, before
+parsing or cold verification. Nested directories, symlinks and nonregular files
+are refused. `max_snapshot_records` bounds the sum of **declared per-split
+`max_source_records` ceilings**, not just retained document counts. For example,
+a two-split source declaring 20 records per split requires at least 40. Existing
+document/token/vocabulary and free-storage limits still apply. These are input
+and configuration admission checks, not kernel quotas; use the native monitor
+for wall time, process-tree RSS, scratch and workspace growth.
+
+The native verifier authenticates the lock/manifest identities, split contents,
+exclusions and event history. It checks each consumer's revision, license,
+dataset configuration and split locations. The embedded source lock retains
+source attribution and licensing provenance; successful verification does not
+grant rights or establish redistributability. This profile requires
+`sparselab-dataset-snapshot-v1`; legacy imported snapshots remain readable through
+their existing native readers but are not newly admitted here.
+
+Use the existing public commands with this admission:
+
+```sh
+sparselab experiment recipe preparation inspect recipe.json --bindings local.json --json
+sparselab experiment recipe preparation apply recipe.json --bindings local.json --admission admission.json --work-dir /absolute/work --json
+sparselab experiment recipe preparation resume recipe.json --bindings local.json --admission admission.json --work-dir /absolute/work --json
+```
+
+Inspection/help never read snapshot payloads or launch preparation. Apply/resume
+revalidate input integrity, admission, committed inventory, interpreter/source
+identity and receipt bindings. Missing or changed payloads refuse without network
+fallback. Completed receipts replay without retraining tokenizers or repacking.
+The artifact memo/proof key includes sibling payloads, not just manifest bytes.
+Native snapshot/config/tokenizer/prepared hashes and legacy seed coercion are
+unchanged. No model execution capability is added.
+
+Tests in `test_portable_snapshot_preparation.py` exercise the real native
+snapshot/tokenizer/packing/verifier and public CLI. Snapshot fixture construction
+substitutes only Hub metadata/transport with local rows; it is not real-data
+acquisition evidence. The [migration checklist](portable-experiment-migration.md)
+tracks the remaining work through replacement proof and retirement.
+
+The verifier-authority regression boundary is covered by
+`test_snapshot_warm_reuse.py`, `test_snapshot_authority.py`,
+`test_verifier_authority_current.py`, and `test_verification_reuse.py`:
+registered authorities remain available; authenticated legacy snapshot reuse
+still works; new uses of excluded artifact imports require re-audit; prepared
+inventory proofs remain independent of source preparation. The new artifact
+branch uses cold native verification and does not add a persistent authority
+kind. Existing dispatch-owner exclusion pins were explicitly re-audited for
+this addition; historical content hashes and records are not rewritten.
+
+Admission boundary tests cover both output/input overlap directions before work
+creation, and preserve existing retained input bytes on refusal. They exercise
+both source/compiled-port mismatch directions (including the version-1 bypass),
+all three snapshot locations, and the per-split record ceiling at 39/40. Direct
+artifact-domain tests verify the envelope and refuse a genuinely verified legacy
+import without relying on verifier-authority pins. Malformed manifest metadata
+gets a descriptive admission error; unrelated internal KeyErrors remain visible.

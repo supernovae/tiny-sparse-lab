@@ -445,7 +445,7 @@ def test_new_contract_refuses_non_synthetic_but_legacy_config_still_loads(tmp_pa
             "recipe_sha256": loaded.recipe_sha256,
         }
     )
-    with pytest.raises(ValueError, match="synthetic inputs only"):
+    with pytest.raises(ValueError, match="synthetic or admitted snapshot inputs only"):
         PreparationExecution(source, bindings, work, updated)
     assert not work.exists()
 

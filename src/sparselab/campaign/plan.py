@@ -72,6 +72,7 @@ class ArtifactReference(Stage):
     def valid_artifact(self) -> ArtifactReference:
         scopes = {
             "source_snapshot": "corpus",
+            "dataset_snapshot": "corpus",
             "corpus_build": "corpus",
             "corpus_release": "corpus",
             "corpus_export": "corpus",
@@ -408,7 +409,11 @@ class CampaignPlan(StrictModel):
             )
             if isinstance(stage, (TokenizerTrain, DataPrepare)):
                 if stage.snapshot is not None:
-                    input_is(stage.snapshot, ("dataset_snapshot", None))
+                    input_is(
+                        stage.snapshot,
+                        ("dataset_snapshot", None),
+                        ("artifact_reference", "dataset_snapshot"),
+                    )
                 if isinstance(stage, DataPrepare):
                     input_is(stage.tokenizer, *tokenizer)
             elif isinstance(stage, (CorpusReadiness, TokenMeasurement)):
