@@ -47,6 +47,7 @@ class Artifact(StrictModel):
 
     kind: Literal[
         "source_snapshot",
+        "dataset_snapshot",
         "corpus_build",
         "corpus_release",
         "corpus_export",

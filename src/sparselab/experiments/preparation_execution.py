@@ -1,4 +1,4 @@
-"""Explicit local CPU admission for inventoried synthetic preparation.
+"""Explicit local CPU admission for inventoried synthetic or snapshot preparation.
 
 This binds operational context to native Campaign receipts, not scientific hashes.
 A caller-selected reviewed commit is an assertion of review, not author attestation.
@@ -6,7 +6,9 @@ A caller-selected reviewed commit is an assertion of review, not author attestat
 
 from __future__ import annotations
 
+import json
 import os
+import stat
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -34,6 +36,23 @@ class PreparationAdmission(StrictModel):
     max_vocab_size: StrictInt = Field(ge=260)
     min_free_bytes: StrictInt = Field(gt=0)
     min_free_inodes: StrictInt = Field(gt=0)
+
+
+class SnapshotPreparationAdmission(PreparationAdmission):
+    """Explicit offline snapshot consumption; v1 serialization stays unchanged."""
+
+    preparation_admission_version: StrictInt = Field(ge=2, le=2)
+    max_snapshot_bytes: StrictInt = Field(gt=0)
+    max_snapshot_records: StrictInt = Field(gt=0)
+
+
+def preparation_admission(document: dict) -> PreparationAdmission:
+    model = (
+        SnapshotPreparationAdmission
+        if document.get("preparation_admission_version") == 2
+        else PreparationAdmission
+    )
+    return model.model_validate(document)
 
 
 def _environment() -> dict:
@@ -123,8 +142,10 @@ class PreparationExecution:
             caches.add(data.cache_dir)
             if isinstance(config, TokenizerTrainConfig):
                 tokenizer_outputs.add(config.output_dir)
-            if data.source != "synthetic":
-                raise ValueError("preparation execution supports synthetic inputs only")
+            if data.source not in {"synthetic", "snapshot"}:
+                raise ValueError(
+                    "preparation execution supports synthetic or admitted snapshot inputs only"
+                )
             if (
                 data.train_max_documents + data.validation_max_documents
                 > self.admission.max_documents
@@ -158,7 +179,15 @@ class PreparationExecution:
                         )
                     if field != "logging.root_dir":
                         outputs.add(path)
-                elif field != "tokenizer.path":
+                elif field != "tokenizer.path" and not (
+                    data.source == "snapshot"
+                    and field
+                    in {
+                        "dataset.source_manifest_path",
+                        "dataset.train_path",
+                        "dataset.validation_path",
+                    }
+                ):
                     raise ValueError(f"preparation input path unavailable: {field}")
         if tokenizer_outputs & caches:
             raise ValueError("preparation output directories must not overlap")
@@ -166,6 +195,23 @@ class PreparationExecution:
             for right in outputs:
                 if left != right and left.is_relative_to(right):
                     raise ValueError("preparation output directories must not overlap")
+        for stage in current.plan.stages:
+            if (
+                stage.kind == "artifact_reference"
+                and stage.artifact.kind == "dataset_snapshot"
+            ):
+                snapshot_root = current.artifact_locations[stage.id].parent
+                for output in outputs | {
+                    config.logging.root_dir
+                    for config in current.configs.values()
+                    if not isinstance(config, TokenizerTrainConfig)
+                }:
+                    if output.is_relative_to(
+                        snapshot_root
+                    ) or snapshot_root.is_relative_to(output):
+                        raise ValueError(
+                            "preparation outputs must not overlap snapshot inputs"
+                        )
         paths = (
             self.source,
             *(current.context.root / name for name in current.context.documents),
@@ -188,6 +234,7 @@ class PreparationExecution:
             or not os.access(ancestor, os.W_OK | os.X_OK)
         ):
             raise ValueError("preparation storage/permission admission failed")
+        self._verify_snapshots(current)
         return {
             **provenance,
             "allow_uncommitted_declaration": False,
@@ -200,6 +247,59 @@ class PreparationExecution:
                 key=lambda item: item["path"],
             ),
         }
+
+    def _verify_snapshots(self, loaded):
+        references = [
+            stage
+            for stage in loaded.plan.stages
+            if stage.kind == "artifact_reference"
+            and stage.artifact.kind == "dataset_snapshot"
+        ]
+        if not references:
+            return
+        if not isinstance(self.admission, SnapshotPreparationAdmission):
+            raise TypeError("dataset snapshots require preparation admission version 2")
+        from sparselab.data.sources import verify_snapshot
+        from sparselab.experiments.artifacts import verify_artifact
+
+        total_bytes = 0
+        total_records = 0
+        for stage in references:
+            path = loaded.artifact_locations[stage.id]
+            _location(self.bindings, str(path))
+            if path.name != "manifest.json" or not path.is_file():
+                raise ValueError("missing dataset snapshot manifest.json")
+            # Bound the complete local flat snapshot before parsing or cold verification.
+            for member in path.parent.iterdir():
+                info = member.lstat()
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValueError(
+                        "snapshot inputs must be regular files without symlinks"
+                    )
+                total_bytes += info.st_size
+                if total_bytes > self.admission.max_snapshot_bytes:
+                    raise ValueError("snapshot exceeds admitted byte limit")
+            raw = json.loads(path.read_text())
+            if raw.get("format") != "sparselab-dataset-snapshot-v1":
+                raise ValueError("snapshot requires a native source-lock manifest")
+            # Declared per-split scan ceilings bound verifier work, not just retained rows.
+            source = raw["lock"]["source"]
+            records = source["resources"]["max_source_records"]
+            if type(records) is not int or records <= 0:
+                raise ValueError("invalid snapshot source record bound")
+            total_records += records * len(source["splits"])
+            if total_records > self.admission.max_snapshot_records:
+                raise ValueError("snapshot exceeds admitted source record limit")
+            verify_artifact(self.artifact(stage), self.source, verification_mode="cold")
+            for operation in loaded.compiled.operations:
+                if any(
+                    item.port == "snapshot" and item.producer == stage.id
+                    for item in operation.inputs
+                ):
+                    verify_snapshot(
+                        loaded.configs[operation.stage_id].dataset,
+                        verification_mode="cold",
+                    )
 
     def before_dispatch(self, stage, row):
         self.refresh()

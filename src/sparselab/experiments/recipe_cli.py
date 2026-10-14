@@ -200,8 +200,8 @@ def handle_preparation(args: argparse.Namespace) -> None:
 def handle_preparation_execution(args: argparse.Namespace) -> None:
     from sparselab.documents import read_document
     from sparselab.experiments.preparation_execution import (
-        PreparationAdmission,
         PreparationExecution,
+        preparation_admission,
     )
 
     try:
@@ -209,10 +209,10 @@ def handle_preparation_execution(args: argparse.Namespace) -> None:
             args.source,
             args.bindings,
             args.work_dir,
-            PreparationAdmission.model_validate(read_document(args.admission)),
+            preparation_admission(read_document(args.admission)),
         )
         result = context.engine().apply(resume=args.preparation_command == "resume")
-    except (OSError, TypeError, ValueError) as error:
+    except (OSError, TypeError, ValueError, KeyError) as error:
         raise SystemExit(f"sparselab: {error}") from None
     print(json.dumps(result, sort_keys=True, allow_nan=False))
 

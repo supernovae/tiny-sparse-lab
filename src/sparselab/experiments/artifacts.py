@@ -99,7 +99,18 @@ def _verify_domain(
     verification_mode: VerificationMode = "cold",
 ) -> None:
     kind = artifact.kind
-    if kind == "source_snapshot":
+    if kind == "dataset_snapshot":
+        from sparselab.data.sources import verify_snapshot
+
+        if artifact.version != 1 or not path.is_file() or path.name != "manifest.json":
+            raise ValueError("dataset snapshot requires version 1 and manifest.json")
+        verified = verify_snapshot(path, verification_mode="cold")
+        if verified.get("format") != "sparselab-dataset-snapshot-v1":
+            raise ValueError("dataset snapshot requires a native source-lock manifest")
+        _identity(
+            artifact, verified["lock"]["lock_sha256"], verified["manifest_sha256"]
+        )
+    elif kind == "source_snapshot":
         from sparselab.corpus.acquisition import verify_snapshot
 
         manifest = _require_directory(path, "manifest.json")
@@ -428,6 +439,10 @@ def _snapshot_dependencies(path: Path, manifest_name: str) -> tuple[Path, ...]:
 
 def _dependent_paths(artifact: Artifact, path: Path) -> tuple[Path, ...]:
     """Track external files read by domain verifiers alongside the artifact tree."""
+    if artifact.kind == "dataset_snapshot":
+        # The manifest identity covers sibling split/exclusion/event payloads.
+        # Include all of them in memo and persistent proof invalidation.
+        return (path.parent,)
     if artifact.kind == "tokenizer":
         manifest = path.with_name("tokenizer_manifest.json")
         paths = [manifest]
