@@ -47,6 +47,11 @@ def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
                 snapshot_verification_operation(
                     mode="cold" if engine.cold_verify else "verified_reuse"
                 ),
+                (
+                    engine.preparation_context.acquisition_scope()
+                    if engine.preparation_context is not None
+                    else nullcontext()
+                ),
             ):
                 return function(*args, **kwargs)
         finally:
@@ -238,10 +243,15 @@ class CampaignEngine:
             return self.preparation_context.artifact(stage)
         return stage.artifact
 
+    def _snapshot_path(self, stage: Any, field: str) -> Path:
+        if self.preparation_context is not None:
+            return self.preparation_context.loaded.acquisition_paths[stage.id][field]
+        return self._operational_path(getattr(stage, field))
+
     def _snapshot_identity(self, stage: Any, path: Path) -> dict:
         from sparselab.data.sources import verify_lock, verify_snapshot
 
-        lock = verify_lock(self._operational_path(stage.lock))
+        lock = verify_lock(self._snapshot_path(stage, "lock"))
         manifest = verify_snapshot(path)
         if manifest["lock"] != lock:
             raise ValueError("snapshot differs from declared source lock")
@@ -254,7 +264,7 @@ class CampaignEngine:
     def _dispatch_snapshot(self, stage: Any, *, resume_acquisition: bool) -> dict:
         from sparselab.data.sources import snapshot_source
 
-        output = self._operational_path(stage.output)
+        output = self._snapshot_path(stage, "output")
         # A published snapshot left by an interrupted receipt commit is verified,
         # never acquired again. Partial acquisition requires explicit resume.
         path = output / "manifest.json"
@@ -262,12 +272,18 @@ class CampaignEngine:
             output.parent.mkdir(parents=True, exist_ok=True)
             journal = output.with_name(f".{output.name}.work")
             try:
-                path = snapshot_source(
-                    self._operational_path(stage.lock),
-                    output,
-                    self._operational_path(stage.cache_dir),
-                    resume=stage.resume or (resume_acquisition and journal.exists()),
-                )
+                with (
+                    self.preparation_context.snapshot_scope(stage)
+                    if self.preparation_context is not None
+                    else nullcontext()
+                ):
+                    path = snapshot_source(
+                        self._snapshot_path(stage, "lock"),
+                        output,
+                        self._snapshot_path(stage, "cache_dir"),
+                        resume=stage.resume
+                        or (resume_acquisition and journal.exists()),
+                    )
             except (OSError, RuntimeError) as error:
                 if not journal.is_dir() or journal.is_symlink():
                     raise
@@ -598,7 +614,7 @@ class CampaignEngine:
         path = Path(row.get("availability", {}).get("path", ""))
         if kind == "dataset_snapshot":
             path = self._operational_path(row["availability"]["path"])
-            if path != self._operational_path(stage.output) / "manifest.json":
+            if path != self._snapshot_path(stage, "output") / "manifest.json":
                 raise ValueError("snapshot output location differs from declaration")
             if row["outputs"] != [self._snapshot_identity(stage, path)]:
                 raise ValueError("preparation output identity changed")

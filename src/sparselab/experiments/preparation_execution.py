@@ -11,7 +11,7 @@ import os
 import stat
 import sys
 import tempfile
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -19,6 +19,7 @@ from pydantic import Field, StrictInt, StrictStr
 
 from sparselab.config.models import StrictModel, TokenizerTrainConfig
 from sparselab.config.recipe_paths import _paths
+from sparselab.experiments.acquisition_admission import AcquisitionAdmission
 from sparselab.experiments.preparation_recipe import load_preparation_recipe
 from sparselab.experiments.workflow_recipe import _location
 from sparselab.recovery.provenance import git_provenance, repository_root
@@ -46,9 +47,19 @@ class SnapshotPreparationAdmission(PreparationAdmission):
     max_snapshot_records: StrictInt = Field(gt=0)
 
 
+class AcquisitionPreparationAdmission(SnapshotPreparationAdmission):
+    """New explicit authority; historical v1/v2 serialization is unchanged."""
+
+    preparation_admission_version: StrictInt = Field(ge=3, le=3)
+
+    acquisitions: dict[StrictStr, AcquisitionAdmission]
+
+
 def preparation_admission(document: dict) -> PreparationAdmission:
     model = (
-        SnapshotPreparationAdmission
+        AcquisitionPreparationAdmission
+        if document.get("preparation_admission_version") == 3
+        else SnapshotPreparationAdmission
         if document.get("preparation_admission_version") == 2
         else PreparationAdmission
     )
@@ -189,6 +200,21 @@ class PreparationExecution:
                     }
                 ):
                     raise ValueError(f"preparation input path unavailable: {field}")
+        logs = {
+            config.logging.root_dir
+            for config in current.configs.values()
+            if not isinstance(config, TokenizerTrainConfig)
+        }
+        acquisition_outputs = self._admit_acquisitions(current)
+        for path in acquisition_outputs:
+            for existing in outputs | logs | acquisition_outputs:
+                if path != existing and (
+                    path.is_relative_to(existing) or existing.is_relative_to(path)
+                ):
+                    raise ValueError("acquisition paths overlap preparation outputs")
+            if path in outputs | logs:
+                raise ValueError("acquisition paths overlap preparation outputs")
+        outputs |= acquisition_outputs
         if tokenizer_outputs & caches:
             raise ValueError("preparation output directories must not overlap")
         for left in outputs:
@@ -271,7 +297,14 @@ class PreparationExecution:
         from sparselab.experiments.artifacts import verify_artifact
 
         total_bytes = 0
-        total_records = 0
+        from sparselab.data.sources import verify_lock
+
+        total_records = sum(
+            lock["source"]["resources"]["max_source_records"]
+            * len(lock["source"]["splits"])
+            for fields in loaded.acquisition_paths.values()
+            for lock in [verify_lock(fields["lock"])]
+        )
         for stage in references:
             path = loaded.artifact_locations[stage.id]
             _location(self.bindings, str(path))
@@ -319,9 +352,115 @@ class PreparationExecution:
                         verification_mode="cold",
                     )
 
+    def _admit_acquisitions(self, loaded):
+        if not loaded.acquisition_paths:
+            if (
+                isinstance(self.admission, AcquisitionPreparationAdmission)
+                and self.admission.acquisitions
+            ):
+                raise ValueError("acquisition admission has no matching stages")
+            return set()
+        if not isinstance(self.admission, AcquisitionPreparationAdmission):
+            raise TypeError("acquisition requires preparation admission version 3")
+        if set(self.admission.acquisitions) != set(loaded.acquisition_paths):
+            raise ValueError(
+                "acquisition admissions must name exactly the snapshot stages"
+            )
+        from sparselab.data.bounded_acquisition import validate_profile
+        from sparselab.data.sources import verify_lock
+
+        paths = set()
+        records = 0
+        for name, fields in loaded.acquisition_paths.items():
+            lock = verify_lock(fields["lock"])
+            validate_profile(lock, self.admission.acquisitions[name])
+            records += lock["source"]["resources"]["max_source_records"] * len(
+                lock["source"]["splits"]
+            )
+            for path in (
+                fields["output"],
+                fields["cache_dir"],
+                fields["output"].with_name("." + fields["output"].name + ".work"),
+            ):
+                _location(self.bindings, str(path))
+                if path == self.work_dir or not path.is_relative_to(self.work_dir):
+                    raise ValueError(
+                        "acquisition paths must be children of the explicit work root"
+                    )
+                if path.relative_to(self.work_dir).parts[0] in {
+                    "campaigns",
+                    "scratch",
+                    "execution",
+                    "ownership",
+                }:
+                    raise ValueError(
+                        "acquisition paths overlap native operational storage"
+                    )
+                if path in paths:
+                    raise ValueError("acquisition paths must be distinct")
+                paths.add(path)
+        if records > self.admission.max_snapshot_records:
+            raise ValueError("acquisition source exceeds snapshot record admission")
+        return paths
+
+    @contextmanager
+    def acquisition_scope(self):
+        if not self.loaded.acquisition_paths or hasattr(self, "_transports"):
+            yield
+            return
+        import fcntl
+
+        from sparselab.corpus.acquisition import _write_json
+        from sparselab.data.acquisition_scope import current_verifications
+        from sparselab.data.bounded_acquisition import DatasetTransport
+        from sparselab.data.sources import verify_lock
+
+        transports = {}
+        with ExitStack() as stack:
+            for name, fields in sorted(self.loaded.acquisition_paths.items()):
+                transport = DatasetTransport(
+                    verify_lock(fields["lock"]),
+                    self.admission.acquisitions[name],
+                    fields["cache_dir"],
+                    fields["output"],
+                    self.work_dir,
+                    self.identity,
+                )
+                transport.validate_locations()
+                transport.root.mkdir(parents=True, exist_ok=True)
+                guard = stack.enter_context((transport.root / "guard").open("a+b"))
+                fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                transport.snapshot_limit = self.admission.max_snapshot_bytes
+                transport.initialize()
+                transports[name] = transport
+            snapshot_roots = [
+                (transport.output, transport.publication)
+                for transport in transports.values()
+            ] + [
+                (self.loaded.artifact_locations[stage.id].parent,)
+                for stage in self.loaded.plan.stages
+                if stage.kind == "artifact_reference"
+                and stage.artifact.kind == "dataset_snapshot"
+            ]
+            for transport in transports.values():
+                transport.snapshot_roots = snapshot_roots
+            stack.enter_context(self.dispatch_scope())
+            self._transports = transports
+            token = current_verifications.set(tuple(transports.values()))
+            try:
+                yield
+            finally:
+                current_verifications.reset(token)
+                for transport in transports.values():
+                    _write_json(transport.root / "receipt.json", transport.receipt())
+                del self._transports
+
+    def snapshot_scope(self, stage):
+        return self._transports[stage.id].scope()
+
     def before_dispatch(self, stage, row):
         self.refresh()
-        if row.get("attempts"):
+        if row.get("attempts") and stage.kind != "dataset_snapshot":
             raise ValueError(
                 "preparation has an uncommitted attempt; automatic rerun is unavailable"
             )
@@ -343,11 +482,12 @@ class PreparationExecution:
         # Scope its process settings to this explicit invocation and restore them.
         from sparselab.workdir import ensure_work_dir
 
-        names = ("SPARSELAB_WORK_DIR", "TMPDIR", "TEMP", "TMP")
+        names = ("SPARSELAB_WORK_DIR", "TMPDIR", "TEMP", "TMP", "SQLITE_TMPDIR")
         prior = {name: os.environ.get(name) for name in names}
         temporary = tempfile.tempdir
         try:
             ensure_work_dir(self.work_dir)
+            os.environ["SQLITE_TMPDIR"] = str(self.work_dir / "scratch")
             yield
         finally:
             tempfile.tempdir = temporary

@@ -8,13 +8,25 @@ Computation stays in native Python components, connections in the typed native
 plan, execution in CampaignEngine/Controller. No dataset-specific engine or
 custom driver may bypass missing contracts.
 
-## Stage 1: local snapshot preparation (this implementation)
+## Stage 1: local snapshot preparation
 
 - [x] Distinct native `dataset_snapshot` artifact identity and existing typed
   preparation snapshot ports, with explicit version-2 consumption admission.
 - [x] Metadata-only inspection; local native integrity/config verification;
   missing-input refusal without acquisition; public apply/resume integration.
 - [x] Bounded local-fixture preparation and receipt replay without repeated work.
+
+## Stage 2: bounded Hub acquisition foundation
+
+- [x] Inventoried native source locks, bound output/private cache, version-3
+  admission, whole-file HTTP reservations, typed Git/LFS content authentication.
+- [x] Native snapshot journal, interruption/cancellation recovery and published
+  artifact replay; loopback Parquet → tokenizer → pack integration.
+- [x] Cumulative operational transfer/metadata/request/retry/scan/verification
+  allowances and observed owned-storage stops. Unsupported hard guarantees and
+  decoder options fail closed; see [the contract](preparation-recipes.md#bounded-hub-acquisition).
+- [ ] Real pinned Hub delivery and decoder-resource qualification under a separate
+  authorization. Loopback wiring is not TinyStories portability evidence.
 
 ## Remaining completion gates
 
@@ -41,7 +53,8 @@ custom driver may bypass missing contracts.
 - [ ] Explicit disposition of hosted/GPU samples: their own qualified replacement
   or a documented distinct retained scope. CPU evidence is not accelerator proof.
 
-The first snapshot-consumption PR does not complete any of these later gates.
+The snapshot-consumption and bounded-acquisition foundations do not complete
+these real-data and full-workflow gates.
 Legacy paths/tests remain until their replacement is proven. A preparation recipe
 revision identifies its committed inputs and admission. A later workflow recipe
 revision pins the produced artifact identities. Replaying preparation must use

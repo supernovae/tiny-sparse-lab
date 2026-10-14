@@ -29,7 +29,9 @@ from sparselab.training.manifest import canonical_json, source_identity
 class PreparationFile(StrictModel):
     path: StrictStr
     sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
-    role: Literal["campaign", "run_config", "tokenizer_config", "metadata"]
+    role: Literal[
+        "campaign", "run_config", "tokenizer_config", "metadata", "source_lock"
+    ]
 
     @field_validator("path")
     @classmethod
@@ -63,6 +65,16 @@ class PreparationBindings(StrictModel):
     config_paths: dict[StrictStr, dict[StrictStr, StrictStr]]
 
 
+class AcquisitionPaths(StrictModel):
+    output: StrictStr
+    cache_dir: StrictStr
+
+
+class AcquisitionBindings(PreparationBindings):
+    preparation_bindings_version: StrictInt = Field(ge=2, le=2)
+    acquisitions: dict[StrictStr, AcquisitionPaths]
+
+
 @dataclass(frozen=True)
 class LoadedPreparation:
     descriptor: PreparationRecipe
@@ -73,6 +85,7 @@ class LoadedPreparation:
     artifact_locations: Mapping[str, Path]
     recipe_sha256: str
     binding_sha256: str
+    acquisition_paths: Mapping[str, Mapping[str, Path]]
 
 
 def _config(
@@ -125,9 +138,12 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
             "local bindings must be separate from inventoried declarations"
         )
     local_bytes = _metadata_bytes(bindings)
-    local = PreparationBindings.model_validate(
-        parse_document(local_bytes.decode(), source=bindings)
-    )
+    local_document = parse_document(local_bytes.decode(), source=bindings)
+    local = (
+        AcquisitionBindings
+        if local_document.get("preparation_bindings_version") == 2
+        else PreparationBindings
+    ).model_validate(local_document)
     source = context.reference(
         context.root / descriptor.entrypoint, descriptor.entrypoint
     )
@@ -143,6 +159,7 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
             "tokenizer_train",
             "data_prepare",
             "artifact_reference",
+            "dataset_snapshot",
         }:
             raise ValueError("unsupported preparation operation")
         if stage["kind"] == "artifact_reference":
@@ -155,6 +172,37 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
                     "preparation supports only external tokenizer and dataset_snapshot references"
                 )
             canonical_reference(artifact.get("path", ""))
+    roles = {member.path: member.role for member in descriptor.files}
+    if any(
+        stage["kind"] == "dataset_snapshot" and not isinstance(stage.get("id"), str)
+        for stage in stages
+    ):
+        raise ValueError("acquisition stage requires a string id")
+    acquisitions = {
+        stage["id"]: stage for stage in stages if stage["kind"] == "dataset_snapshot"
+    }
+    bound_acquisitions = (
+        local.acquisitions if isinstance(local, AcquisitionBindings) else {}
+    )
+    if set(bound_acquisitions) != set(acquisitions):
+        raise ValueError("acquisition bindings must name exactly the snapshot stages")
+    acquisition_paths = {}
+    for name, stage in acquisitions.items():
+        for field in ("lock", "output", "cache_dir"):
+            canonical_reference(stage.get(field, ""))
+        if roles.get(stage["lock"]) != "source_lock":
+            raise ValueError(
+                "acquisition lock must be an inventoried source_lock member"
+            )
+        if stage.get("resume", False):
+            raise ValueError(
+                "portable acquisition uses explicit Campaign resume, not stage.resume"
+            )
+        acquisition_paths[name] = {
+            "lock": context.reference(source, stage["lock"]),
+            "output": _location(bindings, bound_acquisitions[name].output),
+            "cache_dir": _location(bindings, bound_acquisitions[name].cache_dir),
+        }
     plan = CampaignPlan.model_validate(authored)
     compiled = compile_preparation(plan)
     if not compiled.operations:
@@ -169,6 +217,12 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
     locations = {
         name: _location(bindings, value) for name, value in local.artifacts.items()
     }
+    locations.update(
+        {
+            name: paths["output"] / "manifest.json"
+            for name, paths in acquisition_paths.items()
+        }
+    )
     if set(local.config_paths) != {op.config_reference for op in compiled.operations}:
         raise ValueError(
             "config bindings must name exactly the compiled config references"
@@ -232,6 +286,9 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
             b"sparselab-portable-preparation-v1\0" + canonical_json(canonical)
         ).hexdigest(),
         hashlib.sha256(local_bytes).hexdigest(),
+        MappingProxyType(
+            {name: MappingProxyType(paths) for name, paths in acquisition_paths.items()}
+        ),
     )
 
 
@@ -261,6 +318,10 @@ def inspect_preparation_recipe(path: Path, bindings: Path) -> dict:
                 },
             }
             for op in loaded.compiled.operations
+        },
+        "acquisitions": {
+            name: {field: str(value) for field, value in paths.items()}
+            for name, paths in loaded.acquisition_paths.items()
         },
         "artifacts": {
             stage.id: {
