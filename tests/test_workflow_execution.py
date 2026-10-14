@@ -332,7 +332,7 @@ def test_public_admission_requires_synthetic_cpu(tmp_path, unsupported):
     assert not (tmp_path / "work").exists()
 
 
-@pytest.mark.parametrize("variant", ["gate_role", "two_evaluations"])
+@pytest.mark.parametrize("variant", ["gate_role", "two_evaluations", "other_kind"])
 def test_public_admission_requires_one_diagnostic_heldout_suite(tmp_path, variant):
     from sparselab.evaluation.suite_models import EvaluationSuite
 
@@ -341,6 +341,8 @@ def test_public_admission_requires_one_diagnostic_heldout_suite(tmp_path, varian
     suite = json.loads(path.read_text())
     if variant == "gate_role":
         suite["evaluations"][0]["role"] = "gate"
+    elif variant == "other_kind":
+        suite["evaluations"][0].update(kind="capability_card", source="card.json")
     else:
         suite["evaluations"].append(
             {"id": "second", "kind": "heldout_lm", "role": "diagnostic"}
