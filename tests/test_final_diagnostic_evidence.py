@@ -740,3 +740,36 @@ def test_obsolete_evidence_refuses_without_controller_or_rewrite(
     ):
         evidence.read_evidence(f.lock, f.root, path)
     assert path.read_bytes() == original
+
+
+def test_resealed_identical_suite_at_unlocked_path_is_refused(recorded):
+    f = recorded
+    bind_diagnostics(f.lock, f.payload, f.root, [f.ref])  # Valid locked location.
+    other = f.root / "copied-suite.json"
+    other.write_bytes(f.source.read_bytes())
+    assert other.is_absolute() and other != Path(
+        f.lock.availability["evaluation_suite"]
+    )
+    assert (
+        hashlib.sha256(other.read_bytes()).hexdigest()
+        == f.lock.evaluation_suite["sha256"]
+    )
+    f.record["suite"] = str(other)
+    index = seal_index(f.record, f.index.parent)
+    ref = {
+        **f.ref,
+        "suite": str(other),
+        "index": str(index),
+        "index_sha256": f.record["index_sha256"],
+    }
+    verified = suite.verify_evaluation_index(index)
+    assert verified["suite"] == ref["suite"]
+    assert (
+        verified["suite_sha256"]
+        == ref["suite_sha256"]
+        == f.lock.evaluation_suite["sha256"]
+    )
+    with pytest.raises(
+        ValueError, match="diagnostic suite differs from locked declaration"
+    ):
+        bind_diagnostics(f.lock, f.payload, f.root, [ref])
