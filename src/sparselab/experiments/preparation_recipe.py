@@ -59,20 +59,24 @@ class PreparationRecipe(StrictModel):
         return self
 
 
-class PreparationBindings(StrictModel):
-    preparation_bindings_version: StrictInt = Field(ge=1, le=1)
-    artifacts: dict[StrictStr, StrictStr] = Field(default_factory=dict)
-    config_paths: dict[StrictStr, dict[StrictStr, StrictStr]]
-
-
 class AcquisitionPaths(StrictModel):
     output: StrictStr
     cache_dir: StrictStr
 
 
-class AcquisitionBindings(PreparationBindings):
-    preparation_bindings_version: StrictInt = Field(ge=2, le=2)
-    acquisitions: dict[StrictStr, AcquisitionPaths]
+class PreparationBindings(StrictModel):
+    artifacts: dict[StrictStr, StrictStr] = Field(default_factory=dict)
+    config_paths: dict[StrictStr, dict[StrictStr, StrictStr]]
+    acquisitions: dict[StrictStr, AcquisitionPaths] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def current_contract(cls, value):
+        if isinstance(value, dict) and "preparation_bindings_version" in value:
+            raise ValueError(
+                "obsolete preparation bindings; regenerate locations for the current authored recipe"
+            )
+        return value
 
 
 @dataclass(frozen=True)
@@ -139,11 +143,7 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
         )
     local_bytes = _metadata_bytes(bindings)
     local_document = parse_document(local_bytes.decode(), source=bindings)
-    local = (
-        AcquisitionBindings
-        if local_document.get("preparation_bindings_version") == 2
-        else PreparationBindings
-    ).model_validate(local_document)
+    local = PreparationBindings.model_validate(local_document)
     source = context.reference(
         context.root / descriptor.entrypoint, descriptor.entrypoint
     )
@@ -181,9 +181,7 @@ def load_preparation_recipe(path: Path, bindings: Path) -> LoadedPreparation:
     acquisitions = {
         stage["id"]: stage for stage in stages if stage["kind"] == "dataset_snapshot"
     }
-    bound_acquisitions = (
-        local.acquisitions if isinstance(local, AcquisitionBindings) else {}
-    )
+    bound_acquisitions = local.acquisitions
     if set(bound_acquisitions) != set(acquisitions):
         raise ValueError("acquisition bindings must name exactly the snapshot stages")
     acquisition_paths = {}

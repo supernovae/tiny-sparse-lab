@@ -43,7 +43,6 @@ def acquisition_recipe(tmp_path, monkeypatch, http_files):
     campaign_path.write_text(json.dumps(campaign))
     local = json.loads(bindings.read_text())
     local.update(
-        preparation_bindings_version=2,
         acquisitions={
             "snapshot": {
                 "output": str(work / "snapshot"),
@@ -90,7 +89,6 @@ def acquisition_recipe(tmp_path, monkeypatch, http_files):
     loaded = load_preparation_recipe(source, bindings)
     raw = admission.model_dump(mode="json")
     raw.update(
-        preparation_admission_version=3,
         reviewed_commit=git(source.parent, "rev-parse", "HEAD"),
         recipe_sha256=loaded.recipe_sha256,
         binding_sha256=loaded.binding_sha256,
@@ -201,7 +199,7 @@ def test_bounded_snapshot_retains_native_identity(
 @pytest.mark.parametrize(
     "damage,match",
     [
-        ("v2", "version 3"),
+        ("missing-authority", "admissions must name exactly"),
         ("authority", "authority differs"),
         ("records", "record admission"),
         ("overlap", "overlap"),
@@ -212,8 +210,7 @@ def test_acquisition_admission_before_output(
 ):
     args = acquisition_recipe(tmp_path, monkeypatch, http_files)
     raw = json.loads(args[3].read_text())
-    if damage == "v2":
-        raw["preparation_admission_version"] = 2
+    if damage == "missing-authority":
         raw.pop("acquisitions")
     elif damage == "authority":
         raw["acquisitions"]["snapshot"]["lock_sha256"] = "0" * 64
