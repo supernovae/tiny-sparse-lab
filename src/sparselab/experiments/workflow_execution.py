@@ -33,7 +33,7 @@ class PairLimits(StrictModel):
 
 
 class WorkflowAdmission(StrictModel):
-    workflow_admission_version: StrictInt = Field(ge=1, le=2)
+    workflow_admission_version: StrictInt = Field(ge=1, le=3)
     reviewed_commit: StrictStr = Field(pattern=r"^[0-9a-f]{40}$")
     recipe_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     binding_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
@@ -42,8 +42,8 @@ class WorkflowAdmission(StrictModel):
 
     @model_validator(mode="after")
     def versioned_limits(self):
-        if (self.workflow_admission_version == 2) != (self.pair_limits is not None):
-            raise ValueError("pair_limits are required only for workflow admission v2")
+        if (self.workflow_admission_version >= 2) != (self.pair_limits is not None):
+            raise ValueError("pair_limits are required for workflow admission v2/v3")
         return self
 
 
@@ -84,13 +84,15 @@ class WorkflowExecution:
                     raise ValueError("Campaign artifact differs from workflow identity")
                 stage["artifact"] = loaded.plan.artifacts[name].model_dump(mode="json")
         self.campaign = CampaignPlan.model_validate(document)
-        if admission.workflow_admission_version == 2:
+        if admission.workflow_admission_version >= 2:
             self._validate_pair()
         else:
             self._validate_single()
         self.refresh()
 
     def _validate_single(self):
+        if any(getattr(s, "evaluations", ()) for s in self.campaign.stages):
+            raise ValueError("final collection requires workflow admission v3")
         loaded = self.loaded
         kinds = [s.kind for s in self.campaign.stages]
         if (
@@ -228,6 +230,15 @@ class WorkflowExecution:
         groups = {}
         for stage in self.campaign.stages:
             groups.setdefault(stage.kind, []).append(stage)
+        finals = [s for s in groups.get("experiment_collect", []) if s.evaluations]
+        if self.admission.workflow_admission_version == 3:
+            if len(finals) != 1:
+                raise ValueError("workflow admission v3 requires one final collection")
+            groups["experiment_collect"] = [
+                s for s in groups["experiment_collect"] if not s.evaluations
+            ]
+        elif finals:
+            raise ValueError("final collection requires workflow admission v3")
         counts = {kind: len(stages) for kind, stages in groups.items()}
         if (
             counts
@@ -295,6 +306,19 @@ class WorkflowExecution:
             )
         ):
             raise ValueError("unsupported paired Campaign connections")
+        if finals:
+            final = finals[0]
+            evaluation_ids = {s.id for s in evaluations}
+            if (
+                final.plan != planning.id
+                or final.run not in run_ids
+                or set(final.evaluations) != evaluation_ids
+                or set(final.requires) != {planning.id, *run_ids, *evaluation_ids}
+                or any(final.id in s.requires for s in self.campaign.stages)
+            ):
+                raise ValueError(
+                    "final collection must follow both paired evaluations and be terminal"
+                )
 
     def refresh(self):
         current = load_workflow(self.source, self.bindings)

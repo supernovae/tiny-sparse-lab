@@ -361,6 +361,7 @@ def collect_evidence(
     lock: ResolvedExperimentPlan,
     workspace: Path,
     *,
+    diagnostic_references: list[dict] | None = None,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
@@ -383,6 +384,17 @@ def collect_evidence(
         proof_store=proof_store,
         verification_mode=verification_mode,
     )
+    if diagnostic_references is not None:
+        from sparselab.experiments.diagnostic_evidence import bind_diagnostics
+
+        payload = bind_diagnostics(
+            lock,
+            payload,
+            root,
+            diagnostic_references,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
     digest = _digest(payload)
     directory = root / "evidence"
     directory.mkdir(parents=True, exist_ok=True)
@@ -437,6 +449,17 @@ def read_evidence(
         proof_store=proof_store,
         verification_mode=verification_mode,
     )
+    if payload.get("version") == 2:
+        from sparselab.experiments.diagnostic_evidence import bind_diagnostics
+
+        rebuilt = bind_diagnostics(
+            lock,
+            rebuilt,
+            Path(workspace),
+            [item["reference"] for item in payload["diagnostic_evaluations"]],
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
     if rebuilt != payload:
         raise ValueError(
             "indexed controller/spec/run evidence changed or is unavailable"

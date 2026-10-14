@@ -169,7 +169,7 @@ def build_publication_report(
         )
     observed_comparisons = {item["id"]: item for item in coverage["comparisons"]}
     readiness = views["readiness_decision"]["facts"]
-    return {
+    report = {
         "format": FORMAT,
         "provenance": {
             "plan_id": lock.id,
@@ -224,6 +224,16 @@ def build_publication_report(
         },
         "limitations": list(_LIMITATIONS),
     }
+
+    if index_path is not None:
+        from sparselab.experiments.diagnostic_evidence import report_diagnostics
+        from sparselab.experiments.evidence import read_evidence
+
+        evidence = read_evidence(lock, workspace, index_path)
+        if evidence["version"] == 2:
+            report["format"] = "sparselab-publication-report-v2"
+            report["diagnostic_evaluations"] = report_diagnostics(evidence)
+    return report
 
 
 def _json(report: dict[str, Any]) -> bytes:
@@ -293,6 +303,12 @@ def _markdown(report: dict[str, Any]) -> bytes:
         lines.append("No comparisons recorded.")
     lines.extend(["", "## Availability and rights", ""])
     lines.extend(f"- {key}: {value}" for key, value in report["availability"].items())
+    if "diagnostic_evaluations" in report:
+        lines.extend(["", "## Recorded diagnostic evaluations", ""])
+        for item in report["diagnostic_evaluations"]:
+            lines.append(
+                f"- {literal(item['cell_id'])}: {literal(item['status'])}; index {literal(item['index_sha256'])}; metrics {literal(item['metrics'])}"
+            )
     lines.extend(["", "## Limitations", ""])
     lines.extend(f"- {item}" for item in report["limitations"])
     return ("\n".join(lines) + "\n").encode("utf-8")

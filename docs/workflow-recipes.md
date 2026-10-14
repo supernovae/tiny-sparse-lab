@@ -459,3 +459,66 @@ These tests address the admission coverage correction in
 They preserve the existing guards rather than changing runtime contracts, legacy
 seed acceptance or historical hashes. Normal safe/fast/lab-loop CI remains the
 broader compatibility gate; no full measured training is added to CLI tests.
+
+## Post-evaluation evidence closure (admission v3)
+
+Admission v3 retains the v2 paired CPU contract and caller-selected `pair_limits`.
+It adds exactly one authored, terminal `experiment_collect` stage after both
+existing diagnostic evaluations. Its `run` names either completed arm for the
+native collection checkpoint contract; the evidence snapshot covers **both**
+locked cells. For the example stage names above:
+
+```yaml
+- id: final-evidence
+  kind: experiment_collect
+  scope: evaluation
+  plan: plan
+  run: run-baseline
+  evaluations: [eval-baseline, eval-candidate]
+  requires: [plan, run-baseline, run-candidate, eval-baseline, eval-candidate]
+```
+
+Use `workflow_admission_version: 3` with the same reviewed recipe commit,
+recipe/binding digests, CPU interpreter and explicit pair allowances. Both
+`evaluations` references must name the existing paired evaluation stages, and no
+stage may depend on this terminal collection. Stage IDs remain authored. V1/v2
+admission does not accept final collections; existing declarations keep their
+serialization and behavior. Continuation and generation panels are not admitted.
+
+The native Campaign executor derives exact run, collected checkpoint, inventoried
+suite and upstream evaluation-index bindings. It verifies each existing index and
+its result with `verify_evaluation_index`, then seals evidence index **version 2**.
+References must cover each completed cell exactly once. Reopening checks the
+same controller evidence, locked suite, checkpoint membership and all referenced
+bytes again. Receipt replay additionally checks the references against the
+Campaign dependencies. Missing or tampered indices fail; a native `UNAVAILABLE`
+diagnostic remains unavailable with no invented metric or implicit rerun.
+
+Use the final stage's `availability.path` as the explicit report index:
+
+```sh
+sparselab experiment recipe workflow report /work/experiment/locks/LOCK.json \
+  --workspace /work/experiment --index /work/experiment/evidence/FINAL.json \
+  --output /work/report.json --format json
+```
+
+The existing report command verifies and projects this snapshot as
+`sparselab-publication-report-v2`, including checkpoint/suite/index/result hashes,
+status and allowlisted diagnostic metrics. Markdown includes the same qualified
+observations. Local paths and raw error text are not exported. Execution coverage,
+scientific comparability, effectiveness and publication rights retain their
+separate meanings; completed diagnostics do not select a winner. Rendering never
+collects missing work, scores, trains, downloads or advances the controller.
+
+Evidence v1 and publication-report v1 retain their original payloads and hashing;
+new fields appear only for explicitly selected final diagnostic evidence. Source
+verification closures change normally and can invalidate old warm verification
+proofs; historical scientific identities and immutable evidence are not rewritten.
+
+`test_final_diagnostic_evidence` covers native suite/result byte verification with
+an explicitly substituted checkpoint verifier (no model), wrong identities,
+missing/tampered/unavailable results, exact coverage, v1 readback/serialization,
+v3 topology, native final-collection dispatch/receipt reopening, immutable replay,
+and report no-computation/output sanitization. Existing workflow, Campaign,
+evidence, publication and CLI tests retain their authority. This software slice
+adds no measured model proof; the separately retained paired proof predates v3.
