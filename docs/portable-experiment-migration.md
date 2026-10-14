@@ -14,8 +14,7 @@ custom driver may bypass missing contracts.
   preparation snapshot ports, with explicit version-2 consumption admission.
 - [x] Metadata-only inspection; local native integrity/config verification;
   missing-input refusal without acquisition; public apply/resume integration.
-- [ ] Reviewed exact-head CI and retained measured local-fixture preparation/replay
-  evidence. This gate is recorded in the implementation PR, not inferred here.
+- [x] Bounded local-fixture preparation and receipt replay without repeated work.
 
 ## Remaining completion gates
 
@@ -43,9 +42,12 @@ custom driver may bypass missing contracts.
   or a documented distinct retained scope. CPU evidence is not accelerator proof.
 
 The first snapshot-consumption PR does not complete any of these later gates.
-Legacy paths/tests remain until their replacement is proven. Preserve A's clean
-preparation checkout/admission for replay when workflow identities are committed
-at B. Freeze the final lab source identity before fresh real preparation.
+Legacy paths/tests remain until their replacement is proven. A preparation recipe
+revision identifies its committed inputs and admission. A later workflow recipe
+revision pins the produced artifact identities. Replaying preparation must use
+its original recipe revision and admission; workflow edits do not retroactively
+change preparation provenance. Fresh preparation records the selected lab source
+identity.
 
 ## Real-data admission
 

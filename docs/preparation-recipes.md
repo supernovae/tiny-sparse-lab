@@ -239,7 +239,11 @@ In each config, declare `dataset.source: snapshot` and canonical relative
 `dataset.validation_path`; bind these exact typed fields in that config's
 `config_paths`. The manifest must be the input producer's location, and splits
 must be its sibling `train.jsonl` and `validation.jsonl`. Output locations remain
-under the explicit work root and may not overlap snapshot inputs.
+under the explicit work root and may not overlap snapshot inputs in either
+direction. Snapshot inputs also cannot overlap the native operational namespaces
+`campaigns`, `scratch`, `execution`, or `ownership`. Retained inputs in a distinct
+work-root directory such as `inputs` are allowed; admission does not initialize
+operational storage.
 
 ### Admission version 2
 
@@ -314,3 +318,11 @@ inventory proofs remain independent of source preparation. The new artifact
 branch uses cold native verification and does not add a persistent authority
 kind. Existing dispatch-owner exclusion pins were explicitly re-audited for
 this addition; historical content hashes and records are not rewritten.
+
+Admission boundary tests cover both output/input overlap directions before work
+creation, and preserve existing retained input bytes on refusal. They exercise
+both source/compiled-port mismatch directions (including the version-1 bypass),
+all three snapshot locations, and the per-split record ceiling at 39/40. Direct
+artifact-domain tests verify the envelope and refuse a genuinely verified legacy
+import without relying on verifier-authority pins. Malformed manifest metadata
+gets a descriptive admission error; unrelated internal KeyErrors remain visible.

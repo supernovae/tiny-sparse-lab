@@ -212,7 +212,7 @@ def handle_preparation_execution(args: argparse.Namespace) -> None:
             preparation_admission(read_document(args.admission)),
         )
         result = context.engine().apply(resume=args.preparation_command == "resume")
-    except (OSError, TypeError, ValueError, KeyError) as error:
+    except (OSError, TypeError, ValueError) as error:
         raise SystemExit(f"sparselab: {error}") from None
     print(json.dumps(result, sort_keys=True, allow_nan=False))
 

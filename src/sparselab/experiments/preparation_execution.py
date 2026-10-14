@@ -212,6 +212,14 @@ class PreparationExecution:
                         raise ValueError(
                             "preparation outputs must not overlap snapshot inputs"
                         )
+                for name in ("campaigns", "scratch", "execution", "ownership"):
+                    operational = self.work_dir / name
+                    if snapshot_root.is_relative_to(
+                        operational
+                    ) or operational.is_relative_to(snapshot_root):
+                        raise ValueError(
+                            "snapshot input overlaps native operational storage"
+                        )
         paths = (
             self.source,
             *(current.context.root / name for name in current.context.documents),
@@ -280,11 +288,21 @@ class PreparationExecution:
                 if total_bytes > self.admission.max_snapshot_bytes:
                     raise ValueError("snapshot exceeds admitted byte limit")
             raw = json.loads(path.read_text())
-            if raw.get("format") != "sparselab-dataset-snapshot-v1":
+            if (
+                not isinstance(raw, dict)
+                or raw.get("format") != "sparselab-dataset-snapshot-v1"
+            ):
                 raise ValueError("snapshot requires a native source-lock manifest")
             # Declared per-split scan ceilings bound verifier work, not just retained rows.
-            source = raw["lock"]["source"]
-            records = source["resources"]["max_source_records"]
+            try:
+                source = raw["lock"]["source"]
+                records = source["resources"]["max_source_records"]
+            except (KeyError, TypeError) as error:
+                raise ValueError(
+                    "snapshot manifest lacks lock.source.resources.max_source_records"
+                ) from error
+            if not isinstance(source.get("splits"), dict) or not source["splits"]:
+                raise ValueError("snapshot manifest lacks nonempty lock.source.splits")
             if type(records) is not int or records <= 0:
                 raise ValueError("invalid snapshot source record bound")
             total_records += records * len(source["splits"])

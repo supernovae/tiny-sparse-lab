@@ -368,3 +368,315 @@ def test_snapshot_rebound_admission_cannot_reuse_receipts(
         SystemExit, match="PREPARATION_CONTEXT_CHANGED: receipt context differs"
     ):
         invoke(monkeypatch, capsys, "resume", args)
+
+
+def rebind_snapshot(args, destination):
+    _, bindings, _, _, _ = args
+    local = json.loads(bindings.read_text())
+    local["artifacts"]["snapshot"] = str(destination / "manifest.json")
+    for fields in local["config_paths"].values():
+        for field, name in (
+            ("source_manifest_path", "manifest.json"),
+            ("train_path", "train.jsonl"),
+            ("validation_path", "validation.jsonl"),
+        ):
+            fields["dataset." + field] = str(destination / name)
+    bindings.write_text(json.dumps(local))
+    refresh_admission(args)
+
+
+def refresh_admission(args):
+    source, bindings, _, admission, _ = args
+    loaded = load_preparation_recipe(source, bindings)
+    raw = json.loads(admission.read_text())
+    raw.update(recipe_sha256=loaded.recipe_sha256, binding_sha256=loaded.binding_sha256)
+    admission.write_text(json.dumps(raw))
+
+
+@pytest.mark.parametrize(
+    "direction", ["output_contains_input", "input_contains_output"]
+)
+@pytest.mark.parametrize("retained", [False, True])
+def test_snapshot_output_overlap_before_writes(
+    tmp_path, monkeypatch, capsys, direction, retained
+):
+    import shutil
+    from pathlib import Path
+
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    _, bindings, work, _, manifest = args
+    local = json.loads(bindings.read_text())
+    if direction == "output_contains_input":
+        destination = (
+            Path(local["config_paths"]["run.yaml"]["logging.root_dir"]) / "snapshot"
+        )
+    else:
+        destination = work / "inputs"
+        for fields in local["config_paths"].values():
+            fields["dataset.cache_dir"] = str(destination / "cache")
+        bindings.write_text(json.dumps(local))
+    if retained:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(manifest.parent, destination)
+    rebind_snapshot(args, destination)
+    before = {
+        str(p.relative_to(work)): p.read_bytes() for p in work.rglob("*") if p.is_file()
+    }
+    with pytest.raises(SystemExit, match="outputs must not overlap snapshot inputs"):
+        invoke(monkeypatch, capsys, "apply", args)
+    assert {
+        str(p.relative_to(work)): p.read_bytes() for p in work.rglob("*") if p.is_file()
+    } == before
+    if not retained:
+        assert not work.exists()
+    else:
+        assert not (work / "campaigns").exists()
+        assert not (work / "scratch").exists()
+
+
+@pytest.mark.parametrize("direction", ["source_without_port", "port_without_source"])
+@pytest.mark.parametrize("route", ["loader", "apply_v1"])
+def test_snapshot_source_and_port_must_agree(
+    tmp_path, monkeypatch, capsys, direction, route
+):
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    source, bindings, work, admission, _ = args
+    if direction == "source_without_port":
+        path = source.parent / "campaign.json"
+        campaign = json.loads(path.read_text())
+        local = json.loads(bindings.read_text())
+        del local["artifacts"]["snapshot"]
+        bindings.write_text(json.dumps(local))
+        campaign["stages"] = campaign["stages"][1:]
+        for stage in campaign["stages"]:
+            del stage["snapshot"]
+            stage["requires"].remove("snapshot")
+        path.write_text(json.dumps(campaign))
+    else:
+        for name in ("run.yaml", "tokenizer.yaml"):
+            path = source.parent / name
+            config = json.loads(path.read_text())
+            from sparselab.local_stories_pins import LICENSE, REVISION
+
+            config["dataset"].update(
+                source="local_stories", license=LICENSE, revision=REVISION
+            )
+            path.write_text(json.dumps(config))
+    repin(source)
+    git(source.parent, "add", ".")
+    git(
+        source.parent,
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "-qm",
+        "source port mismatch",
+    )
+    # Use independently computed descriptor/binding identities so deleting the
+    # guard cannot turn this into an unrelated stale-admission failure.
+    import hashlib
+
+    from sparselab.experiments.preparation_recipe import PreparationRecipe
+    from sparselab.training.manifest import canonical_json
+
+    descriptor = PreparationRecipe.model_validate_json(source.read_text()).model_dump(
+        mode="json"
+    )
+    descriptor["files"] = sorted(descriptor["files"], key=lambda item: item["path"])
+    raw = json.loads(admission.read_text())
+    raw.update(
+        preparation_admission_version=1,
+        reviewed_commit=git(source.parent, "rev-parse", "HEAD"),
+        recipe_sha256=hashlib.sha256(
+            b"sparselab-portable-preparation-v1\0" + canonical_json(descriptor)
+        ).hexdigest(),
+        binding_sha256=hashlib.sha256(bindings.read_bytes()).hexdigest(),
+    )
+    del raw["max_snapshot_bytes"], raw["max_snapshot_records"]
+    admission.write_text(json.dumps(raw))
+    if route == "loader":
+        with pytest.raises(ValueError, match="requires a compiled snapshot input"):
+            load_preparation_recipe(source, bindings)
+    else:
+        with pytest.raises(SystemExit, match="requires a compiled snapshot input"):
+            invoke(monkeypatch, capsys, "apply", args)
+    assert not work.exists()
+
+
+@pytest.mark.parametrize(
+    "field", ["source_manifest_path", "train_path", "validation_path"]
+)
+def test_snapshot_all_compiled_locations(tmp_path, monkeypatch, field):
+    source, bindings, work, _, _ = snapshot_recipe(tmp_path, monkeypatch)
+    local = json.loads(bindings.read_text())
+    local["config_paths"]["run.yaml"]["dataset." + field] = str(tmp_path / "other")
+    bindings.write_text(json.dumps(local))
+    with pytest.raises(ValueError, match="compiled snapshot location"):
+        load_preparation_recipe(source, bindings)
+    assert not work.exists()
+
+
+def test_snapshot_record_limit_counts_all_splits(tmp_path, monkeypatch, capsys):
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    source = json.loads(args[4].read_text())["lock"]["source"]
+    needed = source["resources"]["max_source_records"] * len(source["splits"])
+    assert needed == 40
+    raw = json.loads(args[3].read_text())
+    raw["max_snapshot_records"] = needed - 1
+    args[3].write_text(json.dumps(raw))
+    with pytest.raises(SystemExit, match="source record limit"):
+        invoke(monkeypatch, capsys, "apply", args)
+    assert not args[2].exists()
+    raw["max_snapshot_records"] = needed
+    args[3].write_text(json.dumps(raw))
+    from sparselab.experiments.preparation_execution import PreparationExecution
+
+    PreparationExecution(args[0], args[1], args[2], preparation_admission(raw))
+    assert not args[2].exists()
+
+
+@pytest.mark.parametrize(
+    "missing", ["lock", "source", "resources", "max_source_records", "splits"]
+)
+def test_snapshot_manifest_diagnostic_before_verification(
+    tmp_path, monkeypatch, capsys, missing
+):
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    manifest = json.loads(args[4].read_text())
+    parent = manifest
+    for key in ("lock", "source", "resources", "max_source_records"):
+        if missing == "splits" and key == "resources":
+            del parent["splits"]
+            break
+        if key == missing:
+            del parent[key]
+            break
+        parent = parent[key]
+    args[4].write_text(json.dumps(manifest))
+    from sparselab.experiments import artifacts
+
+    monkeypatch.setattr(
+        artifacts,
+        "verify_artifact",
+        lambda *a, **kw: pytest.fail("malformed manifest reached verification"),
+    )
+    with pytest.raises(SystemExit, match="snapshot manifest lacks .*lock.source"):
+        invoke(monkeypatch, capsys, "apply", args)
+    assert not args[2].exists()
+
+
+@pytest.mark.parametrize(
+    "namespace", ["scratch", "campaigns", "execution", "ownership"]
+)
+def test_snapshot_refuses_operational_storage(tmp_path, monkeypatch, capsys, namespace):
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    rebind_snapshot(args, args[2] / namespace / "input")
+    with pytest.raises(
+        SystemExit, match="snapshot input overlaps native operational storage"
+    ):
+        invoke(monkeypatch, capsys, "apply", args)
+    assert not args[2].exists()
+
+
+def test_dataset_artifact_refuses_verified_legacy_import(tmp_path, monkeypatch):
+    from sparselab.data import local_stories, snapshot_import
+    from sparselab.experiments.artifacts import _verify_domain
+    from sparselab.experiments.plan import Artifact
+
+    monkeypatch.setattr(
+        local_stories,
+        "_hub_stream",
+        lambda split, _: iter({"text": f"{split} row {i}"} for i in range(3)),
+    )
+    old = local_stories.snapshot(tmp_path / "old", train_count=2, validation_count=1)
+    path = snapshot_import.import_legacy_snapshot(old, tmp_path / "imported")
+    verified = sources.verify_snapshot(path)
+    assert verified["format"] == snapshot_import.FORMAT
+    artifact = Artifact(
+        kind="dataset_snapshot",
+        version=1,
+        producer="fixture",
+        identifier=verified["lock"]["lock_sha256"],
+        sha256=verified["manifest_sha256"],
+        path=str(path),
+    )
+    # Direct domain verification isolates the format guard from authority pins
+    # and preparation's flat-directory admission (imports retain legacy/ bytes).
+    with pytest.raises(
+        ValueError, match="dataset snapshot requires a native source-lock manifest"
+    ):
+        _verify_domain(artifact, path)
+
+
+@pytest.mark.parametrize("damage", ["version", "filename"])
+def test_dataset_artifact_envelope(tmp_path, monkeypatch, damage):
+    from sparselab.experiments.artifacts import _verify_domain
+
+    source, bindings, _, _, manifest = snapshot_recipe(tmp_path, monkeypatch)
+    artifact = load_preparation_recipe(source, bindings).plan.stages[0].artifact
+    if damage == "version":
+        artifact = artifact.model_copy(update={"version": 2})
+    else:
+        other = manifest.with_name("other.json")
+        manifest.rename(other)
+        manifest = other
+    with pytest.raises(ValueError, match="version 1 and manifest.json"):
+        _verify_domain(artifact, manifest)
+
+
+def test_snapshot_retained_input_under_work_root_is_admitted(tmp_path, monkeypatch):
+    import shutil
+
+    from sparselab.experiments.preparation_execution import PreparationExecution
+
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    destination = args[2] / "inputs" / "snapshot"
+    destination.parent.mkdir(parents=True)
+    shutil.copytree(args[4].parent, destination)
+    rebind_snapshot(args, destination)
+    PreparationExecution(
+        args[0],
+        args[1],
+        args[2],
+        preparation_admission(json.loads(args[3].read_text())),
+    )
+    assert not (args[2] / "scratch").exists()
+    assert not (args[2] / "campaigns").exists()
+
+
+def test_snapshot_import_format_refused_before_domain_verification(
+    tmp_path, monkeypatch, capsys
+):
+    from sparselab.data.snapshot_import import FORMAT
+    from sparselab.experiments import artifacts
+
+    args = snapshot_recipe(tmp_path, monkeypatch)
+    raw = json.loads(args[4].read_text())
+    raw["format"] = FORMAT
+    args[4].write_text(json.dumps(raw))
+    monkeypatch.setattr(
+        artifacts,
+        "verify_artifact",
+        lambda *a, **kw: pytest.fail("format reached domain verification"),
+    )
+    with pytest.raises(
+        SystemExit, match="snapshot requires a native source-lock manifest"
+    ):
+        invoke(monkeypatch, capsys, "apply", args)
+    assert not args[2].exists()
+
+
+def test_preparation_cli_does_not_hide_internal_keyerror(tmp_path, monkeypatch, capsys):
+    from sparselab.experiments.preparation_execution import PreparationExecution
+
+    args = snapshot_recipe(tmp_path, monkeypatch)
+
+    def broken(*args, **kwargs):
+        raise KeyError("internal defect")
+
+    monkeypatch.setattr(PreparationExecution, "engine", broken)
+    with pytest.raises(KeyError, match="internal defect"):
+        invoke(monkeypatch, capsys, "apply", args)
+    assert not args[2].exists()
