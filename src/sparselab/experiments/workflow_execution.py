@@ -1,4 +1,4 @@
-"""Explicit admission of one inventoried prepared-input CPU Campaign.
+"""Versioned admission of inventoried prepared-input CPU Campaigns.
 
 The authored native Campaign owns connections; this context authenticates them.
 A reviewed commit is a caller assertion, not author attestation or compute credit.
@@ -9,10 +9,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from pydantic import Field, StrictInt, StrictStr
+from pydantic import Field, StrictInt, StrictStr, model_validator
 
 from sparselab.campaign.plan import CampaignPlan
 from sparselab.config.models import StrictModel
+from sparselab.experiments.compiler import expand_axes
 from sparselab.experiments.plan import recipe_run_config
 from sparselab.experiments.preparation_execution import _environment
 from sparselab.experiments.workflow_recipe import (
@@ -23,12 +24,27 @@ from sparselab.experiments.workflow_recipe import (
 from sparselab.recovery.provenance import git_provenance, repository_root
 
 
+class PairLimits(StrictModel):
+    """Declared ceilings, not allocation or an operating-system resource quota."""
+
+    max_training_updates: StrictInt = Field(gt=0)
+    max_target_positions: StrictInt = Field(gt=0)
+    max_eval_batches: StrictInt = Field(gt=0)
+
+
 class WorkflowAdmission(StrictModel):
-    workflow_admission_version: StrictInt = Field(ge=1, le=1)
+    workflow_admission_version: StrictInt = Field(ge=1, le=2)
     reviewed_commit: StrictStr = Field(pattern=r"^[0-9a-f]{40}$")
     recipe_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     binding_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     cpu_python: Path
+    pair_limits: PairLimits | None = Field(default=None, exclude_if=lambda v: v is None)
+
+    @model_validator(mode="after")
+    def versioned_limits(self):
+        if (self.workflow_admission_version == 2) != (self.pair_limits is not None):
+            raise ValueError("pair_limits are required only for workflow admission v2")
+        return self
 
 
 class WorkflowExecution:
@@ -68,6 +84,14 @@ class WorkflowExecution:
                     raise ValueError("Campaign artifact differs from workflow identity")
                 stage["artifact"] = loaded.plan.artifacts[name].model_dump(mode="json")
         self.campaign = CampaignPlan.model_validate(document)
+        if admission.workflow_admission_version == 2:
+            self._validate_pair()
+        else:
+            self._validate_single()
+        self.refresh()
+
+    def _validate_single(self):
+        loaded = self.loaded
         kinds = [s.kind for s in self.campaign.stages]
         if (
             sorted(kinds)
@@ -131,7 +155,146 @@ class WorkflowExecution:
             or loaded.plan.execution.backend not in (None, "cpu")
         ):
             raise ValueError("workflow execution supports synthetic CPU PyTorch only")
-        self.refresh()
+
+    def _validate_pair(self):
+        loaded = self.loaded
+        plan = loaded.plan
+        if (
+            len(plan.axes) != 1
+            or len(plan.axes[0].choices) != 2
+            or len(plan.comparisons) != 1
+            or plan.comparisons[0].mode != "controlled"
+            or len(plan.comparisons[0].interventions) != 1
+            or plan.comparisons[0].phases
+        ):
+            raise ValueError(
+                "paired workflow requires two choices and one controlled comparison"
+            )
+        comparison = plan.comparisons[0]
+        # A pair shares its observation protocol and data. Native lock comparison
+        # checks the exact actual intervention, invariants and artifact identities.
+        intervention = comparison.interventions[0]
+        if intervention.split(".")[0] not in {"model", "attention", "optimizer"}:
+            raise ValueError(
+                "paired workflow intervention must preserve data, seed, runtime and evaluation"
+            )
+        self.config = recipe_run_config(plan, loaded.source, context=loaded.context)
+        expanded = expand_axes(
+            self.config, plan.axes, max_runs=2, base_dir=loaded.source.parent
+        )
+        coordinates = [coordinate for _, coordinate in expanded]
+        if (
+            comparison.baseline not in coordinates
+            or comparison.variant not in coordinates
+        ):
+            raise ValueError(
+                "paired comparison must select both concrete configurations"
+            )
+        limits = self.admission.pair_limits
+        assert limits is not None
+        updates = positions = 0
+        for config, _ in expanded:
+            if (
+                self.config.dataset.source != "snapshot"
+                or config.dataset != self.config.dataset
+                or config.tokenizer != self.config.tokenizer
+                or config.dataset.source != "snapshot"
+                or config.runtime.backend != "cpu"
+                or config.runtime.engine != "pytorch"
+                or plan.execution.backend not in (None, "cpu")
+            ):
+                raise ValueError("paired workflow supports snapshot CPU PyTorch only")
+            count = (
+                config.training.max_steps
+                + config.staging.smoke_steps
+                + config.staging.warmup_steps
+            )
+            updates += count
+            positions += (
+                count
+                * config.training.seq_len
+                * config.training.micro_batch_size
+                * config.training.gradient_accumulation
+            )
+            if config.evaluation.max_batches > limits.max_eval_batches:
+                raise ValueError("paired workflow exceeds declared evaluation limit")
+        if (
+            updates > limits.max_training_updates
+            or positions > limits.max_target_positions
+        ):
+            raise ValueError(
+                "paired workflow exceeds declared training limits (including pilots)"
+            )
+        groups = {}
+        for stage in self.campaign.stages:
+            groups.setdefault(stage.kind, []).append(stage)
+        counts = {kind: len(stages) for kind, stages in groups.items()}
+        if (
+            counts
+            != {
+                "artifact_reference": 2,
+                "experiment_plan": 1,
+                "runtime_acceptance": 1,
+                "approval": 1,
+                "experiment_run": 2,
+                "experiment_collect": 2,
+                "evaluation": 2,
+            }
+            or self.campaign.recovery is not None
+        ):
+            raise ValueError(
+                "paired workflow requires one native plan and two run/collect/evaluation branches"
+            )
+        planning = groups["experiment_plan"][0]
+        runtime = groups["runtime_acceptance"][0]
+        gate = groups["approval"][0]
+        runs = groups["experiment_run"]
+        collects = groups["experiment_collect"]
+        evaluations = groups["evaluation"]
+        run_ids = {run.id for run in runs}
+        expected_cells = {
+            f"main:{plan.axes[0].name}={choice.label}"
+            for choice in plan.axes[0].choices
+        }
+        base_dependencies = {planning.id, runtime.id, gate.id}
+        first = [run for run in runs if set(run.requires) == base_dependencies]
+        if (
+            planning.source != loaded.descriptor.entrypoint
+            or planning.mode != "lock"
+            or planning.tokenizer != plan.inputs["tokenizer"]
+            or planning.prepared != plan.inputs["prepared_data"]
+            or set(planning.requires) != set(plan.inputs.values())
+            or runtime.plan != planning.id
+            or set(runtime.requires) != {planning.id}
+            or runtime.profile_id is not None
+            or runtime.worker is not None
+            or set(gate.bind) != {planning.id, runtime.id}
+            or set(gate.requires) != {planning.id, runtime.id}
+            or {run.cell for run in runs} != expected_cells
+            or any(run.plan != planning.id or run.runtime != runtime.id for run in runs)
+            or len(first) != 1
+            or any(
+                set(run.requires) != base_dependencies | {first[0].id}
+                for run in runs
+                if run not in first
+            )
+            or {collect.run for collect in collects} != run_ids
+            or any(
+                collect.plan != planning.id
+                or set(collect.requires) != {planning.id, *run_ids}
+                for collect in collects
+            )
+            or {evaluation.collect for evaluation in evaluations}
+            != {collect.id for collect in collects}
+            or any(
+                evaluation.backend not in (None, "cpu")
+                or evaluation.runtime is not None
+                or evaluation.suite != plan.evaluation_suite
+                or set(evaluation.requires) != {evaluation.collect}
+                for evaluation in evaluations
+            )
+        ):
+            raise ValueError("unsupported paired Campaign connections")
 
     def refresh(self):
         current = load_workflow(self.source, self.bindings)

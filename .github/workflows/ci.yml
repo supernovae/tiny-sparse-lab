@@ -128,6 +128,7 @@ jobs:
             tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget \
             tests/test_lab_job_native.py \
             tests/test_preparation_execution.py \
+            tests/test_workflow_pair.py::test_native_pair_lock_and_zero_wait_attempt_replay \
             tests/test_portable_acquisition.py \
             tests/test_probes.py \
             tests/test_references.py \

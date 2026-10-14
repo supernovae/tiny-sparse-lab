@@ -168,7 +168,7 @@ refusal remains unchanged. See [preparation planning](preparation-recipes.md) fo
 the new separate inspect-only contract and remaining admission/context work.
 
 
-## Prepared-input CPU execution
+## Prepared-input CPU execution (admission v1)
 
 The narrow execution contract adds optional `campaign: campaign.json` to the
 workflow descriptor. Inventory that native Campaign and its evaluation suite as
@@ -233,6 +233,84 @@ legacy seed coercion are unchanged.
 The bounded actual CPU proof is additional wiring evidence. TinyStories,
 accelerator portability, broader contracts and scientific comparison qualification
 remain separately scoped work.
+
+
+
+## Snapshot-backed paired execution (admission v2)
+
+The same workflow descriptor and public CLI accept `workflow_admission_version: 2`
+for one native snapshot-backed pair. Version 1 retains its synthetic single-cell
+contract and serialized admission fields. Version 2 requires `pair_limits`:
+
+```yaml
+pair_limits:
+  max_training_updates: 18
+  max_target_positions: 576
+  max_eval_batches: 1
+```
+
+These are explicit declaration ceilings, not a compute allocation or an operating
+system quota. Training updates sum `training.max_steps + staging.smoke_steps +
+staging.warmup_steps` across both cells. Target positions multiply each cell's
+update ceiling by sequence length, micro-batch size and gradient accumulation;
+this conservatively counts the full step horizon even if `max_tokens` stops main
+training earlier. The evaluation ceiling applies to each scoring call, including
+pilot and main-run validation and the diagnostic suite. Runtime optimizer probes,
+pilot reload forwards, scoring-call count, wall time, memory and storage must be
+budgeted separately around the entire native process tree. Replay does not grant
+new workload credit. Admission integers reject booleans and strings; existing
+RunConfig seed coercion is unchanged.
+
+Author exactly one native axis with two named choices and one `controlled`
+comparison selecting those choices. Each choice explicitly states its setting;
+the native lock contains both complete resolved configurations. Declare exactly
+one intervention under `model`, `attention` or `optimizer`, plus the desired native
+leaf-field invariants. Native comparison validation rejects absent, extra or
+unchanged interventions and violated invariants. Data, tokenizer, seed, runtime,
+training exposure and evaluation protocol cannot be changed as the intervention.
+Both cells must use the base configuration's snapshot dataset and tokenizer.
+Native verification binds the snapshot manifest and members, tokenizer provenance,
+prepared cache, packing settings and source identity before runtime dispatch.
+A packing-sensitive intervention still requires matching native inputs; admission
+does not make a shared incompatible cache valid.
+
+The authored Campaign has two artifact-reference stages, one plan lock, one local
+CPU runtime acceptance, one approval, and two run/collect/diagnostic-evaluation
+branches. Its connections are checked by IDs, independent of serialization order:
+
+- The plan requires both artifact IDs; runtime requires the plan; approval
+  requires and binds the plan and runtime.
+- Each run selects its distinct native `main:AXIS=CHOICE` cell and requires plan,
+  runtime and approval. Exactly one run additionally requires the other run,
+  declaring sequential execution.
+- Each collection names its own run but requires the plan and **both** runs.
+  Native collection records evidence for the entire lock.
+- Each evaluation requires its own collection and uses the same inventoried
+  single diagnostic `heldout_lm` suite, with CPU/default backend and no runtime
+  selector.
+
+Campaign, Controller, the shared locked-cell request and native evidence readers
+remain the execution and evidence authorities. Cancellation preserves the native
+attempt; ambiguous attempts and lost submissions refuse replacement. A comparison
+is available only with valid complete native evidence for both cells. Pending,
+failed, censored or invalid evidence does not establish comparability. A successful
+pair is wiring evidence, not a scientific quality claim.
+
+| Contract boundary | Regression coverage in `tests/test_workflow_pair.py` |
+| --- | --- |
+| Versioned admission | Strict limits, pilot accounting, preserved v1 serialization and legacy seeds |
+| Authored graph | Renamed/reordered stages, distinct cells, approval, sequential runs and collection barriers |
+| Native input identity | Snapshot members, tokenizer bytes and prepared-array tampering refuse before submission |
+| Native comparability | Extra differences, invariant conflicts and unchanged declared interventions refuse |
+| Native lifecycle | Zero-wait submission, replay, cancellation, lost submission and ambiguous controller observations |
+| Non-executing inspection | Import/effect fence; no payload reads or runtime launch |
+
+Continuation/promotion, expanded evaluation contracts, generation panels, final
+evidence closure, portable attempt-contract ledgers and accelerator admission are
+not part of admission v2. Its diagnostic suite preserves the existing narrow
+capability. Collection precedes evaluation: a collection index must not be
+presented as final evidence including later evaluation results. Historical native
+schemas, hash algorithms, receipts and readers remain unchanged.
 
 
 ## Authenticated workflow CLI
