@@ -240,7 +240,22 @@ remain separately scoped work.
 
 The same workflow descriptor and public CLI accept `workflow_admission_version: 2`
 for one native snapshot-backed pair. Version 1 retains its synthetic single-cell
-contract and serialized admission fields. Version 2 requires `pair_limits`:
+contract and serialized admission fields. Version 2 requires `pair_limits` as a
+caller-selected preflight launch allowance for this advanced portable workflow:
+"do not launch a recipe declaring more work than I approved." For example, it
+can refuse an accidental million-step arm when the operator approved a smaller
+pair, without rewriting either configuration. Ordinary `try`/`report` is
+unaffected. There are no fixed small defaults or built-in upper ceilings; users
+choose allowances appropriate to their full experiments. The values below are
+an illustration, not a lab-wide experiment budget.
+
+The allowance aggregates declared main + smoke + warmup updates/target positions
+and bounds evaluation batches **per call**. It does not bound total compute,
+runtime memory/time/storage, optimizer probes, all scoring or retry charges.
+Native run horizons still govern training, `ResourceEnvelope` governs its
+supported operational controls, and native attempt contracts provide separate
+durable accounting where supported. PairLimits does not replace those contracts
+or grant runtime allocation. Portable attempt-contract support remains deferred.
 
 ```yaml
 pair_limits:
@@ -302,6 +317,7 @@ pair is wiring evidence, not a scientific quality claim.
 | Authored graph | Renamed/reordered stages, distinct cells, approval, sequential runs and collection barriers |
 | Native input identity | Snapshot members, tokenizer bytes and prepared-array tampering refuse before submission |
 | Native comparability | Extra differences, invariant conflicts and unchanged declared interventions refuse |
+| Isolated admission guards | `test_workflow_pair_guards.py`: shared dataset/tokenizer, CPU/snapshot profile, comparison shape, recovery and planning/runtime/approval/evaluation connections |
 | Native lifecycle | Zero-wait submission, replay, cancellation, lost submission and ambiguous controller observations |
 | Non-executing inspection | Import/effect fence; no payload reads or runtime launch |
 
