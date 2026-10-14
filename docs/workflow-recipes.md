@@ -6,8 +6,8 @@ preparation has produced a tokenizer and prepared-data artifact**. It does not
 run a preparation graph or submit training. `portable_workflow_version: 1` is a
 separate profile from the unchanged `portable_recipe_version: 1` matrix preview.
 
-The [CPU boundary proof](portable-cpu-proof.md) records the current execution
-and pilot-budget gaps, with connected preparation/native planning tests.
+The [CPU investigation](portable-cpu-investigation.md) records partial LAB-73/74
+verification and the unresolved execution-budget decision.
 
 Use three explicit operations:
 

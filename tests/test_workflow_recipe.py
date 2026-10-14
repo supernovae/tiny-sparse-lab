@@ -204,7 +204,7 @@ def test_inventory_and_local_binding_refusals(tmp_path, damage, match):
 @pytest.mark.parametrize(
     "feature,value",
     [
-        ("evaluation_suite", False),
+        ("evaluation_suite", "suite.json"),
         ("phases", [{"id": "phase"}]),
         ("corpus_variants", [{}]),
         ("execution", {"attempt_contract": False}),

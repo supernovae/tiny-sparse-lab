@@ -701,3 +701,24 @@ def test_direct_engine_constructor_refuses_context_location_mismatch(
             preparation_context=context,
         )
     assert not work.exists() and not other_work.exists()
+
+
+@pytest.mark.parametrize("damage", ["recipe", "bindings", "inventory"])
+def test_changed_preparation_context_never_dispatches(tmp_path, monkeypatch, damage):
+    args = setup(tmp_path)
+    context = PreparationExecution(*args)
+    engine = context.engine()
+    monkeypatch.setattr(
+        engine, "dispatch", lambda *a, **kw: pytest.fail("changed input dispatched")
+    )
+    target = {
+        "recipe": args[0],
+        "bindings": args[1],
+        "inventory": args[0].parent / "run.yaml",
+    }[damage]
+    target.write_text(target.read_text() + "\n")
+    with pytest.raises(
+        ValueError, match="CONTEXT_CHANGED|digest mismatch|unchanged clean declarations"
+    ):
+        engine.apply()
+    assert not args[2].exists()
