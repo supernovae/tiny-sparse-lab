@@ -238,10 +238,13 @@ remain separately scoped work.
 ## Authenticated workflow CLI
 
 Run from the provisioned CPU interpreter selected in admission. These commands
-require a separately admitted workload; `apply` can perform native runtime
-acceptance even without `--execute-runs`. Help and metadata `inspect` remain
-non-executing. Preparation remains a separate `recipe preparation apply/resume`
-operation; workflow execution consumes already verified native artifacts.
+require a separately admitted workload. **`apply` without `--execute-runs` may
+still run native runtime acceptance probes.** Omitting the flag prevents model
+run dispatch; it does not make `apply` an inspection-only command. Include these
+probes in the admitted resource envelope and monitoring. Help and metadata
+`inspect` remain non-executing. Preparation remains a separate
+`recipe preparation apply/resume` operation; workflow execution consumes already
+verified native artifacts.
 
 ```sh
 sparselab experiment recipe workflow apply recipe/workflow.yaml --bindings local.yaml --admission admission.json --work-dir /absolute/work --json
@@ -336,8 +339,8 @@ fields into the workflow's version-1 artifact records with an explicit producer,
 and place paths in local bindings. It must not invent identities for missing or
 failed stages. Commit that independently authored workflow at B and admit B.
 Retain the A checkout and exact local binding/admission bytes for preparation
-replay: advancing its checkout to B invalidates A's admission. Earlier measured
-proof artifacts (including the `12359677` proof) are not reusable evidence for a
+replay: advancing its checkout to B invalidates A's admission. Artifacts measured
+under an earlier installed lab source identity are not reusable evidence for a
 new installed source identity. Preserve them unchanged.
 
 Acceptance needs a clean committed Workshop checkout, public CLI preparation and
