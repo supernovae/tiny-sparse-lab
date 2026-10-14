@@ -2,6 +2,9 @@
 
 import argparse
 import json
+import math
+import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -35,7 +38,8 @@ def add_commands(parser: argparse.ArgumentParser) -> None:
         execution.add_argument("--json", action="store_true")
         execution.set_defaults(handler=handle_preparation_execution)
     workflow = commands.add_parser(
-        "workflow", help="Inspect, resolve or publish prepared-input workflow metadata"
+        "workflow",
+        help="Inspect, publish or explicitly execute a prepared-input workflow",
     )
     actions = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("inspect", "resolve", "publish"):
@@ -47,6 +51,117 @@ def add_commands(parser: argparse.ArgumentParser) -> None:
         if name == "publish":
             action.add_argument("--workspace", type=Path, required=True)
         action.set_defaults(handler=handle_workflow)
+    for name in ("apply", "resume", "approve"):
+        action = actions.add_parser(name)
+        action.add_argument("source", type=Path)
+        action.add_argument("--bindings", type=Path, required=True)
+        action.add_argument("--admission", type=Path, required=True)
+        action.add_argument("--work-dir", type=Path, required=True)
+        action.add_argument("--json", action="store_true")
+        if name == "approve":
+            action.add_argument("gate")
+            action.add_argument(
+                "--decision", choices=("approve", "reject"), default="approve"
+            )
+            action.add_argument("--note")
+        else:
+            action.add_argument("--execute-runs", action="store_true")
+            action.add_argument("--max-wait-seconds", type=_wait_seconds, default=120)
+        action.set_defaults(handler=handle_workflow_execution)
+    report = actions.add_parser(
+        "report", help="Verify and write a native publication report; never execute"
+    )
+    report.add_argument("lock", type=Path)
+    report.add_argument("--workspace", type=Path)
+    report.add_argument("--index", type=Path)
+    report.add_argument("--output", type=Path, required=True)
+    report.add_argument("--format", choices=("json", "markdown"), default="json")
+    report.add_argument("--json", action="store_true")
+    report.set_defaults(handler=handle_workflow_report)
+
+
+def _wait_seconds(value: str) -> float:
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise argparse.ArgumentTypeError(
+            "max wait seconds must be finite and nonnegative"
+        )
+    return seconds
+
+
+def _workflow_result(command: str, result: dict) -> None:
+    print(
+        json.dumps(
+            {"format": "sparselab-workflow-command-v1", "command": command, **result},
+            sort_keys=True,
+            allow_nan=False,
+        )
+    )
+
+
+def handle_workflow_execution(args: argparse.Namespace) -> None:
+    from sparselab.documents import read_document
+    from sparselab.experiments.workflow_execution import (
+        WorkflowAdmission,
+        WorkflowExecution,
+    )
+
+    try:
+        # Native adapters can emit progress; stdout remains one JSON document.
+        with redirect_stdout(sys.stderr):
+            context = WorkflowExecution(
+                args.source,
+                args.bindings,
+                args.work_dir,
+                WorkflowAdmission.model_validate(read_document(args.admission)),
+            )
+            engine = context.engine()
+            if args.workflow_command == "approve":
+                result = engine.approve(
+                    args.gate, decision=args.decision, note=args.note
+                )
+            else:
+                result = engine.apply(
+                    resume=args.workflow_command == "resume",
+                    execute_runs=args.execute_runs,
+                    max_wait_seconds=args.max_wait_seconds,
+                )
+    except (OSError, TypeError, ValueError, KeyError) as error:
+        _workflow_result(
+            args.workflow_command,
+            {
+                "state": "FAILED",
+                "error": {"type": type(error).__name__, "reason": str(error)},
+            },
+        )
+        raise SystemExit(1) from None
+    _workflow_result(args.workflow_command, result)
+    if any(stage["state"] == "FAILED" for stage in result.get("stages", [])):
+        raise SystemExit(1)
+
+
+def handle_workflow_report(args: argparse.Namespace) -> None:
+    from sparselab.experiments.publication_report import write_publication_report
+
+    try:
+        with redirect_stdout(sys.stderr):
+            output = write_publication_report(
+                args.lock,
+                args.output,
+                workspace=args.workspace,
+                index_path=args.index,
+                format=args.format,
+            )
+    except (OSError, TypeError, ValueError, KeyError) as error:
+        _workflow_result(
+            "report",
+            {
+                "state": "FAILED",
+                "error": {"type": type(error).__name__, "reason": str(error)},
+            },
+        )
+        raise SystemExit(1) from None
+    _workflow_result("report", {"output": str(output), "executable": False})
 
 
 def handle(args: argparse.Namespace) -> None:
