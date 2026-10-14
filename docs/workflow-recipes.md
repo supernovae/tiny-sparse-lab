@@ -2,12 +2,13 @@
 
 This bounded LAB-73/LAB-74 PR B slice connects an inventoried external recipe to
 native artifact verification and lock publication. It starts **after native
-preparation has produced a tokenizer and prepared-data artifact**. It does not
-run a preparation graph or submit training. `portable_workflow_version: 1` is a
-separate profile from the unchanged `portable_recipe_version: 1` matrix preview.
+preparation has produced a tokenizer and prepared-data artifact**. The metadata
+operations do not run a preparation graph or submit training; explicit CPU
+execution is described below. `portable_workflow_version: 1` is a separate profile from the unchanged `portable_recipe_version: 1` matrix preview.
 
-The [CPU investigation](portable-cpu-investigation.md) records partial LAB-73/74
-verification and the unresolved execution-budget decision.
+The [CPU investigation](portable-cpu-investigation.md) records the earlier
+partial LAB-73/74 verification. The execution and CLI sections below describe
+the current bounded contract.
 
 Use three explicit operations:
 
@@ -135,13 +136,11 @@ input or override. Existing legacy admission and recovery paths are unchanged.
 | Lock → execution boundary | CLI selection spy and shared Campaign/CLI request refusal; no worker submission or runtime probe |
 | Compatibility | Legacy seeds, native science under changed logging binding, verifier authority, declaration preflight, normal safe/fast/tiny CPU lab-loop CI |
 
-Remaining work includes recipe context through preparation graphs and evaluation
-closures, broader artifact/operation contracts, committed recipe provenance at
-admission, existing runtime-binding/capability evidence, execution/recovery and
-run-evidence linkage. Those must connect to CampaignEngine/Controller and their
-current gates; this profile is not a replacement executor. Actual TinyStories
-CPU/GPU portability proof, publication to Workshop and any release remain
-separately admitted later work. Full LAB-73/LAB-74 acceptance is still partial.
+Remaining work includes broader artifact/operation contracts, independent
+Workshop authoring and measured portability at its final pins. The preparation
+and authenticated synthetic CPU contracts below connect to the existing
+CampaignEngine/Controller and their gates. Actual TinyStories CPU/GPU portability,
+scientific comparison qualification and any release remain separately admitted.
 
 ## Refusal and guidance follow-up
 
@@ -207,7 +206,8 @@ replayed = engine.apply(resume=True, execute_runs=False)
 Use native operational monitoring around the complete process tree. A one-update
 main config does not bound pilots or runtime probes. The measured fixture uses
 600-second, 4-GiB RSS and 1-GiB workspace-growth stop ceilings; sampled monitoring
-is not an instantaneous kernel quota. No new report CLI or scheduler is added.
+is not an instantaneous kernel quota. The CLI below exposes the native executor
+and report APIs without adding a scheduler.
 The existing collection and publication-report APIs read the resulting native
 lock, Controller evidence and checkpoint-bound evaluation. Rendering conveys
 integrity and coverage, not scientific effectiveness or automatic promotion.
@@ -233,3 +233,132 @@ legacy seed coercion are unchanged.
 The bounded actual CPU proof is additional wiring evidence. TinyStories,
 accelerator portability, broader contracts and scientific comparison qualification
 remain separately scoped work.
+
+
+## Authenticated workflow CLI
+
+Run from the provisioned CPU interpreter selected in admission. These commands
+require a separately admitted workload; `apply` can perform native runtime
+acceptance even without `--execute-runs`. Help and metadata `inspect` remain
+non-executing. Preparation remains a separate `recipe preparation apply/resume`
+operation; workflow execution consumes already verified native artifacts.
+
+```sh
+sparselab experiment recipe workflow apply recipe/workflow.yaml --bindings local.yaml --admission admission.json --work-dir /absolute/work --json
+sparselab experiment recipe workflow approve recipe/workflow.yaml gate --bindings local.yaml --admission admission.json --work-dir /absolute/work --note "authorized bounded CPU experiment" --json
+sparselab experiment recipe workflow apply recipe/workflow.yaml --bindings local.yaml --admission admission.json --work-dir /absolute/work --execute-runs --max-wait-seconds 540 --json
+sparselab experiment recipe workflow resume recipe/workflow.yaml --bindings local.yaml --admission admission.json --work-dir /absolute/work --json
+```
+
+Replace `gate` with the authored approval-stage ID. `approve --decision reject`
+records a native rejection. No command implicitly approves. Each command reloads
+and validates the descriptor, local bindings and strict admission document:
+
+```json
+{
+  "workflow_admission_version": 1,
+  "reviewed_commit": "<full committed recipe SHA>",
+  "recipe_sha256": "<recipe_sha256 from workflow inspect>",
+  "binding_sha256": "<binding_sha256 from workflow inspect>",
+  "cpu_python": "/absolute/provisioned/environment/bin/python"
+}
+```
+
+Use the exact running interpreter path (`sys.executable`), not a guessed alias.
+The reviewed commit is the **recipe repository** commit, distinct from the lab
+software pin. Admission is a caller assertion, not automatic approval, compute
+credit or remote author attestation. Keep admission and bindings outside the
+committed recipe; require an absolute work root outside Git. Global prefix
+work/token options do not select execution resources on this route.
+
+`apply` and `resume` default to `execute_runs=false` and a 120-second native
+controller wait. `--max-wait-seconds` accepts finite nonnegative seconds; zero
+can queue without ticking a worker. It is not a whole-process resource limit.
+Use the existing `sparselab monitor --policy POLICY --log-dir LOGS --workspace
+WORK -- COMMAND ...` around admitted work. Pilots and probes remain additional
+work beyond the main run's update budget. `resume` delegates native Campaign
+replay/recovery; it does not assert full-state training resume was verified.
+
+Execution and report commands emit one JSON object to stdout (with or without
+`--json`); adapter progress goes to stderr. The envelope is
+`sparselab-workflow-command-v1`, with `command` and native result fields.
+Validation/I/O errors and native FAILED stages exit 1. Argument errors exit 2
+with argparse diagnostics on stderr. As with native Campaign commands, waiting,
+blocked, rejected or running stages can exit 0: inspect stage states; exit 0
+does not mean complete or scientifically successful. Existing metadata command
+output is unchanged.
+
+### Publication report
+
+Select the exact native plan-stage `availability.path` (lock) and
+`availability.workspace`. Select the collect-stage `availability.path` (evidence
+index), **not** the evaluation-stage index. Report rendering never recollects or
+selects a newer snapshot automatically.
+
+```sh
+sparselab experiment recipe workflow report /work/plan.lock.json --workspace /work/experiment --index /work/evidence/index.json --output /work/report.json --json
+sparselab experiment recipe workflow report /work/plan.lock.json --workspace /work/experiment --index /work/evidence/index.json --output /work/report.md --format markdown
+```
+
+The example paths are placeholders: use paths from native results. Supply both
+`--workspace` and `--index`, or neither for a planned-only report. The report
+adapter accepts native locks; it needs no execution admission and grants none.
+It verifies the selected snapshot, preserves incomplete/missing evidence, writes
+exclusively, permits identical-byte replay and refuses a different existing
+output. No training, evaluation, acquisition or controller tick occurs. A later
+evidence snapshot requires explicit native collection; this command does not
+refresh the Campaign's earlier collection receipt. Keep the evaluation index
+alongside the report when recording completed evaluation evidence.
+
+### Independently authored Workshop example
+
+The subsequent Workshop change must use the final reviewed lab pin and its
+locked, provisioned CPU environment. It must not import `tests`, copy fixture
+builders as a runtime dependency, or introduce another executor. Commit:
+
+- A native synthetic RunConfig, one-cell ExperimentPlan, diagnostic heldout suite,
+  native Campaign and workflow descriptor with complete member hashes and ports.
+- Small synthetic preparation declarations and documented native preparation
+  commands. Extract tokenizer/prepared identities from native receipts; bind their
+  locations locally. Commit and review the workflow only after its identities
+  are known. Changed preparation/code identities require fresh verification and
+  a new recipe identity, never rewriting historical receipts.
+- Exact lab/runtime pins, licenses, intended workload including pilots/probes,
+  monitor policy, setup/approval/run/report instructions and expected evidence
+  paths. Machine-local bindings, admission and generated payloads stay outside Git.
+
+Freeze the final installed lab source identity **before fresh preparation**.
+Commit preparation declarations at A and run them with admission for A. COMPLETE
+preparation JSON stages expose `outputs` (native `kind`, `identifier`, `sha256`)
+and `availability.path` (local location). A standard-library authoring helper can
+select the expected stage IDs/kinds, require COMPLETE, copy those native identity
+fields into the workflow's version-1 artifact records with an explicit producer,
+and place paths in local bindings. It must not invent identities for missing or
+failed stages. Commit that independently authored workflow at B and admit B.
+Retain the A checkout and exact local binding/admission bytes for preparation
+replay: advancing its checkout to B invalidates A's admission. Earlier measured
+proof artifacts (including the `12359677` proof) are not reusable evidence for a
+new installed source identity. Preserve them unchanged.
+
+Acceptance needs a clean committed Workshop checkout, public CLI preparation and
+workflow execution, explicit approval, one native completed/ingested attempt,
+checkpoint-bound evaluation, verified report and replay without a new attempt.
+Record recipe/lab/runtime pins and measured wall/RSS/workspace growth separately
+from quality claims. That measured run and Workshop publication are subsequent
+work, not established by CLI unit tests. Snapshot TinyStories, multiple cells,
+continuations, generation panels and accelerators remain outside this profile.
+
+| CLI boundary | Evidence in `tests/test_workflow_cli.py` |
+| --- | --- |
+| Public entry → authenticated native Campaign | Real tiny preparation, approval gate, zero-wait queue, no-tick replay |
+| Admission → store/dispatch | Recipe/binding digest, interpreter, outside-Git, clean committed inventory and stale context refusals |
+| New admission → existing approval | Rebound binding with updated admission rejects old receipt before worker tick |
+| Native result → stdout/exit | Single JSON result, stderr progress, failed-stage exit, finite wait parsing |
+| Native snapshot → report | Planned/evidence output, identical replay, no-clobber, corrupt-index and unpaired-input refusal |
+| Help → optional imports | Fresh-process fences for every new subcommand |
+
+These tests address the admission coverage correction in
+[PR127 review 5512227409](https://github.com/supernovae/tiny-sparse-lab/pull/127#pullrequestreview-5512227409).
+They preserve the existing guards rather than changing runtime contracts, legacy
+seed acceptance or historical hashes. Normal safe/fast/lab-loop CI remains the
+broader compatibility gate; no full measured training is added to CLI tests.
