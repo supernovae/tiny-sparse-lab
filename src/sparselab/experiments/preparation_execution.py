@@ -15,7 +15,7 @@ from contextlib import ExitStack, contextmanager
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from pydantic import Field, StrictInt, StrictStr
+from pydantic import Field, StrictInt, StrictStr, model_validator
 
 from sparselab.config.models import StrictModel, TokenizerTrainConfig
 from sparselab.config.recipe_paths import _paths
@@ -27,7 +27,6 @@ from sparselab.training.manifest import source_identity
 
 
 class PreparationAdmission(StrictModel):
-    preparation_admission_version: StrictInt = Field(ge=1, le=1)
     reviewed_commit: StrictStr = Field(pattern=r"^[0-9a-f]{40}$")
     recipe_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     binding_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
@@ -38,32 +37,36 @@ class PreparationAdmission(StrictModel):
     min_free_bytes: StrictInt = Field(gt=0)
     min_free_inodes: StrictInt = Field(gt=0)
 
+    max_snapshot_bytes: StrictInt | None = Field(default=None, gt=0)
+    max_snapshot_records: StrictInt | None = Field(default=None, gt=0)
+    acquisitions: dict[StrictStr, AcquisitionAdmission] = Field(default_factory=dict)
 
-class SnapshotPreparationAdmission(PreparationAdmission):
-    """Explicit offline snapshot consumption; v1 serialization stays unchanged."""
+    @model_validator(mode="before")
+    @classmethod
+    def current_contract(cls, value):
+        if isinstance(value, dict) and "preparation_admission_version" in value:
+            raise ValueError(
+                "obsolete preparation admission; regenerate for the current recipe, capabilities and reviewed commit"
+            )
+        return value
 
-    preparation_admission_version: StrictInt = Field(ge=2, le=2)
-    max_snapshot_bytes: StrictInt = Field(gt=0)
-    max_snapshot_records: StrictInt = Field(gt=0)
+    @model_validator(mode="after")
+    def snapshot_limits_together(self):
+        if (self.max_snapshot_bytes is None) != (self.max_snapshot_records is None):
+            raise ValueError(
+                "snapshot byte and record limits must be supplied together"
+            )
+        return self
 
-
-class AcquisitionPreparationAdmission(SnapshotPreparationAdmission):
-    """New explicit authority; historical v1/v2 serialization is unchanged."""
-
-    preparation_admission_version: StrictInt = Field(ge=3, le=3)
-
-    acquisitions: dict[StrictStr, AcquisitionAdmission]
+    def require_snapshot_limits(self):
+        if self.max_snapshot_bytes is None or self.max_snapshot_records is None:
+            raise ValueError(
+                "snapshot operations require explicit byte and record limits"
+            )
 
 
 def preparation_admission(document: dict) -> PreparationAdmission:
-    model = (
-        AcquisitionPreparationAdmission
-        if document.get("preparation_admission_version") == 3
-        else SnapshotPreparationAdmission
-        if document.get("preparation_admission_version") == 2
-        else PreparationAdmission
-    )
-    return model.model_validate(document)
+    return PreparationAdmission.model_validate(document)
 
 
 def _environment() -> dict:
@@ -291,8 +294,7 @@ class PreparationExecution:
         ]
         if not references:
             return
-        if not isinstance(self.admission, SnapshotPreparationAdmission):
-            raise TypeError("dataset snapshots require preparation admission version 2")
+        self.admission.require_snapshot_limits()
         from sparselab.data.sources import verify_snapshot
         from sparselab.experiments.artifacts import verify_artifact
 
@@ -354,14 +356,10 @@ class PreparationExecution:
 
     def _admit_acquisitions(self, loaded):
         if not loaded.acquisition_paths:
-            if (
-                isinstance(self.admission, AcquisitionPreparationAdmission)
-                and self.admission.acquisitions
-            ):
+            if self.admission.acquisitions:
                 raise ValueError("acquisition admission has no matching stages")
             return set()
-        if not isinstance(self.admission, AcquisitionPreparationAdmission):
-            raise TypeError("acquisition requires preparation admission version 3")
+        self.admission.require_snapshot_limits()
         if set(self.admission.acquisitions) != set(loaded.acquisition_paths):
             raise ValueError(
                 "acquisition admissions must name exactly the snapshot stages"

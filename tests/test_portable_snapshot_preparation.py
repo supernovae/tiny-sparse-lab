@@ -95,7 +95,6 @@ def snapshot_recipe(tmp_path, monkeypatch):
     loaded = load_preparation_recipe(source, bindings)
     raw = admission.model_dump(mode="json")
     raw.update(
-        preparation_admission_version=2,
         reviewed_commit=git(source.parent, "rev-parse", "HEAD"),
         recipe_sha256=loaded.recipe_sha256,
         binding_sha256=loaded.binding_sha256,
@@ -157,7 +156,7 @@ def test_public_snapshot_preparation_and_replay(tmp_path, monkeypatch, capsys):
 @pytest.mark.parametrize(
     "damage,match",
     [
-        ("v1", "version 2"),
+        ("missing-limits", "explicit byte and record limits"),
         ("bytes", "byte limit"),
         ("records", "source record limit"),
         ("missing", "missing"),
@@ -177,8 +176,7 @@ def test_snapshot_admission_refuses_before_output(
     args = snapshot_recipe(tmp_path, monkeypatch)
     source, bindings, work, admission, manifest = args
     raw = json.loads(admission.read_text())
-    if damage == "v1":
-        raw["preparation_admission_version"] = 1
+    if damage == "missing-limits":
         del raw["max_snapshot_bytes"], raw["max_snapshot_records"]
     elif damage in {"bytes", "records"}:
         raw["max_snapshot_" + damage] = 1
@@ -241,13 +239,16 @@ def test_snapshot_admission_refuses_before_output(
     assert not work.exists()
 
 
-def test_v1_admission_serialization_unchanged(tmp_path):
+def test_synthetic_admission_uses_current_optional_capabilities(tmp_path):
     _, _, _, old = setup(tmp_path)
     assert (
         preparation_admission(old.model_dump(mode="json")).model_dump_json()
         == old.model_dump_json()
     )
-    assert "max_snapshot" not in old.model_dump_json()
+    assert old.max_snapshot_bytes is None
+    assert old.max_snapshot_records is None
+    assert old.acquisitions == {}
+    assert "preparation_admission_version" not in old.model_dump()
 
 
 def test_snapshot_inspect_does_not_open_payload(tmp_path, monkeypatch):
@@ -487,7 +488,6 @@ def test_snapshot_source_and_port_must_agree(
     descriptor["files"] = sorted(descriptor["files"], key=lambda item: item["path"])
     raw = json.loads(admission.read_text())
     raw.update(
-        preparation_admission_version=1,
         reviewed_commit=git(source.parent, "rev-parse", "HEAD"),
         recipe_sha256=hashlib.sha256(
             b"sparselab-portable-preparation-v1\0" + canonical_json(descriptor)

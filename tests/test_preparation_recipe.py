@@ -90,7 +90,6 @@ def recipe(root, reuse=False):
     bindings.write_text(
         json.dumps(
             {
-                "preparation_bindings_version": 1,
                 "config_paths": paths,
                 "artifacts": {"reuse": "payload/tok/tokenizer.json"} if reuse else {},
             }

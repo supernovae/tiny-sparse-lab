@@ -3,7 +3,7 @@
 `experiment recipe preparation inspect RECIPE --bindings LOCAL --json` compiles
 an external preparation recipe without running it. This is a separate
 `portable_preparation_version: 1` contract; the existing matrix and prepared-input
-workflow v1 formats, identities and commands are unchanged.
+workflow descriptor formats, identities and commands are unchanged.
 
 The descriptor has `id`, `entrypoint`, `contracts` and `files`. Contracts must be
 `{campaign: 1, run_config: 2, tokenizer_config: 1}`. Each file has a canonical
@@ -24,14 +24,13 @@ stage kinds are refused before their validators can import computation. Two supp
 - `tokenizer_train → data_prepare` with an unresolved future tokenizer output.
 - `artifact_reference(tokenizer) → data_prepare` with a declared, unverified identity.
 
-The separate local document has `preparation_bindings_version: 1`, `artifacts`
+The separate current local document has `artifacts`
 (stage ID to location for every external tokenizer producer), and `config_paths`
 (config reference to a mapping of native field names to locations). For example,
 a training graph's bindings can be:
 
 ```json
 {
-  "preparation_bindings_version": 1,
   "artifacts": {},
   "config_paths": {
     "tokenizer.json": {"output_dir": "payload/tok", "dataset.cache_dir": "payload/cache"},
@@ -123,7 +122,6 @@ and `resume` require an explicit local admission document with all these fields:
 
 ```json
 {
-  "preparation_admission_version": 1,
   "reviewed_commit": "<full 40-character recipe Git commit>",
   "recipe_sha256": "<recipe digest from inspection>",
   "binding_sha256": "<binding byte digest from inspection>",
@@ -147,14 +145,13 @@ Git proves committed bytes, **not trusted authorship** or review. No uncommitted
 or model-execution override is accepted on this route. Legacy Campaign overrides
 and readers retain their existing behavior for legacy records.
 
-Only `synthetic` datasets execute in this first slice. The total train plus
+For the synthetic route, the total train plus
 validation document and token limits of each native config must fit the explicit
 admission caps; tokenizer document and vocabulary limits must also fit. These are
 admission ceilings, never rewritten scientific settings. Native tokenizer storage,
 packing storage, host checks and artifact verifiers still run. The additional
-free-space/inode and permission check is repeated before dispatch. No corpus
-acquisition, remote source, model training, GPU allocation or model-runtime
-qualification occurs. RunConfig runtime/model fields retain their native meaning;
+free-space/inode and permission check is repeated before dispatch. Synthetic preparation performs no corpus acquisition, remote source, model
+training, GPU allocation or model-runtime qualification. RunConfig runtime/model fields retain their native meaning;
 this CPU preparation admission does not qualify that later model workload.
 
 All output paths must lie below the explicit absolute work root outside Git.
@@ -233,7 +230,7 @@ distinct from the existing corpus/Forge `source_snapshot` artifact:
 ```
 
 These are native Campaign stages; the compiled preparation projection owns their
-ports. The descriptor and bindings remain version 1. Inventory the Campaign and
+ports. The descriptor remains version 1; bindings use the single current model. Inventory the Campaign and
 config files as usual. Bind `artifacts.input` to the local `manifest.json`.
 In each config, declare `dataset.source: snapshot` and canonical relative
 `dataset.source_manifest_path`, `dataset.train_path`, and
@@ -246,14 +243,13 @@ direction. Snapshot inputs also cannot overlap the native operational namespaces
 work-root directory such as `inputs` are allowed; admission does not initialize
 operational storage.
 
-### Admission version 2
+### Snapshot capability limits
 
-The existing version-1 admission and its serialization stay unchanged and cannot
-authorize snapshot consumption. Use version 2 for this capability:
+The current admission requires both explicit snapshot limits when the compiled
+graph consumes or acquires snapshots. Synthetic-only graphs may omit both:
 
 ```json
 {
-  "preparation_admission_version": 2,
   "reviewed_commit": "<full recipe commit SHA>",
   "recipe_sha256": "<preparation inspect recipe_sha256>",
   "binding_sha256": "<preparation inspect binding_sha256>",
@@ -322,7 +318,7 @@ this addition; historical content hashes and records are not rewritten.
 
 Admission boundary tests cover both output/input overlap directions before work
 creation, and preserve existing retained input bytes on refusal. They exercise
-both source/compiled-port mismatch directions (including the version-1 bypass),
+both source/compiled-port mismatch directions (including omission of snapshot limits),
 all three snapshot locations, and the per-split record ceiling at 39/40. Direct
 artifact-domain tests verify the envelope and refuse a genuinely verified legacy
 import without relying on verifier-authority pins. Malformed manifest metadata
@@ -333,10 +329,9 @@ gets a descriptive admission error; unrelated internal KeyErrors remain visible.
 An inventoried native `source.lock.json` with role `source_lock` may now feed a
 native `dataset_snapshot` stage. Its `lock`, `output` and `cache_dir` placeholders
 are canonical recipe-relative references. `lock` resolves inside the inventory;
-local output/cache locations come exclusively from bindings version 2:
+local output/cache locations come exclusively from the current bindings:
 
 ```yaml
-preparation_bindings_version: 2
 artifacts: {}
 acquisitions:
   input:
@@ -354,8 +349,9 @@ receipts and recovery. No Forge Project, release workflow, plugin registry or
 second graph is introduced. `stage.resume` must remain false; use public
 `experiment recipe preparation resume` for explicit continuation.
 
-Preparation admission version 3 retains every version-2 field and adds
-`acquisitions`, keyed exactly by snapshot stage ID. Each entry requires:
+The current preparation admission requires `acquisitions`, keyed exactly by
+snapshot acquisition stage ID, when the graph acquires snapshots. A graph without
+acquisition stages refuses nonempty grants. Each entry requires:
 
 | Field | Contract |
 | --- | --- |
@@ -443,3 +439,41 @@ network or credential-store access.
 
 Known limitation: each 64 KiB read and decoded batch calls `observe()`, which walks
 the work root at O(entries) cost.
+
+
+## Current contract and migration
+
+There is one `PreparationAdmission` parser/writer and one `PreparationBindings`
+parser/writer. Their checked-in schemas are
+[`preparation-admission.schema.json`](../schemas/preparation-admission.schema.json)
+and [`preparation-bindings.schema.json`](../schemas/preparation-bindings.schema.json).
+Graph capabilities, rather than a version selector, determine which limits and
+acquisition authorities are required. The nested native acquisition authority
+still has its single `acquisition_version: 1` transport contract.
+
+Documents containing `preparation_admission_version` (formerly 1/2/3) or
+`preparation_bindings_version` (formerly 1/2) fail with regeneration guidance
+before execution. Regenerate bindings for the current typed config paths and
+acquisition stages, inspect the committed recipe with those bindings, then author
+a fresh admission using the returned recipe/binding digests and reviewed commit.
+Do not just strip a marker from old authorization: review capability ceilings,
+network grants and locations again. Preserve archived declarations, receipts,
+failed attempts and payloads unchanged; the current executor does not resume
+obsolete admissions or rewrite their identities. No compatibility execution
+branch is retained. Native scientific hash algorithms and seed acceptance are
+unchanged.
+
+| Boundary | Regression fence | What it proves |
+| --- | --- | --- |
+| Current models/schema | `test_preparation_contract.py` | One round-trip/schema per document; obsolete input refuses before context/compilation; paired strict snapshot ceilings |
+| Typed graph/local binding | `test_preparation_recipe.py` | Exact paths/ports, metadata-only inspection, no interpretation of opaque plugin paths |
+| Synthetic execution | `test_preparation_execution.py` | Native CPU prep, bounds, provenance, replay, no-clobber and source-change refusal |
+| Snapshot consumption | `test_portable_snapshot_preparation.py` | Required caps, cold integrity, exact split/source bindings and replay |
+| Acquisition | `test_portable_acquisition.py`, `test_acquisition_authority.py`, `test_acquisition_guards.py` | Explicit network authority, lock identity, reservations, cancellation and recovery |
+
+This consolidation changes operational admission/binding identity, not computation,
+Campaign ordering or historical content identity. It proves fixture-scale contract
+behavior only. Recipe-specific run/replay/repeat plans belong with the external
+experiment repository. Full acceptance still requires independently bounded
+snapshot-backed controlled pairs, acquisition/reuse, interrupted continuation and
+current CPU/GPU runtime evidence; synthetic fixture success does not establish them.

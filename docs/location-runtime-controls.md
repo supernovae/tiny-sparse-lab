@@ -43,7 +43,11 @@ interchangeable behavior:
   Resolution is flag, environment, absolute nonempty `XDG_DATA_HOME/sparselab`,
   then `~/.local/share/sparselab`. `build_parser` resolves defaults without
   creating directories; execution authorizes the runtime before initializing
-  the workspace.
+  the workspace. For `monitor` and `monitor-baseline`, select the outer CLI root
+  with global `--work-dir` before the verb or per-command `SPARSELAB_WORK_DIR`.
+  `monitor --workspace` and the baseline positional root select the measured
+  directory, not the CLI work root initialized before the handler. Keep an explicit
+  worker lease namespace in the command environment when required.
 - `--lab-dir` selects records and lab caches, whereas `--runs-dir` selects
   saved run manifests/checkpoints. A lab root has `tries`, `probes` and its
   own `runs`; it is not interchangeable with a run root. Report and dashboard

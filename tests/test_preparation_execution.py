@@ -73,7 +73,6 @@ def setup(tmp_path, reuse=False):
     )
     loaded = load_preparation_recipe(source, bindings)
     admission = PreparationAdmission(
-        preparation_admission_version=1,
         reviewed_commit=git(source.parent, "rev-parse", "HEAD"),
         recipe_sha256=loaded.recipe_sha256,
         binding_sha256=loaded.binding_sha256,
