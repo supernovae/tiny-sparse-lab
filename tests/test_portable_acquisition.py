@@ -200,6 +200,10 @@ def test_bounded_snapshot_retains_native_identity(
     "damage,match",
     [
         ("missing-authority", "admissions must name exactly"),
+        (
+            "missing-limits",
+            "snapshot operations require explicit byte and record limits",
+        ),
         ("authority", "authority differs"),
         ("records", "record admission"),
         ("overlap", "overlap"),
@@ -212,6 +216,9 @@ def test_acquisition_admission_before_output(
     raw = json.loads(args[3].read_text())
     if damage == "missing-authority":
         raw.pop("acquisitions")
+    elif damage == "missing-limits":
+        raw.pop("max_snapshot_bytes")
+        raw.pop("max_snapshot_records")
     elif damage == "authority":
         raw["acquisitions"]["snapshot"]["lock_sha256"] = "0" * 64
     elif damage == "records":
@@ -224,6 +231,10 @@ def test_acquisition_admission_before_output(
         args[1].write_text(json.dumps(bindings))
         raw["binding_sha256"] = load_preparation_recipe(args[0], args[1]).binding_sha256
     args[3].write_text(json.dumps(raw))
+    monkeypatch.setattr(
+        "sparselab.experiments.preparation_execution.PreparationExecution.engine",
+        lambda *a: pytest.fail("unexpected engine dispatch"),
+    )
     with pytest.raises(SystemExit, match=match):
         invoke(monkeypatch, capsys, "apply", args)
     assert not args[2].exists()
@@ -308,3 +319,30 @@ def test_acquisition_inspect_is_metadata_only(tmp_path, monkeypatch, http_files)
     assert result.returncode == 0, result.stderr
     assert not args[2].exists()
     assert not http_files["requests"]
+
+
+def test_acquisition_grants_without_snapshot_stage_refuse_before_output(
+    tmp_path, monkeypatch, capsys
+):
+    source, bindings, work, admission = setup(tmp_path)
+    grant = transport_admission(
+        {
+            "source": {"repo_id": "fixture/data", "revision": "a" * 40},
+            "lock_sha256": "b" * 64,
+        }
+    )
+    admitted = admission.model_copy(update={"acquisitions": {"unexpected": grant}})
+    document = tmp_path / "admission.json"
+    document.write_text(admitted.model_dump_json())
+    # Synthetic graph has no snapshot operation, valid provenance and bindings.
+    assert not load_preparation_recipe(source, bindings).acquisition_paths
+    monkeypatch.setattr("socket.socket.connect", lambda *a: pytest.fail("network"))
+    monkeypatch.setattr(
+        "sparselab.experiments.preparation_execution.PreparationExecution.engine",
+        lambda *a: pytest.fail("unexpected engine dispatch"),
+    )
+    with pytest.raises(
+        SystemExit, match="acquisition admission has no matching stages"
+    ):
+        invoke(monkeypatch, capsys, "apply", (source, bindings, work, document, None))
+    assert not work.exists()

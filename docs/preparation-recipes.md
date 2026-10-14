@@ -473,5 +473,7 @@ unchanged.
 
 This consolidation changes operational admission/binding identity, not computation,
 Campaign ordering or historical content identity. It proves fixture-scale contract
-behavior only. The [current Workshop acceptance plan](workshop-current-acceptance.md)
-separately specifies the unexecuted current-baseline run, replay and fresh-root repeat.
+behavior only. Recipe-specific run/replay/repeat plans belong with the external
+experiment repository. Full acceptance still requires independently bounded
+snapshot-backed controlled pairs, acquisition/reuse, interrupted continuation and
+current CPU/GPU runtime evidence; synthetic fixture success does not establish them.
