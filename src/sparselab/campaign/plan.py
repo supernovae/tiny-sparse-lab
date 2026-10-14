@@ -245,6 +245,14 @@ class ExperimentCollect(Stage):
     scope: Literal["evaluation"]
     plan: str
     run: str
+    evaluations: tuple[str, ...] = Field(default=(), exclude_if=lambda v: not v)
+
+    @field_validator("evaluations")
+    @classmethod
+    def unique_evaluations(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("final collection evaluation references must be unique")
+        return value
 
 
 class Evaluation(Stage):
@@ -463,6 +471,17 @@ class CampaignPlan(StrictModel):
                 input_is(stage.run, ("experiment_run", None))
                 if by_id[stage.run].plan != stage.plan:
                     raise ValueError(f"stage {stage.id} run belongs to another plan")
+                for reference in stage.evaluations:
+                    input_is(reference, ("evaluation", None))
+                    upstream = by_id.get(by_id[reference].collect)
+                    if (
+                        not isinstance(upstream, ExperimentCollect)
+                        or upstream.plan != stage.plan
+                        or upstream.evaluations
+                    ):
+                        raise ValueError(
+                            "final collection evaluation belongs to another plan or final collection"
+                        )
             elif isinstance(stage, Evaluation):
                 input_is(stage.collect, ("experiment_collect", None))
                 if stage.runtime is not None:

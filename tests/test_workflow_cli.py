@@ -332,3 +332,37 @@ def test_failed_stage_exit_and_progress_channel(authored, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert json.loads(captured.out)["stages"][0]["state"] == "FAILED"
     assert "adapter progress" in captured.err
+
+
+@pytest.mark.parametrize("selector", [1, 2, 3, 4, True, "3"])
+def test_obsolete_admission_refuses_before_loading_or_runtime(
+    tmp_path, monkeypatch, capsys, selector
+):
+    from sparselab.experiments import workflow_execution
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("obsolete admission reached workflow loading or runtime setup")
+
+    monkeypatch.setattr(workflow_execution, "load_workflow", forbidden)
+    monkeypatch.setattr(workflow_execution, "_environment", forbidden)
+    admission = tmp_path / "admission.json"
+    admission.write_text(json.dumps({"workflow_admission_version": selector}))
+    with pytest.raises(SystemExit) as error:
+        invoke(
+            monkeypatch,
+            capsys,
+            "apply",
+            tmp_path / "missing-recipe.json",
+            "--bindings",
+            tmp_path / "missing-bindings.json",
+            "--admission",
+            admission,
+            "--work-dir",
+            tmp_path / "work",
+            "--execute-runs",
+        )
+    assert error.value.code == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["state"] == "FAILED"
+    assert "obsolete workflow admission; regenerate" in result["error"]["reason"]
+    assert not (tmp_path / "work").exists()

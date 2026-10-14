@@ -55,7 +55,9 @@ def pair_fixture(root, config=None, artifacts=None, locations=None):
     )
     campaign = root / "campaign.json"
     document = json.loads(campaign.read_text())
-    original = {stage["kind"]: stage for stage in document["stages"]}
+    original = {
+        stage["kind"]: stage for stage in document["stages"] if stage["id"] != "final"
+    }
     document["stages"] = document["stages"][:5]
     for arm in ("baseline", "candidate"):
         run = {
@@ -78,6 +80,23 @@ def pair_fixture(root, config=None, artifacts=None, locations=None):
             "requires": [collect["id"]],
         }
         document["stages"].extend([run, collect, evaluation])
+    document["stages"].append(
+        {
+            "id": "final",
+            "kind": "experiment_collect",
+            "scope": "evaluation",
+            "plan": "plan",
+            "run": "run-baseline",
+            "evaluations": ["eval-baseline", "eval-candidate"],
+            "requires": [
+                "plan",
+                "run-baseline",
+                "run-candidate",
+                "eval-baseline",
+                "eval-candidate",
+            ],
+        }
+    )
     campaign.write_text(json.dumps(document))
     repin(source)
     return source, bindings
@@ -98,12 +117,11 @@ def admit(source, bindings, work, **overrides):
     )
     loaded = load_workflow(source, bindings)
     payload = {
-        "workflow_admission_version": 2,
         "reviewed_commit": git(source.parent, "rev-parse", "HEAD"),
         "recipe_sha256": loaded.recipe_sha256,
         "binding_sha256": loaded.binding_sha256,
         "cpu_python": str(Path(sys.executable)),
-        "pair_limits": {
+        "limits": {
             "max_training_updates": 54,
             "max_target_positions": 1728,
             "max_eval_batches": 4,
@@ -145,16 +163,16 @@ def prepared_pair(snapshot_inputs, tmp_path):  # noqa: F811
     )
 
 
-def test_metadata_admission_keeps_v1_shape_and_is_read_only(tmp_path):
+def test_current_metadata_admission_is_read_only(tmp_path):
     source, bindings = pair_fixture(tmp_path / "recipe")
     context = admit(source, bindings, tmp_path / "work")
-    assert context.admission.workflow_admission_version == 2
-    assert len(context.campaign.stages) == 11
+    assert "workflow_admission_version" not in context.admission.model_dump()
+    schema = (
+        Path(__file__).resolve().parents[1] / "schemas/workflow-admission.schema.json"
+    )
+    assert json.loads(schema.read_text()) == WorkflowAdmission.model_json_schema()
+    assert len(context.campaign.stages) == 12
     assert not context.work_dir.exists()
-    old = context.admission.model_dump(mode="json")
-    old.pop("pair_limits")
-    old["workflow_admission_version"] = 1
-    assert WorkflowAdmission.model_validate(old).model_dump(mode="json") == old
 
 
 @pytest.mark.parametrize(
@@ -162,9 +180,9 @@ def test_metadata_admission_keeps_v1_shape_and_is_read_only(tmp_path):
     [
         ("workflow_admission_version", True),
         ("workflow_admission_version", "2"),
-        ("pair_limits", None),
+        ("limits", None),
         (
-            "pair_limits",
+            "limits",
             {
                 "max_training_updates": True,
                 "max_target_positions": 1728,
@@ -197,7 +215,7 @@ def test_limits_include_both_arms_and_pilots(tmp_path, field, value):
     }
     limits[field] = value
     with pytest.raises(ValueError, match="declared .*limit"):
-        admit(source, bindings, tmp_path / "work", pair_limits=limits)
+        admit(source, bindings, tmp_path / "work", limits=limits)
     assert not (tmp_path / "work").exists()
 
 
@@ -232,7 +250,10 @@ def test_pair_shape_refuses_without_payload_reads(tmp_path, damage):
             plan["execution"]["backend"] = "cuda"
 
     change(source, "plans/plan.json", mutate)
-    with pytest.raises(ValueError, match="paired"):
+    message = (
+        "paired comparison must select" if damage == "wrong-selector" else "workflow"
+    )
+    with pytest.raises(ValueError, match=message):
         admit(source, bindings, tmp_path / "work")
     assert not (tmp_path / "work").exists()
 
@@ -405,7 +426,7 @@ def test_graph_names_and_serialization_order_are_not_workflow_roles(tmp_path):
             for key in ("id", "plan", "runtime", "run", "collect"):
                 if key in stage:
                     stage[key] = names.get(stage[key], stage[key])
-            for key in ("requires", "bind"):
+            for key in ("requires", "bind", "evaluations"):
                 if key in stage:
                     stage[key] = [names.get(value, value) for value in stage[key]]
         document["stages"].reverse()

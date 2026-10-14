@@ -168,13 +168,13 @@ refusal remains unchanged. See [preparation planning](preparation-recipes.md) fo
 the new separate inspect-only contract and remaining admission/context work.
 
 
-## Prepared-input CPU execution (admission v1)
+## Prepared-input CPU execution
 
 The narrow execution contract adds optional `campaign: campaign.json` to the
 workflow descriptor. Inventory that native Campaign and its evaluation suite as
 `metadata` members. The Campaign owns the connections: two artifact references,
 one experiment-plan lock, runtime acceptance, explicit approval, one
-`main:single` run, collection and evaluation. Stage IDs are authored, not fixed.
+`main:single` run, checkpoint collection, evaluation and terminal evidence collection. Stage IDs are authored, not fixed.
 Artifact-reference IDs name the descriptor artifacts; their `artifact` objects
 contain exactly the descriptor identity fields, with no path. Locations come
 only from local bindings. The experiment-plan stage references the inventoried
@@ -182,12 +182,13 @@ entrypoint; its suite references one inventoried diagnostic `heldout_lm` suite.
 The existing typed Campaign validator checks dependencies and producer kinds.
 
 `WorkflowExecution` accepts the descriptor, bindings, absolute work root outside
-Git and a `WorkflowAdmission` containing version 1, the reviewed recipe commit,
-recipe and binding digests, and current CPU Python. These are explicit caller
+Git and one current `WorkflowAdmission` containing the reviewed recipe commit,
+recipe and binding digests, current CPU Python and explicit `limits`. These are explicit caller
 assertions, not remote author attestation. It requires unchanged clean committed
 inventory, one unexpanded synthetic CPU PyTorch cell, and local native runtime
-acceptance. Profile/worker selection, accelerator evaluation, axes, comparisons,
-continuations, acquisition and alternate evaluation kinds remain unavailable.
+acceptance. Profile/worker selection, accelerator evaluation, continuations, acquisition and
+alternate evaluation kinds remain unavailable. The controlled snapshot pair below
+uses the same admission contract and graph validator.
 
 ```python
 from sparselab.experiments.workflow_execution import (
@@ -236,11 +237,10 @@ remain separately scoped work.
 
 
 
-## Snapshot-backed paired execution (admission v2)
+## Snapshot-backed paired execution
 
-The same workflow descriptor and public CLI accept `workflow_admission_version: 2`
-for one native snapshot-backed pair. Version 1 retains its synthetic single-cell
-contract and serialized admission fields. Version 2 requires `pair_limits` as a
+The same workflow descriptor and public CLI support one native snapshot-backed
+pair. Both single and paired workflows require `limits` as a
 caller-selected preflight launch allowance for this advanced portable workflow:
 "do not launch a recipe declaring more work than I approved." For example, it
 can refuse an accidental million-step arm when the operator approved a smaller
@@ -254,11 +254,11 @@ and bounds evaluation batches **per call**. It does not bound total compute,
 runtime memory/time/storage, optimizer probes, all scoring or retry charges.
 Native run horizons still govern training, `ResourceEnvelope` governs its
 supported operational controls, and native attempt contracts provide separate
-durable accounting where supported. PairLimits does not replace those contracts
+durable accounting where supported. WorkflowLimits does not replace those contracts
 or grant runtime allocation. Portable attempt-contract support remains deferred.
 
 ```yaml
-pair_limits:
+limits:
   max_training_updates: 18
   max_target_positions: 576
   max_eval_batches: 1
@@ -313,7 +313,7 @@ pair is wiring evidence, not a scientific quality claim.
 
 | Contract boundary | Regression coverage in `tests/test_workflow_pair.py` |
 | --- | --- |
-| Versioned admission | Strict limits, pilot accounting, preserved v1 serialization and legacy seeds |
+| Current admission | Strict limits, pilot accounting, obsolete-input refusal and unchanged native seed semantics |
 | Authored graph | Renamed/reordered stages, distinct cells, approval, sequential runs and collection barriers |
 | Native input identity | Snapshot members, tokenizer bytes and prepared-array tampering refuse before submission |
 | Native comparability | Extra differences, invariant conflicts and unchanged declared interventions refuse |
@@ -321,12 +321,11 @@ pair is wiring evidence, not a scientific quality claim.
 | Native lifecycle | Zero-wait submission, replay, cancellation, lost submission and ambiguous controller observations |
 | Non-executing inspection | Import/effect fence; no payload reads or runtime launch |
 
-Continuation/promotion, expanded evaluation contracts, generation panels, final
-evidence closure, portable attempt-contract ledgers and accelerator admission are
-not part of admission v2. Its diagnostic suite preserves the existing narrow
-capability. Collection precedes evaluation: a collection index must not be
-presented as final evidence including later evaluation results. Historical native
-schemas, hash algorithms, receipts and readers remain unchanged.
+Continuation/promotion, expanded evaluation contracts, generation panels,
+portable attempt-contract ledgers and accelerator admission remain outside this
+contract. Checkpoint collection precedes evaluation; terminal collection follows
+all diagnostic evaluations and verifies their selected indices. Interim evidence
+explicitly says `diagnostic_status: not_collected`.
 
 
 ## Authenticated workflow CLI
@@ -353,11 +352,15 @@ and validates the descriptor, local bindings and strict admission document:
 
 ```json
 {
-  "workflow_admission_version": 1,
   "reviewed_commit": "<full committed recipe SHA>",
   "recipe_sha256": "<recipe_sha256 from workflow inspect>",
   "binding_sha256": "<binding_sha256 from workflow inspect>",
-  "cpu_python": "/absolute/provisioned/environment/bin/python"
+  "cpu_python": "/absolute/provisioned/environment/bin/python",
+  "limits": {
+    "max_training_updates": 54,
+    "max_target_positions": 1728,
+    "max_eval_batches": 4
+  }
 }
 ```
 
@@ -459,3 +462,66 @@ These tests address the admission coverage correction in
 They preserve the existing guards rather than changing runtime contracts, legacy
 seed acceptance or historical hashes. Normal safe/fast/lab-loop CI remains the
 broader compatibility gate; no full measured training is added to CLI tests.
+
+## Current workflow and evidence contract
+
+There is one workflow admission shape, with required `limits`. Numeric
+`workflow_admission_version` and `pair_limits` are obsolete and rejected before
+workflow loading, store creation, probes or dispatch. Regenerate admissions from
+the current recipe inspection and reviewed commit; do not rename fields in a
+saved admission and reuse its historical authority or work root. Preparation
+admission/binding consolidation is a separate pending slice.
+
+One shared validator derives one synthetic cell or a controlled two-cell snapshot
+comparison from the authored plan. Both require one terminal `experiment_collect`
+stage covering all evaluation branches. For the paired example:
+
+```yaml
+- id: final-evidence
+  kind: experiment_collect
+  scope: evaluation
+  plan: plan
+  run: run-baseline
+  evaluations: [eval-baseline, eval-candidate]
+  requires: [plan, run-baseline, run-candidate, eval-baseline, eval-candidate]
+```
+
+For a single cell, use that cell's run and evaluation IDs. No other stage may
+depend on terminal collection. Stage IDs remain authored; the native Campaign
+executor owns dispatch, approval, cancellation and replay.
+
+Evidence has one current shape: `format: sparselab-experiment-evidence-index`,
+`diagnostic_status` (`not_collected` or `collected`) and `diagnostic_evaluations`
+(always an array), alongside native execution coverage. It has no selectable
+numeric version. Interim collection records an empty array and `not_collected`;
+terminal collection requires exactly one explicitly bound diagnostic per completed
+cell. It verifies run/checkpoint, locked suite, index/record and result bytes with
+the native verifier. Missing or changed evidence refuses; `UNAVAILABLE` stays
+unavailable and projects no metrics. Reopen and receipt replay reverify identity.
+
+The report format is always `sparselab-publication-report`. JSON and Markdown use
+the same report object's format, diagnostic status and observations, including
+planned-only reports. Reporting is read-only: no training, scoring, acquisition,
+controller advancement or implicit collection. Select the final stage's explicit
+index when reporting final diagnostic coverage:
+
+```sh
+sparselab experiment recipe workflow report /work/experiment/locks/LOCK.json \
+  --workspace /work/experiment --index /work/experiment/evidence/FINAL.json \
+  --output /work/report.json --format json
+```
+
+Earlier numbered evidence contracts are refused with regeneration guidance;
+this pre-release implementation adds no historical reader layer. Existing record
+bytes and hashes remain untouched as development evidence. Current source pins,
+new admissions and fresh work roots are required for new acceptance. Workshop's
+pinned historical example is not automatically migrated or recertified.
+
+`test_final_diagnostic_evidence` covers isolated identity/membership/uniqueness
+checks, native byte verification, unavailable observations, replay and report
+projection. Checkpoint verification is explicitly substituted in its byte
+fixtures, so these are software tests, not model-quality or new measured workflow
+proof. Existing CLI tests cover approval, queueing and no-new-attempt replay.
+The pre-release baseline still needs separately admitted fresh public-CLI run,
+completed replay and independent fresh-workspace repeat with criteria declared
+before execution. No new model proof is included here.

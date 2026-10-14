@@ -597,6 +597,14 @@
         "run": {
           "title": "Run",
           "type": "string"
+        },
+        "evaluations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evaluations",
+          "type": "array"
         }
       },
       "required": [

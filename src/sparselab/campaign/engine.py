@@ -189,6 +189,31 @@ class CampaignEngine:
             "runtime_binding_sha256": facts.get("runtime_bindings", {}).get(cell_id),
         }
 
+    def _diagnostic_references(self, stage, rows):
+        from sparselab.training.manifest import sha256_file
+
+        references = []
+        for name in stage.evaluations:
+            evaluation = self.stages[name]
+            collect = self.stages[evaluation.collect]
+            run = self.stages[collect.run]
+            selected = self._upstream(rows, collect.id)["measurements"]
+            recorded = self._upstream(rows, name)
+            references.append(
+                {
+                    "stage": name,
+                    "cell_id": run.cell,
+                    "run_id": self._upstream(rows, run.id)["outputs"][0]["identifier"],
+                    "checkpoint": f"checkpoints/{selected['generation']}",
+                    "checkpoint_sha256": selected["sha256"],
+                    "suite": str(self._path(evaluation.suite)),
+                    "suite_sha256": sha256_file(self._path(evaluation.suite)),
+                    "index": recorded["availability"]["path"],
+                    "index_sha256": recorded["outputs"][0]["sha256"],
+                }
+            )
+        return references
+
     def _path(self, reference: str) -> Path:
         if self.workflow_context is not None:
             return self.workflow_context.loaded.context.reference(
@@ -669,6 +694,19 @@ class CampaignEngine:
                 path,
                 **self._verification(),
             )
+            if stage.evaluations:
+                expected = sorted(
+                    self._diagnostic_references(stage, rows),
+                    key=lambda ref: ref["stage"],
+                )
+                actual = [
+                    item["reference"]
+                    for item in evidence.get("diagnostic_evaluations", [])
+                ]
+                if actual != expected:
+                    raise ValueError(
+                        "final diagnostic references differ from Campaign dependencies"
+                    )
             if evidence["index_sha256"] != output["sha256"]:
                 raise ValueError("evidence index changed")
             cell = self._check_collection(stage, evidence, rows)
@@ -2511,7 +2549,15 @@ class CampaignEngine:
             with self._phase(
                 "campaign.checkpoint_collection", host_kind="verification_bound"
             ):
-                evidence = collect_evidence(lock, workspace, **self._verification())
+                options = self._verification()
+                if stage.evaluations:
+                    options = {
+                        **options,
+                        "diagnostic_references": self._diagnostic_references(
+                            stage, rows
+                        ),
+                    }
+                evidence = collect_evidence(lock, workspace, **options)
                 verified = read_evidence(
                     lock,
                     workspace,

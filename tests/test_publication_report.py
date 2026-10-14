@@ -62,6 +62,12 @@ def test_native_pending_reopens_verifies_and_does_not_mutate(native, monkeypatch
         report["provenance"]["evidence_index_sha256"]
         == expected["views"]["evidence_coverage"]["facts"]["evidence_index_sha256"]
     )
+    assert report["format"] == publication.FORMAT == "sparselab-publication-report"
+    assert report["diagnostic_evaluations"] == []
+    assert report["diagnostic_status"] == "not_collected"
+    markdown = publication._markdown(report)
+    assert f"Format: {report['format']}".encode() in markdown
+    assert rb"Coverage: not\_collected" in markdown
     assert report["cells"][0]["status"] == "pending"
     assert report["cells"][0]["attempts"] == []
     assert report["readiness"]["execution_coverage"] == "incomplete"

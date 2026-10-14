@@ -11,7 +11,7 @@ from sparselab.experiments.lock import open_lock
 from sparselab.experiments.retrospective import retrospective_views
 from sparselab.result_publication import write_bytes_exclusive
 
-FORMAT = "sparselab-publication-report-v1"
+FORMAT = "sparselab-publication-report"
 _LIMITATIONS = (
     "This is a draft, not an external publication or promotion decision.",
     "Coverage refers to the explicitly selected snapshot, not a live or latest experiment state.",
@@ -169,8 +169,10 @@ def build_publication_report(
         )
     observed_comparisons = {item["id"]: item for item in coverage["comparisons"]}
     readiness = views["readiness_decision"]["facts"]
-    return {
+    report = {
         "format": FORMAT,
+        "diagnostic_status": "not_collected",
+        "diagnostic_evaluations": [],
         "provenance": {
             "plan_id": lock.id,
             "plan_sha256": lock.plan_sha256,
@@ -225,6 +227,15 @@ def build_publication_report(
         "limitations": list(_LIMITATIONS),
     }
 
+    if index_path is not None:
+        from sparselab.experiments.diagnostic_evidence import report_diagnostics
+        from sparselab.experiments.evidence import read_evidence
+
+        evidence = read_evidence(lock, workspace, index_path)
+        report["diagnostic_status"] = evidence["diagnostic_status"]
+        report["diagnostic_evaluations"] = report_diagnostics(evidence)
+    return report
+
 
 def _json(report: dict[str, Any]) -> bytes:
     return (
@@ -244,7 +255,7 @@ def _markdown(report: dict[str, Any]) -> bytes:
     lines = [
         "# Experiment report / model-card draft",
         "",
-        f"Format: {FORMAT}",
+        f"Format: {report['format']}",
         "",
         "## Provenance",
         "",
@@ -293,6 +304,12 @@ def _markdown(report: dict[str, Any]) -> bytes:
         lines.append("No comparisons recorded.")
     lines.extend(["", "## Availability and rights", ""])
     lines.extend(f"- {key}: {value}" for key, value in report["availability"].items())
+    lines.extend(["", "## Recorded diagnostic evaluations", ""])
+    lines.append(f"Coverage: {literal(report['diagnostic_status'])}")
+    for item in report["diagnostic_evaluations"]:
+        lines.append(
+            f"- {literal(item['cell_id'])}: {literal(item['status'])}; index {literal(item['index_sha256'])}; metrics {literal(item['metrics'])}"
+        )
     lines.extend(["", "## Limitations", ""])
     lines.extend(f"- {item}" for item in report["limitations"])
     return ("\n".join(lines) + "\n").encode("utf-8")

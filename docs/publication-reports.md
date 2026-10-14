@@ -34,7 +34,7 @@ from its hash. It creates no training, evaluation, acquisition or controller wor
 
 ## Interpretation and privacy
 
-The machine format is `sparselab-publication-report-v1`. Both formats retain the
+The machine format is `sparselab-publication-report`. Both formats retain the
 original plan, scientific, source and evidence-index hashes, per-cell configuration
 and input hashes, planned seeds/budgets, lineage, selected runs, attempt statuses,
 checkpoint digests/counters and verification scopes, and integrity-bound validation
@@ -89,3 +89,9 @@ incomplete observations from native verifier tests. Native coverage includes
 reopened locks, incomplete/invalid receipts, a one-update synthetic CPU checkpoint
 and held-out observations, post-collection tampering, read-only rendering, immutable
 collisions and replay. These fixtures establish software behavior only.
+
+The current report shape always includes `diagnostic_status` and
+`diagnostic_evaluations`; planned/interim reports explicitly record uncollected
+diagnostics. JSON and Markdown share the same contract identifier and observations.
+Obsolete development evidence contracts require fresh collection; stored records
+are never rewritten or upgraded in place.
