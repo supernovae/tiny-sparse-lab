@@ -1832,6 +1832,7 @@ class CampaignEngine:
                 controller,
                 read_only=True,
                 runtime_binding_sha256=runtime_digest,
+                workflow_context=self.workflow_context,
             )
             if (
                 spec.config.model_dump(mode="json")

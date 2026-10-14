@@ -194,6 +194,7 @@ def test_authored_connections_require_approval_before_run(tmp_path):
 def test_native_plan_approval_and_lock_authority(
     native_workflow,  # noqa: F811
     tmp_path,
+    monkeypatch,
 ):
     from sparselab.experiments.cli import locked_cell_request
     from sparselab.experiments.lock import open_lock
@@ -221,6 +222,23 @@ def test_native_plan_approval_and_lock_authority(
     engine.approve("gate", "approve", "fixture approval; no model dispatch")
     assert engine.inspect("status")["stages"]
     context.authorize_lock(lock)
+    from sparselab.workers.controller import Controller
+
+    monkeypatch.setattr(
+        Controller,
+        "tick",
+        lambda *a, **kw: pytest.fail("zero-wait test dispatched a worker"),
+    )
+    submitted = engine.apply(execute_runs=True, max_wait_seconds=0)
+    submitted_rows = {row["id"]: row for row in submitted["stages"]}
+    assert submitted_rows["run"]["state"] == "RUNNING"
+    controller = Controller(
+        Path(rows["plan"]["availability"]["workspace"]) / "controller", read_only=True
+    )
+    attempts = controller.list_experiments()
+    assert len(attempts) == 1
+    engine.apply(resume=True, execute_runs=False, max_wait_seconds=0)
+    assert controller.list_experiments() == attempts
     bindings.write_text(bindings.read_text() + "\n")
     with pytest.raises(ValueError, match="WORKFLOW_CONTEXT_CHANGED"):
         locked_cell_request(
