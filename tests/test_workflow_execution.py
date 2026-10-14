@@ -330,3 +330,24 @@ def test_public_admission_requires_synthetic_cpu(tmp_path, unsupported):
     ):
         admitted(source, bindings, tmp_path / "work")
     assert not (tmp_path / "work").exists()
+
+
+@pytest.mark.parametrize("variant", ["gate_role", "two_evaluations"])
+def test_public_admission_requires_one_diagnostic_heldout_suite(tmp_path, variant):
+    from sparselab.evaluation.suite_models import EvaluationSuite
+
+    source, bindings = execution_fixture(tmp_path / "recipe")
+    path = source.parent / "suite.json"
+    suite = json.loads(path.read_text())
+    if variant == "gate_role":
+        suite["evaluations"][0]["role"] = "gate"
+    else:
+        suite["evaluations"].append(
+            {"id": "second", "kind": "heldout_lm", "role": "diagnostic"}
+        )
+    EvaluationSuite.model_validate(suite)  # Valid native, outside portable contract.
+    path.write_text(json.dumps(suite))
+    repin(source)
+    with pytest.raises(ValueError, match="one diagnostic heldout_lm evaluation"):
+        load_workflow(source, bindings)
+    assert not (source.parent / "payload").exists()
