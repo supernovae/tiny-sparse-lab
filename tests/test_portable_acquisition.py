@@ -346,3 +346,32 @@ def test_acquisition_grants_without_snapshot_stage_refuse_before_output(
     ):
         invoke(monkeypatch, capsys, "apply", (source, bindings, work, document, None))
     assert not work.exists()
+
+
+@pytest.mark.parametrize("damage", ["missing", "extra"])
+def test_acquisition_bindings_exact_stage_names(tmp_path, monkeypatch, damage):
+    if damage == "missing":
+        source, bindings, work, _, _ = acquisition_recipe(tmp_path, monkeypatch, {})
+        assert set(load_preparation_recipe(source, bindings).acquisition_paths) == {
+            "snapshot"
+        }
+    else:
+        source, bindings, work, _ = setup(tmp_path)
+        assert not load_preparation_recipe(source, bindings).acquisition_paths
+    local = json.loads(bindings.read_text())
+    if damage == "missing":
+        local.pop("acquisitions")
+    else:
+        local["acquisitions"] = {
+            "unexpected": {
+                "output": str(work / "snapshot"),
+                "cache_dir": str(work / "acquisition-cache"),
+            }
+        }
+    bindings.write_text(json.dumps(local))
+    monkeypatch.setattr("socket.socket.connect", lambda *a: pytest.fail("network"))
+    with pytest.raises(
+        ValueError, match="^acquisition bindings must name exactly the snapshot stages$"
+    ):
+        load_preparation_recipe(source, bindings)
+    assert not work.exists()
