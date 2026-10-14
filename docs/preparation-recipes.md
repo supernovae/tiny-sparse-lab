@@ -435,10 +435,10 @@ GPU qualification and legacy retirement remain separately gated in the
 ### Acquisition boundary tests
 
 [Transport guard tests](../tests/test_acquisition_guards.py) cover HTTP and
-credential boundaries, cache/storage integrity, decoder limits and cumulative
-verification accounting. [Authority tests](../tests/test_acquisition_authority.py)
-cover admission paths/stages, explicit network permission and exclusive invocation
-ownership. HTTP tests use an in-memory opener and fake token, with no external
+credential boundaries, explicit network permission, cache/storage integrity,
+decoder limits and cumulative verification accounting.
+[Authority tests](../tests/test_acquisition_authority.py) cover admission paths/stages
+and exclusive invocation ownership. HTTP tests use an in-memory opener and fake token, with no external
 network or credential-store access.
 
 Known limitation: each 64 KiB read and decoded batch calls `observe()`, which walks
