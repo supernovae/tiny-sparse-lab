@@ -646,8 +646,9 @@ def test_snapshot_retained_input_under_work_root_is_admitted(tmp_path, monkeypat
     assert not (args[2] / "campaigns").exists()
 
 
+@pytest.mark.parametrize("manifest_kind", ["legacy_import", "list", "null", "string"])
 def test_snapshot_import_format_refused_before_domain_verification(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, manifest_kind
 ):
     from sparselab.data.snapshot_import import FORMAT
     from sparselab.experiments import artifacts
@@ -655,6 +656,7 @@ def test_snapshot_import_format_refused_before_domain_verification(
     args = snapshot_recipe(tmp_path, monkeypatch)
     raw = json.loads(args[4].read_text())
     raw["format"] = FORMAT
+    raw = {"legacy_import": raw, "list": [], "null": None, "string": "x"}[manifest_kind]
     args[4].write_text(json.dumps(raw))
     monkeypatch.setattr(
         artifacts,
