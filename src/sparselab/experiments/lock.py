@@ -718,11 +718,23 @@ def resolve_plan(
     source = Path(source).resolve()
     package = locked_source_identity()
     if context is not None and (
-        plan.corpus_variants or plan.evaluation_suite or plan.execution.attempt_contract
+        plan.corpus_variants or plan.execution.attempt_contract
     ):
         raise ValueError(
             "recipe context does not yet support variant, suite or attempt-contract references"
         )
+    if context is not None and plan.evaluation_suite is not None:
+        from sparselab.evaluation.suite_models import EvaluationSuite
+
+        selected_suite = context.reference(source, plan.evaluation_suite)
+        suite = EvaluationSuite.model_validate(context.read_document(selected_suite))
+        if len(suite.evaluations) != 1 or any(
+            item.kind != "heldout_lm" or item.role != "diagnostic"
+            for item in suite.evaluations
+        ):
+            raise ValueError(
+                "recipe context supports one diagnostic heldout_lm evaluation"
+            )
     base = (
         base_run_config(plan, source)
         if context is None
@@ -1130,7 +1142,19 @@ def resolve_plan(
         from sparselab.evaluation.suite import load_suite
         from sparselab.recovery.provenance import declaration_reference
 
-        suite_path = declaration_reference(source, plan.evaluation_suite)
+        suite_path = (
+            declaration_reference(source, plan.evaluation_suite)
+            if context is None
+            else context.reference(source, plan.evaluation_suite)
+        )
+        if (
+            context is not None
+            and suite_path.read_bytes()
+            != context.documents[context.document_name(suite_path)]
+        ):
+            raise ValueError(
+                "recipe evaluation suite differs from inventoried snapshot"
+            )
         suite = load_suite(suite_path)
         suite_identity = {"id": suite.id, "sha256": sha256_file(suite_path)}
         availability["evaluation_suite"] = str(suite_path)

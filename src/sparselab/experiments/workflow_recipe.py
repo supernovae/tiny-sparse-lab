@@ -40,6 +40,7 @@ class WorkflowRecipe(StrictModel):
     portable_workflow_version: Literal[1]
     id: StrictStr = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     entrypoint: StrictStr
+    campaign: StrictStr | None = None
     contracts: dict[StrictStr, StrictInt]
     files: tuple[RecipeFile, ...] = Field(min_length=1, max_length=MAX_DOCUMENTS)
     artifacts: dict[StrictStr, ArtifactIdentity]
@@ -54,6 +55,8 @@ class WorkflowRecipe(StrictModel):
     @model_validator(mode="after")
     def valid_inventory(self):
         canonical_reference(self.entrypoint)
+        if self.campaign is not None:
+            canonical_reference(self.campaign)
         names = [member.path for member in self.files]
         if len(names) != len(set(names)):
             raise ValueError("duplicate workflow file path")
@@ -150,10 +153,31 @@ def load_workflow(path: Path, bindings: Path) -> LoadedWorkflow:
         "corpus_variants",
         "phases",
         "evaluations",
-        "evaluation_suite",
     ):
         if authored.get(key) not in (None, [], {}):
             raise ValueError(f"unavailable workflow profile feature: {key}")
+    if descriptor.campaign is None and authored.get("evaluation_suite") not in (
+        None,
+        [],
+        {},
+    ):
+        raise ValueError("unavailable workflow profile feature: evaluation_suite")
+    if descriptor.campaign is not None:
+        context.reference(source, descriptor.campaign)
+        suite_reference = authored.get("evaluation_suite")
+        if not isinstance(suite_reference, str):
+            raise ValueError(
+                "executable workflow requires an inventoried diagnostic suite"
+            )
+        suite_path = context.reference(source, suite_reference)
+        from sparselab.evaluation.suite_models import EvaluationSuite
+
+        suite = EvaluationSuite.model_validate(context.read_document(suite_path))
+        if len(suite.evaluations) != 1 or any(
+            item.kind != "heldout_lm" or item.role != "diagnostic"
+            for item in suite.evaluations
+        ):
+            raise ValueError("workflow supports one diagnostic heldout_lm evaluation")
     execution = authored.get("execution")
     if isinstance(execution, dict) and execution.get("attempt_contract") is not None:
         raise ValueError(
@@ -227,6 +251,8 @@ def load_workflow(path: Path, bindings: Path) -> LoadedWorkflow:
     # Exercise native validation with the explicit context before any artifact access.
     recipe_run_config(plan, source, context=context)
     canonical = descriptor.model_dump(mode="json")
+    if descriptor.campaign is None:
+        canonical.pop("campaign")
     canonical["files"] = sorted(canonical["files"], key=lambda item: item["path"])
     fingerprint = hashlib.sha256(
         b"sparselab-portable-workflow-v1\0" + canonical_json(canonical)

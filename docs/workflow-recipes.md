@@ -92,8 +92,9 @@ model-owned Path fields are bound; arbitrary metadata/plugin `path` keys remain
 opaque. Path-changing axes (including whole-section patches) and mixture paths
 are unavailable. The first profile requires exactly one tokenizer and one
 prepared-data identity. Additional artifact kinds, corpus variants, authored
-phases, evaluations/suites, attempt contracts and worker/workspace declarations
-are explicitly refused. Native APIs retain their existing capabilities.
+phases, inline evaluations, attempt contracts and worker/workspace declarations
+are explicitly refused. An inventoried diagnostic suite is supported only with
+the explicit Campaign contract below. Native APIs retain their existing capabilities.
 
 ## Identity, context and admission
 
@@ -118,7 +119,8 @@ No verifier exclusions change.
 
 **A published workflow lock is not an execution grant.** Both the experiment run
 route and the shared CLI/Campaign worker-request constructor refuse this profile
-with `WORKFLOW_EXECUTION_UNAVAILABLE`, before selecting/submitting work. Unknown
+with `WORKFLOW_EXECUTION_UNAVAILABLE` unless the shared request constructor receives
+the authenticated CPU execution context described below, before selecting/submitting work. Unknown
 or stale capability information cannot make it ready; there is no capability
 input or override. Existing legacy admission and recovery paths are unchanged.
 
@@ -165,3 +167,69 @@ malformed or changed declarations still retain their own errors. Inventory
 integrity does not establish committed provenance. CLI/shared Campaign execution
 refusal remains unchanged. See [preparation planning](preparation-recipes.md) for
 the new separate inspect-only contract and remaining admission/context work.
+
+
+## Prepared-input CPU execution
+
+The narrow execution contract adds optional `campaign: campaign.json` to the
+workflow descriptor. Inventory that native Campaign and its evaluation suite as
+`metadata` members. The Campaign owns the connections: two artifact references,
+one experiment-plan lock, runtime acceptance, explicit approval, one
+`main:single` run, collection and evaluation. Stage IDs are authored, not fixed.
+Artifact-reference IDs name the descriptor artifacts; their `artifact` objects
+contain exactly the descriptor identity fields, with no path. Locations come
+only from local bindings. The experiment-plan stage references the inventoried
+entrypoint; its suite references one inventoried diagnostic `heldout_lm` suite.
+The existing typed Campaign validator checks dependencies and producer kinds.
+
+`WorkflowExecution` accepts the descriptor, bindings, absolute work root outside
+Git and a `WorkflowAdmission` containing version 1, the reviewed recipe commit,
+recipe and binding digests, and current CPU Python. These are explicit caller
+assertions, not remote author attestation. It requires unchanged clean committed
+inventory, one unexpanded synthetic CPU PyTorch cell, and local native runtime
+acceptance. Profile/worker selection, accelerator evaluation, axes, comparisons,
+continuations, acquisition and alternate evaluation kinds remain unavailable.
+
+```python
+from sparselab.experiments.workflow_execution import (
+    WorkflowAdmission,
+    WorkflowExecution,
+)
+
+context = WorkflowExecution(descriptor, bindings, work_root, admission)
+engine = context.engine()
+planned = engine.apply()  # verifies inputs, publishes native lock, awaits approval
+engine.approve(gate_id, "approve", "explicitly authorized bounded CPU experiment")
+completed = engine.apply(execute_runs=True, max_wait_seconds=540)
+replayed = engine.apply(resume=True, execute_runs=False)
+```
+
+Use native operational monitoring around the complete process tree. A one-update
+main config does not bound pilots or runtime probes. The measured fixture uses
+600-second, 4-GiB RSS and 1-GiB workspace-growth stop ceilings; sampled monitoring
+is not an instantaneous kernel quota. No new report CLI or scheduler is added.
+The existing collection and publication-report APIs read the resulting native
+lock, Controller evidence and checkpoint-bound evaluation. Rendering conveys
+integrity and coverage, not scientific effectiveness or automatic promotion.
+
+Context is refreshed at admission, approval, every dispatch and receipt boundary,
+and the shared locked-cell request. The native availability sidecar authenticates
+recipe, inventory and binding identity; Campaign receipts and submitted request
+provenance retain the explicit admission. A changed committed recipe or local
+binding cannot be admitted by replaying old approval receipts. Ordinary
+`experiment run` and iteration remain unable to grant this execution context.
+Existing workflow descriptors without `campaign` retain their original recipe
+fingerprint; historical config, scientific, lock and receipt hash algorithms and
+legacy seed coercion are unchanged.
+
+| Change / boundary | Regression evidence |
+| --- | --- |
+| Changed descriptor, inventory, binding, suite or reviewed commit | Refusal before dispatch and work-store creation |
+| Authored Campaign connections | Native typed edges plus required explicit approval |
+| Native lock/request authority | Real plan-to-approval path; lock without context refuses; stale binding refuses shared request |
+| Metadata inspection | Fresh-process import, filesystem, subprocess and payload fence |
+| Evaluation declaration separation | Existing schema/runtime readers share the unchanged data-only models |
+
+The bounded actual CPU proof is additional wiring evidence. TinyStories,
+accelerator portability, broader contracts and scientific comparison qualification
+remain separately scoped work.

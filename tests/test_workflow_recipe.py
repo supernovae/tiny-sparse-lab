@@ -599,7 +599,11 @@ def test_direct_contextual_resolver_refuses_external_declarations_before_inputs(
     )
     with pytest.raises(
         ValueError,
-        match="^recipe context does not yet support variant, suite or attempt-contract references$",
+        match=(
+            "undeclared recipe reference"
+            if feature == "suite"
+            else "^recipe context does not yet support variant, suite or attempt-contract references$"
+        ),
     ):
         native.resolve_plan(plan, loaded.source, context=loaded.context)
     assert not (source.parent / "payload").exists()
