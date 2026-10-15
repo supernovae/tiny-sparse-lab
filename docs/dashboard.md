@@ -193,8 +193,14 @@ stops it with the reason. The dashboard page always explores on CPU. Loading the
 checkpoint is a stage like the others: the cancel sentinel and envelope are
 checked before it, an out-of-memory error while loading or exploring becomes a
 clear message, memory is released either way and nothing is cached. It stops
-at the next stage if `LAB/explorer/CANCEL` appears. MLX checkpoints
-and attached semantic packs are refused with a reason.
+at the next stage if its invocation-specific cancel file appears. Before loading,
+the explorer prints `LAB/explorer/operations/<invocation-id>/CANCEL` to stderr
+(also with `--json`, whose stdout remains JSON). Touch that exact path to stop
+only that invocation. Each call gets a fresh operation directory, including cache
+hits; old operation directories and cancel files are retained. The old shared
+`LAB/explorer/CANCEL` is left untouched and no longer controls new invocations.
+Checkpoint/text/runtime cache identities are unchanged. MLX checkpoints and
+attached semantic packs are refused with a reason.
 
 ![Explorer: architecture and parameters (MoE run)](assets/dashboard-explorer.png)
 
