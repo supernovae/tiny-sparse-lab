@@ -1,0 +1,7 @@
+# Candidate resolver input only. NOT a dependency lock or installation recipe.
+# Delivery is blocked; see status.json and docs/containers-rocm.md.
+# A future resolver must also include the public project's base dependencies.
+# Resolve AMD packages against the official indexes recorded in status.json;
+# do not let a general extra-index silently replace other dependencies.
+torch[device-gfx1100]==2.14.0+rocm10.1.0
+uv_build==0.12.17

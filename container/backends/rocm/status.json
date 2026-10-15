@@ -1,0 +1,24 @@
+{
+  "status": "blocked",
+  "backend": "rocm",
+  "python": "3.14",
+  "platform": "linux/amd64",
+  "device": "gfx1100",
+  "torch_version": "2.14.0+rocm10.1.0",
+  "runtime_version": "10.1.0",
+  "checked_on": "2026-10-15",
+  "build_enabled": false,
+  "blockers": [
+    "AMD wheel index provides neither SHA256 hashes nor PEP 658 dependency metadata; checked torch metadata and checksum sidecars return HTTP 404.",
+    "Complete dependency closure and wheel hashes have not been verified. Wheel payload downloads were outside this metadata-only validation scope.",
+    "The AMD rocm 10.1.0 runtime index lists a source archive, not a wheel; binary-only installation support remains unverified."
+  ],
+  "sources": [
+    "https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html",
+    "https://stable.repo.amd.com/rocm/whl-next/torch/",
+    "https://stable.repo.amd.com/rocm/whl-next/amd-torch-device-gfx1100/",
+    "https://stable.repo.amd.com/rocm/whl-next/amd-torch-device-gfx110x/",
+    "https://stable.repo.amd.com/rocm/whl-next/triton/",
+    "https://stable.repo.amd.com/rocm/core/whl-next/rocm/"
+  ]
+}
