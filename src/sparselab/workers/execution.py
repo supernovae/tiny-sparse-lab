@@ -1084,8 +1084,19 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                 raise RuntimeError(
                     "trainer returned without a terminal progress record"
                 )
-            except InterruptedError:
+            except InterruptedError as error:
                 if not _cancelled(directory):
+                    # A stop-shaped exception is not cancellation authority. Retain
+                    # failure evidence before the heartbeat and claim are released.
+                    current = _load_receipt(definition, attempt_id)
+                    _terminal_receipt(
+                        definition,
+                        attempt_id,
+                        state="FAILED",
+                        phase="failed",
+                        artifacts=_final_artifacts(definition, current),
+                        error=_failure(error),
+                    )
                     raise
                 return _terminal_receipt(
                     definition,

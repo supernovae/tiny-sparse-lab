@@ -1010,3 +1010,78 @@ def test_completed_training_calibrates_and_reuses_runtime_forecast(
     assert isinstance(phases, dict)
     assert phases["generation"]["availability"] == "not_observed"
     assert phases["evaluation"]["availability"] == "not_observed"
+
+
+@pytest.mark.parametrize(
+    "phase", ["entry", "input", "runtime", "continuation", "data", "engine"]
+)
+def test_each_startup_cancel_window_stops_before_next_phase(
+    tmp_path, monkeypatch, phase
+):
+    from contextlib import contextmanager
+
+    from sparselab.training import trainer
+
+    original = config(tmp_path)
+    cancel = tmp_path / "phase-cancel"
+    reached = []
+
+    def mark():
+        reached.append(phase)
+        cancel.write_text("retained phase stop")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail(f"cancel after {phase} reached next startup phase")
+
+    native_phase = trainer.pilot_phase
+
+    @contextmanager
+    def input_phase(name, *args, **kwargs):
+        if name == "input_validation" and phase == "entry":
+            forbidden()
+        with native_phase(name, *args, **kwargs) as value:
+            yield value
+        if name == "input_validation" and phase == "input":
+            mark()
+
+    monkeypatch.setattr(trainer, "pilot_phase", input_phase)
+    # The entrypoint is deliberately _train_impl: the public wrapper's redundant
+    # check must not mask loss of the implementation's first gate.
+    if phase == "entry":
+        mark()
+    elif phase == "input":
+        from sparselab import staging
+
+        monkeypatch.setattr(staging, "verify_stage_bundle", forbidden)
+    else:
+        owner, name, next_owner, next_name = {
+            "runtime": (trainer.PyTorchEngine, "validate", trainer, "source_identity"),
+            "continuation": (trainer, "load_continuation", trainer, "seed_everything"),
+            "data": (trainer, "prepare_data", trainer.PyTorchEngine, "initialize"),
+            "engine": (trainer.PyTorchEngine, "initialize", None, None),
+        }[phase]
+        native = getattr(owner, name)
+
+        def finish_phase(*args, **kwargs):
+            result = None if phase == "engine" else native(*args, **kwargs)
+            mark()
+            return result
+
+        monkeypatch.setattr(owner, name, finish_phase)
+        if next_owner is not None:
+            monkeypatch.setattr(next_owner, next_name, forbidden)
+    if phase != "engine" and phase != "data":
+        monkeypatch.setattr(trainer.PyTorchEngine, "initialize", forbidden)
+    monkeypatch.setattr(trainer.PyTorchEngine, "close", lambda *a: None)
+    for name in ("evaluate", "train_update", "export_weights", "export_training_state"):
+        monkeypatch.setattr(trainer.PyTorchEngine, name, forbidden)
+    with pytest.raises(InterruptedError, match="before run creation"):
+        trainer._train_impl(
+            original,
+            run_id="phase-stop",
+            cancel_path=cancel,
+            stage_bundle=tmp_path / "stage" if phase == "input" else None,
+        )
+    assert reached == [phase]
+    assert not (original.logging.root_dir / "phase-stop").exists()
+    assert cancel.read_text() == "retained phase stop"
