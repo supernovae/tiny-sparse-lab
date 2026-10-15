@@ -22,7 +22,10 @@ from sparselab.operational_monitor import (
 
 
 class RunnerPreflightRefused(ValueError):
-    """Proven refusal before entering attempt-directory creation or monitor launch."""
+    """Proven refusal before entering attempt-directory creation or monitor launch.
+
+    The original exception type is retained in error_type and __cause__.
+    """
 
     def __init__(self, error: Exception):
         self.error_type = type(error).__name__

@@ -652,29 +652,117 @@ def test_unproven_or_unpublished_refusal_stays_unknown(job, monkeypatch, fault):
     assert jobs.admit(job)["status"] == "UNKNOWN_OR_RUNNING"
 
 
-@pytest.mark.parametrize("damage", ["outcome", "binding", "digest"])
-def test_refusal_tampering_is_rejected(job, monkeypatch, damage):
-    runner = jobs.runner
-    original = runner.run_controlled
+def _admit_refused(job, monkeypatch):
+    original = jobs.runner.run_controlled
 
     def remove_state(*args, **kwargs):
         job.host.state.rmdir()
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(runner, "run_controlled", remove_state)
-    jobs.admit(job)
-    evidence, _, _ = jobs._paths(job)
-    path = evidence / "refusal.json"
+    monkeypatch.setattr(jobs.runner, "run_controlled", remove_state)
+    assert jobs.admit(job)["status"] == "REFUSED_BEFORE_LAUNCH"
+    return jobs._paths(job)[0] / "refusal.json"
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "status",
+        "boundary",
+        "outcome",
+        "zero_outcome",
+        "acceptance",
+        "binding",
+        "payload_extra",
+        "payload_missing",
+        "payload_list",
+        "envelope_extra",
+        "envelope_missing",
+        "reason_string",
+        "reason_list",
+        "reason_extra",
+        "reason_missing",
+        "reason_message_number",
+        "reason_type_number",
+        "digest",
+        "summary",
+        "summary_symlink",
+        "symlink",
+        "writable",
+        "hardlink",
+    ],
+)
+def test_refusal_tampering_is_rejected(job, monkeypatch, damage):
+    path = _admit_refused(job, monkeypatch)
     sealed = jobs.read_canonical(path)
-    if damage == "outcome":
-        sealed["payload"]["workload_started"] = True
-    elif damage == "binding":
-        sealed["payload"]["attempt_id"] = "foreign"
-        sealed["sha256"] = jobs.digest(
-            "sparselab-lab-job-refusal-v1", sealed["payload"]
-        )
-    else:
+    payload = sealed["payload"]
+    changes = {
+        "status": ("status", "FINALIZED"),
+        "boundary": ("boundary", "after-attempt-directory"),
+        "outcome": ("workload_started", True),
+        "zero_outcome": ("workload_started", 0),
+        "acceptance": ("coordinator_acceptance", "ACCEPTED"),
+        "binding": ("attempt_id", "foreign"),
+        "payload_extra": ("extra", "not allowed"),
+        "reason_string": ("reason", "not an object"),
+        "reason_list": ("reason", ["type", "message"]),
+    }
+    if damage in changes:
+        key, value = changes[damage]
+        payload[key] = value
+    elif damage == "payload_missing":
+        del payload["boundary"]
+    elif damage == "payload_list":
+        sealed["payload"] = []
+    elif damage == "envelope_extra":
+        sealed["extra"] = "not allowed"
+    elif damage == "reason_extra":
+        payload["reason"]["extra"] = "not allowed"
+    elif damage == "reason_missing":
+        del payload["reason"]["message"]
+    elif damage == "reason_message_number":
+        payload["reason"]["message"] = 1
+    elif damage == "reason_type_number":
+        payload["reason"]["type"] = 1
+    # Semantic tampering must be rejected even with a correctly recomputed seal.
+    sealed["sha256"] = jobs.digest("sparselab-lab-job-refusal-v1", sealed["payload"])
+    if damage == "digest":
         sealed["sha256"] = "0" * 64
+    elif damage == "envelope_missing":
+        del sealed["sha256"]
     path.write_bytes(jobs.canonical_json(sealed) + b"\n")
-    with pytest.raises(ValueError, match="invalid sealed prelaunch refusal"):
-        jobs.status(job)
+    if damage == "summary":
+        path.with_name("summary.json").write_text("{}")
+    elif damage == "summary_symlink":
+        path.with_name("summary.json").symlink_to(path.with_name("missing-summary"))
+    elif damage == "symlink":
+        retained = path.with_name("retained-refusal.json")
+        path.rename(retained)
+        path.symlink_to(retained)
+    elif damage == "writable":
+        path.chmod(0o666)
+    elif damage == "hardlink":
+        path.with_name("linked-refusal.json").hardlink_to(path)
+    before = path.read_bytes()
+    for reader in (jobs.status, jobs.collect):
+        with pytest.raises(
+            ValueError, match="invalid sealed prelaunch refusal|unsafe runner state"
+        ):
+            reader(job)
+        assert path.read_bytes() == before
+
+
+def test_refused_cleanup_preview_preserves_scratch_and_evidence(job, monkeypatch):
+    path = _admit_refused(job, monkeypatch)
+    _, scratch, source = jobs._paths(job)
+    receipt = path.read_bytes()
+    files = set(scratch.rglob("*"))
+    result = jobs.cleanup_preview(job, scratch)
+    assert result["job_status"] == "REFUSED_BEFORE_LAUNCH"
+    assert result["preview_only"] is True
+    assert result["delete_implemented"] is False
+    assert result["candidate"] == str(scratch)
+    assert source.is_dir()
+    assert set(scratch.rglob("*")) == files
+    assert path.read_bytes() == receipt
+    assert jobs.status(job)["status"] == "REFUSED_BEFORE_LAUNCH"

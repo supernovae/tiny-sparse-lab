@@ -154,9 +154,9 @@ actual try/run IDs, checkpoints and observation identities are retained. Queue
 workers keep their native PREPARED/claim/replay protocol unchanged.
 
 Duplicate delivery never reaches launch. It returns `UNKNOWN_OR_RUNNING`,
-`COLLECTABLE`, a sealed `REFUSED_BEFORE_LAUNCH`, or a reverified `FINALIZED` result. Partial/conflicting handoffs
-refuse. Even a crash before native pending exists does not authorize execution
-retry. Uncertain launches stay blocked for inspection; PID absence proves
+`COLLECTABLE`, a sealed `REFUSED_BEFORE_LAUNCH`, or a reverified `FINALIZED`
+result. Partial/conflicting handoffs refuse. Even a crash before native pending
+exists does not authorize execution retry. Uncertain launches stay blocked for inspection; PID absence proves
 nothing. The existing native history, lock inode, state, blocked markers and
 receipt-referenced logs remain authoritative. Collection currently checks all
 native runner history, so unrelated incomplete history can block it too.
@@ -169,6 +169,9 @@ IDs. Status and collect verify and return that receipt. A crash before receipt
 publication, a signal, or any error once attempt-directory creation is entered
 stays uncertain, even if `pending.json` is absent. A new attempt needs new explicit
 authorization. Initial missing state still refuses before admission publication.
+For `admit`, `status` and `collect`, a successfully returned refusal JSON currently
+has exit code zero. Callers must inspect the JSON `status`; exit zero alone does
+not establish that a workload launched or completed.
 
 Fixed source/runtime/inputs/tokenizer/try/report gates record actual exits and
 executed/skipped status. The final verifier checks native completion and owned
@@ -230,8 +233,10 @@ env PYTHONPATH=/absolute/selected/controller/src \
   --candidate /absolute/disposable-work/scratch/cpu-native-authorized-001
 ```
 
-Only exact owned scratch with verified completion is eligible. Linked/foreign
-content, ancestors and evidence/state/lock/marker targets refuse. Output says
+Only exact owned scratch with verified completion or a verified prelaunch refusal
+is eligible for this preview. For a refused job, `job_status` is
+`REFUSED_BEFORE_LAUNCH`; its detached source worktree is still retained.
+Linked/foreign content, ancestors and evidence/state/lock/marker targets refuse. Output says
 `delete_implemented: false`. Nothing is removed, including Git worktrees. Retain
 all history, state, locks, markers and referenced logs: future admission reads
 them. Scratch/source retention is also required for final source rechecking.
