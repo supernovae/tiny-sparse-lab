@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -12,6 +13,8 @@ import stat
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+
+_LOGGER = logging.getLogger(__name__)
 
 _MARKER = ".sparselab-cache-owner.json"
 _CACHE_MEMBERS = frozenset(
@@ -52,7 +55,15 @@ def campaign_lock(workspace: Path) -> Iterator[None]:
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(workspace / ".cleanup.lock", flags, 0o600)
     with os.fdopen(descriptor, "a+b") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            _LOGGER.warning(
+                "Waiting for campaign lock %s; preserve the lock and retained "
+                "state. Owner identity is unknown; normal blocking wait continues.",
+                workspace / ".cleanup.lock",
+            )
+            fcntl.flock(handle, fcntl.LOCK_EX)
         try:
             yield
         finally:
