@@ -710,7 +710,16 @@ def snapshot_source(
         if not work.is_dir() or work.is_symlink():
             raise ValueError("missing or unsafe resume journal")
     else:
-        work.mkdir()
+        try:
+            work.mkdir()
+        except FileExistsError as error:
+            raise FileExistsError(
+                error.errno,
+                "snapshot work path already exists; inspect the retained journal, "
+                "then use --resume with the original lock and output for the same "
+                "snapshot (busy and identity checks still apply)",
+                error.filename,
+            ) from error
     cache.mkdir(parents=True, exist_ok=True)
     guard = work / "guard"
     if guard.is_symlink():

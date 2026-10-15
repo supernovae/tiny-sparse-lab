@@ -528,3 +528,54 @@ def test_import_dispatch_preserves_distinct_verifier(tmp_path, monkeypatch):
         snapshot_import, "verify_import", lambda config: {"verified": str(config)}
     )
     assert sources.verify_snapshot(manifest) == {"verified": str(manifest)}
+
+
+def test_existing_snapshot_work_requires_explicit_resume_without_rewriting(
+    tmp_path, offline, monkeypatch
+):
+    import errno
+    import fcntl
+
+    def interrupted(source, split, cache, **kw):
+        yield offline[split][0]
+        raise InterruptedError("fixture interruption")
+
+    monkeypatch.setattr(sources, "_stream", interrupted)
+    with pytest.raises(InterruptedError):
+        acquire(tmp_path)
+    work = tmp_path / ".snapshot.work"
+    before = {
+        p.relative_to(work): p.read_bytes() for p in work.rglob("*") if p.is_file()
+    }
+    lock = tmp_path / "lock.json"
+    lock_bytes = lock.read_bytes()
+    with pytest.raises(FileExistsError, match="--resume.*original lock") as refused:
+        sources.snapshot_source(lock, tmp_path / "snapshot", tmp_path / "cache")
+    assert refused.value.errno == errno.EEXIST
+    assert refused.value.filename == str(work)
+    assert isinstance(refused.value.__cause__, FileExistsError)
+    assert not (tmp_path / "snapshot").exists()
+    assert {
+        p.relative_to(work): p.read_bytes() for p in work.rglob("*") if p.is_file()
+    } == before
+    assert lock.read_bytes() == lock_bytes
+    # Explicit resume remains subject to the existing live journal lock.
+    with (work / "guard").open("r+b") as guard:
+        fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            acquire(tmp_path, resume=True)
+    # An altered declaration cannot use the old journal identity.
+    changed = tmp_path / "changed.yaml"
+    changed.write_text(yaml.safe_dump(declaration(revision="b" * 40)))
+    changed_lock = tmp_path / "changed-lock.json"
+    sources.lock_source(changed, changed_lock, tmp_path / "cache")
+    with pytest.raises(ValueError, match="resume lock mismatch"):
+        sources.snapshot_source(
+            changed_lock, tmp_path / "snapshot", tmp_path / "cache", resume=True
+        )
+    assert lock.read_bytes() == lock_bytes
+    monkeypatch.setattr(
+        sources, "_stream", lambda source, split, cache, **kw: iter(offline[split])
+    )
+    manifest = acquire(tmp_path, resume=True)
+    assert sources.verify_snapshot(manifest)["splits"]["train"]["count"] == 2

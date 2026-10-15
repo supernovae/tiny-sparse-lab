@@ -34,7 +34,10 @@ Do not edit it to add data. Increasing bounds, changing the source revision or
 selecting another split creates a new lock/snapshot and new downstream identities.
 Model-width, seed or training-budget comparisons can reuse the unchanged inputs.
 
-For an interrupted acquisition, repeat the snapshot command with `--resume`.
+For an interrupted acquisition, repeat the snapshot command with `--resume`,
+using the original lock and output path. Without that flag, an existing adjacent
+work path refuses with an explicit resume diagnostic and leaves its journal
+untouched. Resume still refuses a busy journal or a different lock identity.
 Its adjacent work journal is authenticated before reuse; immutable sources can
 be replayed to verify the completed prefix when seeking is unavailable. Atomic
 publication prevents a partial snapshot from masquerading as complete input.
