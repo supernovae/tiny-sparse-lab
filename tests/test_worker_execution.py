@@ -525,3 +525,143 @@ def test_same_attempt_cold_request_is_sticky_and_outside_scientific_spec(
         for row in receipts
     } == {(submission.attempt_id, spec.digest(), spec.dispatch_bundle_digest)}
     assert "cold_verify" not in json.loads(spec_path.read_bytes())
+
+
+@pytest.mark.parametrize("marker", ["regular", "absent", "directory", "symlink"])
+def test_trainer_startup_interrupt_requires_regular_worker_marker(
+    tmp_path, monkeypatch, caplog, marker
+):
+    from types import SimpleNamespace
+
+    from sparselab import staging
+    from sparselab.config.loading import load_config
+    from sparselab.training import trainer
+    from sparselab.workers import bundles, execution
+    from sparselab.workers.models import (
+        ExperimentSpec,
+        WorkerDefinition,
+        current_required_versions,
+    )
+
+    config = load_config(
+        Path(__file__).resolve().parents[1] / "examples/lab-job-try/baseline.yaml"
+    )
+    worker = WorkerDefinition(
+        worker_id=f"fixture-{tmp_path.name}",
+        name="fixture",
+        transport="local",
+        python=Path(sys.executable).absolute(),
+        root=tmp_path / "worker",
+        engine="pytorch",
+        backend="cpu",
+        device_index=0,
+    )
+    spec = ExperimentSpec(
+        experiment_id="fixture",
+        config=config,
+        config_sha256="a" * 64,
+        required_versions=current_required_versions(),
+        source_identity_sha256="b" * 64,
+        dispatch_bundle_digest="c" * 64,
+    )
+    receipt = execution._receipt_payload(
+        worker,
+        {
+            "attempt_id": "attempt",
+            "run_id": "never-created",
+            "experiment_id": "fixture",
+            "spec_digest": "d" * 64,
+            "bundle_digest": "c" * 64,
+        },
+    )
+    execution._write_receipt(worker, receipt)
+    lease_root = tmp_path / "leases"
+    monkeypatch.setenv("SPARSELAB_WORKER_LEASE_DIR", str(lease_root))
+    monkeypatch.setattr(
+        execution,
+        "_spec_from_path",
+        lambda *a: {"payload": spec.model_dump(mode="json")},
+    )
+    monkeypatch.setattr(execution, "source_identity", lambda: {"sha256": "b" * 64})
+    monkeypatch.setattr(execution, "validate_runtime", lambda *a, **k: None)
+    monkeypatch.setattr(execution, "_caps", lambda *a, **k: {})
+    monkeypatch.setattr(
+        execution,
+        "_runtime_for_definition",
+        lambda *a: SimpleNamespace(backend="cpu", physical_device_id=None),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "materialize_dispatch_bundle",
+        lambda *a, **k: SimpleNamespace(
+            digest=lambda: "c" * 64,
+            config_sha256=spec.config_sha256,
+            config=config,
+            source_identity_sha256=spec.source_identity_sha256,
+            continuation=spec.continuation,
+        ),
+    )
+    phases = []
+    monkeypatch.setattr(staging, "stage", lambda *a, **k: phases.append("stage"))
+    error = InterruptedError("fixture startup interruption")
+
+    def stop(config, **kwargs):
+        assert phases == ["stage"]
+        phases.append("train")
+        cancel = kwargs["cancel_path"]
+        if marker == "regular":
+            cancel.write_text("retain cancellation")
+        elif marker == "directory":
+            cancel.mkdir()
+        elif marker == "symlink":
+            target = tmp_path / "target"
+            target.write_text("retain target")
+            cancel.symlink_to(target)
+        raise error
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("fixture executed a model")
+
+    monkeypatch.setattr(trainer, "train", stop)
+    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", forbidden)
+    if marker == "regular":
+        result = execution.execute_attempt(worker, "attempt")
+        assert result["state"] == "INTERRUPTED"
+        assert result["phase"] == "cancelled_before_training"
+        assert result["cancellation_requested"] is True
+        assert result["cancellation_acknowledged"] is True
+    else:
+        with pytest.raises(InterruptedError) as caught:
+            execution.execute_attempt(worker, "attempt")
+        assert caught.value is error
+        result = execution._load_receipt(worker, "attempt")
+        assert result["state"] == "FAILED"
+        assert result["phase"] == "failed"
+        assert result["cancellation_acknowledged"] is False
+        assert result["error"] == {"code": "INTERRUPTEDERROR", "message": str(error)}
+    assert phases == ["stage", "train"]
+    assert not (worker.root / "runs/never-created").exists()
+    # Terminal receipts are durable and another execute cannot retry the attempt.
+    assert execution.execute_attempt(worker, "attempt") == result
+    assert phases == ["stage", "train"]
+    cancel = worker.root / "attempts/attempt/cancel.json"
+    if marker == "regular":
+        assert cancel.read_text() == "retain cancellation"
+    elif marker == "directory":
+        assert cancel.is_dir()
+    elif marker == "symlink":
+        assert cancel.is_symlink() and cancel.read_text() == "retain target"
+    else:
+        assert not cancel.exists()
+
+    assert lease_root.is_dir()
+    assert list(lease_root.glob("*.lock"))
+    failures = [
+        record
+        for record in caplog.records
+        if record.name == execution._LOGGER.name
+        and record.getMessage() == "Worker training attempt failed"
+    ]
+    assert len(failures) == (0 if marker == "regular" else 1)
+    if failures:
+        assert failures[0].exc_info[1] is error
