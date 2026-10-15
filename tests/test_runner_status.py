@@ -1,6 +1,7 @@
 """Read-only runner inspection using retained receipts and tiny child fixtures."""
 
 import fcntl
+import hashlib
 import json
 import os
 import subprocess
@@ -138,7 +139,24 @@ def test_blocked_markers_are_retained_without_interpretation(
 
 
 @pytest.mark.parametrize(
-    "damage", ["contract", "identity", "pending", "completion", "monitor", "owned"]
+    "damage",
+    [
+        "contract",
+        "identity",
+        "pending",
+        "completion",
+        "monitor",
+        "owned",
+        "pending_contract",
+        "pending_hash",
+        "cleanup",
+        "monitor_hash",
+        "monitor_error",
+        "owned_hash",
+        "living_descendants",
+        "run_mode",
+        "missing_log_dir",
+    ],
 )
 def test_history_errors_are_typed_actionable_and_preserve_bytes(
     tmp_path, monkeypatch, damage
@@ -160,9 +178,58 @@ def test_history_errors_are_typed_actionable_and_preserve_bytes(
     elif damage == "monitor":
         path = options["log_dir"] / "completion.json"
         path.write_text("{")
-    else:
+    elif damage == "owned":
         path = options["log_dir"] / "owned-completion.json"
         path.unlink()
+    else:
+        completion = run_dir / "completion.json"
+        complete = json.loads(completion.read_text())
+        pending = run_dir / "pending.json"
+        monitor = options["log_dir"] / "completion.json"
+        owned = options["log_dir"] / "owned-completion.json"
+        path = completion
+        if damage in {"pending_contract", "missing_log_dir"}:
+            payload = json.loads(pending.read_text())
+            if damage == "pending_contract":
+                payload["contract"]["blocked"] = str(tmp_path / "foreign-marker")
+            else:
+                payload.pop("log_dir")
+            pending.write_text(json.dumps(payload))
+            complete["pending_sha256"] = hashlib.sha256(
+                pending.read_bytes()
+            ).hexdigest()
+        elif damage == "pending_hash":
+            # Whitespace keeps valid JSON while invalidating only the byte hash.
+            pending.write_bytes(pending.read_bytes() + b" ")
+        elif damage == "cleanup":
+            complete["cleanup_verified"] = False
+        elif damage == "monitor_hash":
+            path = monitor
+            complete["monitor_sha256"] = "0" * 64
+        elif damage == "monitor_error":
+            path = monitor
+            payload = json.loads(monitor.read_text())
+            payload["status"] = "MONITOR_ERROR"
+            runner.MonitorCompletion.model_validate(payload)
+            monitor.write_text(json.dumps(payload))
+            complete["monitor_sha256"] = hashlib.sha256(
+                monitor.read_bytes()
+            ).hexdigest()
+        elif damage == "owned_hash":
+            path = owned
+            complete["owned_sha256"] = "0" * 64
+        elif damage == "living_descendants":
+            path = owned
+            payload = json.loads(owned.read_text())
+            payload["living_descendants"] = 1
+            owned.write_text(json.dumps(payload))
+            complete["owned_sha256"] = hashlib.sha256(owned.read_bytes()).hexdigest()
+        elif damage == "run_mode":
+            path = run_dir
+            path.chmod(0o775)
+        else:
+            raise AssertionError(damage)
+        completion.write_text(json.dumps(complete))
     before = retained(tmp_path)
     with monkeypatch.context() as patch:
         forbid_writes(patch)
@@ -222,4 +289,91 @@ def test_unsafe_runner_path_is_not_followed_or_repaired(tmp_path, monkeypatch, f
     assert result["status"] == "UNRESOLVED"
     assert "unsafe runner state" in result["problem"]["message"]
     assert result["launch_authorized"] is False
+    assert retained(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "same_lock_state",
+        "same_lock_blocked",
+        "same_state_blocked",
+        "nested_lock",
+        "nested_blocked",
+        "unsafe_parent",
+    ],
+)
+def test_status_rejects_unseparated_paths_and_unsafe_parent(
+    tmp_path, monkeypatch, fault
+):
+    options = setup(tmp_path, max_wall_seconds=3)
+    options["lock_path"].touch(mode=0o600)
+    if fault == "same_lock_state":
+        options["lock_path"] = options["state_dir"]
+    elif fault == "same_lock_blocked":
+        options["blocked_path"] = options["lock_path"]
+    elif fault == "same_state_blocked":
+        options["blocked_path"] = options["state_dir"]
+    elif fault == "nested_lock":
+        options["lock_path"] = options["state_dir"] / "lock"
+        options["lock_path"].touch(mode=0o600)
+    elif fault == "nested_blocked":
+        options["blocked_path"] = options["state_dir"] / "blocked"
+    else:
+        tmp_path.chmod(0o775)
+    before = (tmp_path.stat().st_mode, retained(tmp_path))
+    forbid_writes(monkeypatch)
+    result = status(options)
+    assert result["status"] == "UNRESOLVED"
+    assert result["history_verified"] is False
+    assert result["launch_authorized"] is False
+    message = "unsafe runner state" if fault == "unsafe_parent" else "must be separate"
+    assert message in result["problem"]["message"]
+    assert (tmp_path.stat().st_mode, retained(tmp_path)) == before
+
+
+@pytest.mark.parametrize("race", ["lock_swap", "marker"])
+def test_status_rechecks_identity_and_marker_after_verification(
+    tmp_path, monkeypatch, race
+):
+    options = setup(tmp_path, max_wall_seconds=3)
+    run(options)
+    verify = runner._verify_prior_runs
+    after_race = []
+
+    def verify_then_change(*args):
+        count = verify(*args)
+        if race == "lock_swap":
+            options["lock_path"].rename(tmp_path / "retained-original-lock")
+            options["lock_path"].touch(mode=0o600)
+        else:
+            options["blocked_path"].write_text("retain concurrent hold")
+        after_race.append(retained(tmp_path))
+        return count
+
+    monkeypatch.setattr(runner, "_verify_prior_runs", verify_then_change)
+    forbid_writes(monkeypatch)
+    result = status(options)
+    assert len(after_race) == 1
+    assert result["status"] == "UNRESOLVED"
+    assert result["history_verified"] is False
+    assert result["launch_authorized"] is False
+    message = (
+        "runner lock identity changed" if race == "lock_swap" else "runner blocked"
+    )
+    assert message in result["problem"]["message"]
+    assert retained(tmp_path) == after_race[0]
+
+
+def test_empty_state_without_lock_is_unresolved_and_never_provisioned(
+    tmp_path, monkeypatch
+):
+    options = setup(tmp_path, max_wall_seconds=3)
+    before = retained(tmp_path)
+    forbid_writes(monkeypatch)
+    result = status(options)
+    assert result["status"] == "UNRESOLVED"
+    assert result["problem"]["type"] == "FileNotFoundError"
+    assert result["problem"]["path"] == str(options["lock_path"])
+    assert not options["lock_path"].exists()
     assert retained(tmp_path) == before
