@@ -21,7 +21,7 @@ RUN test "$(uname -m)" = x86_64 \
  && tar -xzf /tmp/python.tar.gz -C /opt/python --strip-components=1 \
  && rm -rf /tmp/debs /tmp/python.tar.gz \
  && ldconfig
-ENV UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy PATH=/opt/venv/bin:/opt/python/bin:/usr/local/bin:/usr/bin:/bin SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=hardlink PATH=/opt/venv/bin:/opt/python/bin:/usr/local/bin:/usr/bin:/bin SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 COPY container/backends/xpu/requirements.lock /opt/requirements.lock
 COPY container/backends/xpu/config.json /opt/backend.json
 COPY container/image_plan.py /opt/image_plan.py
