@@ -710,7 +710,31 @@ def snapshot_source(
         if not work.is_dir() or work.is_symlink():
             raise ValueError("missing or unsafe resume journal")
     else:
-        work.mkdir()
+        try:
+            work.mkdir()
+        except FileExistsError as error:
+            journal = work / "journal.sqlite"
+            resumable = (
+                work.is_dir()
+                and not work.is_symlink()
+                and journal.is_file()
+                and not journal.is_symlink()
+            )
+            guidance = (
+                "inspect the retained journal, then use --resume with the original "
+                "lock and --output for the same snapshot (busy and identity checks "
+                "still apply)"
+                if resumable
+                else "no regular resume journal is observable; inspect retained "
+                "evidence and the original failure. Another initializer may still "
+                "be active; this does not authorize deleting the work path or "
+                "clearing its guard"
+            )
+            raise FileExistsError(
+                error.errno,
+                f"snapshot work path already exists; {guidance}",
+                error.filename,
+            ) from error
     cache.mkdir(parents=True, exist_ok=True)
     guard = work / "guard"
     if guard.is_symlink():
