@@ -32,6 +32,18 @@ class RunnerPreflightRefused(ValueError):
         super().__init__(str(error))
 
 
+class RunnerHistoryError(ValueError):
+    """Retained runner evidence cannot be verified; never a repair instruction."""
+
+    def __init__(self, path: Path, error: Exception):
+        self.path = path
+        self.error_type = type(error).__name__
+        super().__init__(
+            f"runner history unresolved at {path}: {type(error).__name__}: {error}; "
+            "inspect retained evidence without editing it; launch remains refused"
+        )
+
+
 class RunnerInterrupted(BaseException):
     """Signal cancellation, never a recoverable sensor or filesystem error."""
 
@@ -86,52 +98,78 @@ def _unblocked(path: Path) -> None:
 
 
 def _prior_runs(state: Path, contract: dict[str, Any]) -> None:
-    entries = list(state.iterdir())
-    config = state / "contract.json"
-    if not entries:
-        _write(config, contract)
-    elif _read(config) != contract:
-        raise ValueError("runner contract or stable lock identity changed")
-    for run in state.iterdir():
-        if run == config:
-            continue
-        _safe(run, directory=True)
-        pending = _read(run / "pending.json")
-        complete = _read(run / "completion.json")
-        if (
-            pending.get("run_id") != run.name
-            or pending.get("contract") != contract
-            or complete.get("pending_sha256")
-            != hashlib.sha256((run / "pending.json").read_bytes()).hexdigest()
-            or complete.get("run_id") != run.name
-            or complete.get("cleanup_verified") is not True
-        ):
-            raise ValueError(f"incomplete or foreign runner receipt: {run}")
-        receipt_path = Path(pending["log_dir"]) / "completion.json"
-        _safe(receipt_path)
-        receipt_bytes = receipt_path.read_bytes()
-        receipt = MonitorCompletion.model_validate_json(receipt_bytes)
-        if (
-            hashlib.sha256(receipt_bytes).hexdigest() != complete["monitor_sha256"]
-            or receipt.launch.root.model_dump() != complete["root"]
-            or receipt.launch.command != pending["command"]
-            or receipt.launch.policy.model_dump(mode="json") != pending["policy"]
-            or receipt.launch.completion_path != str(receipt_path)
-            or receipt.launch.owned_source_sha256 is None
-            or receipt.status == "MONITOR_ERROR"
-        ):
-            raise ValueError(f"unverified prior monitor receipt: {run}")
-        owned_path = receipt_path.parent / "owned-completion.json"
-        _safe(owned_path)
-        owned_bytes = owned_path.read_bytes()
-        owned = json.loads(owned_bytes)
-        if (
-            hashlib.sha256(owned_bytes).hexdigest() != complete["owned_sha256"]
-            or owned["root"] != complete["root"]
-            or owned["living_descendants"] != 0
-            or owned["returncode"] != receipt.returncode
-        ):
-            raise ValueError(f"unverified prior owned receipt: {run}")
+    if not list(state.iterdir()):
+        _write(state / "contract.json", contract)
+    _verify_prior_runs(state, contract)
+
+
+def _verify_prior_runs(state: Path, contract: dict[str, Any]) -> int:
+    """Read and verify existing history only; no initialization or repair."""
+    checking = state
+    try:
+        config = state / "contract.json"
+        checking = config
+        verified = 0
+        if _read(checking) != contract:
+            raise ValueError(
+                "runner contract or stable lock identity changed; use the original "
+                "agreed path triplet and inspect its contract, never replace the lock"
+            )
+        for run in state.iterdir():
+            if run == config:
+                continue
+            checking = run
+            _safe(run, directory=True)
+            checking = run / "pending.json"
+            pending = _read(checking)
+            checking = run / "completion.json"
+            complete = _read(checking)
+            if (
+                pending.get("run_id") != run.name
+                or pending.get("contract") != contract
+                or complete.get("pending_sha256")
+                != hashlib.sha256((run / "pending.json").read_bytes()).hexdigest()
+                or complete.get("run_id") != run.name
+                or complete.get("cleanup_verified") is not True
+            ):
+                raise ValueError(f"incomplete or foreign runner receipt: {run}")
+            receipt_path = Path(pending["log_dir"]) / "completion.json"
+            checking = receipt_path
+            _safe(receipt_path)
+            receipt_bytes = receipt_path.read_bytes()
+            receipt = MonitorCompletion.model_validate_json(receipt_bytes)
+            if (
+                hashlib.sha256(receipt_bytes).hexdigest() != complete["monitor_sha256"]
+                or receipt.launch.root.model_dump() != complete["root"]
+                or receipt.launch.command != pending["command"]
+                or receipt.launch.policy.model_dump(mode="json") != pending["policy"]
+                or receipt.launch.completion_path != str(receipt_path)
+                or receipt.launch.owned_source_sha256 is None
+                or receipt.status == "MONITOR_ERROR"
+            ):
+                raise ValueError(f"unverified prior monitor receipt: {run}")
+            owned_path = receipt_path.parent / "owned-completion.json"
+            checking = owned_path
+            _safe(owned_path)
+            owned_bytes = owned_path.read_bytes()
+            owned = json.loads(owned_bytes)
+            if (
+                hashlib.sha256(owned_bytes).hexdigest() != complete["owned_sha256"]
+                or owned["root"] != complete["root"]
+                or owned["living_descendants"] != 0
+                or owned["returncode"] != receipt.returncode
+            ):
+                raise ValueError(f"unverified prior owned receipt: {run}")
+
+            verified += 1
+        return verified
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        path = (
+            Path(error.filename)
+            if isinstance(error, OSError) and error.filename
+            else checking
+        )
+        raise RunnerHistoryError(path, error) from error
 
 
 def run_controlled(
@@ -229,8 +267,19 @@ def _run_controlled(
         identity = _safe(lock)
         opened = os.fstat(fd)
         if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
-            raise ValueError("runner lock identity changed")
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            raise ValueError(
+                f"runner lock identity changed at {lock}; inspect the original path "
+                "and retained contract; never replace the lock to bypass ownership"
+            )
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise BlockingIOError(
+                error.errno,
+                "runner lock busy; another holder or observer currently contends; "
+                "inspect runner-status and retained evidence, never unlink or reclaim the lock",
+                str(lock),
+            ) from error
         previous = {
             sig: signal.getsignal(sig)
             for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
@@ -241,7 +290,10 @@ def _run_controlled(
             _unblocked(blocked)
             identity = _safe(lock)
             if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
-                raise ValueError("runner lock identity changed")
+                raise ValueError(
+                    f"runner lock identity changed at {lock}; inspect the original path "
+                    "and retained contract; never replace the lock to bypass ownership"
+                )
             os.fsync(fd)
             _sync_dir(lock.parent)
             # A missing directory may mean lost evidence, never a recovery request.
@@ -321,3 +373,115 @@ def _run_controlled(
                 signal.signal(sig, handler)
     finally:
         os.close(fd)  # No lock-keeper process; pending state survives SIGKILL.
+
+
+def runner_status(
+    *, lock_path: Path, state_dir: Path, blocked_path: Path
+) -> dict[str, Any]:
+    """Observe existing local state under a shared lock; never initialize or repair.
+
+    A shared nonblocking probe cannot identify an owner or authorize later work.
+    The ordinary exclusive launch admission remains authoritative after this read.
+    """
+    report: dict[str, Any] = {
+        "format": "sparselab-runner-status-v1",
+        "status": "UNRESOLVED",
+        "launch_authorized": False,
+        "history_verified": False,
+        "lock_observation": "not_observed",
+        "paths": {
+            "lock": str(lock_path),
+            "state": str(state_dir),
+            "blocked": str(blocked_path),
+        },
+    }
+    try:
+        if sys.platform != "linux":
+            raise ValueError("runner status requires Linux")
+        lock, state, blocked = (
+            path.parent.resolve(strict=True) / path.name
+            for path in (lock_path, state_dir, blocked_path)
+        )
+        report["paths"] = {
+            "lock": str(lock),
+            "state": str(state),
+            "blocked": str(blocked),
+        }
+        if (
+            len({lock, state, blocked}) != 3
+            or state in lock.parents
+            or state in blocked.parents
+        ):
+            raise ValueError("runner lock, state and blocked paths must be separate")
+        for path in (lock, state, blocked):
+            _safe(path.parent, directory=True)
+        try:
+            blocked.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            return {
+                **report,
+                "status": "BLOCKED",
+                "problem": {
+                    "path": str(blocked),
+                    "message": "blocked marker is present; preserve it and inspect retained evidence",
+                },
+            }
+        _safe(state, directory=True)
+        identity = _safe(lock)
+        fd = os.open(lock, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            opened = os.fstat(fd)
+            if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
+                raise ValueError(f"runner lock identity changed at {lock}")
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return {
+                    **report,
+                    "status": "BUSY",
+                    "lock_observation": "contended",
+                    "problem": {
+                        "path": str(lock),
+                        "message": "lock currently contended; owner identity is unknown; do not reclaim it",
+                    },
+                }
+            report["lock_observation"] = "not_exclusively_held_at_observation"
+            _unblocked(blocked)
+            if not list(state.iterdir()):
+                return {**report, "status": "UNINITIALIZED"}
+            contract = {
+                "format": "sparselab-runner-v1",
+                "lock": str(lock),
+                "lock_device": opened.st_dev,
+                "lock_inode": opened.st_ino,
+                "blocked": str(blocked),
+            }
+            count = _verify_prior_runs(state, contract)
+            identity = _safe(lock)
+            if (identity.st_dev, identity.st_ino) != (opened.st_dev, opened.st_ino):
+                raise ValueError(f"runner lock identity changed at {lock}")
+            _unblocked(blocked)
+            return {
+                **report,
+                "status": "VERIFIED_HISTORY",
+                "history_verified": True,
+                "verified_runs": count,
+            }
+        finally:
+            os.close(fd)
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        path = (
+            error.path
+            if isinstance(error, RunnerHistoryError)
+            else getattr(error, "filename", None)
+        )
+        return {
+            **report,
+            "problem": {
+                "type": type(error).__name__,
+                "path": str(path) if path else None,
+                "message": str(error),
+            },
+        }

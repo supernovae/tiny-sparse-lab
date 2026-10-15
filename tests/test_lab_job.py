@@ -343,8 +343,11 @@ def test_unknown_native_launch_never_restarts(job, monkeypatch):
     assert job.host.blocked.exists()
     assert len(list(job.host.state.glob("*/pending.json"))) == 1
     assert jobs.admit(job)["status"] == "UNKNOWN_OR_RUNNING"
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(jobs.runner.RunnerHistoryError) as caught:
         jobs.collect(job)
+    assert caught.value.path.name == "completion.json"
+    assert isinstance(caught.value.__cause__, FileNotFoundError)
+    assert jobs.status(job)["status"] == "UNKNOWN_OR_RUNNING"
 
 
 def test_missing_evidence_and_failed_final_publication_never_relaunch(job, monkeypatch):
