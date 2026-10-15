@@ -31,6 +31,9 @@ uv sync --locked --extra cpu --dev
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 ```
 
+Prefer containers? See [the CPU image guide](docs/containers.md) for direct CLI and
+separate web usage, with no host Python installation.
+
 Follow **[the TinyStories microlab](docs/tinystories-microlab.md)**: copy three
 existing declarations, prepare a small pinned story dataset and tokenizer, then
 compare one FFN-width change with `try`. It teaches the workflow on CPU; the tiny

@@ -1,0 +1,95 @@
+name: CPU image
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: cpu-image-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: sparselab-cpu:test
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=sparselab-cpu-main
+          cache-to: type=gha,mode=max,scope=sparselab-cpu-${{ github.event.pull_request.number || 'main' }}
+      - name: Direct CLI, CPU tensor, native web and live WAL smoke
+        run: python3 container/smoke.py --image sparselab-cpu:test --revision "$GITHUB_SHA"
+      - name: Retain exact tested image for main publication
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          mkdir tested-image
+          docker save sparselab-cpu:test | gzip -1 > tested-image/image.tar.gz
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess
+          with open('tested-image/image.tar.gz','rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+          image=json.loads(subprocess.check_output(['docker','image','inspect','sparselab-cpu:test']))[0]['Id']
+          with open('tested-image/identity.json','w') as f: json.dump({'revision':os.environ['GITHUB_SHA'],'image':image,'sha256':digest},f)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name == 'push'
+        with:
+          name: tested-cpu-${{ github.sha }}
+          path: tested-image/
+          compression-level: 0
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: cpu-smoke-${{ github.sha }}
+          path: container-evidence/
+  publish:
+    needs: build-smoke
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: tested-cpu-${{ github.sha }}
+          path: tested-image/
+      - name: Verify and load the exact tested image
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess
+          identity=json.load(open('tested-image/identity.json'))
+          assert identity['revision']==os.environ['GITHUB_SHA']
+          with open('tested-image/image.tar.gz','rb') as f: assert hashlib.file_digest(f,'sha256').hexdigest()==identity['sha256']
+          subprocess.run(['docker','load','-i','tested-image/image.tar.gz'],check=True)
+          image=json.loads(subprocess.check_output(['docker','image','inspect','sparselab-cpu:test']))[0]
+          assert image['Id']==identity['image']
+          assert image['Config']['Labels']['org.opencontainers.image.revision']==os.environ['GITHUB_SHA']
+          PY
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish CPU tags without rebuilding
+        run: |
+          set -euo pipefail
+          image="ghcr.io/$GITHUB_REPOSITORY"
+          docker tag sparselab-cpu:test "$image:cpu-sha-$GITHUB_SHA"
+          docker tag sparselab-cpu:test "$image:cpu"
+          docker push "$image:cpu-sha-$GITHUB_SHA"
+          docker push "$image:cpu"
+          docker image inspect "$image:cpu-sha-$GITHUB_SHA" --format '{{json .RepoDigests}}' >> "$GITHUB_STEP_SUMMARY"
+          echo 'For anonymous pulls, the owner must set this new tiny-sparse-lab package to Public in package settings. This workflow does not change visibility.' >> "$GITHUB_STEP_SUMMARY"
