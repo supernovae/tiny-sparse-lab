@@ -69,12 +69,18 @@ Regenerate the lock only for an intentional dependency update using the installe
 stable uv resolver (the initial lock used uv 0.12.19):
 
 ```sh
-uv pip compile container/backends/cuda/requirements.in \
+uv export --locked --extra cpu --no-dev --no-emit-project --no-emit-package torch \
+  --no-hashes --no-header --no-annotate -o /tmp/lab-application-constraints.txt
+uv pip compile pyproject.toml container/backends/cuda/requirements.in --no-sources \
+  -c /tmp/lab-application-constraints.txt \
   --python-version 3.14 --python-platform x86_64-manylinux_2_36 \
   --only-binary :all: --generate-hashes --no-header --no-annotate \
   --emit-index-url --emit-find-links \
   -o container/backends/cuda/requirements.lock
 ```
+
+Application requirements come directly from `pyproject.toml`; the constraints
+retain their tested `uv.lock` versions. Only backend-specific packages change.
 
 The resolver may omit the hash for a `--find-links` Torch wheel. Require the
 matching CPython/platform wheel's SHA256 from the official index and retain it
