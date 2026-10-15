@@ -1,61 +1,105 @@
-# Intel XPU delivery
+# Intel XPU container
 
-The latest stable upstream XPU wheel verified for CPython 3.14 on Linux x86_64
-is `torch==2.14.1+xpu`, with `triton-xpu==3.8.0` and the Intel 2026.1 runtime
-closure. The [complete wheel lock](../container/backends/xpu/requirements.lock)
-includes public Lab dependencies and `uv-build==0.12.17`. No nightly packages,
-Python downgrade, IPEX or alternative Lab engine are introduced.
+This recipe packages upstream PyTorch XPU for Linux amd64 on stable Python 3.14.
+It uses the existing Lab backend, CLI and native web viewer. No IPEX or separate
+trainer is introduced. **The recipe has not yet been built or tested on Intel
+hardware.** Publication requires its dependency build/import checks; a successful
+image build still does not establish GPU availability, precision or performance.
 
-**An XPU container image is not available from this change.**
-[Machine-readable status](../container/backends/xpu/status.json) records the
-remaining userspace-driver blocker. This backend deliberately has no
-`config.json`, so the shared image pipeline cannot build or publish it.
+## Pinned environment
 
-## Why wheels alone are insufficient
+| Component | Pin |
+| --- | --- |
+| OS | Ubuntu 26.04, immutable amd64 image digest |
+| Python | CPython 3.14.8, Astral standalone release 20261013, SHA256 |
+| PyTorch | 2.14.1+xpu, stable CPython 3.14 manylinux_2_28 wheel |
+| Triton XPU | 3.8.0, stable CPython 3.14 wheel |
+| Intel SYCL runtimes | 2026.1.0 and exact transitive wheel pins |
+| Level Zero loader | 1.34.0, official Ubuntu 24.04 binary |
+| Intel Level Zero GPU driver | 26.35.39758.10-0 |
+| Intel graphics compiler | 2.41.5, release build 22716 |
+| Intel graphics memory management | 22.10.0 |
+| Build backend | uv-build 0.12.17 |
 
-PyTorch's [stable Intel GPU instructions](https://docs.pytorch.org/docs/2.14/notes/get_start_xpu.html)
-require a driver independently of the XPU binary wheels. A container shares the
-host kernel but has its own userspace libraries. The pinned Intel SYCL runtime
-packages are not evidence that the container has a compatible Level Zero loader
-and GPU device driver. Mapping `/dev/dri` alone does not supply those libraries.
+The [dependency recipe](../container/backends/xpu/dependencies.Dockerfile)
+contains immutable base, interpreter and package checksums.
+[Userspace package pins](../container/backends/xpu/userspace.lock.json) record
+nine exact Intel/Ubuntu archive URLs and SHA256 values. The
+[wheel lock](../container/backends/xpu/requirements.lock) pins all 91 packages,
+including public Lab dependencies. Nothing installs or modifies a host driver.
 
-The current [Intel compute-runtime release](https://github.com/intel/compute-runtime/releases/tag/26.35.39758.10)
-is 26.35.39758.10, with gmmlib 22.10.0 and IGC 2.41.5; its package procedure and
-validation target Ubuntu 26.04. The separately released
-[Level Zero loader](https://github.com/oneapi-src/level-zero/releases/tag/v1.34.0)
-is 1.34.0. These versions are research evidence, not installed or tested image
-pins. The shared Python 3.14.4 Debian Bookworm base has not been validated with
-that Ubuntu driver package closure. Copying arbitrary host libraries or mixing
-these distributions would not establish compatibility.
+The driver needs glibc >=2.38 and libstdc++ >=13.1, so this backend uses Ubuntu
+26.04 rather than the CPU image's Debian Bookworm base. Metadata for the loader,
+driver, compiler and gmmlib was inspected; their declared OS dependencies are
+included as pinned Ubuntu packages. Loader 1.34.0's Ubuntu 24.04 binary declares
+minimum ABI versions satisfied by Ubuntu 26.04. Build checks must load the
+loader, GPU driver and compiler libraries before checking the installed XPU
+framework. All package URLs were verified, but no package was installed during
+recipe preparation.
 
-To enable container publication, pin a compatible OS/Python base and the full
-userspace loader/driver package closure, verify their checksums and import/link
-behavior, then validate device discovery on an already provisioned Intel host.
-Include all those inputs in the immutable dependency-image identity. Ordinary
-Lab updates should reuse that exact dependency digest and add only the public
-application layer. This preparation does not require an automatic accelerator
-build on every application change.
+Official references: [stable PyTorch XPU](https://docs.pytorch.org/docs/2.14/notes/get_start_xpu.html),
+[Intel compute runtime](https://github.com/intel/compute-runtime/releases/tag/26.35.39758.10),
+[Level Zero loader](https://github.com/oneapi-src/level-zero/releases/tag/v1.34.0),
+[Python standalone release](https://github.com/astral-sh/python-build-standalone/releases/tag/20261013).
 
-## Use an existing native Intel environment
+## Build and reuse
 
-The supported current delivery path is the native [Intel acceleration guide](intel-xpu.md)
-and its provision/register/doctor commands. Use stable Python 3.14 and an already
-provisioned supported Intel driver stack. Provisioning downloads packages and
-runs an optimizer pilot; it is a separate explicit action, not a check performed
-by this packaging change. An existing interpreter can be registered without
-replacing the checkout's CPU environment. Never sync the CPU extra into it.
+The shared accelerator image workflow selects `xpu`. Its dependency identity
+includes this backend's Dockerfile, wheel lock, package pins and config, plus the
+shared pipeline inputs. A missing dependency image bootstraps once; subsequent
+application changes reuse its exact registry digest and add only the public Lab
+application layer. An explicit dependency-input update produces a new identity.
+XPU dependencies are separate from CUDA and ROCm; no combined accelerator image
+or per-application heavyweight dependency rebuild is needed.
 
-For a future container on native Linux, expose only the intended render node
-and the existing group access required for it. Keep ordinary container security
-confinement; do not use privileged mode, unconfined profiles or world-writable
-devices. Windows/WSL device and driver forwarding needs separate validation;
-this preparation does not claim WSL XPU container support. The CPU web viewer can
-still read completed output from native XPU jobs using the storage layout in
-[the container guide](containers.md).
+For manual local builds after the shared accelerator pipeline is present:
 
-## Reproducing the wheel lock
+```sh
+docker build --platform linux/amd64 \
+  -f container/backends/xpu/dependencies.Dockerfile -t lab-xpu-deps:local .
+docker build --platform linux/amd64 -f container/application.Dockerfile \
+  --build-arg DEPENDENCY_IMAGE=lab-xpu-deps:local \
+  --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" -t lab-xpu:local .
+```
 
-From the repository root, with the existing uv executable:
+These commands download packages and build an image; they were not executed
+while preparing this recipe. Use the published immutable image digest after a
+successful publication, rather than assuming the `xpu` tag already exists.
+
+## Device access and native usage
+
+Use an already provisioned supported Intel kernel driver and render-device
+access on native Linux. PyTorch's driver matrix and the existing
+[Intel acceleration guide](intel-xpu.md) define host prerequisites. The container
+supplies userspace libraries but cannot create hardware or replace a missing
+kernel driver. Pick the actual render node for the intended Intel card, and use
+its existing numeric group permissions. For Docker, after replacing the two
+placeholders:
+
+```sh
+# IMAGE is a published immutable image reference; RENDER_NODE is the existing Intel node.
+IMAGE='ghcr.io/supernovae/tiny-sparse-lab@sha256:REPLACE_WITH_PUBLISHED_DIGEST'
+RENDER_NODE='/dev/dri/REPLACE_WITH_INTEL_RENDER_NODE'
+docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  --device "$RENDER_NODE:$RENDER_NODE" --group-add "$(stat -c %g "$RENDER_NODE")" \
+  --mount type=volume,src=lab-xpu-job,dst=/state \
+  "$IMAGE" sparselab runtime env discover --json
+```
+
+Discovery is a passive availability check, not a model workload. Do not use
+privileged mode, unconfined profiles or world-writable devices. For rootless
+engines use existing device/group access supported by that engine; failure to
+access the device is a prerequisite failure, not a reason to relax confinement.
+Windows/WSL GPU forwarding is not validated by this Linux recipe.
+
+For authorized experiments, use the native `try` and `report` instructions in
+[the Intel guide](intel-xpu.md), selecting `backend: xpu` in the config. Keep each
+job's persistent output separate. Run the CPU web viewer without GPU access over
+the job output mounted read-only, following [the container guide](containers.md).
+The existing native provision/register/doctor path remains available if a
+container is unsuitable; never sync the CPU extra into an XPU environment.
+
+## Lock reproduction and validation
 
 ```sh
 uv pip compile pyproject.toml requirements/xpu-arc.txt container/build-requirements.txt \
@@ -64,15 +108,13 @@ uv pip compile pyproject.toml requirements/xpu-arc.txt container/build-requireme
   --emit-index-url --emit-find-links -o /tmp/xpu-requirements.lock
 ```
 
-This resolves wheel metadata without installing an environment or building source
-packages. uv 0.12.19 omitted the two PyTorch-hosted find-links hashes in its
-output. The checked-in lock adds their CPython 3.14 wheel SHA256 fragments from
-the official [Torch index](https://download.pytorch.org/whl/xpu/torch/) and
-[Triton XPU index](https://download.pytorch.org/whl/xpu/triton-xpu/); exact values
-are also recorded in status.json. Do not replace the checked-in lock with output
-containing unhashed entries. Installation must require hashes and binary wheels.
+This resolves wheel metadata without creating an environment. uv 0.12.19 omitted
+the two find-links hashes; the checked-in lock adds the official CPython 3.14
+SHA256 fragments from the [Torch index](https://download.pytorch.org/whl/xpu/torch/)
+and [Triton XPU index](https://download.pytorch.org/whl/xpu/triton-xpu/).
+Installation requires binary wheels and hashes. Do not replace the checked-in
+lock with unhashed resolver output.
 
-Validation performed: wheel-only metadata resolution and strict static checking
-of every locked package/hash, JSON and documentation links. No image was built,
-no XPU wheels installed, and no Intel hardware workload or model download ran.
-GPU availability, precision support and performance remain untested.
+Validation during preparation covers metadata resolution, exact package/hash
+syntax, JSON, local documentation links and repository formatting. No XPU image
+build, GPU workload, model acquisition or host configuration change was performed.
