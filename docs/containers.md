@@ -82,3 +82,5 @@ public. See [GitHub's package visibility documentation](https://docs.github.com/
 This workflow does not change visibility or any existing private package.
 Anonymous pull availability must be checked after this action; until then use a
 local build instead of creating a token just to run the image.
+
+For AMD gfx1100 packaging, see [the ROCm image guide](containers-rocm.md).
