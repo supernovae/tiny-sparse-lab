@@ -5,6 +5,7 @@ import json
 import threading
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
@@ -348,6 +349,15 @@ def test_cache_and_ledger_fail_closed(tmp_path, monkeypatch, http_files, damage)
     "option",
     [
         {"filters": []},
+        {"filters": False},
+        {"columns": []},
+        {"fragment_scan_options": {}},
+        {"fragment_scan_options": False},
+        {"unknown_option": None},
+        {"batch_size": 0},
+        {"batch_size": -1},
+        {"batch_size": True},
+        {"batch_size": "2"},
         {"columns": ["text"]},
         {"features": {"text": {"_type": "Image"}}},
         {"on_bad_files": "skip"},
@@ -358,7 +368,10 @@ def test_unsupported_decode_profile_before_network(
 ):
     _, lock, _ = pinned_files(tmp_path / "input", monkeypatch)
     lock["provenance"]["loader_options"] = option
-    with pytest.raises(ValueError, match="unsupported|unavailable|cannot skip"):
+    with pytest.raises(
+        ValueError,
+        match="unsupported|unavailable|cannot skip|invalid Parquet batch size",
+    ):
         transport(tmp_path, lock)
     assert not http_files["requests"]
 
@@ -383,3 +396,68 @@ def test_scan_charge_precedes_decode_and_verification_is_cumulative(
     with pytest.raises(ValueError, match="verification_bytes"):
         other.file(row)
     assert other.receipt()["verification_bytes"] == row["size"]
+
+
+@pytest.mark.parametrize("batch_size", [None, 2])
+def test_producer_parquet_defaults_round_trip_bounded_decode(
+    tmp_path, monkeypatch, http_files, batch_size
+):
+    from datasets.packaged_modules.parquet.parquet import ParquetConfig
+
+    lock_path, original, files = pinned_files(tmp_path / "input", monkeypatch)
+    source = sources.DatasetSource.model_validate(original["source"])
+    config = ParquetConfig(batch_size=batch_size)
+    config.data_files = {
+        split: [f"hf://datasets/{source.repo_id}@{source.revision}/{split}.parquet"]
+        for split in source.splits
+    }
+    monkeypatch.setattr(
+        "datasets.load_dataset_builder",
+        lambda *a, **kw: SimpleNamespace(
+            info=SimpleNamespace(builder_name="parquet"), config=config
+        ),
+    )
+    monkeypatch.setattr(
+        "huggingface_hub.HfApi.dataset_info",
+        lambda *a, **kw: SimpleNamespace(
+            sha=source.revision,
+            siblings=[
+                SimpleNamespace(
+                    rfilename=row["path"],
+                    size=row["size"],
+                    blob_id=row["blob_id"],
+                    lfs=None,
+                )
+                for rows in original["provenance"]["files"].values()
+                for row in rows
+            ],
+        ),
+    )
+    # Exercise the real producer, including the installed packaged loader defaults.
+    generated = sources.lock_source(
+        lock_path.parent / "source.json",
+        tmp_path / "produced.lock.json",
+        tmp_path / "unused",
+    )
+    raw = generated.read_bytes()
+    lock = sources.verify_lock(generated)
+    assert lock["provenance"]["loader_options"] == {
+        "batch_size": batch_size,
+        "columns": None,
+        "features": None,
+        "filters": None,
+        "fragment_scan_options": None,
+        "on_bad_files": "error",
+    }
+    http_files["files"] = files
+    current = transport(tmp_path, lock)
+    assert not http_files["requests"]
+    current.initialize()
+    rows = list(current.stream(source, "train", lock["provenance"]))
+    assert rows == [
+        {"text": f"train local row {i}: the fox explored the forest."} for i in range(4)
+    ]
+    assert current.receipt()["scanned_rows"] == 4
+    assert len(http_files["requests"]) == 1
+    assert generated.read_bytes() == raw
+    assert sources.verify_lock(generated) == lock

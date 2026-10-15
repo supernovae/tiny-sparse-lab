@@ -49,13 +49,19 @@ def validate_profile(lock, spec):
     if inventory["loader"] != "parquet":
         raise ValueError("bounded acquisition initially supports scalar Parquet only")
     options = inventory.get("loader_options", {})
-    if set(options) - {"batch_size", "features", "on_bad_files"}:
+    # The lock producer records packaged-loader defaults, including explicit nulls.
+    # Accept only inactive options; filtering/projection/scanner customization remain
+    # unsupported, and the original provenance (and its lock identity) stays intact.
+    inactive = {"columns", "filters", "fragment_scan_options"}
+    if set(options) - {"batch_size", "features", "on_bad_files"} - inactive or any(
+        options.get(name) is not None for name in inactive
+    ):
         raise ValueError(
             "unsupported bounded Parquet loader option (including filters/projection)"
         )
     if options.get("on_bad_files", "error") != "error":
         raise ValueError("bounded Parquet cannot skip malformed files")
-    if "batch_size" in options and (
+    if options.get("batch_size") is not None and (
         type(options["batch_size"]) is not int or options["batch_size"] <= 0
     ):
         raise ValueError("invalid Parquet batch size")
@@ -464,7 +470,7 @@ class DatasetTransport(TransportBudget):
                 # Count all decoded rows before any selection/deduplication. No filters.
                 batch_size = min(
                     1024,
-                    options.get("batch_size", 1024),
+                    options.get("batch_size") or 1024,
                     max(1, self.spec.max_scanned_rows - self._read()["scanned_rows"]),
                 )
                 batches = parquet.iter_batches(batch_size=batch_size, use_threads=False)
