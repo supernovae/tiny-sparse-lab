@@ -2764,6 +2764,7 @@ RELEASE_COMMANDS = (
     "hosted",
     "monitor",
     "monitor-baseline",
+    "runner-status",
     "lab-job",
 )
 
@@ -4279,6 +4280,7 @@ def _read_only_command(args: argparse.Namespace) -> bool:
             "tokenizer-bakeoff",
         }
     return args.command in {
+        "runner-status",
         "inspect",
         "checkpoint",
         "report",
@@ -4287,6 +4289,8 @@ def _read_only_command(args: argparse.Namespace) -> bool:
 
 
 def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:
+    if args.command == "runner-status":
+        return []
     if args.command == "tokenizer" and args.tokenizer_command == "verify":
         return []
     checks = storage_checks(resolve_work_dir(args.work_dir))

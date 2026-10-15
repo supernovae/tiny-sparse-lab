@@ -204,8 +204,8 @@ def _exercise(tmp: Path, site: str) -> None:
         options["log_dir"] = tmp / "refused-logs"
         with pytest.raises(runner.RunnerPreflightRefused) as refusal:
             runner.run_controlled([sys.executable, "-c", "pass"], **options)
-        assert refusal.value.error_type == "FileNotFoundError"
-        assert refusal.value.__cause__.filename == str(
+        assert refusal.value.error_type == "RunnerHistoryError"
+        assert refusal.value.__cause__.__cause__.filename == str(
             pending[0].with_name("completion.json")
         )
         assert not options["log_dir"].exists()
