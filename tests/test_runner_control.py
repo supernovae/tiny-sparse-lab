@@ -238,9 +238,11 @@ def test_interrupted_owner_never_automatically_recovers(
         assert len(pending) == 1
         options["blocked_path"].unlink(missing_ok=True)
         options["log_dir"] = tmp_path / "new-logs"
-        with pytest.raises(FileNotFoundError) as refusal:
+        with pytest.raises(runner.RunnerPreflightRefused) as refusal:
             run(options)
-        assert refusal.value.filename == str(pending[0].with_name("completion.json"))
+        assert refusal.value.__cause__.filename == str(
+            pending[0].with_name("completion.json")
+        )
         assert not options["log_dir"].exists()
     finally:
         if process.poll() is None:
@@ -304,9 +306,11 @@ def test_signal_during_sampling_is_not_a_metric_failure(tmp_path, monkeypatch, s
     assert {sig: signal.getsignal(sig) for sig in previous} == previous
     options["blocked_path"].unlink()
     options["log_dir"] = tmp_path / "refused-logs"
-    with pytest.raises(FileNotFoundError) as refusal:
+    with pytest.raises(runner.RunnerPreflightRefused) as refusal:
         run(options)
-    assert refusal.value.filename == str(pending[0].with_name("completion.json"))
+    assert refusal.value.__cause__.filename == str(
+        pending[0].with_name("completion.json")
+    )
     assert not options["log_dir"].exists()
 
 
@@ -487,7 +491,7 @@ def test_blocked_marker_stat_error_is_not_absence(tmp_path, monkeypatch):
         return original(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "lstat", unreadable)
-    with pytest.raises(PermissionError, match="marker stat unavailable"):
+    with pytest.raises(runner.RunnerPreflightRefused, match="marker stat unavailable"):
         run(options)
     assert not options["log_dir"].exists()
 
@@ -524,7 +528,8 @@ def test_missing_state_directory_is_not_automatically_recreated(tmp_path):
     options["state_dir"].rename(tmp_path / "retained-state")
     options["log_dir"] = tmp_path / "new-logs"
     with pytest.raises(
-        FileNotFoundError, match=r"runner state directory missing:.*docs/workspaces.md"
+        runner.RunnerPreflightRefused,
+        match=r"runner state directory missing:.*docs/workspaces.md",
     ):
         run(options)
     assert not options["state_dir"].exists()
@@ -612,7 +617,9 @@ def test_mistyped_state_refuses_without_sticky_blocker(tmp_path):
     options = setup(tmp_path)
     provisioned = options["state_dir"]
     options["state_dir"] = tmp_path / "typo-state"
-    with pytest.raises(FileNotFoundError, match="confirm no outstanding work"):
+    with pytest.raises(
+        runner.RunnerPreflightRefused, match="confirm no outstanding work"
+    ):
         run(options)
     assert not options["blocked_path"].exists()
     assert not options["state_dir"].exists()
@@ -629,7 +636,7 @@ def test_preflight_storage_error_does_not_create_attempt_or_blocker(
         raise OSError("preflight sync failed")
 
     monkeypatch.setattr(runner, "_sync_dir", fail_sync)
-    with pytest.raises(OSError, match="preflight sync failed"):
+    with pytest.raises(runner.RunnerPreflightRefused, match="preflight sync failed"):
         run(options)
     assert not options["blocked_path"].exists()
     assert not list(options["state_dir"].iterdir())

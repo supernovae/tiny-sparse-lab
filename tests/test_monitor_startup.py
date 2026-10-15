@@ -202,9 +202,12 @@ def _exercise(tmp: Path, site: str) -> None:
         # Test-local marker removal proves historical pending alone refuses launch.
         blocked.unlink()
         options["log_dir"] = tmp / "refused-logs"
-        with pytest.raises(FileNotFoundError) as refusal:
+        with pytest.raises(runner.RunnerPreflightRefused) as refusal:
             runner.run_controlled([sys.executable, "-c", "pass"], **options)
-        assert refusal.value.filename == str(pending[0].with_name("completion.json"))
+        assert refusal.value.error_type == "FileNotFoundError"
+        assert refusal.value.__cause__.filename == str(
+            pending[0].with_name("completion.json")
+        )
         assert not options["log_dir"].exists()
         assert {path: path.read_bytes() for path in state.rglob("*.json")} == retained
     finally:
