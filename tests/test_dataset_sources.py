@@ -574,8 +574,53 @@ def test_existing_snapshot_work_requires_explicit_resume_without_rewriting(
             changed_lock, tmp_path / "snapshot", tmp_path / "cache", resume=True
         )
     assert lock.read_bytes() == lock_bytes
+    assert {
+        p.relative_to(work): p.read_bytes() for p in work.rglob("*") if p.is_file()
+    } == before
     monkeypatch.setattr(
         sources, "_stream", lambda source, split, cache, **kw: iter(offline[split])
     )
     manifest = acquire(tmp_path, resume=True)
     assert sources.verify_snapshot(manifest)["splits"]["train"]["count"] == 2
+
+
+def test_guard_only_snapshot_work_does_not_promise_resume_or_cleanup(
+    tmp_path, offline, monkeypatch
+):
+    import errno
+    import fcntl
+
+    def refuse(*args, **kwargs):
+        raise ValueError("fixture admission refusal")
+
+    monkeypatch.setattr(sources, "_admit", refuse)
+    with pytest.raises(ValueError, match="fixture admission refusal"):
+        acquire(tmp_path)
+    work = tmp_path / ".snapshot.work"
+    assert not (work / "journal.sqlite").exists()
+    guard = work / "guard"
+    before = {p.name: (p.stat().st_ino, p.read_bytes()) for p in work.iterdir()}
+    assert set(before) == {"guard"}
+    with guard.open("r+b") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(
+            FileExistsError, match="no regular resume journal"
+        ) as caught:
+            sources.snapshot_source(
+                tmp_path / "lock.json", tmp_path / "snapshot", tmp_path / "cache"
+            )
+        assert "Another initializer may still be active" in str(caught.value)
+        assert "does not authorize deleting" in str(caught.value)
+        assert "then use --resume" not in str(caught.value)
+        assert caught.value.errno == errno.EEXIST
+        assert caught.value.filename == str(work)
+        assert isinstance(caught.value.__cause__, FileExistsError)
+        with pytest.raises(BlockingIOError):
+            sources.snapshot_source(
+                tmp_path / "lock.json",
+                tmp_path / "snapshot",
+                tmp_path / "cache",
+                resume=True,
+            )
+    assert {p.name: (p.stat().st_ino, p.read_bytes()) for p in work.iterdir()} == before
+    assert not (tmp_path / "snapshot").exists()
