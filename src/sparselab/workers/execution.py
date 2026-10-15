@@ -1086,6 +1086,7 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                 )
             except InterruptedError as error:
                 if not _cancelled(directory):
+                    _LOGGER.exception("Worker training attempt failed")
                     # A stop-shaped exception is not cancellation authority. Retain
                     # failure evidence before the heartbeat and claim are released.
                     current = _load_receipt(definition, attempt_id)

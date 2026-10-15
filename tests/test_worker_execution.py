@@ -529,7 +529,7 @@ def test_same_attempt_cold_request_is_sticky_and_outside_scientific_spec(
 
 @pytest.mark.parametrize("marker", ["regular", "absent", "directory", "symlink"])
 def test_trainer_startup_interrupt_requires_regular_worker_marker(
-    tmp_path, monkeypatch, marker
+    tmp_path, monkeypatch, caplog, marker
 ):
     from types import SimpleNamespace
 
@@ -575,6 +575,8 @@ def test_trainer_startup_interrupt_requires_regular_worker_marker(
         },
     )
     execution._write_receipt(worker, receipt)
+    lease_root = tmp_path / "leases"
+    monkeypatch.setenv("SPARSELAB_WORKER_LEASE_DIR", str(lease_root))
     monkeypatch.setattr(
         execution,
         "_spec_from_path",
@@ -651,3 +653,15 @@ def test_trainer_startup_interrupt_requires_regular_worker_marker(
         assert cancel.is_symlink() and cancel.read_text() == "retain target"
     else:
         assert not cancel.exists()
+
+    assert lease_root.is_dir()
+    assert list(lease_root.glob("*.lock"))
+    failures = [
+        record
+        for record in caplog.records
+        if record.name == execution._LOGGER.name
+        and record.getMessage() == "Worker training attempt failed"
+    ]
+    assert len(failures) == (0 if marker == "regular" else 1)
+    if failures:
+        assert failures[0].exc_info[1] is error
