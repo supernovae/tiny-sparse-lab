@@ -78,8 +78,9 @@ For the PyTorch engine, `auto` prefers an available local MPS device, then CUDA 
 `precision: auto` resolves to FP32. BF16 and FP16 are not merely labels: validation starts a disposable subprocess that performs a tiny forward, backward, and optimizer update at the requested precision. CPU rejects FP16. FP16 is accepted only on backends with the current GradScaler path; BF16 is passed through PyTorch autocast when the requested probe succeeds. Parameters, gradients, reductions, and the conservative estimator remain accounted as FP32 even when autocast is used.
 
 The optional MLX engine is separate from PyTorch: use `engine: mlx` and
-`backend: metal`, never a `torch.device`. The pinned `mlx==0.32.2` runtime
-supports FP32 dense and native block-sparse attention, block recomputation,
+`backend: metal`, never a `torch.device`. The dependency pin is `mlx==0.32.4`;
+new-wheel hardware validation remains pending as described in the native delivery
+guide below. The engine supports FP32 dense and native block-sparse attention, block recomputation,
 common immutable generations, same-engine resume/recovery, canonical-weight
 promotion, evaluation, generation, chat, and capability/evidence reports.
 MLX decoding currently uses full-prefix evaluation, not a KV cache. MoE,
@@ -90,7 +91,8 @@ On Apple arm64, MLX is opt-in: use `uv sync --locked --dev --extra cpu --extra m
 and retain both extras with `uv run --locked --extra cpu --extra mlx ...` for the
 full CLI and native MLX tests. Its eager imports currently need PyTorch even
 when the selected execution engine is MLX. MLX itself remains a separate engine;
-the CPU extra is not a fallback for a requested Metal backend.
+the CPU extra is not a fallback for a requested Metal backend. See the
+[native macOS delivery guide](macos-mlx.md) for installation and dependency reuse.
 
 ## Machine-local runtime environments
 
