@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.source="https://github.com/supernovae/tiny-sparse
       org.opencontainers.image.revision=$SOURCE_REVISION \
       org.opencontainers.image.licenses="MIT"
 COPY container/start.sh /usr/local/bin/lab-start
-RUN groupadd -g 10001 lab && useradd -u 10001 -g 10001 -M lab \
+RUN /usr/sbin/groupadd -g 10001 lab && /usr/sbin/useradd -u 10001 -g 10001 -M lab \
  && mkdir /state /observe && chown 10001:10001 /state
 ENV PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin \
     PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/state/home TMPDIR=/state/tmp \
