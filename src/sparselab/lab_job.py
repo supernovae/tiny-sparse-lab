@@ -151,9 +151,41 @@ def _record(job: Job) -> dict:
     return prepared
 
 
+def _refusal(job: Job, prepared: dict) -> dict | None:
+    evidence, _, _ = _paths(job)
+    path = evidence / "refusal.json"
+    if not os.path.lexists(path):
+        return None
+    runner._safe(path)
+    sealed = read_canonical(path)
+    payload = sealed.get("payload")
+    if (
+        set(sealed) != {"payload", "sha256"}
+        or not isinstance(payload, dict)
+        or set(payload)
+        != set(prepared)
+        | {"status", "boundary", "reason", "workload_started", "coordinator_acceptance"}
+        or any(payload.get(key) != value for key, value in prepared.items())
+        or payload.get("status") != "REFUSED_BEFORE_LAUNCH"
+        or payload.get("boundary") != "before-attempt-directory"
+        or payload.get("workload_started") is not False
+        or payload.get("coordinator_acceptance") != "PENDING"
+        or not isinstance(payload.get("reason"), dict)
+        or set(payload["reason"]) != {"type", "message"}
+        or not all(isinstance(v, str) for v in payload["reason"].values())
+        or sealed["sha256"] != digest("sparselab-lab-job-refusal-v1", payload)
+        or os.path.lexists(evidence / "summary.json")
+    ):
+        raise ValueError("invalid sealed prelaunch refusal")
+    return payload
+
+
 def status(job: Job) -> dict:
     prepared = _record(job)
     evidence, _, _ = _paths(job)
+    refusal = _refusal(job, prepared)
+    if refusal is not None:
+        return refusal
     summary = evidence / "summary.json"
     if summary.exists():
         return collect(job)
@@ -240,19 +272,37 @@ def admit(job: Job) -> dict:
             f"raise SystemExit(execute({str(evidence / 'manifest.json')!r}))"
         ),
     ]
-    runner.run_controlled(
-        command,
-        job.policy,
-        lock_path=job.host.lock,
-        state_dir=job.host.state,
-        blocked_path=job.host.blocked,
-        run_id=native_id,
-        job_binding=prepared,
-        workspace=job.host.work,
-        log_dir=evidence / "monitor",
-        policy_path=policy_path,
-        cwd=source,
-    )
+    try:
+        runner.run_controlled(
+            command,
+            job.policy,
+            lock_path=job.host.lock,
+            state_dir=job.host.state,
+            blocked_path=job.host.blocked,
+            run_id=native_id,
+            job_binding=prepared,
+            workspace=job.host.work,
+            log_dir=evidence / "monitor",
+            policy_path=policy_path,
+            cwd=source,
+        )
+    except runner.RunnerPreflightRefused as error:
+        refusal = {
+            **prepared,
+            "status": "REFUSED_BEFORE_LAUNCH",
+            "boundary": "before-attempt-directory",
+            "reason": {"type": error.error_type, "message": str(error)},
+            "workload_started": False,
+            "coordinator_acceptance": "PENDING",
+        }
+        publish_immutable(
+            evidence / "refusal.json",
+            {
+                "payload": refusal,
+                "sha256": digest("sparselab-lab-job-refusal-v1", refusal),
+            },
+        )
+        return status(job)
     return collect(job)
 
 
@@ -387,6 +437,9 @@ def collect(job: Job) -> dict:
     """Verify and publish evidence only. Publication retry cannot reach admission."""
     prepared = _record(job)
     evidence, scratch, source = _paths(job)
+    refusal = _refusal(job, prepared)
+    if refusal is not None:
+        return refusal
     contract = runner._read(job.host.state / "contract.json")
     identity = runner._safe(job.host.lock)
     if (identity.st_dev, identity.st_ino) != (
