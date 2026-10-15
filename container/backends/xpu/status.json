@@ -1,0 +1,20 @@
+{
+  "backend": "xpu",
+  "status": "blocked",
+  "python_version": "3.14",
+  "torch_version": "2.14.1+xpu",
+  "runtime_version": "2026.1",
+  "platform": "linux/amd64",
+  "reason": "Wheel metadata resolves, but a compatible immutable container Level Zero loader, Intel GPU user-space driver and OS dependency closure is not yet pinned and validated. No config.json is supplied, so automated image publication is disabled.",
+  "verified_wheel_sha256": {
+    "torch": "4e0814459b341bca05bf688832a23c8f89d14b2f91a0e037f6f52207e29bcb8b",
+    "triton-xpu": "afc5bbd137abffe8810f8b8b7dc654ff37497bb28bb293d3fea6a0e4f1fbab09"
+  },
+  "sources": [
+    "https://download.pytorch.org/whl/xpu/torch/",
+    "https://download.pytorch.org/whl/xpu/triton-xpu/",
+    "https://docs.pytorch.org/docs/2.14/notes/get_start_xpu.html",
+    "https://github.com/intel/compute-runtime/releases/tag/26.35.39758.10",
+    "https://github.com/oneapi-src/level-zero/releases/tag/v1.34.0"
+  ]
+}
