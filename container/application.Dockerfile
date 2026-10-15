@@ -5,6 +5,7 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src/ src/
 RUN uv pip install --python /opt/venv/bin/python --no-deps --no-build-isolation --offline . \
  && uv pip check --python /opt/venv/bin/python \
+ && uv cache clean \
  && rm -rf /build
 ARG SOURCE_REVISION=local
 LABEL org.opencontainers.image.source="https://github.com/supernovae/tiny-sparse-lab" \
