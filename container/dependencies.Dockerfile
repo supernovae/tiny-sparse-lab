@@ -3,7 +3,7 @@ FROM python:3.14.4-bookworm@sha256:786d12398a4b61918e68bc30d93d0bd679a95136bbbd1
 COPY --from=uv /uv /usr/local/bin/uv
 ARG BACKEND
 LABEL org.opencontainers.image.source="https://github.com/supernovae/tiny-sparse-lab" org.opencontainers.image.licenses="MIT"
-ENV UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin
+ENV UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=hardlink PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin
 COPY container/backends/${BACKEND}/requirements.lock /opt/requirements.lock
 COPY container/backends/${BACKEND}/config.json /opt/backend.json
 COPY container/build-requirements.txt /opt/build-requirements.txt

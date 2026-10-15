@@ -16,17 +16,21 @@ Dependency images use `deps-BACKEND-SHA256` tags. The identity includes the comp
 hashed wheel lock, backend config, every backend-local recipe/pin file, dependency Dockerfile (including pinned Python
 3.14.4/OS and uv 0.12.17 image digests), build backend hash lock, validation program,
 build-context allowlist. Registry lookup resolves
-an existing identity to an exact digest; only an explicit manifest-unknown response
-allows bootstrap. Authentication and transport failures stop the job. Workflow
+an existing identity to an exact digest; only an explicit manifest-unknown response or the exact requested reference
+followed by `: not found` allows bootstrap. Generic missing-tool/reference text
+does not. Authentication and transport failures stop the job. Workflow
 concurrency serializes main runs, preventing competing writes of the same tag.
-Existing dependency tags are never overwritten. To refresh dependencies, review a
+Existing dependency tags are never overwritten. The shared dependency recipe
+and `.dockerignore` are conservative identity inputs even for a custom backend;
+changes to either rebuild all enabled bases. Application-only edits do not. To refresh dependencies, review a
 change to their pinned inputs; there is no unpinned refresh switch.
 
 Application source, project metadata, README, license, startup and application Dockerfile changes do
 not change the dependency identity. The application starts from its exact registry
 dependency digest and installs only Lab, offline and without dependency resolution.
-It does not copy the entire environment into another application layer. New project
-dependencies must also update the committed backend lock; otherwise the application
+It does not copy the entire environment into another application layer. Shared application packages must retain their tested `uv.lock` versions; only
+the Torch/Triton backend stack may diverge. The planner refuses unrelated version
+upgrades before any build. New project dependencies must also update the committed backend lock; otherwise the application
 compatibility check refuses publication. `uv pip
 check` verifies the installed package requirements. Failed dependency compatibility,
 framework-build verification or application smoke prevents application publication.
@@ -37,7 +41,8 @@ with finite memory/CPU/PID/tmpfs limits. It provides no GPU-device or driver
 compatibility evidence. No GPU passthrough or model workload runs in CI. The same
 tested local application image is pushed as `BACKEND-sha-COMMIT`; the retained JSON
 artifact records source commit, dependency key/digest and application digest.
-Use the digest for deployment. CPU delivery and its viewer smoke remain separate.
+The application tag may change on an explicit rerun of the same source revision;
+use the recorded digest for deployment. CPU delivery and its viewer smoke remain separate.
 
 Publication uses the workflow's built-in GitHub token on main with package write
 permission confined to the publication job. Only public Lab sources enter the
@@ -60,3 +65,15 @@ The planner command needs that backend's committed configuration and lock. Build
 an image does not establish that the worker's driver, hardware or native Lab
 backend supports every operation; use the backend-specific delivery notes before
 an independently authorized device test.
+
+### Build storage
+
+Dependency installs hardlink uv cache files into the venv on the same build
+filesystem, then clear the cache in the same RUN. The workflow uses the buildx
+`docker` driver to build directly into the daemon store, avoiding a second
+large image export from a separate builder store. It requires at least 12 GiB
+free in `/var/lib/docker` before building and refuses with a clear diagnostic
+otherwise; it never deletes host tools or unrelated images. This is a minimum
+preflight, not a guarantee against concurrent disk consumption or future wheel
+growth. The locally tested ROCm image is about 8.1 GB; GitHub bootstrap disk
+capacity remains subject to the first trusted-main build.

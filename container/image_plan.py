@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import tomllib
 import uuid
 from pathlib import Path
 
@@ -74,6 +75,25 @@ def validate_lock(path):
         raise ValueError("Empty dependency lock")
 
 
+def validate_application_pins(root, path):
+    """Keep shared packages on tested uv.lock versions; replace only the backend."""
+    locked = tomllib.loads((root / "uv.lock").read_text())
+    common = {}
+    for package in locked["package"]:
+        name = package["name"].lower().replace("_", "-")
+        common.setdefault(name, set()).add(package["version"])
+    for name, version in re.findall(
+        r"^([A-Za-z0-9_.-]+)==([^\s]+)", path.read_text(), re.MULTILINE
+    ):
+        name = name.lower().replace("_", "-")
+        if name in {"torch", "triton", "triton-xpu"}:
+            continue
+        if name in common and version not in common[name]:
+            raise ValueError(
+                f"Application dependency differs from uv.lock: {name}=={version}"
+            )
+
+
 def dependency_recipe(root, backend):
     custom = f"container/backends/{backend}/dependencies.Dockerfile"
     return custom if (root / custom).exists() else "container/dependencies.Dockerfile"
@@ -100,8 +120,9 @@ def identity(root, backend):
         data = path.read_bytes()
         digest.update(name.encode() + b"\0" + str(len(data)).encode() + b"\0" + data)
     validate_lock(root / directory / "requirements.lock")
+    validate_application_pins(root, root / directory / "requirements.lock")
     source_lock = root / directory / "source-requirements.lock"
-    if source_lock.exists():
+    if backend == "rocm" or source_lock.exists():
         validate_lock(source_lock)
     validate_lock(root / "container/build-requirements.txt")
     return digest.hexdigest()
@@ -132,7 +153,21 @@ def registry_digest(reference):
     )
     if result.returncode:
         # Authentication, transport and permissions failures must stop publication.
-        if re.search(r"\bmanifest unknown\b", result.stderr, re.IGNORECASE):
+        missing_reference = re.search(
+            r"(?:^|\n)(?:ERROR:\s*)?"
+            + re.escape(reference)
+            + r": not found\s*(?:\n|$)",
+            result.stderr,
+        )
+        manifest_unknown = re.search(
+            r"\bmanifest unknown\b", result.stderr, re.IGNORECASE
+        )
+        access_failure = re.search(
+            r"unauthorized|denied|forbidden|authentication|timeout|connection|TLS",
+            result.stderr,
+            re.IGNORECASE,
+        )
+        if (missing_reference or manifest_unknown) and not access_failure:
             return None
         raise RuntimeError(f"Registry lookup failed: {result.stderr}")
     digest = json.loads(result.stdout)["digest"]
