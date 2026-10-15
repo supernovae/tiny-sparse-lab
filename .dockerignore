@@ -11,3 +11,10 @@
 !container/build-requirements.txt
 **/__pycache__/**
 **/*.pyc
+!container/dependencies.Dockerfile
+!container/application.Dockerfile
+!container/image_plan.py
+!container/backends/
+!container/backends/*/
+!container/backends/*/config.json
+!container/backends/*/requirements.lock
