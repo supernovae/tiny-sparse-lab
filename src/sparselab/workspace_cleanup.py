@@ -14,6 +14,8 @@ from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
+_LOGGER = logging.getLogger(__name__)
+
 _MARKER = ".sparselab-cache-owner.json"
 _CACHE_MEMBERS = frozenset(
     {
@@ -56,8 +58,8 @@ def campaign_lock(workspace: Path) -> Iterator[None]:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            logging.getLogger(__name__).warning(
-                "Waiting for campaign cache lock %s; preserve the lock and retained "
+            _LOGGER.warning(
+                "Waiting for campaign lock %s; preserve the lock and retained "
                 "state. Owner identity is unknown; normal blocking wait continues.",
                 workspace / ".cleanup.lock",
             )

@@ -18,6 +18,8 @@ from sparselab.config.models import StrictModel
 from sparselab.runtime_profile import RuntimeProfile, RuntimeRequirements
 from sparselab.workdir import resolve_work_dir, storage_checks
 
+_LOGGER = logging.getLogger(__name__)
+
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
@@ -172,7 +174,7 @@ def _locked(path: Path):
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            logging.getLogger(__name__).warning(
+            _LOGGER.warning(
                 "Waiting for runtime registry lock %s; preserve the lock and retained "
                 "state. Owner identity is unknown; normal blocking wait continues.",
                 path.with_suffix(".lock"),
