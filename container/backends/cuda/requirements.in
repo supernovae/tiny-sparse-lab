@@ -1,0 +1,4 @@
+--index-url https://pypi.org/simple
+--find-links https://download.pytorch.org/whl/cu132/torch/
+torch==2.14.1+cu132
+uv_build==0.12.17

@@ -1,0 +1,79 @@
+name: Accelerator images
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: accelerator-images-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      backends: ${{ steps.plan.outputs.backends }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate available backend definitions without installing wheels
+        id: plan
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          backends = []
+          for backend in ('cuda', 'rocm', 'xpu'):
+              if Path(f'container/backends/{backend}/config.json').exists():
+                  subprocess.run(['python3', 'container/image_plan.py', 'plan', backend], check=True)
+                  backends.append(backend)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('backends=' + json.dumps(backends) + '\n')
+          PY
+      - run: python3 -m unittest discover -s container -p 'test_*.py'
+  images:
+    needs: plan
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.backends != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: ${{ fromJSON(needs.plan.outputs.backends) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+        with:
+          driver: docker
+      - name: Check available build storage
+        run: |
+          python3 - <<'PY'
+          import shutil
+          required = 12 * 1024**3
+          free = shutil.disk_usage("/var/lib/docker").free
+          print(f"Docker store free bytes: {free}; required: {required}")
+          if free < required:
+              raise SystemExit("Insufficient build storage: need at least 12 GiB free; use a larger runner. No host files were deleted.")
+          PY
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Reuse immutable dependencies, build and smoke the application, publish exact image
+        env:
+          BACKEND: ${{ matrix.backend }}
+        run: python3 container/image_plan.py publish "$BACKEND"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ${{ matrix.backend }}-image-${{ github.sha }}
+          path: '*-image.json'
