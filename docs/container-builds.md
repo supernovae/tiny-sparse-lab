@@ -13,19 +13,21 @@ retry publication while reusing existing dependency digests; dispatch does not r
 require several GB of disk/network even though no GPU or experiment runs.
 
 Dependency images use `deps-BACKEND-SHA256` tags. The identity includes the complete
-hashed wheel lock, backend config, dependency Dockerfile (including pinned Python
+hashed wheel lock, backend config, every backend-local recipe/pin file, dependency Dockerfile (including pinned Python
 3.14.4/OS and uv 0.12.17 image digests), build backend hash lock, validation program,
-build-context allowlist and project dependency declaration. Registry lookup resolves
+build-context allowlist. Registry lookup resolves
 an existing identity to an exact digest; only an explicit manifest-unknown response
 allows bootstrap. Authentication and transport failures stop the job. Workflow
 concurrency serializes main runs, preventing competing writes of the same tag.
 Existing dependency tags are never overwritten. To refresh dependencies, review a
 change to their pinned inputs; there is no unpinned refresh switch.
 
-Application source, README, license, startup and application Dockerfile changes do
+Application source, project metadata, README, license, startup and application Dockerfile changes do
 not change the dependency identity. The application starts from its exact registry
 dependency digest and installs only Lab, offline and without dependency resolution.
-It does not copy the entire environment into another application layer. `uv pip
+It does not copy the entire environment into another application layer. New project
+dependencies must also update the committed backend lock; otherwise the application
+compatibility check refuses publication. `uv pip
 check` verifies the installed package requirements. Failed dependency compatibility,
 framework-build verification or application smoke prevents application publication.
 
@@ -41,6 +43,11 @@ Publication uses the workflow's built-in GitHub token on main with package write
 permission confined to the publication job. Only public Lab sources enter the
 allowlisted context. The package's existing visibility setting applies to these
 tags; no workflow changes repository or package visibility.
+
+A backend may provide its own `container/backends/NAME/dependencies.Dockerfile`
+when its supported userspace requires a different OS or an explicitly audited
+source metapackage. That recipe and all its local input files participate in the
+dependency identity. This does not change the thin application layer contract.
 
 Local lightweight checks (no installs):
 

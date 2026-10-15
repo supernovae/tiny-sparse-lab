@@ -16,7 +16,6 @@ INPUTS = (
     "container/image_plan.py",
     "container/build-requirements.txt",
     ".dockerignore",
-    "pyproject.toml",
 )
 
 
@@ -36,12 +35,32 @@ def config(path):
 
 def validate_lock(path):
     """Accept only exact hashed pins and public index declarations, not pip directives."""
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"Regular lock required: {path}")
     text = path.read_text().replace("\\\n", " ")
     count = 0
     allowed_indexes = {
         "--index-url https://pypi.org/simple",
         "--find-links https://download.pytorch.org/whl/cu132/torch/",
+        "--find-links https://download.pytorch.org/whl/xpu/torch/",
+        "--find-links https://download.pytorch.org/whl/xpu/triton-xpu/",
     }
+    allowed_indexes.update(
+        "--find-links https://stable.repo.amd.com/rocm/whl-next/" + name + "/"
+        for name in (
+            "torch",
+            "triton",
+            "amd-torch-device-gfx1100",
+            "amd-torch-device-gfx110x",
+            "rocm-bootstrap",
+            "rocm-sdk-device-gfx1100",
+            "rocm-sdk-libraries",
+            "rocm-sdk-core",
+        )
+    )
+    allowed_indexes.add(
+        "--find-links https://stable.repo.amd.com/rocm/core/whl-next/rocm/"
+    )
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or line in allowed_indexes:
@@ -55,6 +74,11 @@ def validate_lock(path):
         raise ValueError("Empty dependency lock")
 
 
+def dependency_recipe(root, backend):
+    custom = f"container/backends/{backend}/dependencies.Dockerfile"
+    return custom if (root / custom).exists() else "container/dependencies.Dockerfile"
+
+
 def identity(root, backend):
     if backend not in BACKENDS:
         raise ValueError("Unsupported backend")
@@ -63,13 +87,22 @@ def identity(root, backend):
     if value["backend"] != backend:
         raise ValueError("Backend mismatch")
     digest = hashlib.sha256()
-    for name in (*INPUTS, f"{directory}/config.json", f"{directory}/requirements.lock"):
+    backend_inputs = []
+    for path in sorted((root / directory).rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"Symlink input refused: {path}")
+        if path.is_file():
+            backend_inputs.append(path.relative_to(root).as_posix())
+    for name in (*INPUTS, *backend_inputs):
         path = root / name
         if path.is_symlink() or not path.is_file():
             raise ValueError(f"Regular input required: {name}")
         data = path.read_bytes()
         digest.update(name.encode() + b"\0" + str(len(data)).encode() + b"\0" + data)
     validate_lock(root / directory / "requirements.lock")
+    source_lock = root / directory / "source-requirements.lock"
+    if source_lock.exists():
+        validate_lock(source_lock)
     validate_lock(root / "container/build-requirements.txt")
     return digest.hexdigest()
 
@@ -157,7 +190,7 @@ def publish(root, backend, repository, revision):
                 "linux/amd64",
                 "--load",
                 "-f",
-                "container/dependencies.Dockerfile",
+                dependency_recipe(root, backend),
                 "--build-arg",
                 f"BACKEND={backend}",
                 "-t",

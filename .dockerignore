@@ -18,3 +18,8 @@
 !container/backends/*/
 !container/backends/*/config.json
 !container/backends/*/requirements.lock
+!container/backends/*/dependencies.Dockerfile
+!container/backends/*/source-requirements.lock
+!container/backends/*/os-packages.lock
+!container/backends/*/install-os.sh
+!container/backends/*/python.lock

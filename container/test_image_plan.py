@@ -51,10 +51,24 @@ class ImagePlanTests(unittest.TestCase):
         cfg.write_text(cfg.read_text().replace("13.2", "13.4"))
         self.assertNotEqual(before, image_plan.identity(self.root, "cuda"))
 
+    def test_custom_os_recipe_and_pins_change_identity(self):
+        before = image_plan.identity(self.root, "cuda")
+        recipe = self.backend / "dependencies.Dockerfile"
+        recipe.write_text("FROM pinned-vendor-os")
+        self.assertEqual(
+            image_plan.dependency_recipe(self.root, "cuda"),
+            "container/backends/cuda/dependencies.Dockerfile",
+        )
+        self.assertNotEqual(before, image_plan.identity(self.root, "cuda"))
+        before = image_plan.identity(self.root, "cuda")
+        (self.backend / "os-packages.lock").write_text("verified-package-pin")
+        self.assertNotEqual(before, image_plan.identity(self.root, "cuda"))
+
     def test_source_and_application_recipe_reuse_dependencies(self):
         before = image_plan.identity(self.root, "cuda")
         (self.root / "src").mkdir()
         (self.root / "src/app.py").write_text("changed")
+        (self.root / "pyproject.toml").write_text("application version changed")
         (self.root / "container/application.Dockerfile").write_text("changed")
         self.assertEqual(before, image_plan.identity(self.root, "cuda"))
 
