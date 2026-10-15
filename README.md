@@ -33,6 +33,7 @@ export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 
 Prefer containers? See [the CPU image guide](docs/containers.md) for direct CLI and
 separate web usage, with no host Python installation.
+For Apple Silicon GPU execution, use the [native MLX setup](docs/macos-mlx.md).
 
 Follow **[the TinyStories microlab](docs/tinystories-microlab.md)**: copy three
 existing declarations, prepare a small pinned story dataset and tokenizer, then
