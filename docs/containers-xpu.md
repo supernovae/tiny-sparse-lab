@@ -25,7 +25,7 @@ The [dependency recipe](../container/backends/xpu/dependencies.Dockerfile)
 contains immutable base, interpreter and package checksums.
 [Userspace package pins](../container/backends/xpu/userspace.lock.json) record
 nine exact Intel/Ubuntu archive URLs and SHA256 values. The
-[wheel lock](../container/backends/xpu/requirements.lock) pins all 91 packages,
+[wheel lock](../container/backends/xpu/requirements.lock) pins all 93 packages,
 including public Lab dependencies. Nothing installs or modifies a host driver.
 
 The driver needs glibc >=2.38 and libstdc++ >=13.1, so this backend uses Ubuntu
@@ -102,13 +102,18 @@ container is unsuitable; never sync the CPU extra into an XPU environment.
 ## Lock reproduction and validation
 
 ```sh
+uv export --locked --extra cpu --no-dev --no-emit-project --no-emit-package torch \
+  --no-hashes -o /tmp/lab-common-constraints.txt
 uv pip compile pyproject.toml requirements/xpu-arc.txt container/build-requirements.txt \
+  -c /tmp/lab-common-constraints.txt \
   --no-sources --python-version 3.14 --python-platform x86_64-manylinux_2_28 \
   --only-binary :all: --generate-hashes --no-annotate --no-header \
   --emit-index-url --emit-find-links -o /tmp/xpu-requirements.lock
 ```
 
-This resolves wheel metadata without creating an environment. uv 0.12.19 omitted
+The export preserves the repository-locked common application dependencies;
+only the accelerator stack differs. This resolves wheel metadata without
+creating an environment. uv 0.12.19 omitted
 the two find-links hashes; the checked-in lock adds the official CPython 3.14
 SHA256 fragments from the [Torch index](https://download.pytorch.org/whl/xpu/torch/)
 and [Triton XPU index](https://download.pytorch.org/whl/xpu/triton-xpu/).
