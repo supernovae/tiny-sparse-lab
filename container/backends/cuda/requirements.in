@@ -1,15 +1,4 @@
 --index-url https://pypi.org/simple
 --find-links https://download.pytorch.org/whl/cu132/torch/
-datasets>=4,<5
-huggingface-hub>=0.34,<2
-numpy>=2,<3
-plotly>=6,<7
-psutil>=7,<8
-pydantic>=2,<3
-pyyaml>=6,<7
-streamlit>=1.64,<2
-tokenizers==0.22.2
-pyarrow>=25,<26
-safetensors>=0.5,<1
 torch==2.14.1+cu132
 uv_build==0.12.17
