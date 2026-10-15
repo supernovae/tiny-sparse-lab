@@ -154,12 +154,21 @@ actual try/run IDs, checkpoints and observation identities are retained. Queue
 workers keep their native PREPARED/claim/replay protocol unchanged.
 
 Duplicate delivery never reaches launch. It returns `UNKNOWN_OR_RUNNING`,
-`COLLECTABLE` or a reverified `FINALIZED` result. Partial/conflicting handoffs
+`COLLECTABLE`, a sealed `REFUSED_BEFORE_LAUNCH`, or a reverified `FINALIZED` result. Partial/conflicting handoffs
 refuse. Even a crash before native pending exists does not authorize execution
 retry. Uncertain launches stay blocked for inspection; PID absence proves
 nothing. The existing native history, lock inode, state, blocked markers and
 receipt-referenced logs remain authoritative. Collection currently checks all
 native runner history, so unrelated incomplete history can block it too.
+
+`REFUSED_BEFORE_LAUNCH` requires a typed native runner preflight refusal and an
+immutable `refusal.json` bound to the prepared job. It proves that attempt-directory
+creation was not entered and the monitor/workload was not launched; it does not
+clear locks, repair history, approve a retry or release the consumed job/attempt
+IDs. Status and collect verify and return that receipt. A crash before receipt
+publication, a signal, or any error once attempt-directory creation is entered
+stays uncertain, even if `pending.json` is absent. A new attempt needs new explicit
+authorization. Initial missing state still refuses before admission publication.
 
 Fixed source/runtime/inputs/tokenizer/try/report gates record actual exits and
 executed/skipped status. The final verifier checks native completion and owned
