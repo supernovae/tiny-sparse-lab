@@ -1,4 +1,5 @@
 # Resolve together with pyproject.toml, Python 3.14 / Linux x86-64.
+# Constrain all shared application packages to uv.lock (CPU export minus torch).
 # AMD sources must be package-specific --find-links, never a general shadow index.
 # Exclude ONLY rocm from binary resolution; preserve its audited required core
 # and libraries below. Install rocm separately from source-requirements.lock.

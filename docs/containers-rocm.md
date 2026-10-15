@@ -38,7 +38,9 @@ not rebuilt just because the application source changed. See the
 `requirements.lock` contains the complete binary closure for Lab's common
 dependencies, PyTorch and gfx1100 libraries. Package-specific AMD `--find-links`
 entries avoid letting AMD's general index replace unrelated PyPI dependencies.
-All distributions are exact-pinned and SHA256-checked.
+All distributions are exact-pinned and SHA256-checked. Shared application
+packages retain their versions from `uv.lock`; selecting ROCm does not upgrade
+Hugging Face Hub, Streamlit, datasets, or other unrelated Lab dependencies.
 
 AMD intentionally distributes `rocm==10.1.0` as a small source metapackage.
 `source-requirements.lock` pins the inspected 27,536-byte archive and its SHA256.
