@@ -343,8 +343,11 @@ def test_unknown_native_launch_never_restarts(job, monkeypatch):
     assert job.host.blocked.exists()
     assert len(list(job.host.state.glob("*/pending.json"))) == 1
     assert jobs.admit(job)["status"] == "UNKNOWN_OR_RUNNING"
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(jobs.runner.RunnerHistoryError) as caught:
         jobs.collect(job)
+    assert caught.value.path.name == "completion.json"
+    assert isinstance(caught.value.__cause__, FileNotFoundError)
+    assert jobs.status(job)["status"] == "UNKNOWN_OR_RUNNING"
 
 
 def test_missing_evidence_and_failed_final_publication_never_relaunch(job, monkeypatch):
@@ -543,7 +546,7 @@ def test_public_entry_rejects_unused_global_token_without_reading(
     assert "global work/token options are unsupported" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("fault", ["lock", "history", "blocked", "state"])
+@pytest.mark.parametrize("fault", ["lock", "observer", "history", "blocked", "state"])
 def test_proven_prelaunch_refusal_is_sealed_and_never_retries(job, monkeypatch, fault):
     import fcntl
 
@@ -569,9 +572,11 @@ def test_proven_prelaunch_refusal_is_sealed_and_never_retries(job, monkeypatch, 
         nonlocal held
         calls.append(1)
         # Inject after admission seals the job, before native runner preflight.
-        if fault == "lock":
+        if fault in {"lock", "observer"}:
             held = os.open(job.host.lock, os.O_CREAT | os.O_RDWR, 0o600)
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # A status observer's shared probe also blocks exclusive admission.
+            mode = fcntl.LOCK_SH if fault == "observer" else fcntl.LOCK_EX
+            fcntl.flock(held, mode | fcntl.LOCK_NB)
         elif fault == "history":
             (job.host.state / "unexpected").write_text("preserved malformed history")
         elif fault == "blocked":

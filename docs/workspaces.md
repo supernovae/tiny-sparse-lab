@@ -148,6 +148,39 @@ These are trusted local owner files, not a boundary against malicious workloads
 under that UID. Never unlink, replace or truncate the lock: its inode is the
 stable lock identity.
 
+Inspect the **existing agreed triplet** without launching or provisioning anything:
+
+```sh
+uv run --locked --no-sync sparselab runner-status --json \
+  --runner-lock "$RUNNER_LOCK" --runner-state "$RUNNER_STATE" \
+  --runner-blocked "$RUNNER_BLOCKED"
+```
+
+Here the variables denote the paths already configured for the job, not new
+locations. This Linux-only read opens the existing lock read-only and uses a
+nonblocking shared probe while verifying history. It never initializes a missing
+lock/state/contract, truncates a lock, removes a marker or repairs receipts.
+An initially present marker yields `BLOCKED`, including malformed or dangling
+entries; a marker arriving during verification yields `UNRESOLVED` and remains
+untouched. `BUSY`
+means the lock is contended, with no claim about who owns it. Empty existing state
+with an existing safe lock is `UNINITIALIZED`; a missing lock is `UNRESOLVED` and
+is never created by inspection. `UNRESOLVED` reports the failing evidence path and exception;
+missing or invalid history never becomes proof of a dead owner. `VERIFIED_HISTORY`
+means existing native receipts checked at this observation only; it cannot
+resolve a lab job with missing launch evidence. Every result has
+`launch_authorized: false`; availability can change immediately afterward.
+Inspection returns JSON with exit zero, so callers must inspect its `status`.
+Ordinary exclusive launch admission remains mandatory. PID/heartbeat metadata
+never permits reclaiming a lock. There is no repair, reconcile or unblock action.
+
+The shared probe can make a concurrent exclusive launch admission refuse.
+For `lab-job`, that refusal is sealed as `REFUSED_BEFORE_LAUNCH` and consumes the
+job/attempt IDs even though no workload starts; redelivery returns the refusal.
+Do not poll status while launches may begin. Coordinate inspection before
+scheduling admission. A new attempt needs explicit new authorization; inspection
+does not grant an automatic retry.
+
 For a CPU command already authorized by the owner (use a fresh log directory):
 
 ```sh

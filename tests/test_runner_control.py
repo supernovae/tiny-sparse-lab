@@ -240,7 +240,7 @@ def test_interrupted_owner_never_automatically_recovers(
         options["log_dir"] = tmp_path / "new-logs"
         with pytest.raises(runner.RunnerPreflightRefused) as refusal:
             run(options)
-        assert refusal.value.__cause__.filename == str(
+        assert refusal.value.__cause__.__cause__.filename == str(
             pending[0].with_name("completion.json")
         )
         assert not options["log_dir"].exists()
@@ -308,7 +308,7 @@ def test_signal_during_sampling_is_not_a_metric_failure(tmp_path, monkeypatch, s
     options["log_dir"] = tmp_path / "refused-logs"
     with pytest.raises(runner.RunnerPreflightRefused) as refusal:
         run(options)
-    assert refusal.value.__cause__.filename == str(
+    assert refusal.value.__cause__.__cause__.filename == str(
         pending[0].with_name("completion.json")
     )
     assert not options["log_dir"].exists()
