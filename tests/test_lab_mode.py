@@ -166,7 +166,7 @@ def test_heldout_changes_are_not_comparable(
     assert record["exit_status"] == EXIT_NOT_COMPARABLE
 
 
-def test_cancellation_stops_at_checkpointed_boundary_and_is_recorded(
+def test_startup_cancellation_is_recorded_without_fabricated_checkpoint(
     lab: tuple[Path, Path],
 ) -> None:
     root, baseline = lab
@@ -193,13 +193,11 @@ def test_cancellation_stops_at_checkpointed_boundary_and_is_recorded(
     assert "comparison" not in record and "candidate" not in record["arms"]
     assert len(calls) == 1  # the candidate never started
     run = root / "work/lab/runs" / calls[0]
-    assert record["arms"]["baseline"]["run_dir"] == str(run)
-    assert record["arms"]["baseline"]["status"] == "interrupted"
-    assert json.loads((run / "progress.json").read_text())["status"] == "interrupted"
-    assert (run / "checkpoints" / "latest.json").is_file()
+    assert record["arms"] == {}
+    assert not run.exists()
     assert read_record(path)["status"] == "interrupted"
 
-    # The interrupted baseline is preserved and never reused or mutated.
+    # The sealed interruption is preserved; no baseline exists to reuse.
     record, _ = run_try(
         _delta(root, "c2.yaml", {"model.ffn_dim": 128}),
         baseline,
@@ -208,7 +206,8 @@ def test_cancellation_stops_at_checkpointed_boundary_and_is_recorded(
     assert record["status"] == "completed"
     assert record["arms"]["baseline"]["reused"] is False
     assert record["arms"]["baseline"]["run_id"] != calls[0]
-    assert json.loads((run / "progress.json").read_text())["status"] == "interrupted"
+    assert not run.exists()
+    assert read_record(path)["status"] == "interrupted"
 
 
 def test_sigint_from_the_cli_stops_safely_and_records_interruption(

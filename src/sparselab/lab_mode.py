@@ -405,16 +405,22 @@ def _train_and_score(
     context.checkpoint()
     started = time.monotonic()
     if not reuse:
-        returned = train_fn(
-            config,
-            run_id=run_id,
-            cancel_path=context.cancel_path,
-            max_wall_seconds=max_wall_seconds,
-            authorization=authorization,
-            resource_envelope=context.resource_envelope,
-            tokenizer_batch_documents=tokenizer_batch_documents,
-            tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
-        )
+        try:
+            returned = train_fn(
+                config,
+                run_id=run_id,
+                cancel_path=context.cancel_path,
+                max_wall_seconds=max_wall_seconds,
+                authorization=authorization,
+                resource_envelope=context.resource_envelope,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+            )
+        except InterruptedError:
+            # Before run creation the trainer has no progress/checkpoint to read.
+            # Only the actual cancel marker authorizes cancellation classification.
+            context.check_cancel()
+            raise
         if returned != run_id:
             raise ValueError(f"trainer returned unexpected run id {returned!r}")
     train_seconds = time.monotonic() - started

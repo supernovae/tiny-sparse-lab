@@ -783,16 +783,113 @@ def test_budget_extension_rejects_other_changes_before_child(tmp_path: Path) -> 
         assert not (valid.logging.root_dir / run_id).exists()
 
 
-def test_preexisting_cancel_marker_commits_no_update(tmp_path: Path) -> None:
+@pytest.mark.parametrize("entrypoint", ["train", "_train_impl"])
+def test_preexisting_cancel_marker_stops_before_runtime(
+    tmp_path, monkeypatch, entrypoint
+):
+    from sparselab.training import trainer
+
     original = config(tmp_path)
     cancel = tmp_path / "cancel"
-    cancel.touch()
-    train(original, run_id="cancelled", cancel_path=cancel)
-    snapshot = CheckpointManager(original.logging.root_dir / "cancelled").load(
-        original.logging.root_dir / "cancelled/checkpoints/latest.json"
-    )
-    assert snapshot.step == snapshot.tokens_seen == 0
-    assert snapshot.optimizer["state"] == {}
+    cancel.write_text("retain cancellation")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("preexisting cancellation reached runtime, data or model work")
+
+    monkeypatch.setattr(trainer.PyTorchEngine, "validate", forbidden)
+    monkeypatch.setattr(trainer, "prepare_data", forbidden)
+    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", forbidden)
+    with pytest.raises(InterruptedError, match="before run creation"):
+        getattr(trainer, entrypoint)(original, run_id="cancelled", cancel_path=cancel)
+    assert not (original.logging.root_dir / "cancelled").exists()
+    assert cancel.read_text() == "retain cancellation"
+
+
+def test_cancel_during_stage_verification_stops_before_runtime(tmp_path, monkeypatch):
+    from sparselab import staging
+    from sparselab.training import trainer
+
+    original = config(tmp_path)
+    cancel = tmp_path / "stage-cancel"
+
+    def verify(*args, **kwargs):
+        cancel.write_text("retain stage cancellation")
+        return {}
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("cancelled startup reached runtime, input preparation or model")
+
+    monkeypatch.setattr(staging, "verify_stage_bundle", verify)
+    monkeypatch.setattr(trainer.PyTorchEngine, "validate", forbidden)
+    monkeypatch.setattr(trainer, "prepare_data", forbidden)
+    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", forbidden)
+    with pytest.raises(InterruptedError, match="before run creation"):
+        train(
+            original,
+            run_id="stage-stop",
+            cancel_path=cancel,
+            stage_bundle=tmp_path / "stage",
+        )
+    assert not (original.logging.root_dir / "stage-stop").exists()
+    assert cancel.read_text() == "retain stage cancellation"
+
+
+@pytest.mark.parametrize("stop", ["cancel", "signal"])
+def test_startup_stop_before_initial_eval_has_no_checkpoint(
+    tmp_path, monkeypatch, stop
+):
+    import signal
+
+    from sparselab.training import trainer
+
+    original = config(tmp_path)
+    cancel = tmp_path / "startup-cancel"
+    create_run = trainer.ExperimentStore.create_run
+    install = signal.signal
+    closed = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("startup stop performed evaluation, update or checkpoint work")
+
+    def create(*args, **kwargs):
+        result = create_run(*args, **kwargs)
+        if stop == "cancel":
+            cancel.write_text("retain startup cancellation")
+        return result
+
+    def install_and_stop(signum, handler):
+        previous = install(signum, handler)
+        if (
+            stop == "signal"
+            and signum == signal.SIGTERM
+            and callable(handler)
+            and handler.__name__ == "request_stop"
+        ):
+            handler(signum, None)
+        return previous
+
+    # Exercise native run/evidence creation with tiny prepared data, but no model.
+    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", lambda *a, **k: None)
+    monkeypatch.setattr(trainer.PyTorchEngine, "close", lambda *a: closed.append(True))
+    for name in ("evaluate", "train_update", "export_weights", "export_training_state"):
+        monkeypatch.setattr(trainer.PyTorchEngine, name, forbidden)
+    monkeypatch.setattr(trainer.ExperimentStore, "create_run", create)
+    monkeypatch.setattr(signal, "signal", install_and_stop)
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    assert train(original, run_id="startup-stop", cancel_path=cancel) == "startup-stop"
+    run = original.logging.root_dir / "startup-stop"
+    progress = json.loads((run / "progress.json").read_text())
+    assert progress["status"] == "interrupted"
+    assert progress["step"] == progress["tokens_seen"] == 0
+    assert progress["latest"] is progress["best"] is None
+    assert not list((run / "checkpoints").glob("step_*"))
+    assert not (run / "checkpoints/latest.json").exists()
+    observed = progress["runtime_forecast"]["final_observed"]
+    assert observed["reason"] == ("cancelled" if stop == "cancel" else "signal")
+    assert observed["phases"]["validation"]["observation_count"] == 0
+    assert observed["phases"]["checkpoint"]["observation_count"] == 0
+    assert {sig: signal.getsignal(sig) for sig in previous} == previous
+    assert closed == [True]
 
 
 def test_late_cancellation_checkpoints_the_last_committed_update(

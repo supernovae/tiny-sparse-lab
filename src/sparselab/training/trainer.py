@@ -512,6 +512,13 @@ def _write_validation_report(
     return report
 
 
+def _check_startup_cancel(cancel_path: Path | None) -> None:
+    if cancel_path is not None and cancel_path.exists():
+        raise InterruptedError(
+            f"training cancelled before run creation: {cancel_path}; no new checkpoint"
+        )
+
+
 def train(
     config: RunConfig,
     *,
@@ -558,6 +565,7 @@ def train(
         or max_wall_seconds <= 0
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
+    _check_startup_cancel(cancel_path)
     started = time.monotonic()
     completed_run_id = _train_impl(
         config,
@@ -662,6 +670,7 @@ def _train_impl(
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
     deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
+    _check_startup_cancel(cancel_path)
     with pilot_phase("input_validation"):
         if config.dataset.corpus_release_path is not None:
             portable = stage_bundle / "assets" if stage_bundle is not None else None
@@ -714,6 +723,7 @@ def _train_impl(
                 )
                 if manifest.get("vocab_size") != config.model.vocab_size:
                     raise ValueError("verified tokenizer vocabulary differs from model")
+    _check_startup_cancel(cancel_path)
     operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):
@@ -815,6 +825,7 @@ def _train_impl(
                     proof_store=proof_store,
                     verification_mode=verification_mode,
                 )
+        _check_startup_cancel(cancel_path)
         history = StageHistory()
         history.start(ExperimentStage.CONFIGURED)
         history.finish()
@@ -852,6 +863,7 @@ def _train_impl(
             raise ValueError(f"unsupported execution engine: {config.runtime.engine}")
         with pilot_phase("runtime_initialization"):
             runtime = engine.validate(config, authorization=authorization)
+        _check_startup_cancel(cancel_path)
         config = config.model_copy(
             update={
                 "runtime": config.runtime.model_copy(
@@ -906,6 +918,7 @@ def _train_impl(
                     ),
                 }
             )
+        _check_startup_cancel(cancel_path)
         preparation_started = time.perf_counter()
         seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
         with pilot_phase("data_open"):
@@ -1045,6 +1058,7 @@ def _train_impl(
             if snapshot is not None and continuation == "RESUMED"
             else 1
         )
+        _check_startup_cancel(cancel_path)
         with pilot_phase("engine_initialization"):
             if isinstance(engine, PyTorchEngine):
                 engine.initialize(
@@ -1100,6 +1114,7 @@ def _train_impl(
             check_envelope(
                 resource_envelope, workspace=run, rss_bytes=current_process_rss_bytes()
             )
+        _check_startup_cancel(cancel_path)
         run.mkdir(parents=True)
         if spot_decision is not None:
             _atomic_json(run / "spot_safety.json", spot_decision)
@@ -1876,6 +1891,14 @@ def _train_impl(
             signal.signal(signal.SIGTERM, request_stop),
         )
         try:
+            if interrupted or (cancel_path is not None and cancel_path.exists()):
+                reason = (
+                    "cancelled"
+                    if cancel_path is not None and cancel_path.exists()
+                    else "signal"
+                )
+                finish_run("interrupted", reason)
+                return run_id
             initial_validation = evaluate_and_record()
             save_boundary(initial_validation)
             if wall_expired():
