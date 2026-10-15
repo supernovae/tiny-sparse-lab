@@ -58,6 +58,7 @@ def fake(monkeypatch, tmp_path):
         }
 
     monkeypatch.setattr(explorer, "explore_loaded", measure)
+    state.load = load
     state.explore = lambda **kwargs: explorer.explore(
         "fake", lab_dir=tmp_path, load=load, **kwargs
     )
@@ -273,3 +274,92 @@ def test_cli_reports_producer_runtime_and_reuse_status(
     else:
         assert "diagnostics runtime: pytorch / rocm:0 / fp32" in output
         assert "cache reuse: miss · missing actual-runtime provenance" in output
+
+
+def test_invocations_own_cancel_paths_without_changing_cache(fake, tmp_path, capsys):
+    legacy = tmp_path / "explorer" / "CANCEL"
+    legacy.parent.mkdir()
+    legacy.write_text("preserve legacy stop request")
+    first, cache = fake.explore()
+    original = cache.read_bytes()
+    first_output = capsys.readouterr()
+    first_operation = next((legacy.parent / "operations").iterdir())
+    first_cancel = first_operation / "CANCEL"
+    first_cancel.write_text("preserve prior invocation stop request")
+    second, second_cache = fake.explore()
+    second_output = capsys.readouterr()
+    operations = list((legacy.parent / "operations").iterdir())
+    assert len(operations) == 2
+    second_operation = next(path for path in operations if path != first_operation)
+    assert str(first_cancel) in first_output.err
+    assert str(second_operation / "CANCEL") in second_output.err
+    assert first_output.out == second_output.out == ""
+    assert not (second_operation / "CANCEL").exists()
+    assert legacy.read_text() == "preserve legacy stop request"
+    assert first_cancel.read_text() == "preserve prior invocation stop request"
+    assert second_cache == cache and cache.read_bytes() == original
+    assert first["cache_reuse"]["status"] == "miss"
+    assert second["cache_reuse"]["status"] == "hit"
+    assert fake.calls == 1
+
+
+def test_overlapping_explorations_cannot_clear_each_others_cancel(
+    fake, tmp_path, monkeypatch
+):
+    from sparselab.lab_context import LabCancelled, LabContext
+
+    _, cache = fake.explore()
+    original = cache.read_bytes()
+    contexts = []
+    nested = []
+    measure = explorer.explore_loaded
+
+    class ObservedContext(LabContext):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            contexts.append(self)
+
+    def checked_measure(*args, **kwargs):
+        kwargs["context"].checkpoint()
+        return measure(*args, **kwargs)
+
+    def load_outer():
+        contexts[0].cancel_path.write_text("stop only the outer invocation")
+        nested.append(fake.explore())
+        # The nested call completed without consuming or deleting the outer stop.
+        assert contexts[0].cancel_path.read_text() == "stop only the outer invocation"
+        return fake.load()
+
+    monkeypatch.setattr(explorer, "LabContext", ObservedContext)
+    monkeypatch.setattr(explorer, "explore_loaded", checked_measure)
+    with pytest.raises(LabCancelled):
+        explorer.explore("fake", lab_dir=tmp_path, load=load_outer, refresh=True)
+    assert len(contexts) == 2
+    assert contexts[0].cancel_path != contexts[1].cancel_path
+    assert contexts[0].cancel_path.exists()
+    assert not contexts[1].cancel_path.exists()
+    assert nested[0][1] == cache
+    assert nested[0][0]["cache_reuse"]["status"] == "hit"
+    assert cache.read_bytes() == original
+
+
+def test_invocation_cancel_stops_before_loader_even_with_cache(fake, monkeypatch):
+    from sparselab.lab_context import LabCancelled, LabContext
+
+    _, cache = fake.explore()
+    original = cache.read_bytes()
+    contexts = []
+
+    class CancelAtStart(LabContext):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            contexts.append(self)
+            self.cancel_path.write_text("stop before load")
+
+    monkeypatch.setattr(explorer, "LabContext", CancelAtStart)
+    with pytest.raises(LabCancelled) as stopped:
+        fake.explore()
+    assert stopped.value.phase == "load"
+    assert fake.loads == fake.calls == 1
+    assert contexts[0].cancel_path.read_text() == "stop before load"
+    assert cache.read_bytes() == original

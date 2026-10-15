@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import time
+import uuid
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -605,12 +607,18 @@ def explore(
             None,
         )
     folder = lab_dir / "explorer"
-    folder.mkdir(parents=True, exist_ok=True)
-    # Touch LAB/explorer/CANCEL to stop at the next stage; a sentinel left by
-    # an earlier exploration never cancels a new one.
-    (folder / "CANCEL").unlink(missing_ok=True)
+    operations = folder / "operations"
+    operations.mkdir(parents=True, exist_ok=True)
+    operation_id = uuid.uuid4().hex
+    operation = operations / operation_id
+    operation.mkdir(mode=0o700)
     context = LabContext(
-        folder / "CANCEL", resource_envelope=resource_envelope, workspace=lab_dir
+        operation / "CANCEL", resource_envelope=resource_envelope, workspace=lab_dir
+    )
+    print(
+        f"explore {operation_id}: touch {context.cancel_path} to stop at the next stage",
+        file=sys.stderr,
+        flush=True,
     )
     loader = load or (
         lambda: load_target(
