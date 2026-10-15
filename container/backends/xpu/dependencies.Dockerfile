@@ -29,4 +29,5 @@ RUN /opt/python/bin/python3.14 -c "import sys; assert sys.version_info[:3] == (3
  && uv venv --python /opt/python/bin/python3.14 /opt/venv \
  && uv pip install --python /opt/venv/bin/python --no-deps --only-binary=:all: --require-hashes -r /opt/requirements.lock \
  && python -c "import ctypes; [ctypes.CDLL(name) for name in ('libze_loader.so.1', 'libze_intel_gpu.so.1', 'libigc.so.2')]" \
- && python /opt/image_plan.py verify /opt/backend.json
+ && python /opt/image_plan.py verify /opt/backend.json \
+ && uv cache clean
