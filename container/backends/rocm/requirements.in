@@ -1,7 +1,9 @@
-# Candidate resolver input only. NOT a dependency lock or installation recipe.
-# Delivery is blocked; see status.json and docs/containers-rocm.md.
-# A future resolver must also include the public project's base dependencies.
-# Resolve AMD packages against the official indexes recorded in status.json;
-# do not let a general extra-index silently replace other dependencies.
+# Resolve together with pyproject.toml, Python 3.14 / Linux x86-64.
+# AMD sources must be package-specific --find-links, never a general shadow index.
+# Exclude ONLY rocm from binary resolution; preserve its audited required core
+# and libraries below. Install rocm separately from source-requirements.lock.
 torch[device-gfx1100]==2.14.0+rocm10.1.0
+rocm-sdk-core==10.1.0
+rocm-sdk-libraries==10.1.0
+setuptools==84.0.0
 uv_build==0.12.17
