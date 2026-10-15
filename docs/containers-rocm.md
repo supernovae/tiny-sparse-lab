@@ -33,7 +33,7 @@ configuration, Python/OS base, and shared build inputs. Ordinary application
 updates reuse the resolved dependency digest and add only the Lab application
 layer. Missing dependency images bootstrap once; heavyweight dependencies are
 not rebuilt just because the application source changed. See the
-[accelerator image guide](containers-accelerators.md) for publication and refresh.
+[accelerator image guide](container-builds.md) for publication and refresh.
 
 `requirements.lock` contains the complete binary closure for Lab's common
 dependencies, PyTorch and gfx1100 libraries. Package-specific AMD `--find-links`
