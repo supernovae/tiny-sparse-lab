@@ -12,4 +12,5 @@ RUN test "$(uname -m)" = x86_64 \
  && uv venv --python /usr/local/bin/python3.14 /opt/venv \
  && uv pip install --python /opt/venv/bin/python --no-deps --only-binary=:all: --require-hashes -r /opt/requirements.lock \
  && uv pip install --python /opt/venv/bin/python --no-deps --only-binary=:all: --require-hashes -r /opt/build-requirements.txt \
- && python /opt/image_plan.py verify /opt/backend.json
+ && python /opt/image_plan.py verify /opt/backend.json \
+ && uv cache clean
