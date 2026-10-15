@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import logging
 import os
 import re
 import tempfile
@@ -16,6 +17,8 @@ from pydantic import Field, field_validator, model_validator
 from sparselab.config.models import StrictModel
 from sparselab.runtime_profile import RuntimeProfile, RuntimeRequirements
 from sparselab.workdir import resolve_work_dir, storage_checks
+
+_LOGGER = logging.getLogger(__name__)
 
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
@@ -168,7 +171,15 @@ def _locked(path: Path):
     )
     try:
         os.fchmod(fd, 0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            _LOGGER.warning(
+                "Waiting for runtime registry lock %s; preserve the lock and retained "
+                "state. Owner identity is unknown; normal blocking wait continues.",
+                path.with_suffix(".lock"),
+            )
+            fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:
         os.close(fd)
