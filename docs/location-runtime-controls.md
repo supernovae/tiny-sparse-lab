@@ -174,3 +174,13 @@ Fixture checks establish software contracts. They do not qualify hardware,
 providers, throughput or scientific outcomes. Accelerator execution,
 provisioning installs and optional heavyweight suites need their own authorized
 validation. No such work is needed to retain these controls.
+
+## Waiting for local publication locks
+
+Campaign cache publication/cleanup and runtime-registry writes keep their normal
+blocking lock semantics. If their existing lock is contended, they log one
+warning naming the lock before waiting; uncontended operations stay quiet.
+The message does not identify an owner or authorize deleting/replacing the lock,
+clearing state, or retrying an operation. There is no new timeout or stale-lock
+reclamation. Inspect retained evidence and the operation holding the lock;
+cancelling the waiting process does not release another process's lock.

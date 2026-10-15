@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import logging
 import os
 import re
 import tempfile
@@ -168,7 +169,15 @@ def _locked(path: Path):
     )
     try:
         os.fchmod(fd, 0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            logging.getLogger(__name__).warning(
+                "Waiting for runtime registry lock %s; preserve the lock and retained "
+                "state. Owner identity is unknown; normal blocking wait continues.",
+                path.with_suffix(".lock"),
+            )
+            fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:
         os.close(fd)
