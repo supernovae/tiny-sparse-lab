@@ -314,8 +314,11 @@ def test_host_state_refuses_without_execution(job, damage):
             job.host.blocked.write_text("partial")
         else:
             (job.host.state / "contract.json").write_text("{")
-        with pytest.raises((ValueError, OSError)):
-            jobs.admit(job)
+        if damage == "blocked":
+            with pytest.raises(ValueError):
+                jobs.admit(job)  # Already blocked before admission publication.
+        else:
+            assert jobs.admit(job)["status"] == "REFUSED_BEFORE_LAUNCH"
     assert not list(job.host.state.glob("*/pending.json"))
     assert not (job.host.evidence / job.job_id / "monitor").exists()
 
@@ -538,3 +541,228 @@ def test_public_entry_rejects_unused_global_token_without_reading(
         entry.main()
     assert error.value.code == 2
     assert "global work/token options are unsupported" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("fault", ["lock", "history", "blocked", "state"])
+def test_proven_prelaunch_refusal_is_sealed_and_never_retries(job, monkeypatch, fault):
+    import fcntl
+
+    runner = jobs.runner
+    original = runner.run_controlled
+    held = None
+    calls = []
+    mkdir = Path.mkdir
+
+    def guard_attempt_mkdir(path, *args, **kwargs):
+        if path.parent == job.host.state:
+            pytest.fail("preflight refusal must precede entering attempt mkdir")
+        return mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", guard_attempt_mkdir)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("preflight refusal must never launch a monitor or workload")
+
+    monkeypatch.setattr(runner, "monitor_command", forbidden)
+
+    def inject(*args, **kwargs):
+        nonlocal held
+        calls.append(1)
+        # Inject after admission seals the job, before native runner preflight.
+        if fault == "lock":
+            held = os.open(job.host.lock, os.O_CREAT | os.O_RDWR, 0o600)
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        elif fault == "history":
+            (job.host.state / "unexpected").write_text("preserved malformed history")
+        elif fault == "blocked":
+            job.host.blocked.write_text("preserved hold")
+        else:
+            job.host.state.rmdir()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "run_controlled", inject)
+    try:
+        result = jobs.admit(job)
+    finally:
+        if held is not None:
+            os.close(held)
+    assert result["status"] == "REFUSED_BEFORE_LAUNCH"
+    assert result["workload_started"] is False
+    assert result["coordinator_acceptance"] == "PENDING"
+    evidence, _, _ = jobs._paths(job)
+    receipt = (evidence / "refusal.json").read_bytes()
+    assert not (job.host.state / result["runner_run_id"]).exists()
+    assert not (evidence / "monitor").exists()
+    assert jobs.admit(job) == jobs.status(job) == jobs.collect(job) == result
+    assert calls == [1]
+    assert (evidence / "refusal.json").read_bytes() == receipt
+    if fault == "history":
+        assert (
+            job.host.state / "unexpected"
+        ).read_text() == "preserved malformed history"
+    elif fault == "blocked":
+        assert job.host.blocked.read_text() == "preserved hold"
+    elif fault == "state":
+        assert not job.host.state.exists()
+    # Both external IDs remain reserved; no refund or replacement binding.
+    assert jobs.runner._read(
+        job.host.evidence / f"attempt-{job.attempt_id}.json"
+    ) == jobs._record(job)
+
+
+@pytest.mark.parametrize("fault", ["before_receipt", "mkdir", "after_mkdir"])
+def test_unproven_or_unpublished_refusal_stays_unknown(job, monkeypatch, fault):
+    runner = jobs.runner
+    original_mkdir = Path.mkdir
+    original_publish = jobs.publish_immutable
+    original_run = runner.run_controlled
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("fault fixture must not launch a monitor")
+
+    monkeypatch.setattr(runner, "monitor_command", forbidden)
+
+    def fail_mkdir(path, *args, **kwargs):
+        if path.parent == job.host.state:
+            if fault == "after_mkdir":
+                original_mkdir(path, *args, **kwargs)
+            raise OSError("attempt mkdir interrupted")
+        return original_mkdir(path, *args, **kwargs)
+
+    def fail_publish(path, payload):
+        if path.name == "refusal.json":
+            raise OSError("refusal publication interrupted")
+        return original_publish(path, payload)
+
+    def fail_preflight(*args, **kwargs):
+        job.host.state.rmdir()
+        return original_run(*args, **kwargs)
+
+    if fault == "before_receipt":
+        monkeypatch.setattr(jobs, "publish_immutable", fail_publish)
+        monkeypatch.setattr(runner, "run_controlled", fail_preflight)
+    else:
+        monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+    with pytest.raises(OSError):
+        jobs.admit(job)
+    evidence, _, _ = jobs._paths(job)
+    assert not (evidence / "refusal.json").exists()
+    assert not list(job.host.state.glob("*/pending.json"))
+    monkeypatch.setattr(runner, "run_controlled", forbidden)
+    assert jobs.admit(job)["status"] == "UNKNOWN_OR_RUNNING"
+
+
+def _admit_refused(job, monkeypatch):
+    original = jobs.runner.run_controlled
+
+    def remove_state(*args, **kwargs):
+        job.host.state.rmdir()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(jobs.runner, "run_controlled", remove_state)
+    assert jobs.admit(job)["status"] == "REFUSED_BEFORE_LAUNCH"
+    return jobs._paths(job)[0] / "refusal.json"
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "status",
+        "boundary",
+        "outcome",
+        "zero_outcome",
+        "acceptance",
+        "binding",
+        "payload_extra",
+        "payload_missing",
+        "payload_list",
+        "envelope_extra",
+        "envelope_missing",
+        "reason_string",
+        "reason_list",
+        "reason_extra",
+        "reason_missing",
+        "reason_message_number",
+        "reason_type_number",
+        "digest",
+        "summary",
+        "summary_symlink",
+        "symlink",
+        "writable",
+        "hardlink",
+    ],
+)
+def test_refusal_tampering_is_rejected(job, monkeypatch, damage):
+    path = _admit_refused(job, monkeypatch)
+    sealed = jobs.read_canonical(path)
+    payload = sealed["payload"]
+    changes = {
+        "status": ("status", "FINALIZED"),
+        "boundary": ("boundary", "after-attempt-directory"),
+        "outcome": ("workload_started", True),
+        "zero_outcome": ("workload_started", 0),
+        "acceptance": ("coordinator_acceptance", "ACCEPTED"),
+        "binding": ("attempt_id", "foreign"),
+        "payload_extra": ("extra", "not allowed"),
+        "reason_string": ("reason", "not an object"),
+        "reason_list": ("reason", ["type", "message"]),
+    }
+    if damage in changes:
+        key, value = changes[damage]
+        payload[key] = value
+    elif damage == "payload_missing":
+        del payload["boundary"]
+    elif damage == "payload_list":
+        sealed["payload"] = []
+    elif damage == "envelope_extra":
+        sealed["extra"] = "not allowed"
+    elif damage == "reason_extra":
+        payload["reason"]["extra"] = "not allowed"
+    elif damage == "reason_missing":
+        del payload["reason"]["message"]
+    elif damage == "reason_message_number":
+        payload["reason"]["message"] = 1
+    elif damage == "reason_type_number":
+        payload["reason"]["type"] = 1
+    # Semantic tampering must be rejected even with a correctly recomputed seal.
+    sealed["sha256"] = jobs.digest("sparselab-lab-job-refusal-v1", sealed["payload"])
+    if damage == "digest":
+        sealed["sha256"] = "0" * 64
+    elif damage == "envelope_missing":
+        del sealed["sha256"]
+    path.write_bytes(jobs.canonical_json(sealed) + b"\n")
+    if damage == "summary":
+        path.with_name("summary.json").write_text("{}")
+    elif damage == "summary_symlink":
+        path.with_name("summary.json").symlink_to(path.with_name("missing-summary"))
+    elif damage == "symlink":
+        retained = path.with_name("retained-refusal.json")
+        path.rename(retained)
+        path.symlink_to(retained)
+    elif damage == "writable":
+        path.chmod(0o666)
+    elif damage == "hardlink":
+        path.with_name("linked-refusal.json").hardlink_to(path)
+    before = path.read_bytes()
+    for reader in (jobs.status, jobs.collect):
+        with pytest.raises(
+            ValueError, match="invalid sealed prelaunch refusal|unsafe runner state"
+        ):
+            reader(job)
+        assert path.read_bytes() == before
+
+
+def test_refused_cleanup_preview_preserves_scratch_and_evidence(job, monkeypatch):
+    path = _admit_refused(job, monkeypatch)
+    _, scratch, source = jobs._paths(job)
+    receipt = path.read_bytes()
+    files = set(scratch.rglob("*"))
+    result = jobs.cleanup_preview(job, scratch)
+    assert result["job_status"] == "REFUSED_BEFORE_LAUNCH"
+    assert result["preview_only"] is True
+    assert result["delete_implemented"] is False
+    assert result["candidate"] == str(scratch)
+    assert source.is_dir()
+    assert set(scratch.rglob("*")) == files
+    assert path.read_bytes() == receipt
+    assert jobs.status(job)["status"] == "REFUSED_BEFORE_LAUNCH"

@@ -10,6 +10,7 @@ import signal
 import stat
 import sys
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,17 @@ from sparselab.operational_monitor import (
     MonitorPolicy,
     monitor_command,
 )
+
+
+class RunnerPreflightRefused(ValueError):
+    """Proven refusal before entering attempt-directory creation or monitor launch.
+
+    The original exception type is retained in error_type and __cause__.
+    """
+
+    def __init__(self, error: Exception):
+        self.error_type = type(error).__name__
+        super().__init__(str(error))
 
 
 class RunnerInterrupted(BaseException):
@@ -133,6 +145,48 @@ def run_controlled(
     job_binding: dict[str, str] | None = None,
     **monitor_options: Any,
 ) -> MonitorCompletion:
+    """Classify only errors before the explicit attempt-creation boundary.
+
+    Missing receipts never prove non-launch. Once mkdir is entered, every error
+    retains the old fail-closed behavior, even if no pending record was written.
+    Signals are deliberately not converted into ordinary preflight refusals.
+    """
+    before_attempt = True
+
+    def enter_attempt() -> None:
+        nonlocal before_attempt
+        before_attempt = False
+
+    try:
+        return _run_controlled(
+            command,
+            policy,
+            lock_path=lock_path,
+            state_dir=state_dir,
+            blocked_path=blocked_path,
+            run_id=run_id,
+            job_binding=job_binding,
+            _enter_attempt=enter_attempt,
+            **monitor_options,
+        )
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        if before_attempt:
+            raise RunnerPreflightRefused(error) from error
+        raise
+
+
+def _run_controlled(
+    command: list[str],
+    policy: MonitorPolicy,
+    *,
+    lock_path: Path,
+    state_dir: Path,
+    blocked_path: Path,
+    _enter_attempt: Callable[[], None],
+    run_id: str | None = None,
+    job_binding: dict[str, str] | None = None,
+    **monitor_options: Any,
+) -> MonitorCompletion:
     """One flock owner; never reclaim incomplete state or remove a blocked marker.
 
     Signals raise RunnerInterrupted, bypassing recoverable monitor errors.
@@ -208,6 +262,7 @@ def run_controlled(
             }
             _prior_runs(state, contract)
             run = state / run_id
+            _enter_attempt()  # Must precede mkdir, including a partial/failed mkdir.
             run.mkdir(mode=0o700)
             started = True
             _sync_dir(state)
