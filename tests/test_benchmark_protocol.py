@@ -22,8 +22,17 @@ def protocol():
         ),
         "tasks": {
             "piqa": {
-                "config_sha256": bp.digest({"test_split": "test", "num_fewshot": None}),
-                "dataset_fingerprints": {"test": "fixture-fingerprint"},
+                "config_sha256": bp.digest(
+                    {
+                        "test_split": "test",
+                        "training_split": "train",
+                        "num_fewshot": None,
+                    }
+                ),
+                "dataset_fingerprints": {
+                    "test": "fixture-fingerprint",
+                    "train": "train-fingerprint",
+                },
                 "evaluation_split": "test",
                 "primary_metric": "acc,none",
             }
@@ -79,8 +88,15 @@ def loaded(checkpoint="a"):
 def fake(monkeypatch):
     calls = []
     task = SimpleNamespace(
-        dump_config=lambda: {"test_split": "test", "num_fewshot": None},
-        dataset={"test": SimpleNamespace(_fingerprint="fixture-fingerprint")},
+        dump_config=lambda: {
+            "test_split": "test",
+            "training_split": "train",
+            "num_fewshot": None,
+        },
+        dataset={
+            "test": SimpleNamespace(_fingerprint="fixture-fingerprint"),
+            "train": SimpleNamespace(_fingerprint="train-fingerprint"),
+        },
         UNSAFE_CODE=False,
     )
     manager = SimpleNamespace(load=lambda names: {"tasks": {"piqa": task}})
@@ -98,6 +114,7 @@ def fake(monkeypatch):
 
         assert (
             datasets.config.HF_DATASETS_OFFLINE
+            and datasets.config.HF_HUB_OFFLINE
             and huggingface_hub.constants.HF_HUB_OFFLINE
         )
         calls.append(kwargs)
@@ -152,6 +169,7 @@ def test_full_metrics_counts_provenance_and_compatibility(fake):
 
     old_flags = (
         datasets.config.HF_DATASETS_OFFLINE,
+        datasets.config.HF_HUB_OFFLINE,
         huggingface_hub.constants.HF_HUB_OFFLINE,
     )
     before = os.environ.get("HF_DATASETS_OFFLINE")
@@ -168,7 +186,6 @@ def test_full_metrics_counts_provenance_and_compatibility(fake):
     assert c["tasks"]["piqa"]["uncertainty"]["reported"] == {"acc_stderr,none": 0.2}
     assert c["evidence_complete"] and c["scientific_result"] == "not_assessed"
     assert c["cost"] is None and c["training_time_seconds"] is None
-    assert c["raw_result_sha256"] == bp.digest(raw())
     assert fake[0][0]["num_fewshot"] == 3 and fake[0][0]["fewshot_random_seed"] == 9
     assert (
         fake[0][0]["bootstrap_iters"] == 100
@@ -177,6 +194,7 @@ def test_full_metrics_counts_provenance_and_compatibility(fake):
     assert os.environ.get("HF_DATASETS_OFFLINE") == before
     assert old_flags == (
         datasets.config.HF_DATASETS_OFFLINE,
+        datasets.config.HF_HUB_OFFLINE,
         huggingface_hub.constants.HF_HUB_OFFLINE,
     )
     changed = protocol() | {"seed": 8}
@@ -223,16 +241,21 @@ def test_pins_refuse_before_scoring(fake, monkeypatch, kind):
     if kind == "data":
         task.dataset["test"]._fingerprint = "changed"
     if kind == "split":
-        p["tasks"]["piqa"].update(
-            evaluation_split="other",
-            dataset_fingerprints={"test": "fixture-fingerprint", "other": "x"},
+        task.dataset["validation"] = SimpleNamespace(
+            _fingerprint="validation-fingerprint"
         )
+        p["tasks"]["piqa"]["dataset_fingerprints"]["validation"] = (
+            "validation-fingerprint"
+        )
+        p["tasks"]["piqa"]["evaluation_split"] = "validation"
     if kind == "zero-shot":
         task.dump_config = lambda: {"test_split": "test", "num_fewshot": 0}
         p["tasks"]["piqa"]["config_sha256"] = bp.digest(task.dump_config())
     if kind == "unsafe":
         task.UNSAFE_CODE = True
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="evaluation split" if kind == "split" else None
+    ):
         adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
     assert not calls
 
@@ -323,15 +346,9 @@ def test_public_cli_seals_protocol_and_never_overwrites(tmp_path, monkeypatch, c
 def test_non_numeric_primary_never_completes(value):
     r = raw()
     r["results"]["piqa"]["acc,none"] = value
-    if value == float("inf"):
-        with pytest.raises(ValueError):
-            bp.controlled_results(
-                r, bp.BenchmarkProtocol.model_validate(protocol()), loaded(), 0
-            )
-    else:
-        assert not bp.controlled_results(
-            r, bp.BenchmarkProtocol.model_validate(protocol()), loaded(), 0
-        )["evidence_complete"]
+    assert not bp.controlled_results(
+        r, bp.BenchmarkProtocol.model_validate(protocol()), loaded(), 0
+    )["evidence_complete"]
 
 
 def test_runtime_scoring_semantics_change_group(fake):
@@ -348,3 +365,171 @@ def test_missing_item_identity_stays_incomplete():
     assert not bp.controlled_results(
         r, bp.BenchmarkProtocol.model_validate(protocol()), loaded(), 0
     )["evidence_complete"]
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"test_split": "test"},
+        {"validation_split": "test"},
+        {"test_split": "test", "training_split": "train", "fewshot_split": "test"},
+        {"test_split": "test", "fewshot_config": {"split": "test", "samples": []}},
+    ],
+)
+def test_fewshot_evaluation_leakage_refuses_before_scoring(fake, config):
+    calls, task = fake
+    task.dump_config = lambda: config
+    p = protocol()
+    p["tasks"]["piqa"]["config_sha256"] = bp.digest(config)
+    if "training_split" not in config:
+        del task.dataset["train"]
+        del p["tasks"]["piqa"]["dataset_fingerprints"]["train"]
+    with pytest.raises(ValueError, match="overlaps evaluation"):
+        adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    assert calls == []
+    # Zero-shot does not sample the evaluation split.
+    adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p | {"num_fewshot": 0})
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "fingerprints",
+        "split",
+        "tasks",
+        "lm-eval",
+        "empty-version",
+        "datasets",
+        "tokenizers",
+        "torch",
+        "numpy",
+    ],
+)
+def test_required_pins(kind):
+    p = protocol()
+    if kind == "fingerprints":
+        p["tasks"]["piqa"]["dataset_fingerprints"] = {}
+    elif kind == "split":
+        p["tasks"]["piqa"]["evaluation_split"] = "missing"
+    elif kind == "tasks":
+        p["tasks"] = {}
+    elif kind == "lm-eval":
+        p["dependency_versions"]["lm-eval"] = "0.4.13"
+    elif kind == "empty-version":
+        p["dependency_versions"]["torch"] = ""
+    else:
+        del p["dependency_versions"][kind]
+    with pytest.raises(ValueError):
+        bp.BenchmarkProtocol.model_validate(p)
+
+
+@pytest.mark.parametrize("kwargs", [{"tasks": ["piqa"]}, {"limit": 2}])
+def test_spec_rejects_legacy_overrides(kwargs):
+    with pytest.raises(ValueError):
+        runner.lm_eval_spec(protocol=protocol(), **kwargs)
+
+
+def test_task_expansion_refuses_before_scoring(fake, monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "lm_eval.tasks",
+        SimpleNamespace(
+            TaskManager=lambda: SimpleNamespace(load=lambda names: {"tasks": {}})
+        ),
+    )
+    with pytest.raises(ValueError, match="expansion"):
+        adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=protocol())
+    assert not fake[0]
+
+
+@pytest.mark.parametrize(
+    "kind", ["extra-duplicate", "bool-id", "string-id", "arguments", "target"]
+)
+def test_partial_adapter_withholds_comparison_group(fake, monkeypatch, kind):
+    evidence = raw()
+    samples = evidence["samples"]["piqa"]
+    if kind == "extra-duplicate":
+        samples.append(copy.deepcopy(samples[1]))
+    elif kind == "bool-id":
+        samples[0]["doc_id"] = False
+    elif kind == "string-id":
+        samples[0]["doc_id"] = "0"
+    else:
+        del samples[0][kind]
+    monkeypatch.setattr(
+        adapter,
+        "_harness",
+        lambda: (SimpleNamespace(simple_evaluate=lambda **kw: evidence), object),
+    )
+    result = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=protocol())
+    assert result["benchmark_group"] is None
+    assert not result["controlled"]["evidence_complete"]
+    assert (
+        result["controlled"]["tasks"]["piqa"]["metrics"] == evidence["results"]["piqa"]
+    )
+
+
+@pytest.mark.parametrize("kind", ["backend", "dtype"])
+def test_runtime_identity_independent_fields(fake, kind):
+    baseline = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=protocol())
+    changed = loaded()
+    if kind == "backend":
+        changed.device = "cuda"
+    else:
+        changed.model.parameters = lambda: iter([SimpleNamespace(dtype="float16")])
+    result = adapter.run_lm_eval(changed, ["piqa"], 2, protocol=protocol())
+    assert result["benchmark_group"] != baseline["benchmark_group"]
+
+
+def test_measure_forwards_controlled_protocol(fake):
+    result = runner._measure(
+        runner.lm_eval_spec(protocol=protocol()), loaded(), None, {}
+    )
+    assert result["controlled"]["protocol"] == bp.BenchmarkProtocol.model_validate(
+        protocol()
+    ).model_dump(mode="json")
+    call = fake[0][0]
+    assert (
+        call["random_seed"]
+        == call["numpy_random_seed"]
+        == call["torch_random_seed"]
+        == 7
+    )
+    assert call["fewshot_random_seed"] == 9
+    assert call["bootstrap_iters"] == 100
+    assert call["apply_chat_template"] is False
+
+
+def test_baseline_incomplete_and_legacy_are_distinct(fake):
+    spec = runner.lm_eval_spec(protocol=protocol())
+    target = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=protocol())
+    baseline = copy.deepcopy(target)
+    baseline["controlled"]["evidence_complete"] = False
+    assert runner._judge(spec, target, baseline, {}, {})["status"] == "error"
+    del baseline["controlled"]
+    baseline["benchmark_group"] = "legacy"
+    assert runner._judge(spec, target, baseline, {}, {})["status"] == "not_comparable"
+
+
+@pytest.mark.parametrize("where", ["primary", "stderr", "sample"])
+def test_nonfinite_adapter_preserves_other_evidence(fake, monkeypatch, where):
+    evidence = raw()
+    if where == "sample":
+        evidence["samples"]["piqa"][0]["acc"] = float("nan")
+    else:
+        evidence["results"]["piqa"][
+            "acc,none" if where == "primary" else "acc_stderr,none"
+        ] = float("inf")
+    monkeypatch.setattr(
+        adapter,
+        "_harness",
+        lambda: (SimpleNamespace(simple_evaluate=lambda **kw: evidence), object),
+    )
+    result = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=protocol())
+    json.dumps(result, allow_nan=False)
+    assert result["benchmark_group"] is None
+    task = result["controlled"]["tasks"]["piqa"]
+    assert task["nonfinite_evidence"] and not task["complete"]
+    assert task["metrics"]["acc_norm,none"] == 0.75
+    assert len(task["items"]) == 2

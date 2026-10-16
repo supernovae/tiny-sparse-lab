@@ -61,7 +61,9 @@ and [task API](https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.13/
 It loads tasks under Hugging Face offline flags (including imported configuration)
 and verifies pins before scoring. No cache/download fallback, custom task loading
 or unsafe-code opt-in is provided. This is library offline policy, not an arbitrary
-code sandbox. Tasks fixing zero-shot refuse nonzero overrides. Existing windowed
+code sandbox. Tasks fixing zero-shot refuse nonzero overrides. Nonzero few-shot requests also
+refuse when the explicit or fallback example source is the evaluation split.
+The standard `lambada_openai` task therefore supports zero-shot only. Existing windowed
 continuation scoring is unchanged, without chat templates. Actual context length,
 parameter dtype and backend enter comparison identity.
 
@@ -74,7 +76,7 @@ by these fake-harness implementation tests.
 
 The sealed probe row's `details.controlled` retains all task metrics, including
 raw/normalized accuracy and upstream stderr; original/effective counts; logged
-item counts and per-item result digests; raw-result digest; protocol and actual
+item counts and per-item result digests; protocol and actual
 checkpoint/tokenizer identities. `subject.tokens_seen` is the checkpoint's count,
 not independently audited exposure; unknown values stay unknown. Evaluation wall
 time includes loading and scoring. Training time, compute and cost remain null
@@ -83,7 +85,11 @@ reported uncertainty are preserved, never synthesized.
 
 Completion requires each primary metric, exact requested count, unique first-N
 item IDs, logged item identity and observed shot count. Partial results retain
-metrics, mark evidence incomplete and withhold a comparison group. Complete
+metrics, mark evidence incomplete and withhold a comparison group. Nonfinite
+metrics and sample values are encoded as `NaN`, `+Infinity` or `-Infinity` strings
+for hashing and JSON retention, with `nonfinite_evidence: true`; finite metrics
+remain available. No digest of the unretained, timing-dependent raw response is
+advertised. Complete
 controlled results are informational, with science `not_assessed`; they do not
 infer a winner or average tasks into a scientific outcome. Legacy aggregate views
 are not controlled score-versus-target curves; Workshop can consume the per-task

@@ -86,6 +86,26 @@ def digest(value: Any) -> str:
     ).hexdigest()
 
 
+def finite_evidence(value: Any) -> tuple[Any, bool]:
+    """Keep nonfinite observations JSON-safe, with an explicit completeness flag."""
+    import numpy as np
+
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        return (
+            "NaN" if math.isnan(value) else "+Infinity" if value > 0 else "-Infinity"
+        ), False
+    if isinstance(value, (dict, list, tuple)):
+        entries = value.items() if isinstance(value, dict) else enumerate(value)
+        converted = {k: finite_evidence(v) for k, v in entries}
+        clean = {k: v for k, (v, _) in converted.items()}
+        return (clean if isinstance(value, dict) else list(clean.values())), all(
+            ok for _, ok in converted.values()
+        )
+    return value, True
+
+
 @contextmanager
 def offline():
     # Importing these configuration modules does not load tasks or datasets.
@@ -104,6 +124,7 @@ def offline():
         os.environ.update(settings)
         for module, key in (
             (datasets.config, "HF_DATASETS_OFFLINE"),
+            (datasets.config, "HF_HUB_OFFLINE"),
             (huggingface_hub.constants, "HF_HUB_OFFLINE"),
         ):
             flags.append((module, key, getattr(module, key)))
@@ -145,6 +166,19 @@ def pinned_tasks(protocol: BenchmarkProtocol) -> list[Any]:
             raise ValueError(f"benchmark evaluation split mismatch: {name}")
         if config.get("num_fewshot") == 0 and protocol.num_fewshot != 0:
             raise ValueError(f"task fixes zero-shot; cannot override: {name}")
+        if protocol.num_fewshot:
+            # Mirror ConfigurableTask.fewshot_docs in the pinned harness: an
+            # explicit split wins over samples, then train/validation/test.
+            fewshot = config.get("fewshot_config") or {}
+            source = fewshot.get("split") or config.get("fewshot_split")
+            if source is None and fewshot.get("samples") is None:
+                source = (
+                    config.get("training_split")
+                    or config.get("validation_split")
+                    or config.get("test_split")
+                )
+            if source == split:
+                raise ValueError(f"few-shot source overlaps evaluation split: {name}")
         if getattr(task, "UNSAFE_CODE", False):
             raise ValueError("unsafe task code unsupported")
     return list(tasks.values())
@@ -162,8 +196,12 @@ def controlled_results(
         ids = [s.get("doc_id") for s in samples]
         counts = (results.get("n-samples") or {}).get(name, {})
         primary = metrics.get(pin.primary_metric)
+        metrics, metrics_finite = finite_evidence(metrics)
+        samples, samples_finite = finite_evidence(samples)
         complete = (
-            len(ids) == protocol.limit
+            metrics_finite
+            and samples_finite
+            and len(ids) == protocol.limit
             and all(type(i) is int for i in ids)
             and set(ids) == set(range(protocol.limit))
             and all(
@@ -185,6 +223,7 @@ def controlled_results(
             "logged_items": len(samples),
             "primary_metric": pin.primary_metric,
             "complete": complete,
+            "nonfinite_evidence": not (metrics_finite and samples_finite),
             "context": pin.context,
             "items": [
                 {"doc_id": s.get("doc_id"), "sha256": digest(s)} for s in samples
@@ -214,7 +253,6 @@ def controlled_results(
         "missing_tasks": gaps,
         "evidence_complete": not gaps,
         "scientific_result": "not_assessed",
-        "raw_result_sha256": digest(results),
         "subject": subject,
         "evaluation_wall_seconds": elapsed,
         "training_time_seconds": None,

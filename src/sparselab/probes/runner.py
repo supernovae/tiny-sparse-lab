@@ -764,7 +764,9 @@ def _judge(
     if spec.id == "lm_eval":
         if "controlled" in t:
             complete = t["controlled"]["evidence_complete"] and (
-                b is None or b.get("controlled", {}).get("evidence_complete")
+                b is None
+                or "controlled" not in b
+                or b["controlled"].get("evidence_complete")
             )
             compatible = b is None or (
                 t.get("benchmark_group") is not None

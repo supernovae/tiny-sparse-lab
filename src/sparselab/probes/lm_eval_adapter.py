@@ -249,8 +249,20 @@ def _run_controlled(loaded: Any, value: Any) -> dict[str, Any]:
             )
             or {}
         )
-    summary = summarize_results(results, list(protocol.tasks))
     controlled = controlled_results(results, protocol, loaded, time.monotonic() - start)
+    if controlled["evidence_complete"]:
+        summary = summarize_results(results, list(protocol.tasks))
+    else:
+        # Malformed IDs and nonfinite observations must not break legacy
+        # summary conversion and discard the controlled evidence just collected.
+        summary = {
+            "tasks": {
+                name: {"metrics": row["metrics"]}
+                for name, row in controlled["tasks"].items()
+            },
+            "mean_accuracy": None,
+            "benchmark": {},
+        }
     summary.update(controlled=controlled, version=protocol.harness_version)
     summary["benchmark"]["controlled_protocol"] = controlled["protocol"]
     summary["benchmark"]["context_length"] = loaded.config.model.max_seq_len
