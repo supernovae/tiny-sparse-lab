@@ -86,6 +86,13 @@ def digest(value: Any) -> str:
     ).hexdigest()
 
 
+def task_config_digest(config: dict[str, Any]) -> str:
+    """Bind effective task content, excluding only its machine-local YAML path."""
+    return digest(
+        {key: value for key, value in config.items() if key != "config_source"}
+    )
+
+
 def finite_evidence(value: Any) -> tuple[Any, bool]:
     """Keep nonfinite observations JSON-safe, with an explicit completeness flag."""
     import numpy as np
@@ -156,7 +163,7 @@ def pinned_tasks(protocol: BenchmarkProtocol) -> list[Any]:
     for name, task in tasks.items():
         pin = protocol.tasks[name]
         config = task.dump_config()
-        if digest(config) != pin.config_sha256:
+        if task_config_digest(config) != pin.config_sha256:
             raise ValueError(f"benchmark task config mismatch: {name}")
         observed = {split: data._fingerprint for split, data in task.dataset.items()}
         if observed != pin.dataset_fingerprints:
@@ -212,7 +219,6 @@ def controlled_results(
             )
             and counts.get("effective") == protocol.limit
             and type(primary) in (int, float)
-            and math.isfinite(primary)
             and (results.get("n-shot") or {}).get(name) == protocol.num_fewshot
         )
         if not complete:

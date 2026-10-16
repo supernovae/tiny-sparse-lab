@@ -22,7 +22,7 @@ def protocol():
         ),
         "tasks": {
             "piqa": {
-                "config_sha256": bp.digest(
+                "config_sha256": bp.task_config_digest(
                     {
                         "test_split": "test",
                         "training_split": "train",
@@ -250,7 +250,7 @@ def test_pins_refuse_before_scoring(fake, monkeypatch, kind):
         p["tasks"]["piqa"]["evaluation_split"] = "validation"
     if kind == "zero-shot":
         task.dump_config = lambda: {"test_split": "test", "num_fewshot": 0}
-        p["tasks"]["piqa"]["config_sha256"] = bp.digest(task.dump_config())
+        p["tasks"]["piqa"]["config_sha256"] = bp.task_config_digest(task.dump_config())
     if kind == "unsafe":
         task.UNSAFE_CODE = True
     with pytest.raises(
@@ -380,7 +380,7 @@ def test_fewshot_evaluation_leakage_refuses_before_scoring(fake, config):
     calls, task = fake
     task.dump_config = lambda: config
     p = protocol()
-    p["tasks"]["piqa"]["config_sha256"] = bp.digest(config)
+    p["tasks"]["piqa"]["config_sha256"] = bp.task_config_digest(config)
     if "training_split" not in config:
         del task.dataset["train"]
         del p["tasks"]["piqa"]["dataset_fingerprints"]["train"]
@@ -533,3 +533,69 @@ def test_nonfinite_adapter_preserves_other_evidence(fake, monkeypatch, where):
     assert task["nonfinite_evidence"] and not task["complete"]
     assert task["metrics"]["acc_norm,none"] == 0.75
     assert len(task["items"]) == 2
+
+
+def test_task_config_pin_is_portable_but_binds_prompt(fake):
+    calls, task = fake
+    config = task.dump_config() | {
+        "config_source": "/host-one/venv/tasks/piqa.yaml",
+        "doc_to_text": "Question: {{question}}",
+    }
+    original = copy.deepcopy(config)
+    p = protocol()
+    p["tasks"]["piqa"]["config_sha256"] = bp.task_config_digest(config)
+    task.dump_config = lambda: config
+    first = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    assert config == original
+    config = config | {"config_source": "/container/other-venv/tasks/piqa.yaml"}
+    assert bp.task_config_digest(config) == p["tasks"]["piqa"]["config_sha256"]
+    second = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    assert first["benchmark_group"] == second["benchmark_group"]
+    config = config | {"doc_to_text": "Changed prompt: {{question}}"}
+    with pytest.raises(ValueError, match="task config mismatch"):
+        adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    assert len(calls) == 2
+
+
+def test_empty_fingerprint_value_refuses():
+    p = protocol()
+    p["tasks"]["piqa"]["dataset_fingerprints"]["test"] = ""
+    with pytest.raises(ValueError, match="split fingerprint"):
+        bp.BenchmarkProtocol.model_validate(p)
+
+
+@pytest.mark.parametrize(
+    "kind, expected",
+    [
+        ("float32-positive", "+Infinity"),
+        ("float64-negative", "-Infinity"),
+        ("float32-finite", 1.5),
+    ],
+)
+def test_numpy_and_nested_nonfinite_evidence(kind, expected):
+    import numpy as np
+
+    value = {
+        "float32-positive": np.float32("inf"),
+        "float64-negative": np.float64("-inf"),
+        "float32-finite": np.float32(1.5),
+    }[kind]
+    clean, finite = bp.finite_evidence({"sample": (value,)})
+    assert clean == {"sample": [expected]}
+    assert finite == (kind == "float32-finite")
+    json.dumps(clean, allow_nan=False)
+
+
+def test_explicit_fewshot_samples_do_not_fall_back_to_test(fake):
+    calls, task = fake
+    config = {
+        "test_split": "test",
+        "fewshot_config": {"samples": [{"question": "fixture", "answer": "fixture"}]},
+    }
+    task.dump_config = lambda: config
+    task.dataset.pop("train")
+    p = protocol()
+    p["tasks"]["piqa"]["dataset_fingerprints"].pop("train")
+    p["tasks"]["piqa"]["config_sha256"] = bp.task_config_digest(config)
+    adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    assert len(calls) == 1

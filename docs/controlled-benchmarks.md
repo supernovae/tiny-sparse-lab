@@ -47,9 +47,11 @@ lm_eval_protocol:
 ```
 
 The split map must equal every actual split in `task.dataset`, including few-shot
-sources. `config_sha256` uses `benchmark_protocol.digest(task.dump_config())`
+sources. `config_sha256` uses `benchmark_protocol.task_config_digest(task.dump_config())`
 before evaluation overrides. This effective-config digest binds prompts, task
-metadata, preprocessing and dataset settings; it is not a YAML-file hash.
+metadata, preprocessing and dataset settings. Only the top-level `config_source`
+field (the machine-local task YAML path) is excluded; moving an identical installed
+task does not change its pin. Other fields remain bound. It is not a YAML-file hash.
 Dataset fingerprints bind cached content, not independently authenticated source
 revisions, rights or contamination claims. Workshop must retain that source and
 acquisition provenance alongside the machine-checked declaration. Package versions
