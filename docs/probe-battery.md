@@ -518,3 +518,5 @@ learners. Plain `sparselab train` runs join the view once
 ones still unscored, with that command.
 
 ![Pareto view: lab runs on the reference curve](assets/dashboard-models-pareto.png)
+
+For pinned tasks and full metric receipts, see [controlled benchmarks](controlled-benchmarks.md).

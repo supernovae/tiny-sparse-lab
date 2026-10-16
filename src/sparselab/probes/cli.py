@@ -57,6 +57,7 @@ def run_probe(
     resource_envelope: Any = None,
     lm_eval_tasks: list[str] | None = None,
     lm_eval_limit: int | None = None,
+    lm_eval_protocol: Any = None,
     final: bool = False,
     request: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path]:
@@ -72,7 +73,9 @@ def run_probe(
     from sparselab.resource_envelope import require_envelope_applicability
 
     require_envelope_applicability(resource_envelope, operation="probe")
-    lm_spec = lm_eval_spec(lm_eval_tasks, lm_eval_limit)  # bad options fail first
+    lm_spec = lm_eval_spec(
+        lm_eval_tasks, lm_eval_limit, lm_eval_protocol
+    )  # bad options fail first
     if baseline_spec is not None and is_reference(baseline_spec):
         raise ValueError(
             "a reference model is not a probe baseline (different tokenizer and "
