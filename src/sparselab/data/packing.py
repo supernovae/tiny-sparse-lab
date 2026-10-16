@@ -2032,6 +2032,24 @@ class TokenBlockDataset:
     def __len__(self) -> int:
         return len(self.block_indices)
 
+    def exposure_supply(self) -> dict[str, int]:
+        """One prepared-data pass, using the same full blocks and target mask."""
+        full_blocks = max(0, (len(self.ids) - 1) // self.seq_len)
+        end = 1 + full_blocks * self.seq_len
+        targets = (
+            full_blocks * self.seq_len
+            if self.supervision is None
+            else int(np.count_nonzero(self.supervision[1:end]))
+        )
+        return {
+            "raw_packed_positions": len(self.ids),
+            "full_blocks": full_blocks,
+            "eligible_blocks": len(self),
+            "zero_target_blocks_skipped": full_blocks - len(self),
+            "trailing_target_positions": max(0, len(self.ids) - end),
+            "usable_supervised_targets_per_pass": targets,
+        }
+
     def numpy_block(
         self, index: int
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
