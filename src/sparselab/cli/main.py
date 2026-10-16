@@ -2633,6 +2633,7 @@ def _probe(args: argparse.Namespace) -> None:
             resource_envelope=args.resource_envelope_value,
             lm_eval_tasks=args.lm_eval_tasks,
             lm_eval_limit=args.lm_eval_limit,
+            lm_eval_protocol=args.lm_eval_protocol,
             final=args.final,
             request={
                 **args.probe_config_loaded.model_dump(mode="json"),

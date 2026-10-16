@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -186,7 +187,11 @@ def benchmark_group(summary: dict[str, Any]) -> str | None:
     return comparison_group(identity)
 
 
-def run_lm_eval(loaded: Any, tasks: Sequence[str], limit: int) -> dict[str, Any]:
+def run_lm_eval(
+    loaded: Any, tasks: Sequence[str], limit: int, *, protocol: Any = None
+) -> dict[str, Any]:
+    if protocol is not None:
+        return _run_controlled(loaded, protocol)
     lm_eval, _ = _harness()
     from lm_eval import simple_evaluate
 
@@ -210,4 +215,50 @@ def run_lm_eval(loaded: Any, tasks: Sequence[str], limit: int) -> dict[str, Any]
         raise RuntimeError(f"lm-eval returned no accuracy for: {', '.join(missing)}")
     summary["benchmark"]["limit"] = limit
     summary["benchmark_group"] = benchmark_group(summary)
+    return summary
+
+
+def _run_controlled(loaded: Any, value: Any) -> dict[str, Any]:
+    from sparselab.probes.benchmark_protocol import (
+        BenchmarkProtocol,
+        controlled_results,
+        offline,
+        pinned_tasks,
+    )
+
+    protocol = BenchmarkProtocol.model_validate(value)
+    start = time.monotonic()
+    with offline():
+        lm_eval, _ = _harness()
+        tasks = pinned_tasks(protocol)
+        results = (
+            lm_eval.simple_evaluate(
+                model=build_lm(loaded),
+                tasks=tasks,
+                limit=protocol.limit,
+                num_fewshot=protocol.num_fewshot,
+                bootstrap_iters=protocol.bootstrap_iters,
+                log_samples=True,
+                random_seed=protocol.seed,
+                numpy_random_seed=protocol.seed,
+                torch_random_seed=protocol.seed,
+                fewshot_random_seed=protocol.fewshot_seed,
+                apply_chat_template=False,
+                fewshot_as_multiturn=False,
+                confirm_run_unsafe_code=False,
+            )
+            or {}
+        )
+    summary = summarize_results(results, list(protocol.tasks))
+    controlled = controlled_results(results, protocol, loaded, time.monotonic() - start)
+    summary.update(controlled=controlled, version=protocol.harness_version)
+    summary["benchmark"]["controlled_protocol"] = controlled["protocol"]
+    summary["benchmark"]["context_length"] = loaded.config.model.max_seq_len
+    summary["benchmark"]["backend"] = str(
+        loaded.device.type if hasattr(loaded.device, "type") else loaded.device
+    )
+    summary["benchmark"]["parameter_dtype"] = str(next(loaded.model.parameters()).dtype)
+    summary["benchmark_group"] = (
+        benchmark_group(summary) if controlled["evidence_complete"] else None
+    )
     return summary

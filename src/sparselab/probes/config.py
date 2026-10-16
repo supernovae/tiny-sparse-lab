@@ -10,6 +10,7 @@ import yaml
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from sparselab.config.models import StrictModel
+from sparselab.probes.benchmark_protocol import BenchmarkProtocol
 
 
 class ProbeConfig(StrictModel):
@@ -17,6 +18,7 @@ class ProbeConfig(StrictModel):
     tier: Literal["fast", "standard", "full"] = "fast"
     final: bool = Field(default=False, strict=True)
     fast_fail: bool = Field(default=True, strict=True)
+    lm_eval_protocol: BenchmarkProtocol | None = None
     lm_eval_tasks: list[str] | None = None
     lm_eval_limit: int | None = Field(default=None, strict=True, ge=1)
     lab_dir: Path | None = None
@@ -49,9 +51,17 @@ class ProbeConfig(StrictModel):
                 "final evaluation requires tier: standard or full; use --config final"
             )
         if self.tier != "full" and (
-            self.lm_eval_tasks is not None or self.lm_eval_limit is not None
+            self.lm_eval_tasks is not None
+            or self.lm_eval_limit is not None
+            or self.lm_eval_protocol is not None
         ):
             raise ValueError("lm_eval_tasks and lm_eval_limit require tier: full")
+        if self.lm_eval_protocol is not None and (
+            self.lm_eval_tasks is not None or self.lm_eval_limit is not None
+        ):
+            raise ValueError(
+                "controlled protocol cannot be combined with smoke task/limit overrides"
+            )
         return self
 
 
@@ -119,6 +129,7 @@ def prepare_probe_config(args: argparse.Namespace) -> None:
         "final",
         "lm_eval_tasks",
         "lm_eval_limit",
+        "lm_eval_protocol",
         "lab_dir",
         "runs_dir",
         "runtime_profile",

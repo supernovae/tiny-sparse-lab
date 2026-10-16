@@ -485,7 +485,16 @@ def _measure(
         from sparselab.probes.lm_eval_adapter import LmEvalUnavailable, run_lm_eval
 
         try:
-            out = run_lm_eval(loaded, spec.params["tasks"], spec.params["limit"])
+            out = run_lm_eval(
+                loaded,
+                spec.params["tasks"],
+                spec.params["limit"],
+                **(
+                    {"protocol": spec.params["protocol"]}
+                    if "protocol" in spec.params
+                    else {}
+                ),
+            )
         except LmEvalUnavailable as error:
             raise ProbeUnsupported(str(error)) from None
         return {"value": out["mean_accuracy"], **out}
@@ -753,6 +762,29 @@ def _judge(
             }
         return row
     if spec.id == "lm_eval":
+        if "controlled" in t:
+            complete = t["controlled"]["evidence_complete"] and (
+                b is None or b.get("controlled", {}).get("evidence_complete")
+            )
+            compatible = b is None or (
+                t.get("benchmark_group") is not None
+                and t.get("benchmark_group") == b.get("benchmark_group")
+            )
+            return {
+                **row,
+                "status": "error"
+                if not complete
+                else "not_comparable"
+                if not compatible
+                else "info",
+                "note": "controlled task metrics; scientific interpretation not assessed",
+                "details": {
+                    "tasks": t["tasks"],
+                    "benchmark_group": t.get("benchmark_group"),
+                    "controlled": t["controlled"],
+                    "baseline_controlled": b.get("controlled") if b else None,
+                },
+            }
         if b is not None and t.get("benchmark_group") != b.get("benchmark_group"):
             return {
                 **row,
@@ -783,7 +815,7 @@ def _judge(
 
 
 def lm_eval_spec(
-    tasks: Sequence[str] | None = None, limit: int | None = None
+    tasks: Sequence[str] | None = None, limit: int | None = None, protocol: Any = None
 ) -> ProbeSpec:
     """The lm-eval probe, optionally with other tasks or a larger ``limit``.
 
@@ -792,6 +824,22 @@ def lm_eval_spec(
     limit. Chance is only known for the default tasks (None otherwise).
     """
     spec = BY_ID["lm_eval"]
+    if protocol is not None:
+        from sparselab.probes.benchmark_protocol import BenchmarkProtocol
+
+        protocol = BenchmarkProtocol.model_validate(protocol)
+        if tasks is not None or limit is not None:
+            raise ValueError("controlled protocol conflicts with task/limit overrides")
+        return dataclasses.replace(
+            spec,
+            params={
+                **spec.params,
+                "tasks": list(protocol.tasks),
+                "limit": protocol.limit,
+                "protocol": protocol.model_dump(mode="json"),
+                "chance": {t: None for t in protocol.tasks},
+            },
+        )
     if tasks is None and limit is None:
         return spec
     chosen = list(tasks) if tasks is not None else list(spec.params["tasks"])
