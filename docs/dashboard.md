@@ -17,7 +17,7 @@ uv run --locked --extra cpu sparselab dashboard --lab-dir DIR --runs-dir DIR
 | **Experiments** | Did my change help, and is the evidence good enough to act on? | verdict banner, per-probe table and charts, per-probe trends, history, side-by-side compare |
 | **Models** | Where does each checkpoint sit on cost vs quality, next to known models? | checkpoint catalog, Pareto frontier, reference models, runs nobody has scored yet |
 | **Behaviors** | What does the model actually do, and where does it fail? | greedy generations side by side, fact-recall hits and misses, needle by length, reliability diagram |
-| **Explorer** | What is inside this model, and how does it process a sentence? | architecture diagram, per-token loss and top-k, attention maps, weight stats, expert routing, memory lookups |
+| **Explorer** | What is inside this model, and how does it process a sentence? | architecture diagram, per-token loss and top-k, attention maps, weight stats, residual activation RMS, expert routing, memory lookups, paired checkpoint comparison |
 
 Every page reads lab records through the same verified reader as
 `sparselab report` (`sparselab.lab_records`). A record that fails its seal is
@@ -153,7 +153,12 @@ The explorer looks inside a small checkpoint: up to
 `sparselab.explorer.MAX_PARAMETERS` (60M) parameters and `MAX_TOKENS` (128)
 tokens of sample text. Bigger models get a clear message and only the
 architecture diagram, which comes from the config alone, so nothing is loaded.
-Explore from the page (pick a run and a sentence) or from the CLI:
+Explore from the page by selecting an immutable `step_*_gen_*` checkpoint
+generation or a pinned try/probe record and entering a sentence. Generations under
+`LAB/runs` and configured run roots appear with their step; mutable `latest.json`
+pointers and reference-model records are excluded. Duplicate selector paths are
+listed once. A record and its generation can still name the same checkpoint;
+comparison refuses their identical checkpoint digest. You can also use the CLI:
 
 For a custom sentence, save `explore.yaml` (see [explorer declarations](explore-config.md)):
 
@@ -180,8 +185,10 @@ An edited cache file is ignored and recomputed. Missing or malformed runtime
 provenance and sealed payload/key mismatches cannot yield a verified hit.
 Text/JSON output reports the producer runtime and invocation `cache_reuse`
 status/reason (a sealed overlay, not persisted into diagnostic cache bytes).
-Legacy cache bytes are retained unchanged; new runtime-bound paths do not
-overwrite them. The dashboard can display sealed legacy diagnostics, explicitly
+New v2 cache records include activation diagnostics. Historical v1 records
+remain readable in place, labeled "historical: re-explore for activations", and
+are excluded from paired comparison. New format-bound paths do not overwrite
+legacy cache bytes. The dashboard can display sealed legacy diagnostics, explicitly
 labeling missing/malformed provenance or key mismatches as unverified.
 Exploration goes through the same runtime preparation as `sparselab probe` and
 `sparselab try`: the run is resolved, the CPU default or
@@ -199,7 +206,7 @@ the explorer prints `LAB/explorer/operations/<invocation-id>/CANCEL` to stderr
 only that invocation. Each call gets a fresh operation directory, including cache
 hits; old operation directories and cancel files are retained. The old shared
 `LAB/explorer/CANCEL` is left untouched and no longer controls new invocations.
-Checkpoint/text/runtime cache identities are unchanged. MLX checkpoints and
+Cache keys bind the explorer format as well as checkpoint, text and runtime. MLX checkpoints and
 attached semantic packs are refused with a reason.
 
 ![Explorer: architecture and parameters (MoE run)](assets/dashboard-explorer.png)
@@ -223,6 +230,12 @@ attached semantic packs are refused with a reason.
   (attention sink) and its spread (entropy). Latent and block-sparse layers
   select or compress keys and expose no per-key weights; the page says so
   rather than showing something made up.
+- **Activations** (v2 records). Token-aligned residual-stream RMS, calculated in
+  FP32 before reduction: `residual_pre` is the input to the attention normalization,
+  `residual_mid` follows the attention residual, and `residual_post` follows the
+  FFN residual (the next block's normalization input, or final normalization input).
+  These are descriptive magnitudes, not attribution or a quality verdict. Only
+  per-token scalars are retained, not full residual activation tensors.
 - **Weights.** RMS per stored tensor (hover for norm, max |w| and shape) and a
   histogram of any tensor (sampled above 200k values, which the title says).
 
@@ -280,3 +293,19 @@ before a new `sparselab try`; an unchanged rerun cannot fix comparability.
 Probe-only settings absent from TryConfig are labelled separately from
 historical missing fields. Recorded verdict tier advice is labelled as such;
 a bare named tier does not retain the sealed effective policy.
+
+### Compare checkpoints
+
+Choose two pinned selectors and a shared sentence, then press **Compare**. Both
+explorations run on CPU. Paired v2 records must be sealed and verified, identify
+distinct checkpoints, and have the same tokenizer digest, exact text, token IDs
+(including initial EOS), and canonical runtime (engine, backend, device index,
+precision). Truncated inputs and missing or malformed activation diagnostics are
+refused. Historical v1 records must be re-explored before comparison.
+
+The paired RMS heatmaps share a scale; signed deltas are **right minus left**,
+centered on zero. Different architectures show their layer overlap and individual
+values but hide deltas (`architecture_matches=False`). Expert routing is shown
+separately for each checkpoint; dense FFNs have no MoE router. Changing a selector
+or sentence hides the previous result until you run again. A failed new comparison
+clears the prior comparison, so old charts cannot appear under a new selection.

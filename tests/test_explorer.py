@@ -38,7 +38,12 @@ WORDS = [
 def _config(**model: Any) -> Any:
     from sparselab.config.models import RunConfig
 
-    raw = yaml.safe_load((ROOT / "configs/smoke_moe_cpu.yaml").read_text())
+    base = (
+        "configs/smoke_cpu.yaml"
+        if model.get("ffn") == "dense"
+        else "configs/smoke_moe_cpu.yaml"
+    )
+    raw = yaml.safe_load((ROOT / base).read_text())
     raw["model"].update(model)
     return RunConfig.model_validate(raw)
 
@@ -70,6 +75,7 @@ def _loaded(**model: Any) -> Any:
         identity={
             "run_id": "tiny",
             "checkpoint_sha256": "c" * 64,
+            "tokenizer_sha256": "t" * 64,
             "step": 3,
             "runtime": {
                 "engine": "pytorch",
@@ -78,7 +84,6 @@ def _loaded(**model: Any) -> Any:
                 "precision": "fp32",
             },
         },
-        engine=None,
     )
 
 
@@ -351,3 +356,168 @@ def test_pre_load_stage_check_runs_before_the_loader(
         explorer.explore("tiny-run", lab_dir=lab, text=TEXT, load=load)
     assert cancelled.value.phase == "load" and calls == [] and released == [True] * 2
     _no_cache(lab)
+
+
+def test_activation_diagnostics_match_raw_residual_stream_and_leave_no_hooks() -> None:
+    for model_overrides in (MOE_NGRAM, {"ffn": "dense"}):
+        loaded = _loaded(**model_overrides)
+        result = explorer.explore_loaded(loaded, TEXT)
+        assert result["target"]["tokenizer_sha256"] == "t" * 64
+        act = result["activation"]
+        assert act["metric"] == "rms"
+        assert act["sites"] == ["residual_pre", "residual_mid", "residual_post"]
+        ids, truncated = explorer.tokenize(loaded, TEXT)
+        assert not truncated
+
+        # Independently step through the native model modules to compute exact RMS.
+        model = loaded.model
+        for mod in model.modules():
+            assert not mod._forward_pre_hooks and not mod._forward_hooks
+
+        x = torch.tensor([ids], dtype=torch.long)
+        with torch.inference_mode():
+            h = model.embedding(x)
+            if model.config.memory_injection == "embedding":
+                h = model._apply_memory(h, x, None)
+            for idx, block in enumerate(model.blocks):
+                pre_rms = h.float().square().mean(dim=-1).sqrt()[0].tolist()
+                attn_out = block.attention(block.norm1(h))
+                h_mid = h + attn_out
+                mid_rms = h_mid.float().square().mean(dim=-1).sqrt()[0].tolist()
+                if model_overrides.get("ffn") == "dense":
+                    ffn_out = block.ffn(block.norm2(h_mid))
+                else:
+                    ffn_out, _ = block.ffn.forward_with_aux(
+                        block.norm2(h_mid), diagnostics="full"
+                    )
+                h = h_mid + ffn_out
+                post_rms = h.float().square().mean(dim=-1).sqrt()[0].tolist()
+                layer_act = act["layers"][str(idx)]
+                assert layer_act["residual_pre"] == pytest.approx(pre_rms, rel=1e-6)
+                assert layer_act["residual_mid"] == pytest.approx(mid_rms, rel=1e-6)
+                assert layer_act["residual_post"] == pytest.approx(post_rms, rel=1e-6)
+                if idx + 1 < len(model.blocks):
+                    next_pre = act["layers"][str(idx + 1)]["residual_pre"]
+                    assert layer_act["residual_post"] == pytest.approx(
+                        next_pre, rel=1e-6
+                    )
+                if model_overrides is MOE_NGRAM:
+                    diag = block.ffn.last_diagnostics
+                    recorded = result["routing"][str(idx)]
+                    assert (
+                        recorded["selected"]
+                        == diag.selected_experts.cpu().numpy().tolist()
+                    )
+                    assert np.allclose(
+                        recorded["weights"],
+                        diag.selected_weights.float().cpu().numpy(),
+                    )
+            # Final block residual_post is the input to model.norm.
+            final_norm_in_rms = h.float().square().mean(dim=-1).sqrt()[0].tolist()
+            assert act["layers"][str(len(model.blocks) - 1)][
+                "residual_post"
+            ] == pytest.approx(final_norm_in_rms, rel=1e-6)
+
+    # Short and truncated inputs keep exact token-aligned activation lengths.
+    short_res = explorer.explore_loaded(_loaded(**MOE_NGRAM), "once")
+    assert not short_res["truncated"]
+    assert len(short_res["tokens"]) == 2
+    assert len(short_res["activation"]["layers"]["0"]["residual_pre"]) == 2
+
+    long_text = " ".join(["once upon a time"] * 40)
+    trunc_res = explorer.explore_loaded(_loaded(**MOE_NGRAM), long_text)
+    assert trunc_res["truncated"] is True
+    limit = len(trunc_res["tokens"])
+    for site in explorer.ACTIVATION_SITES:
+        assert len(trunc_res["activation"]["layers"]["0"][site]) == limit
+
+
+def test_compare_explorations_deltas_overlap_and_refusals() -> None:
+    from sparselab.lab_records import jsonable, seal
+
+    left_loaded = _loaded(**MOE_NGRAM)
+    right_loaded = _loaded(**MOE_NGRAM)
+    right_loaded.identity["checkpoint_sha256"] = "d" * 64
+    with torch.no_grad():
+        for param in right_loaded.model.parameters():
+            param.mul_(1.25)
+
+    left = seal(jsonable(explorer.explore_loaded(left_loaded, TEXT)))
+    right = seal(jsonable(explorer.explore_loaded(right_loaded, TEXT)))
+    comp = explorer.compare_explorations(left, right)
+    assert comp["common_layers"] == [0, 1]
+    assert comp["only_left"] == [] and comp["only_right"] == []
+    assert comp["architecture_matches"] is True
+    assert comp["delta"] is not None
+    for layer_key in ("0", "1"):
+        for site in explorer.ACTIVATION_SITES:
+            expected = [
+                r - l
+                for l, r in zip(
+                    left["activation"]["layers"][layer_key][site],
+                    right["activation"]["layers"][layer_key][site],
+                    strict=True,
+                )
+            ]
+            assert comp["delta"][layer_key][site] == pytest.approx(expected, rel=1e-6)
+            assert any(abs(v) > 1e-4 for v in comp["delta"][layer_key][site])
+
+    # Different architecture (3 layers vs 2 layers): overlap layers listed, delta is None.
+    deeper_loaded = _loaded(**MOE_NGRAM, num_layers=3)
+    deeper_loaded.identity["checkpoint_sha256"] = "e" * 64
+    deeper = seal(jsonable(explorer.explore_loaded(deeper_loaded, TEXT)))
+    diff_comp = explorer.compare_explorations(left, deeper)
+    assert diff_comp["common_layers"] == [0, 1]
+    assert diff_comp["only_left"] == []
+    assert diff_comp["only_right"] == [2]
+    assert diff_comp["architecture_matches"] is False
+    assert diff_comp["delta"] is None
+
+    # Explicit refusals for invalid/incompatible pairs.
+    with pytest.raises(explorer.ExplorerUnavailable, match="same checkpoint_sha256"):
+        explorer.compare_explorations(left, left)
+
+    diff_tok = seal(
+        {**right, "target": {**right["target"], "tokenizer_sha256": "z" * 64}}
+    )
+    with pytest.raises(explorer.ExplorerUnavailable, match="tokenizer_sha256"):
+        explorer.compare_explorations(left, diff_tok)
+
+    diff_text = seal({**right, "text": "once upon"})
+    with pytest.raises(explorer.ExplorerUnavailable, match="same text"):
+        explorer.compare_explorations(left, diff_text)
+
+    diff_ids = seal(
+        {
+            **right,
+            "tokens": [{**right["tokens"][0], "id": 999}, *right["tokens"][1:]],
+        }
+    )
+    with pytest.raises(explorer.ExplorerUnavailable, match="token-ID sequences"):
+        explorer.compare_explorations(left, diff_ids)
+
+    truncated = seal({**right, "truncated": True})
+    with pytest.raises(explorer.ExplorerUnavailable, match="truncated"):
+        explorer.compare_explorations(left, truncated)
+
+    diff_runtime = seal({**right, "runtime": {**right["runtime"], "backend": "rocm"}})
+    with pytest.raises(explorer.ExplorerUnavailable, match="different runtimes"):
+        explorer.compare_explorations(left, diff_runtime)
+
+    v1_record = seal({**right, "format": "sparselab-explorer-v1"})
+    with pytest.raises(explorer.ExplorerUnavailable, match="sparselab-explorer-v1"):
+        explorer.compare_explorations(left, v1_record)
+
+    no_act = seal({k: v for k, v in right.items() if k != "activation"})
+    with pytest.raises(explorer.ExplorerUnavailable, match="activation"):
+        explorer.compare_explorations(left, no_act)
+
+    unavail = seal({**right, "unavailable": "too big"})
+    with pytest.raises(explorer.ExplorerUnavailable, match="unavailable"):
+        explorer.compare_explorations(left, unavail)
+
+    with pytest.raises(explorer.ExplorerUnavailable, match="unsealed"):
+        explorer.compare_explorations(left, {**right, "text": "tampered"})
+
+    with pytest.raises(explorer.ExplorerUnavailable, match="unverified cache"):
+        explorer.compare_explorations(left, {**right, "cache_issue": "bad cache"})
