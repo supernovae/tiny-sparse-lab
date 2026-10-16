@@ -449,17 +449,65 @@ class EvaluationConfig(StrictModel):
     max_batches: int = Field(default=16, gt=0)
 
 
+class CheckpointMilestone(StrictModel):
+    name: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
+    step: Annotated[int, Field(strict=True, ge=0)]
+    committed_targets: Annotated[int, Field(strict=True, ge=0)]
+
+
+class CheckpointRetention(StrictModel):
+    milestones: tuple[CheckpointMilestone, ...] = Field(max_length=128)
+    terminal_step: Annotated[int, Field(strict=True, gt=0)]
+    terminal_targets: Annotated[int, Field(strict=True, gt=0)]
+    max_generations: Annotated[int, Field(strict=True, gt=0, le=1024)]
+    max_generation_bytes: Annotated[int, Field(strict=True, gt=0)]
+    max_retained_bytes: Annotated[int, Field(strict=True, gt=0)]
+    max_peak_bytes: Annotated[int, Field(strict=True, gt=0)]
+    reserve_free_bytes: Annotated[int, Field(strict=True, ge=0)]
+
+    @property
+    def retained_upper(self) -> int:
+        # Latest, previous, best and terminal may all be distinct after recovery.
+        return len(self.milestones) + 4
+
+    @model_validator(mode="after")
+    def finite_plan(self) -> CheckpointRetention:
+        if len({item.name for item in self.milestones}) != len(self.milestones):
+            raise ValueError("checkpoint milestone names must be unique")
+        if any(
+            item.step > self.terminal_step
+            or item.committed_targets > self.terminal_targets
+            for item in self.milestones
+        ):
+            raise ValueError("checkpoint milestone exceeds terminal boundary")
+        if (
+            self.max_generations < self.retained_upper
+            or self.max_retained_bytes < self.retained_upper * self.max_generation_bytes
+            or self.max_peak_bytes
+            < (self.retained_upper + 1) * self.max_generation_bytes
+        ):
+            raise ValueError(
+                "retention limits cannot fit the conservative keep-set and write headroom"
+            )
+        return self
+
+
 class CheckpointConfig(StrictModel):
     every_steps: int | None = Field(default=50, gt=0)
     every_tokens: int | None = Field(default=None, gt=0)
     every_minutes: float | None = Field(default=None, gt=0)
     keep_periodic: bool = True
+    retention: CheckpointRetention | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     steps: tuple[Annotated[int, Field(strict=True, ge=0)], ...] = Field(
         default=(), exclude_if=lambda value: not value
     )
 
     @model_validator(mode="after")
     def validate_cadence(self) -> CheckpointConfig:
+        if self.retention is not None and self.keep_periodic:
+            raise ValueError("milestone retention requires keep_periodic=false")
         if tuple(sorted(set(self.steps))) != self.steps:
             raise ValueError("checkpoint steps must be strictly increasing and unique")
         if (
@@ -538,6 +586,12 @@ class RunConfig(StrictModel):
             raise ValueError(
                 "SDPA requires PyTorch dense attention with equal Q/KV head counts"
             )
+        policy = self.checkpoint.retention
+        if policy is not None and (
+            policy.terminal_step != self.training.max_steps
+            or policy.terminal_targets != self.training.max_tokens
+        ):
+            raise ValueError("retention terminal boundary must match training limits")
         if self.optimizer.warmup_steps >= self.training.max_steps:
             raise ValueError(
                 "optimizer.warmup_steps must be smaller than training.max_steps"

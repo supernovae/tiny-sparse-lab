@@ -93,3 +93,6 @@ introduce a shared experiment ledger.
 New checkpoints expose [prepared-data exposure and timing](checkpoint-exposure.md)
 through `evidence.checkpoints[].exposure` in run-report JSON. Historical absence is
 reported as null, without reconstructing or modifying old evidence.
+
+For finite local recovery and scientific checkpoint keep-sets, see
+[checkpoint milestone retention](checkpoint-milestones.md).

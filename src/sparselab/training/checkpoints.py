@@ -22,10 +22,11 @@ import torch
 from safetensors import SafetensorError
 from safetensors.torch import load_file, save_file
 
-from sparselab.config.models import AdamWConfig, RunConfig
+from sparselab.config.models import AdamWConfig, CheckpointRetention, RunConfig
 from sparselab.data.verification import verify_file
 from sparselab.engines.base import CanonicalTensor, WeightSource
 from sparselab.model.inspection import TensorSpec, named_tensor_inventory
+from sparselab.training import retention as retention_policy
 from sparselab.training.manifest import (
     architecture_sha256,
     canonical_json,
@@ -699,12 +700,17 @@ class CheckpointManager:
         *,
         manifest_sha256: str | None = None,
         keep_periodic: bool = True,
+        retention: CheckpointRetention | None = None,
+        inherited_milestones: list[dict] | None = None,
         fault_injector: Callable[[str], None] | None = None,
     ) -> None:
         self.run_dir = run_dir
         self.root = run_dir / "checkpoints"
         self.manifest_sha256 = manifest_sha256
         self.keep_periodic = keep_periodic
+        self.retention = retention
+        self._inherited_milestones = inherited_milestones
+        self._retention_admission: dict | None = None
         # Test-only crash seams: production callers leave this unset.
         self._fault_injector = fault_injector
         self._lease_handle: object | None = None
@@ -733,6 +739,7 @@ class CheckpointManager:
         self._lease_depth = 1
         self._write_records = None
         try:
+            self._bind_retention()
             yield
         finally:
             self._lease_depth -= 1
@@ -741,6 +748,61 @@ class CheckpointManager:
                 handle.close()
                 self._lease_handle = None
                 self._write_records = None
+
+    def _publish_retention(self, path: Path, payload: dict) -> None:
+        _atomic_json(path, payload)
+        # Unlike legacy pointer repair, preservation metadata must report a
+        # directory durability failure before any generation can be pruned.
+        descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    def _bind_retention(self) -> None:
+        path = self.root / "retention-policy.json"
+        if path.is_symlink():
+            raise ValueError("unsafe retention policy")
+        if path.exists():
+            saved = CheckpointRetention.model_validate(strict_json(path))
+            if self.retention is not None and saved != self.retention:
+                raise ValueError(
+                    "checkpoint retention policy cannot change within a run"
+                )
+            self.retention = saved
+        elif self.retention is not None:
+            if any(self.root.glob("step_*_gen_*")):
+                raise ValueError(
+                    "milestone retention must be declared before the first checkpoint"
+                )
+            self._publish_retention(path, self.retention.model_dump(mode="json"))
+
+        if self._inherited_milestones is not None:
+            inherited_path = self.root / "retention-inherited.json"
+            payload = {"references": self._inherited_milestones}
+            if inherited_path.is_symlink():
+                raise ValueError("unsafe inherited retention references")
+            if inherited_path.exists():
+                if strict_json(inherited_path) != payload:
+                    raise ValueError("inherited milestone selections cannot change")
+            else:
+                self._publish_retention(inherited_path, payload)
+
+    def _retention_check(self, operation: Callable[[], dict]) -> dict:
+        try:
+            return operation()
+        except (OSError, ValueError, RuntimeError) as error:
+            _atomic_json(
+                self.root / "retention-failure.json",
+                {
+                    "status": "refused",
+                    "reason": str(error),
+                    "policy": self.retention.model_dump(mode="json")
+                    if self.retention
+                    else None,
+                },
+            )
+            raise
 
     def _next_generation(self) -> int:
         generations: list[int] = []
@@ -880,6 +942,11 @@ class CheckpointManager:
             raise ValueError(
                 "snapshot manifest digest does not match checkpoint manager"
             )
+        if not isinstance(snapshot.config, dict):
+            raise TypeError("snapshot config must be a mapping")
+        resolved = RunConfig.model_validate(snapshot.config)
+        if self.retention != resolved.checkpoint.retention:
+            raise ValueError("snapshot and manager retention policies differ")
         if self._write_records is None:
             self.reconcile()
         generation_id = self._next_generation()
@@ -887,9 +954,12 @@ class CheckpointManager:
         final = self.root / name
         if final.exists():
             raise FileExistsError(f"checkpoint generation already exists: {final}")
-        if not isinstance(snapshot.config, dict):
-            raise TypeError("snapshot config must be a mapping")
-        resolved = RunConfig.model_validate(snapshot.config)
+        if self.retention is not None:
+            if self.keep_periodic:
+                raise ValueError("milestone saves require keep_periodic=false")
+            self._retention_admission = self._retention_check(
+                lambda: retention_policy.admit_write(self.root, self.retention)
+            )
         # Checkpoint identities bind the exact serialized config, not defaults
         # introduced by a later schema reader.
         snapshot.config_sha256 = snapshot.config_sha256 or config_sha256(
@@ -1019,6 +1089,28 @@ class CheckpointManager:
             report = self.verify(temporary)
             if not report.valid:
                 raise ValueError(f"checkpoint verification failed: {report.errors}")
+            if self.retention is not None:
+
+                def check_written() -> dict:
+                    actual = sum(
+                        member.stat().st_size for member in temporary.iterdir()
+                    )
+                    if actual > self.retention.max_generation_bytes:
+                        raise ValueError(
+                            "checkpoint exceeds declared per-generation bytes"
+                        )
+                    if (
+                        retention_policy.footprint(self.root)
+                        + sum(
+                            row["full_directory_bytes"]
+                            for row in retention_policy.inherited_rows(self.root)
+                        )
+                        > self.retention.max_peak_bytes
+                    ):
+                        raise ValueError("staged checkpoint exceeds peak-byte plan")
+                    return {"actual_generation_bytes": actual}
+
+                self._retention_check(check_written)
             self._fault("before_finalized_rename")
             temporary.replace(final)
             _fsync_directory(self.root)
@@ -1231,6 +1323,12 @@ class CheckpointManager:
         records, rejected = self._verified_records(
             expected_manifest=self.manifest_sha256
         )
+        if self.retention is not None and rejected:
+
+            def invalid() -> dict:
+                raise ValueError("retention refuses unverified checkpoint generations")
+
+            self._retention_check(invalid)
         self._write_records = records
         latest = self._project_records(records)
         return RecoveryResult(latest, tuple(rejected))
@@ -1240,6 +1338,11 @@ class CheckpointManager:
     ) -> CheckpointRecord | None:
         """Publish pointers only after generation verification and durable rename."""
         records.sort(key=lambda item: (item.step, item.generation_id))
+        retention = None
+        if self.retention is not None:
+            retention = self._retention_check(
+                lambda: retention_policy.plan(self.root, records, self.retention)
+            )
         if not records:
             for pointer in ("latest.json", "best.json"):
                 (self.root / pointer).unlink(missing_ok=True)
@@ -1273,6 +1376,16 @@ class CheckpointManager:
             protected = {item.relative_path for item in records[-2:]}
             if best is not None:
                 protected.add(best.relative_path)
+            if retention is not None:
+                protected = {
+                    row["relative_path"]
+                    for row in retention["retained"]
+                    if row.get("local", True)
+                }
+                retention["write_admission"] = self._retention_admission
+                # Durable keep-set precedes deletion; a crash can only leave extra files.
+                self._publish_retention(self.root / "retention.json", retention)
+                self._fault("after_retention_publication_before_prune")
             for record in records:
                 if record.relative_path not in protected:
                     directory = self.root / record.relative_path

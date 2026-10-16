@@ -38,6 +38,9 @@ def checkpoint_generation_bounds(config: RunConfig) -> dict[str, Any]:
         if checkpoints.every_tokens
         else 0
     )
+    milestone_events = (
+        len(checkpoints.retention.milestones) if checkpoints.retention else 0
+    )
     validation_steps = (steps - 1) // config.evaluation.every_steps
     minute_steps = steps - 1 if checkpoints.every_minutes is not None else 0
     # With no other trigger to shift the watermark, a step cadence divisible
@@ -47,6 +50,7 @@ def checkpoint_generation_bounds(config: RunConfig) -> dict[str, Any]:
         checkpoints.every_steps is not None
         and checkpoints.every_steps % config.evaluation.every_steps == 0
         and not explicit
+        and not milestone_events
         and checkpoints.every_tokens is None
         and checkpoints.every_minutes is None
     ):
@@ -58,6 +62,7 @@ def checkpoint_generation_bounds(config: RunConfig) -> dict[str, Any]:
     upper = 2 + min(
         steps - 1,
         len(explicit)
+        + milestone_events
         + disjoint_step_events
         + scheduled_tokens
         + validation_steps
@@ -68,6 +73,9 @@ def checkpoint_generation_bounds(config: RunConfig) -> dict[str, Any]:
     # Manager prunes *after* committing and projecting a new generation. Reserve
     # a fourth transient generation when latest, previous and best are distinct.
     peak_generations = upper if keep_periodic else min(upper, 4)
+    if checkpoints.retention is not None:
+        retained_upper = min(upper, checkpoints.retention.retained_upper)
+        peak_generations = min(upper, checkpoints.retention.retained_upper + 1)
     return {
         "steps": steps,
         "explicit": explicit,

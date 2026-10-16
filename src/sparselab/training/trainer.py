@@ -390,8 +390,20 @@ def _checkpoint_due(
             (elapsed - watermarks.get("minutes", 0)) / 60,
         ),
     )
-    return step in config.checkpoint.steps or any(
-        interval is not None and value >= interval for interval, value in checks
+    policy = config.checkpoint.retention
+    milestone_due = policy is not None and any(
+        step >= item.step
+        and tokens >= item.committed_targets
+        and not (
+            watermarks.get("step", -1) >= item.step
+            and watermarks.get("tokens", -1) >= item.committed_targets
+        )
+        for item in policy.milestones
+    )
+    return (
+        milestone_due
+        or step in config.checkpoint.steps
+        or any(interval is not None and value >= interval for interval, value in checks)
     )
 
 
@@ -1136,7 +1148,20 @@ def _train_impl(
             _atomic_json(run / "spot_safety.json", spot_decision)
         if authorization is not None:
             _atomic_json(run / "runtime_authorization.json", authorization.as_dict())
-        manager = CheckpointManager(run, keep_periodic=config.checkpoint.keep_periodic)
+        inherited = None
+        if config.checkpoint.retention is not None and continuation == "RESUMED":
+            from sparselab.training.retention import inherited_milestones
+
+            assert source_run is not None
+            inherited = inherited_milestones(
+                source_run, config.checkpoint.retention, step, tokens
+            )
+        manager = CheckpointManager(
+            run,
+            keep_periodic=config.checkpoint.keep_periodic,
+            retention=config.checkpoint.retention,
+            inherited_milestones=inherited,
+        )
         resources.enter_context(manager.writer_lease())
         with pilot_phase("run_input_materialization"):
             artifacts = _copy_artifacts(run, config, data, artifact_source)
@@ -1547,6 +1572,15 @@ def _train_impl(
             reporting_started = time.perf_counter()
             try:
                 store.record_checkpoint(run_id, record)
+                if config.checkpoint.retention is not None:
+                    store.log_event(
+                        run_id,
+                        step,
+                        tokens,
+                        elapsed_seconds(),
+                        "checkpoint_retention",
+                        json.loads((run / "checkpoints/retention.json").read_text()),
+                    )
                 store.log_event(
                     run_id,
                     step,
