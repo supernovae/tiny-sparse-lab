@@ -89,3 +89,7 @@ native attempt inspection grammar use `report`; there are no compatibility
 commands. Historical research records, receipts, hashes and schemas remain
 unchanged. This change does not remove distinct advanced workflow contracts or
 introduce a shared experiment ledger.
+
+New checkpoints expose [prepared-data exposure and timing](checkpoint-exposure.md)
+through `evidence.checkpoints[].exposure` in run-report JSON. Historical absence is
+reported as null, without reconstructing or modifying old evidence.

@@ -267,6 +267,7 @@ def experiment_evidence(
                 {
                     "step": raw["step"],
                     "tokens_seen": raw["tokens_seen"],
+                    "exposure": raw.get("exposure"),
                     "validation_loss": raw["validation_loss"],
                     "digest": raw["sha256"],
                 }

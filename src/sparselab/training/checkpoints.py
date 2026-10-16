@@ -223,6 +223,7 @@ class TrainingSnapshot:
     lineage_best: LineageBest | None = None
     checkpoint_sha256: str | None = None
     weight_source: WeightSource | None = None
+    exposure: dict[str, Any] | None = None
 
 
 def _check_rng(rng: dict[str, Any], backend: str, device_index: int) -> None:
@@ -1003,6 +1004,15 @@ class CheckpointManager:
                     else None
                 ),
             }
+            if snapshot.exposure is not None:
+                if (
+                    snapshot.exposure["committed_supervised_targets"]
+                    != snapshot.tokens_seen
+                ):
+                    raise ValueError(
+                        "exposure differs from committed checkpoint targets"
+                    )
+                content["exposure"] = snapshot.exposure
             digest = hashlib.sha256(_canonical(content)).hexdigest()
             manifest = {**content, "sha256": digest}
             _atomic_json(temporary / "manifest.json", manifest)
@@ -1665,6 +1675,7 @@ class CheckpointManager:
             cumulative_update_seconds=native.get("cumulative_update_seconds"),
             lineage_best=_lineage_best(native.get("lineage_best")),
             checkpoint_sha256=raw["sha256"],
+            exposure=raw.get("exposure"),
         )
 
     def latest_valid(self) -> RecoveryResult:

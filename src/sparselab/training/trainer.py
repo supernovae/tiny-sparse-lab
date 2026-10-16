@@ -79,6 +79,7 @@ from sparselab.training.checkpoints import (
     existing_run_recovery_report,
 )
 from sparselab.training.continuation import load_continuation
+from sparselab.training.exposure import checkpoint_exposure, exposure_context
 from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
@@ -423,6 +424,7 @@ def _save(
     wall_seconds: float,
     update_seconds: float,
     lineage_best: LineageBest | None = None,
+    exposure: dict[str, object] | None = None,
 ) -> CheckpointRecord:
     state = engine.export_training_state()
     config_payload = config.model_dump(mode="json")
@@ -451,6 +453,7 @@ def _save(
         cumulative_wall_seconds=wall_seconds,
         cumulative_update_seconds=update_seconds,
         lineage_best=lineage_best,
+        exposure=exposure,
     )
     return manager.save(snapshot, validation_loss)
 
@@ -1082,6 +1085,8 @@ def _train_impl(
         cumulative_wall = 0.0
         cumulative_updates = 0.0
         watermarks: dict[str, float] = {}
+        prior_exposure = snapshot.exposure if snapshot is not None else None
+        wall_complete = updates_complete = continuation != "RESUMED"
         if snapshot is not None and continuation == "RESUMED":
             engine.restore_training_state(
                 EngineState(
@@ -1096,6 +1101,15 @@ def _train_impl(
             watermarks = snapshot.cadence or {}
             cumulative_wall = snapshot.cumulative_wall_seconds or 0.0
             cumulative_updates = snapshot.cumulative_update_seconds or 0.0
+            prior_timing = (prior_exposure or {}).get("timing", {})
+            wall_complete = (
+                snapshot.cumulative_wall_seconds is not None
+                and prior_timing.get("training_loop_elapsed_seconds") is not None
+            )
+            updates_complete = (
+                snapshot.cumulative_update_seconds is not None
+                and prior_timing.get("optimizer_update_seconds") is not None
+            )
         if snapshot is not None:
             snapshot.model.clear()
             snapshot.optimizer.clear()
@@ -1124,6 +1138,14 @@ def _train_impl(
         resources.enter_context(manager.writer_lease())
         with pilot_phase("run_input_materialization"):
             artifacts = _copy_artifacts(run, config, data, artifact_source)
+        exposure_base = exposure_context(
+            dataset,
+            artifacts,
+            seed=config.seed,
+            run_id=run_id,
+            continuation=continuation,
+            prior=prior_exposure,
+        )
         owned_manifest = run / "portability_manifest.json"
         if _portability_manifest_v2(owned_manifest) is not None:
             config = _bind_learned_inputs(config, owned_manifest)
@@ -1473,6 +1495,16 @@ def _train_impl(
                         wall_seconds=elapsed,
                         update_seconds=cumulative_updates,
                         lineage_best=lineage_best,
+                        exposure=checkpoint_exposure(
+                            exposure_base,
+                            tokens=tokens,
+                            cursor=cursor,
+                            wall_seconds=elapsed,
+                            invocation_seconds=checkpoint_started - operation_started,
+                            update_seconds=cumulative_updates,
+                            wall_complete=wall_complete,
+                            updates_complete=updates_complete,
+                        ),
                     )
             except BaseException:
                 add_phase_time("checkpoint_attempt", checkpoint_started)
