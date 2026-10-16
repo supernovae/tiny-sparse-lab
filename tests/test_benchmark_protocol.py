@@ -535,10 +535,14 @@ def test_nonfinite_adapter_preserves_other_evidence(fake, monkeypatch, where):
     assert len(task["items"]) == 2
 
 
-def test_task_config_pin_is_portable_but_binds_prompt(fake):
+def test_task_config_pin_is_portable_but_binds_prompt_and_metadata(fake):
     calls, task = fake
     config = task.dump_config() | {
-        "config_source": "/host-one/venv/tasks/piqa.yaml",
+        "metadata": {
+            "version": 1.0,
+            "config_source": "/host-one/venv/tasks/piqa.yaml",
+            "description": "semantic metadata",
+        },
         "doc_to_text": "Question: {{question}}",
     }
     original = copy.deepcopy(config)
@@ -547,13 +551,23 @@ def test_task_config_pin_is_portable_but_binds_prompt(fake):
     task.dump_config = lambda: config
     first = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
     assert config == original
-    config = config | {"config_source": "/container/other-venv/tasks/piqa.yaml"}
+    config = config | {
+        "metadata": config["metadata"]
+        | {"config_source": "/container/other-venv/tasks/piqa.yaml"}
+    }
+    moved = copy.deepcopy(config)
     assert bp.task_config_digest(config) == p["tasks"]["piqa"]["config_sha256"]
     second = adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    assert config == moved
     assert first["benchmark_group"] == second["benchmark_group"]
-    config = config | {"doc_to_text": "Changed prompt: {{question}}"}
-    with pytest.raises(ValueError, match="task config mismatch"):
-        adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
+    for changed in (
+        moved | {"doc_to_text": "Changed prompt: {{question}}"},
+        moved | {"metadata": moved["metadata"] | {"version": 2.0}},
+        moved | {"metadata": moved["metadata"] | {"description": "changed semantics"}},
+    ):
+        config = changed
+        with pytest.raises(ValueError, match="task config mismatch"):
+            adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
     assert len(calls) == 2
 
 
@@ -599,3 +613,39 @@ def test_explicit_fewshot_samples_do_not_fall_back_to_test(fake):
     p["tasks"]["piqa"]["config_sha256"] = bp.task_config_digest(config)
     adapter.run_lm_eval(loaded(), ["piqa"], 2, protocol=p)
     assert len(calls) == 1
+
+
+def test_installed_harness_config_location_without_loading_data(monkeypatch):
+    """Optional installed-only API check: packaged YAML + config dump, no dataset."""
+    import socket
+    from pathlib import Path
+
+    lm_eval = pytest.importorskip("lm_eval", reason="optional lm-eval is not installed")
+    if bp.version("lm-eval") != "0.4.13":
+        pytest.skip("config-location check is pinned to lm-eval 0.4.13")
+    import datasets
+    from lm_eval.api.task import Task
+    from lm_eval.config.task import TaskConfig
+    from lm_eval.tasks._factory import TaskFactory
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("config-only check attempted dataset or network access")
+
+    monkeypatch.setattr(datasets, "load_dataset", forbidden)
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    path = Path(lm_eval.__file__).parent / "tasks" / "sciq" / "sciq.yaml"
+    cfg = TaskFactory()._load_full_config(
+        SimpleNamespace(yaml_path=path, cfg=None, name="sciq")
+    )
+    for key in ("tag", "group", "task_list"):
+        cfg.pop(key, None)
+    # dump_config only accesses config.to_dict(); avoid constructing a task,
+    # whose initializer loads datasets even before scoring.
+    dumped = Task.dump_config(SimpleNamespace(config=TaskConfig(**cfg)))
+    assert dumped["metadata"]["config_source"] == str(path)
+    assert "version" in dumped["metadata"]
+    moved = copy.deepcopy(dumped)
+    moved["metadata"]["config_source"] = "/other-venv/tasks/sciq.yaml"
+    assert bp.task_config_digest(dumped) == bp.task_config_digest(moved)
+    moved["metadata"]["version"] = "changed"
+    assert bp.task_config_digest(dumped) != bp.task_config_digest(moved)

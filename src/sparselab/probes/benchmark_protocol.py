@@ -88,9 +88,15 @@ def digest(value: Any) -> str:
 
 def task_config_digest(config: dict[str, Any]) -> str:
     """Bind effective task content, excluding only its machine-local YAML path."""
-    return digest(
-        {key: value for key, value in config.items() if key != "config_source"}
-    )
+    # lm-eval v0.4.13 tasks/_factory.py: TaskFactory._load_full_config
+    # writes the YAML location under metadata, beside semantic fields like version.
+    canonical = dict(config)
+    metadata = canonical.get("metadata")
+    if isinstance(metadata, dict) and "config_source" in metadata:
+        canonical["metadata"] = {
+            key: value for key, value in metadata.items() if key != "config_source"
+        }
+    return digest(canonical)
 
 
 def finite_evidence(value: Any) -> tuple[Any, bool]:
