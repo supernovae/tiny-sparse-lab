@@ -56,11 +56,15 @@ def evaluate(
     max_batches: int,
     device: torch.device,
     observer: Callable[[torch.Tensor, torch.Tensor], None] | None = None,
+    before_batch: Callable[[int], None] | None = None,
+    progress: Callable[[float, int, int], None] | None = None,
 ) -> dict[str, float | int | str | None]:
     """Evaluate no more than ``max_batches`` and report exactly scored labels.
 
     ``observer(logits, targets)`` sees every scored batch (e.g. the probe
     battery's per-window and calibration statistics) without a second pass.
+    ``before_batch`` receives forward-input positions before each model call;
+    ``progress`` receives cumulative NLL, valid targets and completed batches.
     """
     if batch_size <= 0 or max_batches <= 0:
         raise ValueError("batch_size and max_batches must be positive")
@@ -127,6 +131,8 @@ def evaluate(
                     model_inputs["semantic_queries"] = semantic_queries
                 if memory_mask is not None:
                     model_inputs["memory_mask"] = memory_mask
+                if before_batch is not None:
+                    before_batch(x.numel())
                 logits = model(x, **model_inputs)
                 loss = functional.cross_entropy(
                     logits.float().flatten(0, 1),
@@ -143,6 +149,8 @@ def evaluate(
                     total += float(loss)
                     count += valid
                 batches += 1
+                if progress is not None:
+                    progress(total, count, batches)
         if count == 0:
             raise ValueError("validation contains no valid labels")
         loss = total / count
