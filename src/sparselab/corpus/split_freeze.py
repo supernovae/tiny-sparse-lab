@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -83,9 +84,25 @@ def verify_split_bundle(
     return receipt
 
 
-def _counts(total: int) -> tuple[int, int, int]:
-    floors = [total * weight // 10 for weight in _WEIGHTS]
-    remainders = [total * weight % 10 for weight in _WEIGHTS]
+def _split_weights(value: object) -> tuple[int, int, int]:
+    if (
+        not isinstance(value, dict)
+        or set(value) != set(_SPLITS)
+        or any(type(value[key]) is not int or value[key] <= 0 for key in _SPLITS)
+        or sum(value.values()) > 10000
+    ):
+        raise ValueError(
+            "split_weights requires positive integer train/validation/test weights totaling at most 10000"
+        )
+    return tuple(value[key] for key in _SPLITS)
+
+
+def _counts(
+    total: int, weights: tuple[int, int, int] = _WEIGHTS
+) -> tuple[int, int, int]:
+    denominator = sum(weights)
+    floors = [total * weight // denominator for weight in weights]
+    remainders = [total * weight % denominator for weight in weights]
     for index in sorted(range(3), key=lambda i: (-remainders[i], i))[
         : total - sum(floors)
     ]:
@@ -223,6 +240,7 @@ def freeze_splits(
             "reviewer",
             "reviewed_on",
             "prior_family_inventory",
+            "split_weights",
         }
         or raw_clusters["schema_version"] != 1
         or not isinstance(raw_clusters["seed"], str)
@@ -236,13 +254,18 @@ def freeze_splits(
         or set(raw_clusters["source_strata"])
         != {source.id for source in project.sources}
         or any(
-            stratum
-            not in {"general_prose", "explanatory_prose", "incident_response_docs"}
+            not isinstance(stratum, str)
+            or re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", stratum) is None
             for stratum in raw_clusters["source_strata"].values()
         )
         or not isinstance(raw_clusters["merges"], list)
     ):
         raise ValueError("invalid reviewed family-cluster declaration")
+    weights = (
+        _split_weights(raw_clusters["split_weights"])
+        if "split_weights" in raw_clusters
+        else _WEIGHTS
+    )
     prior_families, prior_strata, prior_content = (
         _prior_family_splits(raw_clusters["prior_family_inventory"], root)
         if "prior_family_inventory" in raw_clusters
@@ -341,7 +364,7 @@ def freeze_splits(
     if any(len(strata) > 1 for strata in family_strata.values()):
         raise ValueError("reviewed family spans multiple token strata")
     realized: dict[str, dict[str, Any]] = {}
-    for stratum in ("general_prose", "explanatory_prose", "incident_response_docs"):
+    for stratum in sorted(set(raw_clusters["source_strata"].values())):
         names = sorted(
             (
                 family
@@ -352,9 +375,9 @@ def freeze_splits(
                 canonical_json([raw_clusters["seed"], stratum, family])
             ).hexdigest(),
         )
-        if len(names) < 10:
+        if len(names) < sum(weights):
             raise ValueError(f"too few eligible families for {stratum} split")
-        train, validation, test = _counts(len(names))
+        train, validation, test = _counts(len(names), weights)
         realized[stratum] = {
             "families": len(names),
             "train": train,
@@ -445,6 +468,11 @@ def freeze_splits(
         "cluster_sha256": sha256_file(clusters_path),
         "family_counts": realized,
         **(
+            {"split_weights": raw_clusters["split_weights"]}
+            if "split_weights" in raw_clusters
+            else {}
+        ),
+        **(
             {
                 "prior_family_inventory_sha256": raw_clusters["prior_family_inventory"][
                     "sha256"
@@ -490,6 +518,11 @@ def freeze_splits(
         "eligible_documents": eligible,
         "placeholder_documents": len(ids) - eligible,
         "family_counts": realized,
+        **(
+            {"split_weights": raw_clusters["split_weights"]}
+            if "split_weights" in raw_clusters
+            else {}
+        ),
     }
 
 

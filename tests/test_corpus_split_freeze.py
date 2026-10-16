@@ -17,7 +17,7 @@ from sparselab.corpus.project import SplitDeclaration
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
-def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, family_count=10):
     sources = [SimpleNamespace(id=source) for source in ("books", "pages", "incidents")]
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -47,7 +47,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "snapshot_path": str(snapshot),
             "snapshot_sha256": "a" * 64,
         }
-        for index in range(10):
+        for index in range(family_count):
             path = (
                 f"docs/{index}.md"
                 if source.id == "incidents"
@@ -73,7 +73,11 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             decisions[source.id, path] = (
                 {"decision": "qualify"}
                 if source.id == "incidents"
-                else {"decisions": {i: {"decision": "qualify"} for i in range(10)}}
+                else {
+                    "decisions": {
+                        i: {"decision": "qualify"} for i in range(family_count)
+                    }
+                }
             )
     inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
     clusters_path = tmp_path / "clusters.json"
@@ -870,3 +874,81 @@ def test_public_cli_recovers_identical_bundle_and_emits_json(
         ValueError, match="unreviewed or duplicate native option: --recover"
     ):
         classify_attempt_command([*argv, "--recover"])
+
+
+def test_reviewed_98_1_1_split_and_fresh_strata_are_identity_bound(
+    tmp_path, monkeypatch
+):
+    project, inventory, clusters, _, _ = _fixture(
+        tmp_path, monkeypatch, family_count=100
+    )
+    declaration = json.loads(clusters.read_text())
+    declaration["split_weights"] = {"train": 98, "validation": 1, "test": 1}
+    declaration["source_strata"] = {
+        "books": "real_english",
+        "pages": "synthetic",
+        "incidents": "code",
+    }
+    clusters.write_bytes(canonical_json(declaration))
+    output = tmp_path / "splits.yaml"
+    result = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    receipt = split_freeze.verify_split_bundle(output)
+    assert receipt["split_weights"] == declaration["split_weights"]
+    assert receipt["cluster_sha256"] == sha256_file(clusters)
+    assert set(receipt["family_counts"]) == {"real_english", "synthetic", "code"}
+    for counts in receipt["family_counts"].values():
+        assert [counts[key] for key in ("train", "validation", "test")] == [98, 1, 1]
+    first = output.read_bytes()
+    again = tmp_path / "same.yaml"
+    split_freeze.freeze_splits(project, tmp_path, inventory, clusters, again)
+    assert again.read_bytes() == first
+    declaration["split_weights"] = {"train": 96, "validation": 2, "test": 2}
+    clusters.write_bytes(canonical_json(declaration))
+    changed = tmp_path / "changed.yaml"
+    split_freeze.freeze_splits(project, tmp_path, inventory, clusters, changed)
+    assert changed.read_bytes() != first
+    assert (
+        split_freeze.verify_split_bundle(changed)["cluster_sha256"]
+        != receipt["cluster_sha256"]
+    )
+    assert output.read_bytes() == first
+    assert result["eligible_documents"] == 300
+
+
+@pytest.mark.parametrize(
+    "weights",
+    [
+        None,
+        {},
+        {"train": 98, "validation": 1},
+        {"train": 98, "validation": 1, "test": 0},
+        {"train": 98, "validation": 1, "test": True},
+        {"train": 98, "validation": 1, "test": 1.0},
+        {"train": 10000, "validation": 1, "test": 1},
+    ],
+)
+def test_invalid_reviewed_split_weights_refuse_before_publication(
+    tmp_path, monkeypatch, weights
+):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    raw = json.loads(clusters.read_text())
+    raw["split_weights"] = weights
+    clusters.write_bytes(canonical_json(raw))
+    with pytest.raises(ValueError, match="split_weights"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, tmp_path / "splits.yaml"
+        )
+    assert not (tmp_path / "splits.yaml").exists()
+
+
+def test_small_inventory_does_not_silently_round_away_one_percent_holdouts(
+    tmp_path, monkeypatch
+):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    raw = json.loads(clusters.read_text())
+    raw["split_weights"] = {"train": 98, "validation": 1, "test": 1}
+    clusters.write_bytes(canonical_json(raw))
+    with pytest.raises(ValueError, match="too few eligible families"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, tmp_path / "splits.yaml"
+        )

@@ -541,3 +541,62 @@ def test_absent_mixture_fields_do_not_change_existing_config_payload() -> None:
     payload = existing.model_dump(mode="json")
     assert "mixture_declaration_path" not in payload["dataset"]
     assert "mixture_output_path" not in payload["dataset"]
+
+
+@pytest.mark.parametrize("exposures", [True, False, "1", 1.0, 0, 3])
+def test_exposure_limit_requires_explicit_supported_integer(
+    tmp_path, monkeypatch, exposures
+):
+    declaration, _, _ = _fixture(tmp_path, monkeypatch)
+    raw = yaml.safe_load(declaration.read_text())
+    raw["max_exposures"] = exposures
+    with pytest.raises(ValueError):
+        mixture.MixtureDeclaration.model_validate(raw)
+
+
+def test_unique_export_refuses_repetition_with_measured_shortfall(
+    tmp_path, monkeypatch
+):
+    declaration, _, _ = _fixture(tmp_path, monkeypatch)
+    raw = yaml.safe_load(declaration.read_text())
+    raw["max_exposures"] = 1
+    declaration.write_text(yaml.safe_dump(raw))
+    with pytest.raises(
+        ValueError, match="9 unique, 10 required, max_exposures=1, shortfall=1"
+    ):
+        mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert not (tmp_path / "output").exists()
+    assert not list(tmp_path.glob(".mixture-*"))
+
+
+def test_unique_export_has_no_repeated_positions_and_cold_replays(
+    tmp_path, monkeypatch
+):
+    declaration, _, release = _fixture(tmp_path, monkeypatch)
+    raw = yaml.safe_load(declaration.read_text())
+    raw["max_exposures"] = 1
+    raw["target_quotas"] = {"general": 9, "explanatory": 6, "incident": 4}
+    declaration.write_text(yaml.safe_dump(raw))
+    (release / "report.json").write_text(
+        json.dumps(
+            {
+                "requested_mixture": {
+                    key: value / 19 for key, value in raw["target_quotas"].items()
+                }
+            }
+        )
+    )
+    output = tmp_path / "output"
+    receipt = mixture.materialize_mixture(declaration, output)
+    assert (
+        receipt["unique_target_positions"]
+        == receipt["actual_target_tokens"]
+        == raw["target_quotas"]
+    )
+    rows = [
+        json.loads(line)
+        for line in (output / "train.tokens.jsonl").read_text().splitlines()
+    ]
+    assert all(row["exposure"] == 1 for row in rows)
+    assert len({row["document_id"] for row in rows}) == len(rows)
+    assert mixture.verify_mixture(declaration, output) == receipt
