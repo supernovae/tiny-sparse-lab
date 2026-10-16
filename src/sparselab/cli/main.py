@@ -1058,6 +1058,28 @@ def _train(args: argparse.Namespace) -> None:
 
 
 def _eval(args: argparse.Namespace) -> None:
+    if args.panel is not None:
+        from sparselab.evaluation.panels import run_panel
+
+        if not args.checkpoint or args.output is None:
+            raise ValueError(
+                "named panel evaluation requires --checkpoint and --output"
+            )
+        result = run_panel(
+            args.run_id,
+            Path(args.runs_dir),
+            args.checkpoint,
+            Path(args.panel),
+            Path(args.output),
+            backend=args.backend,
+            authorization=args.runtime_authorization,
+        )
+        print(json.dumps({**result, "output": str(args.output)}, indent=2))
+        if not result["evidence_complete"]:
+            raise SystemExit(1)
+        return
+    if args.output is not None:
+        raise ValueError("--output requires --panel")
     loaded = load_run(
         args.run_id,
         Path(args.runs_dir),
@@ -3376,6 +3398,12 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         help="Run directory (default: selected persistent state root/runs)",
     )
     evaluation.add_argument("--checkpoint")
+    evaluation.add_argument(
+        "--panel", type=Path, help="Pinned development heldout panel JSON"
+    )
+    evaluation.add_argument(
+        "--output", type=Path, help="New panel result file outside input roots"
+    )
     evaluation.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )

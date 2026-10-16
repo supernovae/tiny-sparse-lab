@@ -93,3 +93,5 @@ introduce a shared experiment ledger.
 New checkpoints expose [prepared-data exposure and timing](checkpoint-exposure.md)
 through `evidence.checkpoints[].exposure` in run-report JSON. Historical absence is
 reported as null, without reconstructing or modifying old evidence.
+
+For separate checkpoint-bound development losses, see [named heldout panels](named-heldout-panels.md).
