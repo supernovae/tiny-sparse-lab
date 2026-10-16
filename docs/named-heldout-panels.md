@@ -92,3 +92,7 @@ checkpoints. Locations do not affect the protocol. A changed mask, dataset,
 tokenizer, selection, batch or budget changes it. Timings are observations and
 need not reproduce byte-for-byte. No cross-panel aggregate, automatic comparison,
 bootstrap, scientific stopping rule or scheduler is introduced.
+
+Within an attempt ledger, replaying the same panel and checkpoint needs a new
+owned evaluation phase: reservation labels are unique within a phase, so repeating
+the same invocation there refuses at the first duplicate forward reservation.

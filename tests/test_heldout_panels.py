@@ -68,7 +68,7 @@ def fixture(tmp_path, monkeypatch):
 
     monkeypatch.setattr(panels, "load_run", load)
 
-    def declare(name="english", blocks=2, mask=None):
+    def declare(name="english", blocks=2, mask=None, canonical=None, allocation=False):
         root = tmp_path / name
         root.mkdir()
         identity = {"packing": {"memory": "none"}}
@@ -76,12 +76,15 @@ def fixture(tmp_path, monkeypatch):
             "cache_identity": identity,
             "settings_sha256": hashlib.sha256(canonical_json(identity)).hexdigest(),
             "packing_version": "contiguous-eos-v6",
-            "tokenizer_sha256": _tokenizer_sha256(tokenizer),
+            "tokenizer_sha256": canonical or _tokenizer_sha256(tokenizer),
             "source_identity_sha256": "b" * 64,
             "supervision": {"kind": "all_tokens"},
         }
         for split in ("train", "validation"):
-            values = np.array([0, 1, 2, 0, 1, 2, 0], dtype=np.int32)
+            values = np.array(
+                [2] * 7 if split == "train" else [0, 1, 2, 0, 1, 2, 0],
+                dtype=np.int32,
+            )
             path = root / f"{split}.npy"
             np.save(path, values)
             manifest[split] = {
@@ -93,7 +96,9 @@ def fixture(tmp_path, monkeypatch):
             }
             if mask is not None:
                 path = root / f"{split}_supervision.npy"
-                np.save(path, np.array(mask, dtype=bool))
+                np.save(
+                    path, np.array([True] * 7 if split == "train" else mask, dtype=bool)
+                )
                 manifest["supervision"].update(kind="token-loss-mask-v1")
                 manifest["supervision"][split] = {
                     "dtype": "bool",
@@ -101,6 +106,20 @@ def fixture(tmp_path, monkeypatch):
                     "tokens": 7,
                     "size_bytes": path.stat().st_size,
                     "sha256": sha256_file(path),
+                }
+        if allocation:
+            manifest["allocation"] = {"format": "sparselab-prepared-allocation-v1"}
+            for split in ("train", "validation"):
+                owner = root / f"{split}_owner_ids.npy"
+                np.save(owner, np.zeros(7, dtype=np.uint8))
+                manifest["allocation"][split] = {
+                    "owner": {
+                        "dtype": "uint8",
+                        "shape": [7],
+                        "tokens": 7,
+                        "size_bytes": owner.stat().st_size,
+                        "sha256": sha256_file(owner),
+                    }
                 }
         manifest["manifest_sha256"] = hashlib.sha256(
             canonical_json(manifest)
@@ -162,6 +181,7 @@ def test_unequal_panels_masks_exact_identities_and_replay(fixture):
         "packing_version": "contiguous-eos-v6",
         "source_identity_sha256": "b" * 64,
     }
+    assert a["data_identity"]["validation_sha256"] != manifest["train"]["sha256"]
     assert b["data_identity"]["supervision"]["kind"] == "token-loss-mask-v1"
     assert a["protocol_sha256"] == again["protocol_sha256"] != b["protocol_sha256"]
     assert {p.name: p.read_bytes() for p in f.run.iterdir()} == before
@@ -184,6 +204,8 @@ def test_partial_failure_and_rng_mode_restore(fixture, error, status):
     assert result["status"] == status and not result["evidence_complete"]
     assert result["valid_targets"] == 2 and result["batches"] == 1
     assert result["nll_sum"] == pytest.approx(2 * math.log(3))
+    assert result["accounting_complete"]
+    assert result["evaluation_seconds"] >= 0
     assert result["loss"] is None
     assert result["attempted_forward_positions"] == 4
     assert model.training and torch.equal(torch.get_rng_state(), cpu)
@@ -194,18 +216,18 @@ def test_partial_failure_and_rng_mode_restore(fixture, error, status):
 
 
 @pytest.mark.parametrize(
-    "field,value",
+    "field,value,reason",
     [
-        ("prepared_manifest_sha256", "c" * 64),
-        ("tokenizer_file_sha256", "c" * 64),
-        ("tokenizer_canonical_sha256", "c" * 64),
-        ("checkpoint_sha256", "c" * 64),
-        ("blocks", 4),
-        ("supervised_targets", 3),
-        ("sequence_length", 5),
+        ("prepared_manifest_sha256", "c" * 64, "prepared manifest identity"),
+        ("tokenizer_file_sha256", "c" * 64, "checkpoint tokenizer identity"),
+        ("tokenizer_canonical_sha256", "c" * 64, "prepared tokenizer identity"),
+        ("checkpoint_sha256", "c" * 64, "checkpoint digest"),
+        ("blocks", 4, "insufficient eligible blocks"),
+        ("supervised_targets", 3, "supervised-target coverage"),
+        ("sequence_length", 5, "insufficient eligible blocks"),
     ],
 )
-def test_mismatch_refuses_before_forward(fixture, field, value):
+def test_mismatch_refuses_before_forward(fixture, field, value, reason):
     f = fixture
     path, declaration, _ = f.declare()
     declaration[field] = value
@@ -213,6 +235,7 @@ def test_mismatch_refuses_before_forward(fixture, field, value):
     path.write_text(json.dumps(declaration))
     result = f.execute(path)
     assert not result["evidence_complete"] and result["status"] == "failed"
+    assert reason in result["reason"]
     assert f.loaded.model.calls == 0
     assert result["valid_targets"] == result["attempted_forward_positions"] == 0
 
@@ -244,8 +267,9 @@ def test_no_clobber_and_no_writes_in_input_root(fixture):
         f.execute(path)
     assert (f.root / "result.json").read_bytes() == content
     assert f.loaded.model.calls == calls
-    with pytest.raises(ValueError, match="input roots"):
-        f.execute(path, "english/result.json")
+    for output in ("english/result.json", "runs/fixture/result.json"):
+        with pytest.raises(ValueError, match="input roots"):
+            f.execute(path, output)
     assert result["evidence_complete"]
 
 
@@ -411,3 +435,122 @@ def test_forward_cap_refuses_before_oversized_native_call(fixture, monkeypatch):
     result = fixture.execute(path)
     assert result["status"] == "failed" and "forward budget" in result["reason"]
     assert result["attempted_forward_positions"] == 0
+
+
+def test_validation_tokens_determine_loss_and_initial_evidence(fixture):
+    class Unequal(torch.nn.Module):
+        def forward(self, inputs):
+            initial = json.loads((fixture.root / "result.json").read_text())
+            assert initial["accounting_complete"] is False
+            assert initial["status"] == "incomplete"
+            return torch.tensor([0.0, 1.0, 2.0]).expand(*inputs.shape, 3)
+
+    path, _, _ = fixture.declare()
+    fixture.loaded.model = Unequal()
+    result = fixture.execute(path)
+    # The first two validation blocks predict [1, 2, 0, 1]; train predicts [2]*4.
+    expected = 4 * math.log(1 + math.e + math.exp(2)) - 4
+    assert result["status"] == "complete"
+    assert result["nll_sum"] == pytest.approx(expected)
+    assert result["accounting_complete"] is True
+
+
+@pytest.mark.parametrize("bind_panel", [False, True])
+def test_independent_tokenizer_cross_bindings(fixture, bind_panel):
+    second = Tokenizer(WordLevel({"a": 1, "b": 0, "c": 2}, unk_token="a"))
+    digest = _tokenizer_sha256(second)
+    path, declaration, _ = fixture.declare(canonical=digest)
+    if bind_panel:
+        declaration["tokenizer_canonical_sha256"] = digest
+        path.write_text(json.dumps(declaration))
+    result = fixture.execute(path)
+    expected = "checkpoint" if bind_panel else "prepared"
+    assert f"{expected} tokenizer identity mismatch" in result["reason"]
+    assert fixture.loaded.model.calls == 0
+
+
+@pytest.mark.parametrize("prepared", [True, False])
+def test_allocation_refusals(fixture, prepared):
+    path, _, _ = fixture.declare(allocation=prepared)
+    if not prepared:
+        fixture.loaded.config.dataset.allocation_manifest_path = "fixture-allocation"
+    result = fixture.execute(path)
+    reason = "allocation sidecars" if prepared else "dense PyTorch"
+    assert result["status"] == "failed" and reason in result["reason"]
+    assert fixture.loaded.model.calls == 0
+
+
+def test_small_real_forward_allocation_refuses_before_load(fixture, monkeypatch):
+    from sparselab.training.attempt_budget import AttemptBudget
+
+    contract = {
+        "contract_version": 1,
+        "max_optimizer_updates": 0,
+        "max_actual_target_positions": 0,
+        "max_generation_calls": 0,
+        "max_generated_tokens": 0,
+        "max_wall_seconds": 120.0,
+        "content_identity_sha256": "a" * 64,
+        "monitor_policy_sha256": "b" * 64,
+        "workspace_baseline_sha256": "c" * 64,
+        "max_fixed_profile_forward_positions": 3,
+        "max_nontraining_forward_positions": 4,
+        "max_operational_validation_batches": 0,
+        "max_operational_validation_forward_positions": 0,
+    }
+    raw = json.dumps(contract).encode()
+    contract_path = fixture.root / "contract.json"
+    contract_path.write_bytes(raw)
+    budget = AttemptBudget.create_contract(
+        fixture.root / "attempt.sqlite",
+        contract_path=contract_path,
+        expected_sha256=hashlib.sha256(raw).hexdigest(),
+    )
+    budget.reserve_vector(
+        "panel",
+        updates=0,
+        target_positions=0,
+        generation_calls=0,
+        generated_tokens=0,
+        content_identity_sha256="a" * 64,
+    )
+    for key, value in {
+        "SPARSELAB_ATTEMPT_BUDGET_LEDGER": str(budget.path),
+        "SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256": "a" * 64,
+        "SPARSELAB_ATTEMPT_PHASE_LABEL": "panel",
+        "SPARSELAB_ATTEMPT_ACTIVITY": "evaluate",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    def forbidden(*a, **k):
+        pytest.fail("model loaded despite insufficient fixed-profile allowance")
+
+    monkeypatch.setattr(panels, "load_run", forbidden)
+    path, _, _ = fixture.declare()
+    result = fixture.execute(path)
+    assert result["status"] == "failed"
+    assert "declared model allocation" in result["reason"]
+    assert result["attempted_forward_positions"] == 0
+
+
+def test_protocol_does_not_depend_on_prepared_location(fixture):
+    path, declaration, _ = fixture.declare()
+    first = fixture.execute(path, "first.json")
+    source = fixture.root / "english"
+    moved = fixture.root / "moved"
+    source.rename(moved)
+    declaration["prepared_path"] = str(moved)
+    path.write_text(json.dumps(declaration))
+    second = fixture.execute(path, "second.json")
+    assert first["status"] == second["status"] == "complete"
+    assert first["protocol_sha256"] == second["protocol_sha256"]
+    assert first["comparison_group"] == second["comparison_group"]
+
+
+def test_engine_refuses_before_forward(fixture):
+    path, _, _ = fixture.declare()
+    fixture.loaded.engine = object()
+    fixture.loaded.device = "metal"
+    result = fixture.execute(path)
+    assert "dense PyTorch" in result["reason"]
+    assert fixture.loaded.model.calls == 0
