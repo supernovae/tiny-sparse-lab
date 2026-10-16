@@ -1102,6 +1102,8 @@ def _train_impl(
             cumulative_wall = snapshot.cumulative_wall_seconds or 0.0
             cumulative_updates = snapshot.cumulative_update_seconds or 0.0
             prior_timing = (prior_exposure or {}).get("timing", {})
+            # Defensively require native counters too, even though new exposure
+            # timing is derived from those same counters at save time.
             wall_complete = (
                 snapshot.cumulative_wall_seconds is not None
                 and prior_timing.get("training_loop_elapsed_seconds") is not None

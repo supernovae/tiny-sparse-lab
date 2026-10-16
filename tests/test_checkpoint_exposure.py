@@ -9,10 +9,10 @@ import pytest
 
 from sparselab.data.packing import BatchCursor, TokenBlockDataset
 from sparselab.training.exposure import checkpoint_exposure, exposure_context
-from sparselab.training.manifest import ArtifactIdentity
+from sparselab.training.manifest import ArtifactIdentity, sha256_file
 
 
-def context(dataset, **kwargs):
+def context(dataset, *, seed=7):
     artifacts = tuple(
         ArtifactIdentity(name, str(i) * 64, 1)
         for i, name in enumerate(
@@ -28,11 +28,10 @@ def context(dataset, **kwargs):
     return exposure_context(
         dataset,
         artifacts,
-        seed=7,
+        seed=seed,
         run_id="fixture",
         continuation="FRESH",
         prior=None,
-        **kwargs,
     )
 
 
@@ -88,6 +87,68 @@ def test_hand_counted_supply(mask, expected):
 
 
 @pytest.mark.parametrize(
+    "blocks, targets, next_block",
+    [(0, 12, 0), (3, 0, 0), (3, 12, 4), (3, 12, -1)],
+)
+def test_invalid_supply_or_cursor_refuses(blocks, targets, next_block):
+    base = context(TokenBlockDataset(np.arange(13, dtype=np.int32), 4))
+    base["supply"].update(
+        eligible_blocks=blocks, usable_supervised_targets_per_pass=targets
+    )
+    with pytest.raises(ValueError, match="invalid exposure supply or cursor"):
+        checkpoint_exposure(
+            base,
+            tokens=7,
+            cursor=BatchCursor(0, next_block),
+            wall_seconds=4,
+            invocation_seconds=5,
+            update_seconds=2,
+            wall_complete=True,
+            updates_complete=True,
+        )
+
+
+def test_masked_context_binds_exact_identities_seed_and_sequence_length():
+    ids = np.arange(13, dtype=np.int32)
+    mask = np.array(
+        [
+            False,
+            True,
+            False,
+            True,
+            False,
+            False,
+            False,
+            False,
+            False,
+            True,
+            True,
+            False,
+            True,
+        ]
+    )
+    row = context(TokenBlockDataset(ids, 4, supervision=mask))
+    assert row["protocol"] == {
+        "kind": "packed-next-token-supervised-exposure-v1",
+        "sequence_length": 4,
+        "shuffle_seed": 7,
+        "identities": {
+            "prepared_manifest_sha256": "1" * 64,
+            "train_tokens_sha256": "2" * 64,
+            "tokenizer_sha256": "3" * 64,
+            "supervision_sha256": "4" * 64,
+            "supervision": "masked",
+        },
+    }
+    assert row["supply"]["usable_supervised_targets_per_pass"] == 5
+    assert row["scope"]["prior_checkpoint_exposure_available"] is None
+    different_seed = context(TokenBlockDataset(ids, 4, supervision=mask), seed=8)
+    different_length = context(TokenBlockDataset(ids, 3, supervision=mask))
+    assert row["protocol_sha256"] != different_seed["protocol_sha256"]
+    assert row["protocol_sha256"] != different_length["protocol_sha256"]
+
+
+@pytest.mark.parametrize(
     "cursor, passes, block", [(BatchCursor(0, 3), 1, 0), (BatchCursor(1, 2), 1, 2)]
 )
 def test_cursor_normalization_does_not_claim_fine_consumption(cursor, passes, block):
@@ -112,6 +173,7 @@ def test_cursor_normalization_does_not_claim_fine_consumption(cursor, passes, bl
     assert row["finer_consumed_positions"] is None
     assert row["timing"]["optimizer_update_seconds"] == 2
     assert row["timing"]["training_loop_elapsed_seconds"] == 4
+    assert row["timing"]["invocation_elapsed_seconds_at_checkpoint"] == 5
     assert row["timing"]["other_training_overhead_seconds"] is None
 
 
@@ -268,8 +330,22 @@ def test_native_fake_updates_cross_pass_partial_budget_and_retry(fake_lifecycle)
     assert last.exposure["effective_passes"] == 23 / 12
     assert last.exposure["cursor"]["completed_loader_passes"] == 2
     assert last.exposure["timing"]["optimizer_update_seconds"] == 1.0
-    assert last.exposure["protocol"]["identities"]["tokenizer_sha256"]
-    assert last.exposure["protocol"]["identities"]["prepared_manifest_sha256"]
+    run = f.config.logging.root_dir / "fresh"
+    inventory = {
+        item["relative_path"]: item["sha256"]
+        for item in json.loads((run / "manifest.json").read_text())["artifacts"]
+    }
+    for name in ("data/manifest.json", "data/train.npy", "tokenizer.json"):
+        assert inventory[name] == sha256_file(run / name)
+    assert last.exposure["protocol"]["identities"] == {
+        "prepared_manifest_sha256": inventory["data/manifest.json"],
+        "train_tokens_sha256": inventory["data/train.npy"],
+        "tokenizer_sha256": inventory["tokenizer.json"],
+        "supervision_sha256": None,
+        "supervision": "all_tokens",
+    }
+    assert last.exposure["protocol"]["shuffle_seed"] == f.config.seed
+    assert last.exposure["protocol"]["sequence_length"] == f.config.training.seq_len
 
 
 def test_wholly_failed_update_never_seals_uncommitted_targets(fake_lifecycle):
@@ -312,6 +388,11 @@ def test_resume_and_warm_start_scope(fake_lifecycle, monkeypatch, kind):
         [(1, 8), (2, 8)] if kind == "PROMOTED" else [(2, 8)]
     )
     row = f.snapshots[-1].exposure
+    expected_prior_available = {"historical": False, "RESUMED": True, "PROMOTED": None}
+    assert (
+        row["scope"]["prior_checkpoint_exposure_available"]
+        is expected_prior_available[kind]
+    )
     assert (
         row["committed_supervised_targets"] == 16
     )  # Never previous + already cumulative.

@@ -17,8 +17,10 @@ No additional forward pass or evaluation is introduced.
 `TokenBlockDataset` blocks, after the supervision mask. Position zero is context,
 not a target. Trailing positions outside full blocks are excluded; blocks with no
 supervised targets are skipped. Raw packed positions, full/eligible/skipped blocks
-and trailing target positions remain separate counts. Prepared manifest, packed
-training tokens, tokenizer and optional supervision-mask digests come from the
+and trailing target positions remain separate counts. `trailing_target_positions`
+counts positions regardless of the supervision mask, not supervised targets.
+Prepared manifest, packed training tokens, tokenizer and optional supervision-mask
+digests come from the
 existing owned artifact inventory. The exposure protocol also binds sequence
 length, shuffle seed and target-count semantics.
 
