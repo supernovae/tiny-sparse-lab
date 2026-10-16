@@ -54,6 +54,7 @@ _ARCH_COMPARE_FIELDS = (
     "tie_embeddings",
     "ffn_dim",
 )
+# Loading and hooking a model this size on a laptop CPU takes seconds; beyond
 # it the explorer refuses and says so (attention maps grow with heads x T^2).
 MAX_PARAMETERS = 60_000_000
 MAX_TOKENS = 128
@@ -519,14 +520,6 @@ def _cache_path_for_format(
     )
 
 
-def _v1_cache_key(
-    checkpoint_sha256: str, text: str, runtime: Mapping[str, Any] | None = None
-) -> str:
-    return _cache_key_for_format(
-        _LEGACY_EXPLORER_FORMAT, checkpoint_sha256, text, runtime
-    )
-
-
 def _v1_cache_path(
     lab_dir: Path,
     checkpoint_sha256: str,
@@ -536,13 +529,6 @@ def _v1_cache_path(
     return _cache_path_for_format(
         _LEGACY_EXPLORER_FORMAT, lab_dir, checkpoint_sha256, text, runtime
     )
-
-
-def cache_key(
-    checkpoint_sha256: str, text: str, runtime: Mapping[str, Any] | None = None
-) -> str:
-    # Omission retains the historical key for read-only legacy lookup.
-    return _cache_key_for_format(EXPLORER_FORMAT, checkpoint_sha256, text, runtime)
 
 
 def cache_path(
@@ -772,18 +758,14 @@ def explore(
                         else "unreadable, unsealed or wrong-format legacy cache"
                     )
                 else:
-                    for legacy in (
-                        cache_path(lab_dir, sha, text),
-                        _v1_cache_path(lab_dir, sha, text),
-                    ):
-                        if legacy.exists():
-                            legacy_value = read_cached(legacy)
-                            reason = (
-                                cache_issue(legacy_value, legacy)
-                                if legacy_value is not None
-                                else "unreadable, unsealed or wrong-format legacy cache"
-                            ) or "legacy cache has no verified actual-runtime binding"
-                            break
+                    legacy = _v1_cache_path(lab_dir, sha, text)
+                    if legacy.exists():
+                        legacy_value = read_cached(legacy)
+                        reason = (
+                            cache_issue(legacy_value, legacy)
+                            if legacy_value is not None
+                            else "unreadable, unsealed or wrong-format legacy cache"
+                        ) or "legacy cache has no verified actual-runtime binding"
             result = explore_loaded(loaded, text, context=context, arch=arch)
         except Exception as error:
             if not is_out_of_memory(error):

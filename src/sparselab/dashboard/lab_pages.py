@@ -1143,16 +1143,13 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
             exploration = saved_single["exploration"]
         else:
             st.session_state.pop("explorer_last", None)
-    elif isinstance(saved_single, Mapping):
-        exploration = dict(saved_single)
     if st.button("Explore", type="primary", key="explorer_go"):
         st.session_state.pop("explorer_last", None)
         exploration = None
-        runs_dir = next((r for r in runs_dirs if r and (r / run).is_dir()), None)
         with st.spinner("Loading the checkpoint and running one forward pass…"):
             try:
                 exploration, _ = ex.explore(
-                    run, lab_dir=lab_dir, runs_dir=runs_dir, text=text, backend="cpu"
+                    run, lab_dir=lab_dir, text=text, backend="cpu"
                 )
             except ex.ExplorerUnavailable as error:
                 st.warning(str(error))

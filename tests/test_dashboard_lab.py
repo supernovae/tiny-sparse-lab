@@ -996,9 +996,12 @@ def test_explorer_v1_historical_tab_contract_and_compare_generations(
         str(gen_b.resolve()): seal(v2_b),
     }
 
+    calls = []
+
     def fake_explore(
         target: str, *, lab_dir: Path, text: str = TEXT, **kwargs: Any
     ) -> tuple[dict[str, Any], Path | None]:
+        calls.append(target)
         resolved = str(Path(target).resolve())
         if resolved not in by_spec:
             raise FileNotFoundError(f"missing generation at {target}")
@@ -1041,6 +1044,24 @@ def test_explorer_v1_historical_tab_contract_and_compare_generations(
     ]
     assert all("latest" not in c["label"] for c in choices)
     assert "step 4" in choices[0]["label"] and "step 8" in choices[1]["label"]
+
+    # Single results must disappear when either provenance selector changes.
+    test.radio(key="explorer_source").set_value("Explore a run").run()
+    test.text_input(key="explorer_text").set_value(TEXT).run()
+    test.selectbox(key="explorer_run").select_index(0).run()
+    test.button(key="explorer_go").click().run()
+    assert not test.exception and test.get("plotly_chart")
+    assert "Activations" in [tab.label for tab in test.tabs]
+    test.selectbox(key="explorer_run").select_index(1).run()
+    assert not test.exception and not test.get("plotly_chart")
+    test.button(key="explorer_go").click().run()
+    assert not test.exception and test.get("plotly_chart")
+    test.text_input(key="explorer_text").set_value("once upon").run()
+    assert not test.exception and not test.get("plotly_chart")
+    # An old unbound session payload must not bypass those guards.
+    test.session_state["explorer_last"] = seal(v2_a)
+    test.run()
+    assert not test.exception and not test.get("plotly_chart")
 
     # 2. Switch to "Compare checkpoints", select the two generations, and click Compare.
     test.radio(key="explorer_source").set_value("Compare checkpoints").run()
@@ -1098,9 +1119,82 @@ def test_explorer_v1_historical_tab_contract_and_compare_generations(
     )
     assert "Pick two distinct pinned checkpoints" in _text(test)
 
-    # 4. Missing generation on click reports error and leaves no stale comparison.
+    # Same selector refuses before either forward pass.
+    test.selectbox(key="explorer_compare_right").select_index(0).run()
+    count = len(calls)
+    test.button(key="explorer_compare_go").click().run()
+    assert not test.exception
+    assert any(
+        "Pick two distinct checkpoints" in warning.value for warning in test.warning
+    )
+    assert len(calls) == count
+
+    # Reestablish a successful comparison immediately before a failed click.
+    test.selectbox(key="explorer_compare_right").select_index(1).run()
+    test.text_input(key="explorer_compare_text").set_value(TEXT).run()
+    test.button(key="explorer_compare_go").click().run()
+    assert not test.exception and test.get("plotly_chart")
+    # 4. A generation becomes unavailable while its selector is still displayed.
     del by_spec[str(gen_b.resolve())]
     test.button(key="explorer_compare_go").click().run()
     assert not test.exception
     assert any("missing generation" in e.value for e in test.error)
     assert len(test.get("plotly_chart")) == 0
+    test.run()
+    assert not test.exception and not test.get("plotly_chart")
+
+
+def test_explorer_selectors_include_sealed_records_and_deduplicate_roots(tmp_path):
+    from sparselab.dashboard.lab_pages import _explorable_runs
+
+    lab = tmp_path / "lab"
+    root = lab / "runs"
+    generation = root / "local" / "checkpoints" / "step_00000003_gen_000001"
+    generation.mkdir(parents=True)
+    (generation / "manifest.json").write_text('{"step":3}')
+    missing = generation.parent / "step_00000004_gen_000002"
+    missing.mkdir()
+    (generation.parent / "latest.json").write_text("{}")
+    expected = [
+        {
+            "spec": str(generation.resolve()),
+            "label": "local · step_00000003_gen_000001 · step 3",
+        }
+    ]
+    for kind, folder, fmt, target_key in (
+        ("try", "tries", "sparselab-lab-try-v1", "arms"),
+        ("probe", "probes", "sparselab-probe-v1", "target"),
+    ):
+        for suffix, extra in (
+            ("local", {}),
+            ("reference", {"reference": True}),
+            ("ref-id", {"run_id": "ref:fixture"}),
+        ):
+            identifier = f"{kind}-{suffix}"
+            target = {
+                "run_id": "local",
+                "step": 3,
+                "checkpoint": str(generation),
+                **extra,
+            }
+            body = {
+                "format": fmt,
+                f"{kind}_id": identifier,
+                "created_at": "2026-10-16T00:00:00Z",
+                target_key: {"candidate": target} if kind == "try" else target,
+            }
+            path = lab / folder / identifier / f"{kind}.json"
+            path.parent.mkdir(parents=True)
+            write_sealed(path, body)
+            if suffix == "local":
+                expected.append(
+                    {
+                        "spec": str(path.resolve()),
+                        "label": f"local · {kind} {identifier} ({generation.name}) · step 3",
+                    }
+                )
+    snap = lab_data.snapshot(lab)
+    assert not snap.rejected
+    # LAB/runs alone must work; the same root twice must not duplicate selectors.
+    assert _explorable_runs(snap, []) == expected
+    assert _explorable_runs(snap, [root, root]) == expected

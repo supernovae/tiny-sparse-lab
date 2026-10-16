@@ -192,8 +192,10 @@ def test_unsealed_cache_is_an_explicit_miss(fake):
 def test_legacy_bytes_remain_readable_but_never_backend_verified(fake):
     _, path = fake.explore()
     lab = path.parents[2]
-    legacy_path = explorer.cache_path(lab, fake.sha, explorer.DEFAULT_TEXT)
+    legacy_path = explorer._v1_cache_path(lab, fake.sha, explorer.DEFAULT_TEXT)
     value = explorer.read_cached(path)
+    value["format"] = "sparselab-explorer-v1"
+    value.pop("activation", None)
     del value["runtime"]
     write_json_atomic(legacy_path, seal(value))
     original = legacy_path.read_bytes()
