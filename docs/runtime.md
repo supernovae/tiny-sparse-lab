@@ -911,3 +911,9 @@ acceptance, not a model-quality, performance, or cross-host portability result.
 
 See [memory accounting](memory.md), [activation recomputation](activation-checkpointing.md),
 and [activation offload](offload.md) for the estimate/measurement boundaries.
+
+Opt-in [`checkpoint.retention`](checkpoint-milestones.md) additionally preserves
+scientific milestones and reserves its declared peak bytes plus free-space
+headroom. Its keep-set replaces the default latest/previous/best-only bound.
+This RunConfig policy differs from experiment-plan `retention.keep_periodic`,
+which describes plan storage expectations and does not configure the trainer.

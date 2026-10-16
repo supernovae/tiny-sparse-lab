@@ -153,6 +153,11 @@ def training_storage_checks(
         raise ValueError("checkpoint generation count must be positive")
     checkpoint = int(inspection_report(config)["estimated_checkpoint_bytes"])
     checkpoint_growth = checkpoint_generations_upper * math.ceil(1.25 * checkpoint)
+    policy = config.checkpoint.retention
+    if policy is not None:
+        checkpoint_growth = max(
+            checkpoint_growth, policy.max_peak_bytes + policy.reserve_free_bytes
+        )
     if verified_prepared is None:
         run_copy = projected_data_bytes(config)
         cache_growth = run_copy

@@ -95,3 +95,9 @@ The MoE smoke configuration has local Top-K experts with configurable selection.
 Block-sparse attention reports selected and available causal key positions, selection ratio, and a relative selected-key score-product estimate. These are resource diagnostics, not a quality conclusion or a custom-kernel speed claim. Use a matched dense run for a controlled ablation.
 
 See [runtime policy](runtime.md), [metrics](metrics.md), and [architecture](architecture.md) for the terms used by run reports.
+
+Opt-in [`checkpoint.retention`](checkpoint-milestones.md) additionally preserves
+scientific milestones and reserves its declared peak bytes plus free-space
+headroom. Its keep-set replaces the default latest/previous/best-only bound.
+This RunConfig policy differs from experiment-plan `retention.keep_periodic`,
+which describes plan storage expectations and does not configure the trainer.

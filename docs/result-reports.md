@@ -95,3 +95,6 @@ through `evidence.checkpoints[].exposure` in run-report JSON. Historical absence
 reported as null, without reconstructing or modifying old evidence.
 
 For separate checkpoint-bound development losses, see [named heldout panels](named-heldout-panels.md).
+
+For finite local recovery and scientific checkpoint keep-sets, see
+[checkpoint milestone retention](checkpoint-milestones.md).

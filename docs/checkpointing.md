@@ -189,3 +189,9 @@ child restart on the actual model/runtime/filesystem; verify notice delivery and
 signal-to-durable-commit under bounded interruption, then verify the exact
 committed generation and child resume. No fixture establishes these measurements
 or provider interruption safety.
+
+Opt-in [`checkpoint.retention`](checkpoint-milestones.md) additionally preserves
+scientific milestones and reserves its declared peak bytes plus free-space
+headroom. Its keep-set replaces the default latest/previous/best-only bound.
+This RunConfig policy differs from experiment-plan `retention.keep_periodic`,
+which describes plan storage expectations and does not configure the trainer.
