@@ -474,6 +474,17 @@
           "title": "Keep Periodic",
           "type": "boolean"
         },
+        "retention": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CheckpointRetention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "steps": {
           "default": [],
           "items": {
@@ -485,6 +496,94 @@
         }
       },
       "title": "CheckpointConfig",
+      "type": "object"
+    },
+    "CheckpointMilestone": {
+      "additionalProperties": false,
+      "properties": {
+        "committed_targets": {
+          "minimum": 0,
+          "title": "Committed Targets",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "step": {
+          "minimum": 0,
+          "title": "Step",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "step",
+        "committed_targets"
+      ],
+      "title": "CheckpointMilestone",
+      "type": "object"
+    },
+    "CheckpointRetention": {
+      "additionalProperties": false,
+      "properties": {
+        "max_generation_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Generation Bytes",
+          "type": "integer"
+        },
+        "max_generations": {
+          "exclusiveMinimum": 0,
+          "maximum": 1024,
+          "title": "Max Generations",
+          "type": "integer"
+        },
+        "max_peak_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Peak Bytes",
+          "type": "integer"
+        },
+        "max_retained_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Retained Bytes",
+          "type": "integer"
+        },
+        "milestones": {
+          "items": {
+            "$ref": "#/$defs/CheckpointMilestone"
+          },
+          "maxItems": 128,
+          "title": "Milestones",
+          "type": "array"
+        },
+        "reserve_free_bytes": {
+          "minimum": 0,
+          "title": "Reserve Free Bytes",
+          "type": "integer"
+        },
+        "terminal_step": {
+          "exclusiveMinimum": 0,
+          "title": "Terminal Step",
+          "type": "integer"
+        },
+        "terminal_targets": {
+          "exclusiveMinimum": 0,
+          "title": "Terminal Targets",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "milestones",
+        "terminal_step",
+        "terminal_targets",
+        "max_generations",
+        "max_generation_bytes",
+        "max_retained_bytes",
+        "max_peak_bytes",
+        "reserve_free_bytes"
+      ],
+      "title": "CheckpointRetention",
       "type": "object"
     },
     "Choice": {
