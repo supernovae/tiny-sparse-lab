@@ -140,7 +140,22 @@ def test_checkpoint_roundtrip_and_historical_absence(tmp_path):
         updates_complete=True,
     )
     new = manager.save(snapshot)
-    assert manager.load(manager.root / new.relative_path).exposure == snapshot.exposure
+    loaded = manager.load(manager.root / new.relative_path)
+    assert loaded.exposure == snapshot.exposure
+    from sparselab.training.state_digest import canonical_training_state
+
+    observation = {
+        "step": 0,
+        "tokens_seen": 0,
+        "learning_rate": 0.0,
+        "loss": None,
+        "gradient_norm": None,
+        "overflow": False,
+        "retry_state": {},
+    }
+    original_state = canonical_training_state(loaded, observation=observation)
+    loaded.exposure = None
+    assert canonical_training_state(loaded, observation=observation) == original_state
     assert old_path.read_bytes() == old_bytes
     snapshot.exposure["committed_supervised_targets"] = 1
     with pytest.raises(ValueError, match="committed checkpoint targets"):

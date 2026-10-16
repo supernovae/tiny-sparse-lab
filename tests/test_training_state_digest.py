@@ -119,6 +119,12 @@ def test_ordering_and_operational_identity_do_not_change_digest() -> None:
     second.source_identity_sha256 = "d" * 64
     second.cumulative_wall_seconds = 91.0
     second.cumulative_update_seconds = 81.0
+    second.exposure = {
+        "version": 1,
+        "committed_supervised_targets": second.tokens_seen,
+        "scope": {"run_id": "another"},
+        "timing": {"optimizer_update_seconds": 81.0},
+    }
     second.config["logging"]["root_dir"] = "/another/run"
     first.cadence["minutes"] = 19.0
     second.cadence["minutes"] = 98.0

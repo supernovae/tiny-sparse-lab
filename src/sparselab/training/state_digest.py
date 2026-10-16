@@ -1,7 +1,7 @@
 """Version 1 bitwise training-state fingerprints (not a runtime authorization).
 
-Only run identity, file/source provenance, config paths and cumulative timing are
-omitted. The trainer always saves a ``minutes`` checkpoint watermark even when
+Only run identity, file/source provenance, config paths, cumulative timing and
+derived exposure report metadata are omitted. The trainer always saves a ``minutes`` checkpoint watermark even when
 ``checkpoint.every_minutes`` is disabled; in that case alone it is operational
 timing and omitted. Enabled time-based cadence has no common clock policy and
 fails closed. Input snapshots must be captured at the same update boundary.
@@ -45,6 +45,9 @@ _OPERATIONAL_SNAPSHOT_FIELDS = frozenset(
         "cumulative_wall_seconds",
         "cumulative_update_seconds",
         "weight_source",
+        # Exposure repeats committed counters and adds provenance/timing; it
+        # cannot affect the next update. The operative counters remain hashed.
+        "exposure",
     }
 )
 _STATE_FIELDS = frozenset(
