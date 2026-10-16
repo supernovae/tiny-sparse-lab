@@ -211,6 +211,10 @@ def plan(
     if terminal is not None:
         keep(terminal, "terminal")
     retained = list(inherited)
+    if any(
+        row["full_directory_bytes"] > policy.max_generation_bytes for row in inherited
+    ):
+        raise ValueError("inherited checkpoint exceeds declared per-generation bytes")
     for record in records:
         if record.relative_path not in roles:
             continue

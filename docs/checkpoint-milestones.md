@@ -94,8 +94,10 @@ not replaced silently with a later candidate. Storage refusals write the latest
 `retention-failure.json` without deleting generations. The successful retention
 report's `prune` list is the intended deletion set, not a claim that every deletion
 finished. A crash after publication may leave extra files. An interrupted deletion
-that leaves an invalid generation refuses further pruning for operator diagnosis;
-there is no automatic historical cleanup or stale-state bypass.
+that leaves an invalid generation stops reconciliation, later saves, and automatic
+recovery for operator diagnosis; explicit resume from a verified generation into
+a new child remains available.
+There is no automatic historical cleanup or stale-state bypass.
 
 Use the existing public readback commands on a reported generation:
 

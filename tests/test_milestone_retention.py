@@ -334,15 +334,24 @@ def test_terminal_and_best_survive_later_duplicate_generation(tmp_path):
     assert len(rows) == 3
 
 
-def test_declared_plan_forecast_uses_actual_root_and_finite_headroom(tmp_path):
+def test_declared_plan_forecast_uses_actual_root_and_finite_headroom(
+    tmp_path, monkeypatch
+):
     retain = policy()
     writer = manager(tmp_path, retain)
     writer.save(snapshot(0, retain))
-    before = retention.footprint(tmp_path / "checkpoints")
+    observed = []
+    original = retention.admit_write
+
+    def observe(root, policy):
+        observed.append(retention.footprint(root))
+        return original(root, policy)
+
+    monkeypatch.setattr(retention, "admit_write", observe)
     writer.save(snapshot(1, retain))
     evidence = report(tmp_path)
     admission = evidence["write_admission"]
-    assert admission["observed_root_bytes"] >= before
+    assert admission["observed_root_bytes"] == observed[0]
     assert (
         admission["projected_peak_bytes"]
         == admission["observed_root_bytes"] + retain.max_generation_bytes
@@ -478,7 +487,7 @@ def test_startup_storage_includes_declared_peak_before_execution(tmp_path):
     from sparselab.model.inspection import inspection_report
     from sparselab.workspace_preflight import training_storage_checks
 
-    cfg = config(policy())
+    cfg = config(policy(reserve_free_bytes=12345))
     raw = cfg.model_dump(mode="json")
     del raw["checkpoint"]["retention"]
     baseline = RunConfig.model_validate(raw)
@@ -492,7 +501,11 @@ def test_startup_storage_includes_declared_peak_before_execution(tmp_path):
     old_checkpoint = checkpoint_generation_bounds(baseline)[
         "peak_generations"
     ] * math.ceil(1.25 * int(inspection_report(cfg)["estimated_checkpoint_bytes"]))
-    assert current - prior == cfg.checkpoint.retention.max_peak_bytes - old_checkpoint
+    assert current - prior == (
+        cfg.checkpoint.retention.max_peak_bytes
+        + cfg.checkpoint.retention.reserve_free_bytes
+        - old_checkpoint
+    )
 
 
 def test_inherited_selection_counters_must_match_verified_checkpoint(tmp_path):

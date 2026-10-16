@@ -1320,6 +1320,7 @@ class CheckpointManager:
         if not self._lease_depth:
             with self.writer_lease():
                 return self.reconcile()
+        self._retention_admission = None
         records, rejected = self._verified_records(
             expected_manifest=self.manifest_sha256
         )
