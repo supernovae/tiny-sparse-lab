@@ -8,6 +8,7 @@ Data comes from :mod:`sparselab.dashboard.lab_data` (verified records only).
 from __future__ import annotations
 
 import html
+import json
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -911,20 +912,86 @@ def _calibration(entry: ProbeEntry) -> None:
 # --- Explorer ---------------------------------------------------------------
 
 
+def _generation_step(gen_dir: Path) -> Any:
+    try:
+        metadata = json.loads((gen_dir / "manifest.json").read_text(encoding="utf-8"))
+        if isinstance(metadata, Mapping) and metadata.get("step") is not None:
+            return metadata["step"]
+    except OSError, json.JSONDecodeError:
+        pass
+    parts = gen_dir.name.split("_")
+    if len(parts) >= 2 and parts[0] == "step" and parts[1].isdigit():
+        return int(parts[1])
+    return "–"
+
+
 def _explorable_runs(
     snap: lab_data.LabSnapshot, runs_dirs: Sequence[Path]
-) -> list[str]:
-    runs: list[str] = []
-    for point in snap.points:
-        run = point.get("run_id")
-        if run and not str(run).startswith("ref:") and run not in runs:
-            runs.append(str(run))
-    for root in runs_dirs:
-        if root and root.is_dir():
-            for run in sorted(root.iterdir()):
-                if (run / "manifest.json").is_file() and run.name not in runs:
-                    runs.append(run.name)
-    return runs
+) -> list[dict[str, str]]:
+    choices: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for root in (snap.lab_dir / "runs", *runs_dirs):
+        if not root or not root.is_dir():
+            continue
+        for run in sorted(root.iterdir()):
+            checkpoints = run / "checkpoints"
+            if not run.is_dir() or not checkpoints.is_dir():
+                continue
+            for gen in sorted(checkpoints.glob("step_*_gen_*")):
+                if not gen.is_dir() or not (gen / "manifest.json").is_file():
+                    continue
+                spec = str(gen.resolve())
+                if spec in seen:
+                    continue
+                seen.add(spec)
+                step = _generation_step(gen)
+                choices.append(
+                    {
+                        "spec": spec,
+                        "label": f"{run.name} · {gen.name} · step {step}",
+                    }
+                )
+    for path, record in snap.tries:
+        spec = str(path.resolve())
+        if spec in seen:
+            continue
+        cand = (record.get("arms") or {}).get("candidate") or {}
+        if cand.get("reference") or str(cand.get("run_id") or "").startswith("ref:"):
+            continue
+        seen.add(spec)
+        run_id = cand.get("run_id") or "unknown-run"
+        try_id = record.get("try_id") or path.parent.name
+        step = cand.get("step") if cand.get("step") is not None else "–"
+        ckpt = cand.get("checkpoint")
+        gen_part = f" ({Path(str(ckpt)).name})" if ckpt else ""
+        choices.append(
+            {
+                "spec": spec,
+                "label": f"{run_id} · try {try_id}{gen_part} · step {step}",
+            }
+        )
+    for path, record in snap.probes:
+        spec = str(path.resolve())
+        if spec in seen:
+            continue
+        target = record.get("target") or {}
+        if target.get("reference") or str(target.get("run_id") or "").startswith(
+            "ref:"
+        ):
+            continue
+        seen.add(spec)
+        run_id = target.get("run_id") or "unknown-run"
+        probe_id = record.get("probe_id") or path.parent.name
+        step = target.get("step") if target.get("step") is not None else "–"
+        ckpt = target.get("checkpoint")
+        gen_part = f" ({Path(str(ckpt)).name})" if ckpt else ""
+        choices.append(
+            {
+                "spec": spec,
+                "label": f"{run_id} · probe {probe_id}{gen_part} · step {step}",
+            }
+        )
+    return choices
 
 
 def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
@@ -939,8 +1006,8 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
     )
     snap = _snapshot(lab_dir)
     cached = snap.explorations
-    runs = _explorable_runs(snap, runs_dirs)
-    if not cached and not runs:
+    choices = _explorable_runs(snap, runs_dirs)
+    if not cached and not choices:
         empty_state(
             "Nothing to explore yet",
             "Train or try a model first; then explore it here or from the CLI.",
@@ -949,11 +1016,13 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
         return
     source = st.radio(
         "Show",
-        ["Cached exploration", "Explore a run"],
+        ["Cached exploration", "Explore a run", "Compare checkpoints"],
         horizontal=True,
         key="explorer_source",
         index=0 if cached else 1,
     )
+    label_map = {c["spec"]: c["label"] for c in choices}
+    specs = [c["spec"] for c in choices]
     exploration: dict[str, Any] | None = None
     if source == "Cached exploration":
         if not cached:
@@ -966,44 +1035,148 @@ def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
                 f"{(cached[i].get('target') or {}).get('run_id')} · "
                 f"“{cached[i]['text'][:48]}” · {_when(cached[i]['created_at'])} · "
                 f"{ex.runtime_label(cached[i])}"
+                + (
+                    " · historical: re-explore for activations"
+                    if cached[i].get("format") != ex.EXPLORER_FORMAT
+                    else ""
+                )
                 + (" · ⚠ unverified" if cached[i].get("cache_issue") else "")
             ),
             key="explorer_cached",
         )
         exploration = cached[index]
-    else:
-        cols = st.columns([2, 3])
-        run = cols[0].selectbox("Run", runs, key="explorer_run")
-        text = cols[1].text_input(
-            "Sample text", value=ex.DEFAULT_TEXT, key="explorer_text", max_chars=600
+        render_exploration(exploration)
+        return
+    if source == "Compare checkpoints":
+        if not specs:
+            st.info("No local checkpoint generations or pinned records to compare.")
+            return
+        cols = st.columns([2, 2, 3])
+        left_spec = cols[0].selectbox(
+            "Left checkpoint",
+            specs,
+            index=0,
+            format_func=lambda s: label_map.get(s, s),
+            key="explorer_compare_left",
         )
-        if st.button("Explore", type="primary", key="explorer_go"):
-            runs_dir = next((r for r in runs_dirs if r and (r / run).is_dir()), None)
-            with st.spinner("Loading the checkpoint and running one forward pass…"):
+        right_spec = cols[1].selectbox(
+            "Right checkpoint",
+            specs,
+            index=1 if len(specs) > 1 else 0,
+            format_func=lambda s: label_map.get(s, s),
+            key="explorer_compare_right",
+        )
+        text = cols[2].text_input(
+            "Sample text",
+            value=ex.DEFAULT_TEXT,
+            key="explorer_compare_text",
+            max_chars=600,
+        )
+        saved_compare = st.session_state.get("explorer_compare_last")
+        if saved_compare is not None and (
+            saved_compare.get("left_spec") != left_spec
+            or saved_compare.get("right_spec") != right_spec
+            or saved_compare.get("text") != text
+        ):
+            st.session_state.pop("explorer_compare_last", None)
+            saved_compare = None
+        if st.button("Compare", type="primary", key="explorer_compare_go"):
+            st.session_state.pop("explorer_compare_last", None)
+            saved_compare = None
+            if left_spec == right_spec:
+                st.warning("Pick two distinct checkpoints to compare.")
+                return
+            with st.spinner(
+                "Loading both checkpoints on CPU and running paired forward passes…"
+            ):
                 try:
-                    exploration, _ = ex.explore(
-                        run, lab_dir=lab_dir, runs_dir=runs_dir, text=text
+                    left_exp, _ = ex.explore(
+                        left_spec, lab_dir=lab_dir, text=text, backend="cpu"
                     )
+                    right_exp, _ = ex.explore(
+                        right_spec, lab_dir=lab_dir, text=text, backend="cpu"
+                    )
+                    if left_exp.get("unavailable") or right_exp.get("unavailable"):
+                        reason = left_exp.get("unavailable") or right_exp.get(
+                            "unavailable"
+                        )
+                        st.warning(f"⊘ Cannot compare: {reason}")
+                        return
+                    comparison = ex.compare_explorations(left_exp, right_exp)
                 except ex.ExplorerUnavailable as error:
                     st.warning(str(error))
                     return
-                except (ValueError, FileNotFoundError, RuntimeError) as error:
-                    st.error(f"Could not explore {run}: {error}")
+                except (ValueError, FileNotFoundError, RuntimeError, OSError) as error:
+                    st.error(f"Could not compare checkpoints: {error}")
                     return
-            st.session_state["explorer_last"] = exploration
-        exploration = exploration or st.session_state.get("explorer_last")
-        if exploration is None:
+            saved_compare = {
+                "left_spec": left_spec,
+                "right_spec": right_spec,
+                "text": text,
+                "comparison": comparison,
+            }
+            st.session_state["explorer_compare_last"] = saved_compare
+        if saved_compare is None:
             st.caption(
-                "Pick a run and a sample sentence, then press Explore. Same as "
-                f"`sparselab explore {run} --config explore.yaml` "
-                "with the sentence in the declaration’s `text` field."
+                "Pick two distinct pinned checkpoints and a shared sentence, "
+                "then press Compare."
             )
             return
+        render_comparison(saved_compare["comparison"])
+        return
+    if not specs:
+        st.info("No local checkpoint generations or pinned records to explore.")
+        return
+    cols = st.columns([2, 3])
+    run = cols[0].selectbox(
+        "Run",
+        specs,
+        format_func=lambda s: label_map.get(s, s),
+        key="explorer_run",
+    )
+    text = cols[1].text_input(
+        "Sample text", value=ex.DEFAULT_TEXT, key="explorer_text", max_chars=600
+    )
+    saved_single = st.session_state.get("explorer_last")
+    if isinstance(saved_single, Mapping) and "exploration" in saved_single:
+        if saved_single.get("spec") == run and saved_single.get("text") == text:
+            exploration = saved_single["exploration"]
+        else:
+            st.session_state.pop("explorer_last", None)
+    elif isinstance(saved_single, Mapping):
+        exploration = dict(saved_single)
+    if st.button("Explore", type="primary", key="explorer_go"):
+        st.session_state.pop("explorer_last", None)
+        exploration = None
+        runs_dir = next((r for r in runs_dirs if r and (r / run).is_dir()), None)
+        with st.spinner("Loading the checkpoint and running one forward pass…"):
+            try:
+                exploration, _ = ex.explore(
+                    run, lab_dir=lab_dir, runs_dir=runs_dir, text=text, backend="cpu"
+                )
+            except ex.ExplorerUnavailable as error:
+                st.warning(str(error))
+                return
+            except (ValueError, FileNotFoundError, RuntimeError, OSError) as error:
+                st.error(f"Could not explore {run}: {error}")
+                return
+        st.session_state["explorer_last"] = {
+            "spec": run,
+            "text": text,
+            "exploration": exploration,
+        }
+    if exploration is None:
+        st.caption(
+            "Pick a checkpoint and a sample sentence, then press Explore. Same as "
+            f"`sparselab explore {run} --config explore.yaml` "
+            "with the sentence in the declaration’s `text` field."
+        )
+        return
     render_exploration(exploration)
 
 
 def render_exploration(exploration: Mapping[str, Any]) -> None:
-    from sparselab.explorer import runtime_label
+    from sparselab.explorer import EXPLORER_FORMAT, runtime_label
 
     arch = exploration["architecture"]
     target = exploration.get("target") or {}
@@ -1013,6 +1186,11 @@ def render_exploration(exploration: Mapping[str, Any]) -> None:
         st.markdown(xv.architecture_html(arch), unsafe_allow_html=True)
         return
     st.caption(f"Diagnostics runtime: {runtime_label(exploration)}")
+    if exploration.get("format") != EXPLORER_FORMAT:
+        st.info(
+            "ⓘ Historical v1 cache record (historical: re-explore for activations). "
+            "Not eligible for paired activation comparison."
+        )
     if exploration.get("cache_issue"):
         st.warning(f"Cache provenance unverified: {exploration['cache_issue']}")
     tokens = exploration["tokens"]
@@ -1034,6 +1212,8 @@ def render_exploration(exploration: Mapping[str, Any]) -> None:
         + (" · text truncated" if exploration.get("truncated") else "")
     )
     tabs = ["Architecture", "Tokens", "Attention", "Weights"]
+    if exploration.get("activation"):
+        tabs.append("Activations")
     if exploration.get("routing"):
         tabs.append("Expert routing")
     if exploration.get("memory"):
@@ -1082,6 +1262,9 @@ def render_exploration(exploration: Mapping[str, Any]) -> None:
             xv.weight_histogram(next(w for w in weights if w["name"] == name)),
             use_container_width=True,
         )
+    if "Activations" in shown:
+        with shown["Activations"]:
+            _activations(exploration, tokens)
     if "Expert routing" in shown:
         with shown["Expert routing"]:
             _routing(exploration, tokens)
@@ -1192,3 +1375,160 @@ def _memory(exploration: Mapping[str, Any], tokens: list[dict[str, Any]]) -> Non
         hide_index=True,
         use_container_width=True,
     )
+
+
+def _activations(exploration: Mapping[str, Any], tokens: list[dict[str, Any]]) -> None:
+    activation = exploration["activation"]
+    sites = list(
+        activation.get("sites") or ("residual_pre", "residual_mid", "residual_post")
+    )
+    layers = sorted(activation["layers"], key=int)
+    st.caption(
+        "FP32-derived root-mean-square (RMS) residual-stream magnitudes per token "
+        "and layer (`residual_pre` before `norm1`, `residual_mid` before `norm2`, "
+        "`residual_post` after the FFN residual). Descriptive activation magnitudes only, "
+        "never wall-clock or step timing."
+    )
+    cols = st.columns(3)
+    site = cols[0].selectbox(
+        "Residual site",
+        sites,
+        format_func=lambda s: xv.ACTIVATION_SITE_LABEL.get(s, s),
+        key="explorer_activation_site",
+    )
+    layer = cols[1].selectbox("Layer", layers, key="explorer_activation_layer")
+    position = cols[2].selectbox(
+        "Token position",
+        range(len(tokens)),
+        format_func=lambda i: f"#{i} {tokens[i]['text']!r}",
+        key="explorer_activation_position",
+    )
+    layer_sites = activation["layers"][str(layer)]
+    mcols = st.columns(len(sites))
+    for col, s in zip(mcols, sites, strict=True):
+        col.metric(
+            f"L{layer} · {s} (#{position})",
+            f"{layer_sites[s][position]:.4f}",
+        )
+    st.plotly_chart(
+        xv.activation_heatmap(activation, tokens, site),
+        use_container_width=True,
+    )
+    st.plotly_chart(
+        xv.activation_line_figure(activation, tokens, layer=layer, position=position),
+        use_container_width=True,
+    )
+
+
+def render_comparison(comparison: Mapping[str, Any]) -> None:
+    from sparselab.explorer import runtime_label
+
+    left = comparison["left"]
+    right = comparison["right"]
+    left_target = left.get("target") or {}
+    right_target = right.get("target") or {}
+    tokens = left["tokens"]
+    common = comparison["common_layers"]
+    only_left = comparison["only_left"]
+    only_right = comparison["only_right"]
+
+    st.caption(
+        f"Diagnostics runtime: {runtime_label(left)} · tokenizer "
+        f"{str(left_target.get('tokenizer_sha256') or '')[:12]} · "
+        f"{len(tokens)} tokens · descriptive activation magnitudes and "
+        "checkpoint-local routing (not inference timing)"
+    )
+    pcols = st.columns(2)
+    pcols[0].markdown(
+        f"**Left:** `{html.escape(str(left_target.get('run_id')))}` · "
+        f"step `{left_target.get('step')}` · "
+        f"checkpoint `{str(left_target.get('checkpoint_sha256'))[:12]}` "
+        f"(`{html.escape(str(left_target.get('checkpoint') or 'pinned'))}`)"
+    )
+    pcols[1].markdown(
+        f"**Right:** `{html.escape(str(right_target.get('run_id')))}` · "
+        f"step `{right_target.get('step')}` · "
+        f"checkpoint `{str(right_target.get('checkpoint_sha256'))[:12]}` "
+        f"(`{html.escape(str(right_target.get('checkpoint') or 'pinned'))}`)"
+    )
+    token_labels = ", ".join(f"#{t['position']}:{t['text']}" for t in tokens)
+    st.caption(
+        f"Shared sentence: “{left['text']}” · Tokens: {token_labels} · "
+        f"Matched layers: {common}"
+        + (f" · Only left: {only_left}" if only_left else "")
+        + (f" · Only right: {only_right}" if only_right else "")
+    )
+
+    sites = list(
+        left["activation"].get("sites")
+        or ("residual_pre", "residual_mid", "residual_post")
+    )
+    all_layers = sorted(set(common) | set(only_left) | set(only_right))
+    scols = st.columns(2)
+    site = scols[0].selectbox(
+        "Residual site",
+        sites,
+        format_func=lambda s: xv.ACTIVATION_SITE_LABEL.get(s, s),
+        key="explorer_compare_site",
+    )
+    layer = scols[1].selectbox("Layer", all_layers, key="explorer_compare_layer")
+    left_fig, right_fig = xv.paired_activation_heatmaps(comparison, site)
+    hcols = st.columns(2)
+    hcols[0].plotly_chart(left_fig, use_container_width=True)
+    hcols[1].plotly_chart(right_fig, use_container_width=True)
+    delta_fig = xv.activation_delta_heatmap(comparison, site)
+    if delta_fig is not None:
+        st.plotly_chart(delta_fig, use_container_width=True)
+    else:
+        st.info(
+            "Architectures differ (`architecture_matches=False`): showing the two "
+            "measured RMS series independently without signed deltas."
+        )
+    st.plotly_chart(
+        xv.paired_activation_line_figure(comparison, site, int(layer)),
+        use_container_width=True,
+    )
+
+    st.subheader("MoE routing (checkpoint-local expert IDs)")
+    st.caption(
+        "Expert IDs belong to each checkpoint independently even when indices "
+        "coincide; per-expert loads are never subtracted across runs."
+    )
+    rcols = st.columns(2)
+    for side_label, side, col in (
+        ("Left", left, rcols[0]),
+        ("Right", right, rcols[1]),
+    ):
+        with col:
+            routing = side.get("routing")
+            if not routing:
+                st.info(f"{side_label}: no MoE router (dense FFN)")
+                continue
+            for key in sorted(routing, key=int):
+                r_layer = routing[key]
+                experts = side["architecture"]["layers"][int(key)]["ffn"]["experts"]
+                load = xv.expert_load(r_layer)
+                st.plotly_chart(
+                    xv.routing_figure(
+                        r_layer,
+                        side["tokens"],
+                        experts,
+                        f"{side_label} · Layer {key} routing",
+                    ),
+                    use_container_width=True,
+                )
+                st.metric(
+                    f"{side_label} L{key} router entropy",
+                    f"{r_layer['entropy']:.2f}",
+                )
+                st.dataframe(
+                    pd.DataFrame(
+                        {"expert": list(range(len(load))), "share of tokens": load}
+                    ),
+                    hide_index=True,
+                    column_config={
+                        "share of tokens": st.column_config.ProgressColumn(
+                            min_value=0.0, max_value=1.0, format="%.2f"
+                        )
+                    },
+                )

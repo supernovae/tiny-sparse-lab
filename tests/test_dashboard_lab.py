@@ -340,10 +340,11 @@ def test_explorer_page_renders_a_cached_moe_memory_exploration(lab: Path) -> Non
         "Tokens",
         "Attention",
         "Weights",
+        "Activations",
         "Expert routing",
         "Memory lookups",
     ]
-    assert len(test.get("plotly_chart")) >= 6
+    assert len(test.get("plotly_chart")) >= 8
     assert any(
         "Diagnostics runtime: pytorch / cpu:0 / fp32" in c.value for c in test.caption
     )
@@ -938,3 +939,168 @@ def test_not_comparable_try_next_step_requires_repaired_new_try(
     app = _render("home", tmp_path / "lab")
     assert not app.exception and step["plan"] in [code.value for code in app.code]
     assert path.read_bytes() == before
+
+
+def test_explorer_v1_historical_tab_contract_and_compare_generations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import torch
+
+    from sparselab.dashboard import lab_pages
+
+    lab_dir = tmp_path / "lab"
+    runs_dir = tmp_path / "runs"
+    run_dir = runs_dir / "moe-run"
+    gen_a = run_dir / "checkpoints" / "step_00000004_gen_aaaa"
+    gen_b = run_dir / "checkpoints" / "step_00000008_gen_bbbb"
+    gen_a.mkdir(parents=True)
+    gen_b.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text("{}")
+    (run_dir / "resolved_config.yaml").write_text("{}")
+    (gen_a / "manifest.json").write_text(json.dumps({"step": 4}))
+    (gen_b / "manifest.json").write_text(json.dumps({"step": 8}))
+    # A mutable latest.json pointer in checkpoints must never appear as a selector.
+    (run_dir / "checkpoints" / "latest.json").write_text(
+        json.dumps({"relative_path": "step_00000008_gen_bbbb"})
+    )
+
+    # Write a historical v1 cached exploration (no activation key).
+    loaded_a = _loaded(**MOE_NGRAM)
+    loaded_a.identity.update(
+        run_id="moe-run",
+        checkpoint_relative_path="checkpoints/step_00000004_gen_aaaa",
+        checkpoint_sha256="1" * 64,
+        step=4,
+    )
+    v2_a = jsonable(explorer.explore_loaded(loaded_a, TEXT))
+    v1_body = {k: v for k, v in v2_a.items() if k != "activation"}
+    v1_body["format"] = "sparselab-explorer-v1"
+    v1_path = explorer._v1_cache_path(lab_dir, "1" * 64, TEXT, v1_body["runtime"])
+    v1_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(v1_path, seal(v1_body))
+
+    loaded_b = _loaded(**MOE_NGRAM)
+    loaded_b.identity.update(
+        run_id="moe-run",
+        checkpoint_relative_path="checkpoints/step_00000008_gen_bbbb",
+        checkpoint_sha256="2" * 64,
+        step=8,
+    )
+    with torch.no_grad():
+        for param in loaded_b.model.parameters():
+            param.mul_(1.2)
+    v2_b = jsonable(explorer.explore_loaded(loaded_b, TEXT))
+
+    by_spec = {
+        str(gen_a.resolve()): seal(v2_a),
+        str(gen_b.resolve()): seal(v2_b),
+    }
+
+    def fake_explore(
+        target: str, *, lab_dir: Path, text: str = TEXT, **kwargs: Any
+    ) -> tuple[dict[str, Any], Path | None]:
+        resolved = str(Path(target).resolve())
+        if resolved not in by_spec:
+            raise FileNotFoundError(f"missing generation at {target}")
+        rec = seal({**by_spec[resolved], "text": text})
+        return rec, None
+
+    monkeypatch.setattr(explorer, "explore", fake_explore)
+
+    def run_explorer(lab_root: str, runs_root: str) -> None:
+        from pathlib import Path
+
+        from sparselab.dashboard import lab_pages
+
+        lab_pages.explorer_page(Path(lab_root), [Path(runs_root)])
+
+    # 1. Historical v1 cached record remains readable with old tab contract and v1 label.
+    test = AppTest.from_function(
+        run_explorer, args=(str(lab_dir), str(runs_dir)), default_timeout=60
+    )
+    test.run()
+    assert not test.exception
+    cached_opts = test.selectbox(key="explorer_cached").options
+    assert any("historical: re-explore for activations" in opt for opt in cached_opts)
+    assert [t.label for t in test.tabs] == [
+        "Architecture",
+        "Tokens",
+        "Attention",
+        "Weights",
+        "Expert routing",
+        "Memory lookups",
+    ]
+    assert "historical: re-explore for activations" in _text(test)
+
+    # Verify selectors list both generations and never latest.json.
+    snap = lab_data.snapshot(lab_dir)
+    choices = lab_pages._explorable_runs(snap, [runs_dir])
+    assert [c["spec"] for c in choices] == [
+        str(gen_a.resolve()),
+        str(gen_b.resolve()),
+    ]
+    assert all("latest" not in c["label"] for c in choices)
+    assert "step 4" in choices[0]["label"] and "step 8" in choices[1]["label"]
+
+    # 2. Switch to "Compare checkpoints", select the two generations, and click Compare.
+    test.radio(key="explorer_source").set_value("Compare checkpoints").run()
+    assert not test.exception
+    left_sel = test.selectbox(key="explorer_compare_left")
+    right_sel = test.selectbox(key="explorer_compare_right")
+    assert len(left_sel.options) == 2
+    left_sel.select_index(0).run()
+    right_sel.select_index(1).run()
+    test.text_input(key="explorer_compare_text").set_value(TEXT).run()
+    test.button(key="explorer_compare_go").click().run()
+    assert not test.exception, test.exception
+
+    page_text = _text(test)
+    assert "111111111111" in page_text and "222222222222" in page_text
+    assert "step `4`" in page_text and "step `8`" in page_text
+    assert "Diagnostics runtime: pytorch / cpu:0 / fp32" in page_text
+    assert "Matched layers: [0, 1]" in page_text
+    charts = [json.loads(c.proto.spec) for c in test.get("plotly_chart")]
+    titles = [c["layout"].get("title", {}).get("text", "") for c in charts]
+    assert any("Left: moe-run · step 4" in t for t in titles)
+    assert any("Right: moe-run · step 8" in t for t in titles)
+    assert any("Signed Δ RMS (right − left)" in t for t in titles)
+    assert any("Left · Layer 0 routing" in t for t in titles)
+    assert any("Right · Layer 0 routing" in t for t in titles)
+    # Verify shared RMS scale on paired heatmaps and centered zero on delta heatmap.
+    left_heat = next(
+        c
+        for c in charts
+        if "Left: moe-run · step 4" in c["layout"].get("title", {}).get("text", "")
+    )
+    right_heat = next(
+        c
+        for c in charts
+        if "Right: moe-run · step 8" in c["layout"].get("title", {}).get("text", "")
+    )
+    delta_heat = next(
+        c
+        for c in charts
+        if "Signed Δ RMS" in c["layout"].get("title", {}).get("text", "")
+    )
+    assert left_heat["data"][0]["zmin"] == right_heat["data"][0]["zmin"] == 0.0
+    assert left_heat["data"][0]["zmax"] == pytest.approx(right_heat["data"][0]["zmax"])
+    assert delta_heat["data"][0]["zmid"] == 0.0
+    assert delta_heat["data"][0]["zmin"] == pytest.approx(
+        -delta_heat["data"][0]["zmax"]
+    )
+
+    # 3. Changing a selector or text clears the stale comparison immediately.
+    test.text_input(key="explorer_compare_text").set_value("once upon").run()
+    assert not test.exception
+    assert "Signed Δ RMS" not in "\n".join(
+        json.loads(c.proto.spec)["layout"].get("title", {}).get("text", "")
+        for c in test.get("plotly_chart")
+    )
+    assert "Pick two distinct pinned checkpoints" in _text(test)
+
+    # 4. Missing generation on click reports error and leaves no stale comparison.
+    del by_spec[str(gen_b.resolve())]
+    test.button(key="explorer_compare_go").click().run()
+    assert not test.exception
+    assert any("missing generation" in e.value for e in test.error)
+    assert len(test.get("plotly_chart")) == 0

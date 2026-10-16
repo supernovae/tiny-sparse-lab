@@ -1567,3 +1567,44 @@ def test_explore_cli_uses_the_shared_runtime_preparation_and_envelope(
     assert "stopped" in str(stopped.value) and "rss over the limit" in str(
         stopped.value
     )
+
+
+def test_explore_compares_pinned_generations(
+    tried: tuple[Path, dict[str, Any]],
+) -> None:
+    """Explore two immutable generations of one real lab run and compare activations."""
+    from sparselab.explorer import (
+        ACTIVATION_SITES,
+        EXPLORER_FORMAT,
+        compare_explorations,
+        explore,
+    )
+
+    root, record = tried
+    lab = root / "work" / "lab"
+    run_dir = lab / "runs" / record["arms"]["candidate"]["run_id"]
+    gen_4_dir = next((run_dir / "checkpoints").glob("step_00000004_gen_*"))
+    gen_8_dir = max((run_dir / "checkpoints").glob("step_00000008_gen_*"))
+    gen_4, _ = explore(str(gen_4_dir), lab_dir=lab, text="Once upon a")
+    gen_8, _ = explore(str(gen_8_dir), lab_dir=lab, text="Once upon a")
+
+    assert gen_4["format"] == gen_8["format"] == EXPLORER_FORMAT
+    assert gen_4["target"]["step"] == 4 and gen_8["target"]["step"] == 8
+    assert gen_4["target"]["checkpoint_sha256"] != gen_8["target"]["checkpoint_sha256"]
+    assert (
+        gen_4["target"]["tokenizer_sha256"]
+        == gen_8["target"]["tokenizer_sha256"]
+        == record["probe"]["target"]["tokenizer_sha256"]
+    )
+    assert [t["id"] for t in gen_4["tokens"]] == [t["id"] for t in gen_8["tokens"]]
+
+    comparison = compare_explorations(gen_4, gen_8)
+    assert comparison["architecture_matches"] is True
+    assert comparison["common_layers"] == [0, 1]
+    assert comparison["only_left"] == [] and comparison["only_right"] == []
+    assert comparison["delta"] is not None
+    for layer_key in ("0", "1"):
+        for site in ACTIVATION_SITES:
+            deltas = comparison["delta"][layer_key][site]
+            assert len(deltas) == len(gen_4["tokens"])
+            assert any(abs(v) > 0 for v in deltas)

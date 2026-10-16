@@ -21,6 +21,13 @@ ATTENTION_KIND = {
     "block_sparse": "block-sparse attention",
 }
 
+ACTIVATION_SITE_LABEL = {
+    "residual_pre": "residual_pre (input to norm1)",
+    "residual_mid": "residual_mid (input to norm2, after attention)",
+    "residual_post": "residual_post (after FFN residual)",
+}
+DIVERGING = "RdBu_r"
+
 
 def _unit_row(count: int, active: int, color: str, title: str) -> str:
     units = "".join(
@@ -415,4 +422,230 @@ def gate_figure(memory: Mapping[str, Any], tokens: list[Mapping[str, Any]]) -> A
         height=260,
         title="How much each token mixes in its memory read (gate, 0–1)",
         yaxis_range=[0, 1],
+    )
+
+
+def activation_heatmap(
+    activation: Mapping[str, Any],
+    tokens: list[Mapping[str, Any]],
+    site: str,
+    *,
+    title: str | None = None,
+    zmin: float = 0.0,
+    zmax: float | None = None,
+) -> go.Figure:
+    """Layer × token RMS heatmap for one residual stream site."""
+    layers = sorted(activation["layers"], key=int)
+    matrix = [activation["layers"][k][site] for k in layers]
+    labels = _labels(tokens)[: len(matrix[0]) if matrix else 0]
+    arr = np.asarray(matrix, dtype=np.float64)
+    top = float(arr.max()) if arr.size else 1.0
+    scale_max = max(float(zmax if zmax is not None else top), 1e-6)
+    figure = go.Figure(
+        go.Heatmap(
+            z=matrix,
+            x=labels,
+            y=[f"layer {k}" for k in layers],
+            colorscale=SEQUENTIAL,
+            zmin=zmin,
+            zmax=scale_max,
+            hovertemplate="%{y} · %{x}<br>RMS %{z:.4f}<extra></extra>",
+            colorbar={"title": "RMS"},
+        )
+    )
+    figure.update_xaxes(tickfont={"size": 9}, tickangle=-60)
+    site_label = ACTIVATION_SITE_LABEL.get(site, site)
+    return figure_layout(
+        figure,
+        height=max(220, 42 * len(layers) + 120),
+        title=title or f"Residual RMS · {site_label} (descriptive magnitude)",
+        xaxis_title="token position",
+        yaxis_title="layer",
+    )
+
+
+def activation_line_figure(
+    activation: Mapping[str, Any],
+    tokens: list[Mapping[str, Any]],
+    *,
+    layer: str | int,
+    position: int | None = None,
+) -> go.Figure:
+    """Per-token RMS across all three residual sites within a single layer."""
+    layer_key = str(layer)
+    layer_sites = activation["layers"][layer_key]
+    sites = list(
+        activation.get("sites") or ("residual_pre", "residual_mid", "residual_post")
+    )
+    labels = _labels(tokens)
+    palette = {
+        "residual_pre": SERIES["baseline"],
+        "residual_mid": SERIES["control"],
+        "residual_post": SERIES["candidate"],
+    }
+    figure = go.Figure()
+    for site in sites:
+        values = layer_sites[site]
+        figure.add_trace(
+            go.Scatter(
+                x=labels[: len(values)],
+                y=values,
+                mode="lines+markers",
+                name=site,
+                line={"color": palette.get(site, SERIES["accent"])},
+                hovertemplate=f"layer {layer_key} · {site}<br>%{{x}}: RMS %{{y:.4f}}<extra></extra>",
+            )
+        )
+    if position is not None and 0 <= position < len(labels):
+        figure.add_vline(
+            x=labels[position],
+            line_dash="dot",
+            line_color="#666",
+        )
+    return figure_layout(
+        figure,
+        height=280,
+        title=f"Layer {layer_key} residual stream RMS by token",
+        xaxis_title="token position",
+        yaxis_title="RMS",
+    )
+
+
+def paired_activation_range(
+    left_activation: Mapping[str, Any],
+    right_activation: Mapping[str, Any],
+    site: str | None = None,
+) -> tuple[float, float]:
+    """Shared [0, zmax] RMS range so paired heatmaps sit on one color scale."""
+    values: list[float] = []
+    for act in (left_activation, right_activation):
+        sites = [site] if site is not None else list(act.get("sites") or ())
+        for layer_sites in (act.get("layers") or {}).values():
+            for s in sites:
+                if s in layer_sites:
+                    values.extend(float(v) for v in layer_sites[s])
+    top = max(values) if values else 1.0
+    return 0.0, max(top, 1e-6)
+
+
+def _target_short_label(exploration: Mapping[str, Any], side: str) -> str:
+    target = exploration.get("target") or {}
+    run_id = target.get("run_id") or side
+    step = target.get("step")
+    sha = str(target.get("checkpoint_sha256") or "")[:12]
+    step_part = f" · step {step}" if step is not None else ""
+    return f"{side}: {run_id}{step_part} ({sha})"
+
+
+def paired_activation_heatmaps(
+    comparison: Mapping[str, Any], site: str
+) -> tuple[go.Figure, go.Figure]:
+    """Left and right Layer × Token RMS heatmaps on a shared color range."""
+    left = comparison["left"]
+    right = comparison["right"]
+    zmin, zmax = paired_activation_range(left["activation"], right["activation"], site)
+    site_label = ACTIVATION_SITE_LABEL.get(site, site)
+    left_fig = activation_heatmap(
+        left["activation"],
+        left["tokens"],
+        site,
+        title=f"{_target_short_label(left, 'Left')} · {site_label}",
+        zmin=zmin,
+        zmax=zmax,
+    )
+    right_fig = activation_heatmap(
+        right["activation"],
+        right["tokens"],
+        site,
+        title=f"{_target_short_label(right, 'Right')} · {site_label}",
+        zmin=zmin,
+        zmax=zmax,
+    )
+    return left_fig, right_fig
+
+
+def activation_delta_heatmap(
+    comparison: Mapping[str, Any], site: str
+) -> go.Figure | None:
+    """Signed (right − left) RMS heatmap with centered-zero diverging scale.
+
+    Returns None when architectures differ or delta is not permitted.
+    """
+    delta = comparison.get("delta")
+    if not comparison.get("architecture_matches") or not delta:
+        return None
+    common = [str(i) for i in comparison.get("common_layers") or [] if str(i) in delta]
+    if not common:
+        return None
+    matrix = [delta[k][site] for k in common]
+    tokens = comparison["left"]["tokens"]
+    labels = _labels(tokens)[: len(matrix[0])]
+    arr = np.asarray(matrix, dtype=np.float64)
+    bound = max(float(np.abs(arr).max()), 1e-6) if arr.size else 1.0
+    site_label = ACTIVATION_SITE_LABEL.get(site, site)
+    figure = go.Figure(
+        go.Heatmap(
+            z=matrix,
+            x=labels,
+            y=[f"layer {k}" for k in common],
+            colorscale=DIVERGING,
+            zmin=-bound,
+            zmax=bound,
+            zmid=0.0,
+            hovertemplate="%{y} · %{x}<br>Δ RMS (right − left) %{z:+.4f}<extra></extra>",
+            colorbar={"title": "Δ RMS"},
+        )
+    )
+    figure.update_xaxes(tickfont={"size": 9}, tickangle=-60)
+    return figure_layout(
+        figure,
+        height=max(220, 42 * len(common) + 120),
+        title=f"Signed Δ RMS (right − left) · {site_label}",
+        xaxis_title="token position",
+        yaxis_title="layer",
+    )
+
+
+def paired_activation_line_figure(
+    comparison: Mapping[str, Any], site: str, layer: int
+) -> go.Figure:
+    """Measured per-token RMS series for left and right at one layer and site."""
+    left = comparison["left"]
+    right = comparison["right"]
+    tokens = left["tokens"]
+    labels = _labels(tokens)
+    key = str(layer)
+    figure = go.Figure()
+    left_layers = left["activation"]["layers"]
+    right_layers = right["activation"]["layers"]
+    if key in left_layers:
+        vals = left_layers[key][site]
+        figure.add_trace(
+            go.Scatter(
+                x=labels[: len(vals)],
+                y=vals,
+                mode="lines+markers",
+                name=_target_short_label(left, "left"),
+                line={"color": SERIES["baseline"]},
+                hovertemplate=f"left L{key} · {site}<br>%{{x}}: RMS %{{y:.4f}}<extra></extra>",
+            )
+        )
+    if key in right_layers:
+        vals = right_layers[key][site]
+        figure.add_trace(
+            go.Scatter(
+                x=labels[: len(vals)],
+                y=vals,
+                mode="lines+markers",
+                name=_target_short_label(right, "right"),
+                line={"color": SERIES["candidate"]},
+                hovertemplate=f"right L{key} · {site}<br>%{{x}}: RMS %{{y:.4f}}<extra></extra>",
+            )
+        )
+    return figure_layout(
+        figure,
+        height=280,
+        title=f"Layer {key} · {ACTIVATION_SITE_LABEL.get(site, site)} RMS per token",
+        xaxis_title="token position",
+        yaxis_title="RMS",
     )

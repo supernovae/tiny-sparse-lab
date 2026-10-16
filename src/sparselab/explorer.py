@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sys
 import time
 import uuid
@@ -41,8 +42,18 @@ import numpy as np
 from sparselab.lab_context import LabContext, is_out_of_memory, release_memory
 from sparselab.lab_records import is_sealed, jsonable, seal, write_json_atomic
 
-EXPLORER_FORMAT = "sparselab-explorer-v1"
-# Loading and hooking a model this size on a laptop CPU takes seconds; beyond
+EXPLORER_FORMAT = "sparselab-explorer-v2"
+_LEGACY_EXPLORER_FORMAT = "sparselab-explorer-v1"
+_READABLE_EXPLORER_FORMATS = frozenset({EXPLORER_FORMAT, _LEGACY_EXPLORER_FORMAT})
+ACTIVATION_SITES = ("residual_pre", "residual_mid", "residual_post")
+_ARCH_COMPARE_FIELDS = (
+    "hidden_dim",
+    "layers",
+    "memory",
+    "vocab_size",
+    "tie_embeddings",
+    "ffn_dim",
+)
 # it the explorer refuses and says so (attention maps grow with heads x T^2).
 MAX_PARAMETERS = 60_000_000
 MAX_TOKENS = 128
@@ -237,7 +248,7 @@ def token_view(loaded: Any, ids: list[int]) -> list[dict[str, Any]]:
 
 
 def _forward_with_hooks(loaded: Any, ids: list[int]) -> dict[str, Any]:
-    """One forward pass; capture attention inputs, routing and memory reads."""
+    """One forward pass; capture activations, attention inputs, routing and memory reads."""
     import torch
 
     from sparselab.model.attention.dense import DenseAttention
@@ -245,8 +256,25 @@ def _forward_with_hooks(loaded: Any, ids: list[int]) -> dict[str, Any]:
     from sparselab.probes import scoring
 
     model = loaded.model
-    captured: dict[str, Any] = {"attention": {}, "memory": {}}
+    captured: dict[str, Any] = {
+        "attention": {},
+        "memory": {},
+        "activation": {str(index): {} for index in range(len(model.blocks))},
+    }
     handles = []
+
+    def keep_rms(layer_key: str, site: str) -> Callable[..., None]:
+        def hook(_module: Any, args: tuple[Any, ...]) -> None:
+            rms = (
+                args[0].detach().float().square().mean(dim=-1).sqrt()[0].cpu().tolist()
+            )
+            if not all(math.isfinite(v) for v in rms):
+                raise ExplorerUnavailable(
+                    f"non-finite activation RMS at layer {layer_key} {site}"
+                )
+            captured["activation"][layer_key][site] = [float(v) for v in rms]
+
+        return hook
 
     def keep_input(key: str) -> Callable[..., None]:
         def hook(module: Any, args: tuple[Any, ...], _output: Any) -> None:
@@ -260,11 +288,23 @@ def _forward_with_hooks(loaded: Any, ids: list[int]) -> dict[str, Any]:
 
         return hook
 
+    num_blocks = len(model.blocks)
     for index, block in enumerate(model.blocks):
+        layer_key = str(index)
+        handles.append(
+            block.norm1.register_forward_pre_hook(keep_rms(layer_key, "residual_pre"))
+        )
+        handles.append(
+            block.norm2.register_forward_pre_hook(keep_rms(layer_key, "residual_mid"))
+        )
+        post_target = (
+            model.blocks[index + 1].norm1 if index + 1 < num_blocks else model.norm
+        )
+        handles.append(
+            post_target.register_forward_pre_hook(keep_rms(layer_key, "residual_post"))
+        )
         if isinstance(block.attention, DenseAttention):
-            handles.append(
-                block.attention.register_forward_hook(keep_input(str(index)))
-            )
+            handles.append(block.attention.register_forward_hook(keep_input(layer_key)))
     memory = getattr(model, "memory", None)
     if memory is not None:
         for name, module in memory.named_modules():
@@ -300,7 +340,23 @@ def _forward_with_hooks(loaded: Any, ids: list[int]) -> dict[str, Any]:
                 "counts": d.counts.cpu().numpy().tolist(),
                 "entropy": float(d.entropy),
             }
-    return {**captured, "attention": attention, "routing": routing}
+    activation = {
+        "metric": "rms",
+        "sites": list(ACTIVATION_SITES),
+        "layers": {
+            str(index): {
+                site: captured["activation"][str(index)][site]
+                for site in ACTIVATION_SITES
+            }
+            for index in range(num_blocks)
+        },
+    }
+    return {
+        **captured,
+        "activation": activation,
+        "attention": attention,
+        "routing": routing,
+    }
 
 
 def attention_view(
@@ -428,12 +484,14 @@ def runtime_label(value: Mapping[str, Any]) -> str:
     )
 
 
-def cache_key(
-    checkpoint_sha256: str, text: str, runtime: Mapping[str, Any] | None = None
+def _cache_key_for_format(
+    fmt: str,
+    checkpoint_sha256: str,
+    text: str,
+    runtime: Mapping[str, Any] | None = None,
 ) -> str:
-    # Omission retains the historical key for read-only legacy lookup.
-    identity = {
-        "format": EXPLORER_FORMAT,
+    identity: dict[str, Any] = {
+        "format": fmt,
         "checkpoint": checkpoint_sha256,
         "text": text,
     }
@@ -446,7 +504,8 @@ def cache_key(
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def cache_path(
+def _cache_path_for_format(
+    fmt: str,
     lab_dir: Path,
     checkpoint_sha256: str,
     text: str,
@@ -456,7 +515,44 @@ def cache_path(
         lab_dir
         / "explorer"
         / checkpoint_sha256[:16]
-        / f"{cache_key(checkpoint_sha256, text, runtime)[:24]}.json"
+        / f"{_cache_key_for_format(fmt, checkpoint_sha256, text, runtime)[:24]}.json"
+    )
+
+
+def _v1_cache_key(
+    checkpoint_sha256: str, text: str, runtime: Mapping[str, Any] | None = None
+) -> str:
+    return _cache_key_for_format(
+        _LEGACY_EXPLORER_FORMAT, checkpoint_sha256, text, runtime
+    )
+
+
+def _v1_cache_path(
+    lab_dir: Path,
+    checkpoint_sha256: str,
+    text: str,
+    runtime: Mapping[str, Any] | None = None,
+) -> Path:
+    return _cache_path_for_format(
+        _LEGACY_EXPLORER_FORMAT, lab_dir, checkpoint_sha256, text, runtime
+    )
+
+
+def cache_key(
+    checkpoint_sha256: str, text: str, runtime: Mapping[str, Any] | None = None
+) -> str:
+    # Omission retains the historical key for read-only legacy lookup.
+    return _cache_key_for_format(EXPLORER_FORMAT, checkpoint_sha256, text, runtime)
+
+
+def cache_path(
+    lab_dir: Path,
+    checkpoint_sha256: str,
+    text: str,
+    runtime: Mapping[str, Any] | None = None,
+) -> Path:
+    return _cache_path_for_format(
+        EXPLORER_FORMAT, lab_dir, checkpoint_sha256, text, runtime
     )
 
 
@@ -466,13 +562,16 @@ def read_cached(path: Path) -> dict[str, Any] | None:
         value = json.loads(path.read_text(encoding="utf-8"))
     except OSError, json.JSONDecodeError:
         return None
-    if not is_sealed(value) or value.get("format") != EXPLORER_FORMAT:
+    if not is_sealed(value) or value.get("format") not in _READABLE_EXPLORER_FORMATS:
         return None
     return value
 
 
 def cache_issue(value: Mapping[str, Any], path: Path) -> str | None:
     """Why sealed bytes cannot verify a producer-matched cache hit."""
+    fmt = value.get("format")
+    if fmt not in _READABLE_EXPLORER_FORMATS:
+        return "unsupported explorer cache format"
     try:
         runtime = runtime_identity(value.get("runtime"))
     except ValueError as error:
@@ -482,7 +581,7 @@ def cache_issue(value: Mapping[str, Any], path: Path) -> str | None:
     text = value.get("text")
     if not isinstance(sha, str) or not isinstance(text, str):
         return "malformed checkpoint/text cache identity"
-    expected = cache_path(path.parents[2], sha, text, runtime)
+    expected = _cache_path_for_format(str(fmt), path.parents[2], sha, text, runtime)
     if path != expected:
         return "sealed payload/cache key mismatch"
     return None
@@ -556,6 +655,7 @@ def explore_loaded(
             "run_id": identity.get("run_id"),
             "checkpoint": identity.get("checkpoint_relative_path"),
             "checkpoint_sha256": identity.get("checkpoint_sha256"),
+            "tokenizer_sha256": identity.get("tokenizer_sha256"),
             "step": identity.get("step"),
             "tokens_seen": identity.get("tokens_seen"),
         },
@@ -564,6 +664,7 @@ def explore_loaded(
         "architecture": arch,
         "weights": state["weights"],
         "tokens": state["tokens"],
+        "activation": forward["activation"],
         "attention": attention_view(arch, forward["attention"]),
         "routing": forward["routing"] or None,
         "memory": memory_view(loaded, ids, forward),
@@ -644,7 +745,7 @@ def explore(
             path = cache_path(lab_dir, sha, text, runtime)
             cached = None if refresh else read_cached(path)
             reason = "refresh requested" if refresh else "no cache for actual runtime"
-            if cached is not None:
+            if cached is not None and cached.get("format") == EXPLORER_FORMAT:
                 issue = cache_issue(cached, path)
                 if issue is None and (
                     cached["target"]["checkpoint_sha256"] != sha
@@ -658,14 +759,31 @@ def explore(
             elif not refresh and path.exists():
                 reason = "unreadable, unsealed or wrong-format cache"
             elif not refresh:
-                legacy = cache_path(lab_dir, sha, text)
-                if legacy.exists():
-                    legacy_value = read_cached(legacy)
+                v1_runtime = _v1_cache_path(lab_dir, sha, text, runtime)
+                if v1_runtime.exists():
+                    v1_value = read_cached(v1_runtime)
                     reason = (
-                        cache_issue(legacy_value, legacy)
-                        if legacy_value is not None
+                        (
+                            cache_issue(v1_value, v1_runtime)
+                            or "historical v1 cache has no activation diagnostics"
+                        )
+                        if v1_value is not None
+                        and v1_value.get("format") == _LEGACY_EXPLORER_FORMAT
                         else "unreadable, unsealed or wrong-format legacy cache"
-                    ) or "legacy cache has no verified actual-runtime binding"
+                    )
+                else:
+                    for legacy in (
+                        cache_path(lab_dir, sha, text),
+                        _v1_cache_path(lab_dir, sha, text),
+                    ):
+                        if legacy.exists():
+                            legacy_value = read_cached(legacy)
+                            reason = (
+                                cache_issue(legacy_value, legacy)
+                                if legacy_value is not None
+                                else "unreadable, unsealed or wrong-format legacy cache"
+                            ) or "legacy cache has no verified actual-runtime binding"
+                            break
             result = explore_loaded(loaded, text, context=context, arch=arch)
         except Exception as error:
             if not is_out_of_memory(error):
@@ -683,3 +801,207 @@ def explore(
     # Invocation status is a sealed overlay; stored diagnostic bytes describe
     # their producer and are unchanged by a hit.
     return seal({**sealed, "cache_reuse": {"status": "miss", "reason": reason}}), path
+
+
+def _validated_activation_layers(
+    side: Mapping[str, Any], token_count: int, side_name: str
+) -> dict[int, dict[str, list[float]]]:
+    arch = side.get("architecture")
+    if not isinstance(arch, Mapping) or not isinstance(arch.get("layers"), list):
+        raise ExplorerUnavailable(f"{side_name} exploration is missing architecture")
+    expected_indices = []
+    for layer in arch["layers"]:
+        if not isinstance(layer, Mapping) or type(layer.get("index")) is not int:
+            raise ExplorerUnavailable(
+                f"{side_name} exploration has malformed architecture layers"
+            )
+        expected_indices.append(layer["index"])
+    activation = side.get("activation")
+    if (
+        not isinstance(activation, Mapping)
+        or activation.get("metric") != "rms"
+        or list(activation.get("sites") or ()) != list(ACTIVATION_SITES)
+        or not isinstance(activation.get("layers"), Mapping)
+        or not activation["layers"]
+    ):
+        raise ExplorerUnavailable(
+            f"{side_name} exploration is missing activation RMS diagnostics"
+        )
+    raw_layers = activation["layers"]
+    if set(raw_layers.keys()) != {str(i) for i in expected_indices}:
+        raise ExplorerUnavailable(
+            f"{side_name} exploration activation layers do not match architecture"
+        )
+    validated: dict[int, dict[str, list[float]]] = {}
+    for index in expected_indices:
+        key = str(index)
+        layer_sites = raw_layers.get(key)
+        if not isinstance(layer_sites, Mapping):
+            raise ExplorerUnavailable(
+                f"{side_name} exploration is missing activation layer {key}"
+            )
+        site_map: dict[str, list[float]] = {}
+        for site in ACTIVATION_SITES:
+            values = layer_sites.get(site)
+            if not isinstance(values, list) or len(values) != token_count:
+                raise ExplorerUnavailable(
+                    f"{side_name} exploration has invalid activation length at layer {key} {site}"
+                )
+            converted: list[float] = []
+            for val in values:
+                if isinstance(val, bool) or not isinstance(val, (int, float)):
+                    raise ExplorerUnavailable(
+                        f"{side_name} exploration has non-numeric activation at layer {key} {site}"
+                    )
+                fval = float(val)
+                if not math.isfinite(fval):
+                    raise ExplorerUnavailable(
+                        f"{side_name} exploration has non-finite activation at layer {key} {site}"
+                    )
+                converted.append(fval)
+            site_map[site] = converted
+        validated[index] = site_map
+    return validated
+
+
+def compare_explorations(
+    left: Mapping[str, Any], right: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Compare two sealed v2 explorations on the exact same tokenized sentence."""
+    if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+        raise ExplorerUnavailable("both explorations must be sealed v2 records")
+    for side_name, side in (("left", left), ("right", right)):
+        if side.get("unavailable"):
+            raise ExplorerUnavailable(
+                f"{side_name} exploration is unavailable: {side['unavailable']}"
+            )
+        if side.get("cache_issue"):
+            raise ExplorerUnavailable(
+                f"{side_name} exploration has unverified cache provenance: {side['cache_issue']}"
+            )
+        candidate = (
+            {k: v for k, v in side.items() if k not in {"path", "cache_issue"}}
+            if "path" in side and "cache_issue" in side and not is_sealed(dict(side))
+            else dict(side)
+        )
+        if not is_sealed(candidate):
+            raise ExplorerUnavailable(
+                f"{side_name} exploration record is unsealed or unverified"
+            )
+        if isinstance(side.get("path"), str):
+            issue = cache_issue(candidate, Path(side["path"]))
+            if issue is not None:
+                raise ExplorerUnavailable(
+                    f"{side_name} exploration has unverified cache provenance: {issue}"
+                )
+        if side.get("format") != EXPLORER_FORMAT:
+            raise ExplorerUnavailable(
+                f"{side_name} exploration uses format {side.get('format')!r}; "
+                f"paired comparison requires {EXPLORER_FORMAT} (historical v1 has no activations)"
+            )
+    try:
+        left_runtime = runtime_identity(left.get("runtime"))
+        right_runtime = runtime_identity(right.get("runtime"))
+    except ValueError as error:
+        raise ExplorerUnavailable(f"unverified runtime identity: {error}") from None
+    if left_runtime != right_runtime:
+        raise ExplorerUnavailable(
+            "explorations were produced on different runtimes: "
+            f"{runtime_label(left)} vs {runtime_label(right)}"
+        )
+    left_target = left.get("target") if isinstance(left.get("target"), Mapping) else {}
+    right_target = (
+        right.get("target") if isinstance(right.get("target"), Mapping) else {}
+    )
+    left_sha = left_target.get("checkpoint_sha256")
+    right_sha = right_target.get("checkpoint_sha256")
+    if (
+        not isinstance(left_sha, str)
+        or not left_sha
+        or not isinstance(right_sha, str)
+        or not right_sha
+    ):
+        raise ExplorerUnavailable("both explorations require target.checkpoint_sha256")
+    if left_sha == right_sha:
+        raise ExplorerUnavailable(
+            "cannot compare identical checkpoints (same checkpoint_sha256)"
+        )
+    left_tok = left_target.get("tokenizer_sha256")
+    right_tok = right_target.get("tokenizer_sha256")
+    if (
+        not isinstance(left_tok, str)
+        or not left_tok
+        or not isinstance(right_tok, str)
+        or not right_tok
+    ):
+        raise ExplorerUnavailable("both explorations require target.tokenizer_sha256")
+    if left_tok != right_tok:
+        raise ExplorerUnavailable(
+            "checkpoints have different tokenizers (tokenizer_sha256 mismatch)"
+        )
+    left_text = left.get("text")
+    right_text = right.get("text")
+    if (
+        not isinstance(left_text, str)
+        or not isinstance(right_text, str)
+        or left_text != right_text
+    ):
+        raise ExplorerUnavailable("explorations must use the exact same text")
+    if bool(left.get("truncated")) or bool(right.get("truncated")):
+        raise ExplorerUnavailable(
+            "cannot compare truncated inputs; shorten the sample text"
+        )
+    left_tokens = left.get("tokens")
+    right_tokens = right.get("tokens")
+    if (
+        not isinstance(left_tokens, list)
+        or not isinstance(right_tokens, list)
+        or len(left_tokens) < 2
+        or len(right_tokens) < 2
+    ):
+        raise ExplorerUnavailable("explorations are missing token sequences")
+    try:
+        left_ids = [int(token["id"]) for token in left_tokens]
+        right_ids = [int(token["id"]) for token in right_tokens]
+    except KeyError, TypeError, ValueError:
+        raise ExplorerUnavailable(
+            "explorations have malformed token sequences"
+        ) from None
+    if left_ids != right_ids:
+        raise ExplorerUnavailable(
+            "explorations produced different token-ID sequences (including EOS)"
+        )
+    token_count = len(left_ids)
+    left_layers = _validated_activation_layers(left, token_count, "left")
+    right_layers = _validated_activation_layers(right, token_count, "right")
+    left_set = set(left_layers)
+    right_set = set(right_layers)
+    common_layers = sorted(left_set & right_set)
+    only_left = sorted(left_set - right_set)
+    only_right = sorted(right_set - left_set)
+    left_arch = left["architecture"]
+    right_arch = right["architecture"]
+    architecture_matches = all(
+        left_arch.get(field) == right_arch.get(field) for field in _ARCH_COMPARE_FIELDS
+    )
+    delta: dict[str, dict[str, list[float]]] | None = None
+    if architecture_matches:
+        delta = {
+            str(index): {
+                site: [
+                    right_layers[index][site][pos] - left_layers[index][site][pos]
+                    for pos in range(token_count)
+                ]
+                for site in ACTIVATION_SITES
+            }
+            for index in common_layers
+        }
+    return {
+        "left": left,
+        "right": right,
+        "common_layers": common_layers,
+        "only_left": only_left,
+        "only_right": only_right,
+        "architecture_matches": architecture_matches,
+        "delta": delta,
+    }

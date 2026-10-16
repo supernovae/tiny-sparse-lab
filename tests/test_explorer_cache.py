@@ -363,3 +363,132 @@ def test_invocation_cancel_stops_before_loader_even_with_cache(fake, monkeypatch
     assert fake.loads == fake.calls == 1
     assert contexts[0].cancel_path.read_text() == "stop before load"
     assert cache.read_bytes() == original
+
+
+def test_v1_sealed_bytes_are_listed_untouched_and_never_satisfy_v2_cache(
+    fake, tmp_path
+):
+    v1_path = explorer._v1_cache_path(
+        tmp_path, fake.sha, explorer.DEFAULT_TEXT, fake.runtime
+    )
+    v1_path.parent.mkdir(parents=True, exist_ok=True)
+    v1_payload = seal(
+        {
+            "format": "sparselab-explorer-v1",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "target": {"checkpoint_sha256": fake.sha},
+            "text": explorer.DEFAULT_TEXT,
+            "runtime": dict(fake.runtime),
+        }
+    )
+    write_json_atomic(v1_path, v1_payload)
+    v1_bytes = v1_path.read_bytes()
+
+    assert explorer.read_cached(v1_path) == v1_payload
+    assert explorer.cache_issue(v1_payload, v1_path) is None
+    listed_before = explorer.cached_explorations(tmp_path)
+    assert len(listed_before) == 1
+    assert listed_before[0]["format"] == "sparselab-explorer-v1"
+    assert listed_before[0]["cache_issue"] is None
+
+    # Exploring now must miss v1, compute v2 at a distinct path, and leave v1 untouched.
+    first_v2, v2_path = fake.explore()
+    assert v2_path != v1_path
+    assert v1_path.read_bytes() == v1_bytes
+    assert fake.calls == 1
+    assert first_v2["format"] == "sparselab-explorer-v2"
+    assert first_v2["cache_reuse"] == {
+        "status": "miss",
+        "reason": "historical v1 cache has no activation diagnostics",
+    }
+
+    # Second call with same checkpoint/text/actual runtime hits v2.
+    second_v2, second_path = fake.explore()
+    assert second_path == v2_path and fake.calls == 1
+    assert second_v2["cache_reuse"] == {"status": "hit"}
+
+    # Both v2 and historical v1 remain readable in cached_explorations.
+    listed_after = explorer.cached_explorations(tmp_path)
+    assert {item["format"] for item in listed_after} == {
+        "sparselab-explorer-v1",
+        "sparselab-explorer-v2",
+    }
+    assert v1_path.read_bytes() == v1_bytes
+
+
+def test_tampering_with_cache_or_provenance_prevents_paired_view(tmp_path):
+    def make_v2(sha: str, val: float) -> dict:
+        return seal(
+            {
+                "format": explorer.EXPLORER_FORMAT,
+                "created_at": "2026-10-10T00:00:00+00:00",
+                "runtime": runtime(),
+                "target": {
+                    "run_id": f"run-{sha[:4]}",
+                    "checkpoint_sha256": sha,
+                    "tokenizer_sha256": "t" * 64,
+                    "step": 4,
+                },
+                "text": explorer.DEFAULT_TEXT,
+                "truncated": False,
+                "architecture": {
+                    "vocab_size": 32,
+                    "hidden_dim": 16,
+                    "ffn_dim": 32,
+                    "tie_embeddings": True,
+                    "memory": None,
+                    "layers": [{"index": 0}],
+                },
+                "tokens": [
+                    {"position": 0, "id": 0, "text": "<eos>"},
+                    {"position": 1, "id": 1, "text": "once"},
+                ],
+                "activation": {
+                    "metric": "rms",
+                    "sites": list(explorer.ACTIVATION_SITES),
+                    "layers": {
+                        "0": {
+                            "residual_pre": [val, val],
+                            "residual_mid": [val + 0.1, val + 0.1],
+                            "residual_post": [val + 0.2, val + 0.2],
+                        }
+                    },
+                },
+            }
+        )
+
+    sha_a, sha_b = "a" * 64, "b" * 64
+    path_a = explorer.cache_path(tmp_path, sha_a, explorer.DEFAULT_TEXT, runtime())
+    path_b = explorer.cache_path(tmp_path, sha_b, explorer.DEFAULT_TEXT, runtime())
+    path_a.parent.mkdir(parents=True, exist_ok=True)
+    path_b.parent.mkdir(parents=True, exist_ok=True)
+    rec_a = make_v2(sha_a, 1.0)
+    rec_b = make_v2(sha_b, 1.5)
+    write_json_atomic(path_a, rec_a)
+    write_json_atomic(path_b, rec_b)
+
+    entries = {
+        e["target"]["checkpoint_sha256"]: e
+        for e in explorer.cached_explorations(tmp_path)
+    }
+    comp = explorer.compare_explorations(entries[sha_a], entries[sha_b])
+    assert comp["delta"]["0"]["residual_pre"] == pytest.approx([0.5, 0.5])
+
+    # Resealing B with a mismatched runtime at its CPU cache path marks provenance unverified.
+    tampered_provenance = seal({**rec_b, "runtime": runtime(backend="rocm")})
+    write_json_atomic(path_b, tampered_provenance)
+    entries_bad = {
+        e["target"]["checkpoint_sha256"]: e
+        for e in explorer.cached_explorations(tmp_path)
+    }
+    assert entries_bad[sha_b]["cache_issue"] == "sealed payload/cache key mismatch"
+    with pytest.raises(
+        explorer.ExplorerUnavailable, match="unverified cache provenance"
+    ):
+        explorer.compare_explorations(entries_bad[sha_a], entries_bad[sha_b])
+
+    # Unsealed edit on disk makes read_cached return None and compare_explorations refuse.
+    write_json_atomic(path_b, {**rec_b, "text": "edited without sealing"})
+    assert explorer.read_cached(path_b) is None
+    with pytest.raises(explorer.ExplorerUnavailable):
+        explorer.compare_explorations(rec_a, explorer.read_cached(path_b))
