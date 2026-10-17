@@ -4,9 +4,11 @@ This guide explains the execution machinery. Neutral teaching walkthroughs are
 indexed under [`experiments/samples/`](../experiments/samples/). Keep your current
 research declarations in a user-owned recipe directory; the local
 [`experiments/research/`](../experiments/research/) tree retains historical references. Keep downloads, prepared
-data, run stores, checkpoints, logs, and generated reports under the external persistent root at
+data, run stores, checkpoints, logs, and generated reports under the external
+persistent root at
 `$SPARSELAB_WORK_DIR/experiments/<campaign>/`.
-Report code gaps through the [contribution workflow](../CONTRIBUTING.md#planning-and-contributions); scientific
+Report code gaps through the
+[contribution workflow](../CONTRIBUTING.md#planning-and-contributions); scientific
 next steps remain in the research roadmap/lifecycle.
 
 For one local comparison, start with [the TinyStories lab loop](tinystories-microlab.md)

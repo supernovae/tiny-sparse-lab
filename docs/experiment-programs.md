@@ -397,7 +397,8 @@ uv run --locked --extra cpu sparselab generate RETURNED_RUN_ID --runs-dir "$WORK
 ```
 
 Keep the declaration and small protocols under version control; keep mutable
-sources, workers, stores, stages and reports at their declared locations: controller outputs under the external work root,
+sources, workers, stores, stages and reports at their declared locations:
+controller outputs under the external work root,
 and this fixture’s explicit prepared inputs and bound plans under the ignored
 in-checkout `sparselab-work` directory.
 Preserve failed and interrupted runs, and retain verified previous/best/terminal
