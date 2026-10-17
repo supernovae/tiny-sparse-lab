@@ -72,7 +72,6 @@ def test_current_catalog_and_neutral_factorial_strict_versions(tmp_path: Path) -
     assert {entry.id for entry in list_research()} == {
         "dense-lm-v1",
         "learned-engram-portability-v1",
-        "tinystories-dense-30m-data-rich-v1",
     }
     root = make_study_resources(tmp_path)
     entry = load_research("neutral-study", root=root)
@@ -448,13 +447,19 @@ def test_semantic_retrieval_lesson_builds_verified_pack_and_runnable_workspace(
     )
 
 
-@pytest.mark.parametrize(
-    "entry_id", ["dense-lm-v1", "tinystories-dense-30m-data-rich-v1"]
-)
+@pytest.mark.parametrize("external", [False, True])
 def test_recipe_less_cards_refuse_scaffold_before_writing(
-    tmp_path: Path, entry_id: str
+    tmp_path: Path, external: bool
 ):
+    root = make_study_resources(tmp_path) if external else None
+    entry_id = "neutral-study" if external else "dense-lm-v1"
+    if root is not None:
+        entry_path = root / "catalog/neutral-study.json"
+        entry = json.loads(entry_path.read_text())
+        entry["classification"] = "learning_reference"
+        entry["recipe"] = None
+        entry_path.write_text(json.dumps(entry), encoding="utf-8")
     output = tmp_path / "not-created"
     with pytest.raises(ValueError, match="has no scaffold recipe.*--resource-root"):
-        scaffold_research(entry_id, output)
+        scaffold_research(entry_id, output, root=root)
     assert not output.exists()
