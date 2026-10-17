@@ -27,9 +27,19 @@ A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `stu
 If you are unsure what to run next, start with the [experiment learning cycle](experiment-learning-cycle.md). It explains how to move from a known-good reference to the cheapest useful follow-up, distinguish broken evidence from a negative result, keep soft limitations from becoming retroactive gates, and decide when to stop, replicate, scale, branch, or promote.
 
 The [research roadmap](roadmap.md) tracks capability evidence and open scientific
-questions. Use [`experiments/samples/`](../../experiments/samples/) for copyable
-teaching material and [`experiments/research/`](../../experiments/research/) for
-real campaign definitions and iteration records. Mutable output belongs in the
+questions. Use [`experiments/samples/`](../../experiments/samples/) for neutral
+teaching material. Personal project definitions and evidence are discoverable in
+the [Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/main/catalog/README.md),
+including [DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind),
+[Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/main/experiments/kernel-memory-lab)
+and [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab).
+DevMind is proposed and not execution-ready; KML's preserved evidence awaits
+current-runtime qualification; the TinyStories recipe is metadata-validated and
+unexecuted. Active research intent and historical results do not establish
+current execution readiness or model quality. Author new campaigns outside Lab
+using the current resource contract above. The [retained research index](../../experiments/research/README.md)
+explains remaining local records and their preservation status.
+Mutable output belongs in the
 external persistent root (`$SPARSELAB_WORK_DIR/experiments/`, or the XDG/home default);
 declarations and compact verified evidence belong in Git. Report missing code through the
 [contribution workflow](../../CONTRIBUTING.md#planning-and-contributions). Verified semantic retrieval accepts pre-encoded
