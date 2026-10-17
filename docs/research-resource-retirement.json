@@ -177,9 +177,23 @@
       "size_bytes": 1629,
       "sha256": "d5b117277e4f50e3c2227497b59c7a8cc24f7599887abf9567ef1c86da9b09c5",
       "disposition": "Replaced by immutable Workshop archive pointer; historical declaration is not a current packaged recipe."
+    },
+    {
+      "source": "configs/tinystories_dense_30m_data_rich_v1.yaml",
+      "destination": "provenance/lab/configs/tinystories_dense_30m_data_rich_v1.yaml",
+      "git_blob": "2fe558595d4eed686e6cfa0a05c4444ad0a8953f",
+      "size_bytes": 2077,
+      "sha256": "c8e3144cbee3a245ccf0737e7f1c5a13b2839c0cadaa0a303ec16f284d8e16f8"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/tinystories-dense-30m-data-rich-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/tinystories-dense-30m-data-rich-v1.json",
+      "git_blob": "7795263c4aa088755e571134c690fc5c7b72551e",
+      "size_bytes": 3622,
+      "sha256": "5e2707987defc08568757513d2ee83602345c590f1bcced1d83d6f2fe2c3124c"
     }
   ],
-  "scope": "Historical originals preserved in Workshop; personal recipe/catalog pairs retired, default registry emptied, and path-domain guide replaced by an archive pointer. No runtime or reproduction claim.",
+  "scope": "Historical originals preserved in Workshop; personal recipe/catalog pairs retired, default registry emptied, and path-domain guide replaced by an archive pointer. No runtime or reproduction claim. The personal TinyStories dense30M data-rich config and no-recipe catalog card are also retired; their historical protocol and evidence remain unchanged.",
   "lifecycle_supplement": "provenance/lab-lifecycle-supplement.json",
   "source_repository": "https://github.com/supernovae/tiny-sparse-lab",
   "destination_repository": "https://github.com/supernovae/kybern-workshop",

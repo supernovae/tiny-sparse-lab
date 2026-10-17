@@ -67,12 +67,17 @@ selection remains strict; missing or invalid files refuse. An external resource
 root still requires its own `lifecycle.json` unless overridden. `--evidence-root`
 defaults to the working directory and controls relative evidence references.
 
-Three personal no-recipe catalog cards remain pending separate consumer/protocol
-retirement: `dense-lm-v1`, `learned-engram-portability-v1`, and
-`tinystories-dense-30m-data-rich-v1`. They appear unassessed in the default research
-view; they are not generic examples or current guarantees. The eleven `learn`
+Two personal no-recipe catalog cards remain pending separate consumer/protocol
+retirement: `dense-lm-v1` and `learned-engram-portability-v1`. They appear
+unassessed in the default research view; they are not generic examples or current
+guarantees. The eleven `learn`
 lessons are independent mechanism tutorials (nine model lessons and two artifact
 walkthroughs); they do not require the personal lifecycle registry.
+
+The personal TinyStories dense30M data-rich config and no-recipe catalog card
+are retired from the packaged defaults. Their [original config][tinystories-config]
+and [catalog card][tinystories-card] remain immutable Workshop evidence, not a
+current runnable recipe. Historical protocol and results remain unchanged.
 
 The [retirement inventory](research-resource-retirement.json) records original
 hashes and landed Workshop destinations. The archived populated registry is
@@ -103,3 +108,6 @@ forks using path-based cards should supply `--resource-root`; the old no-root
 interface retains packaged auxiliary-resource selection. Generated filenames and
 card paths share a namespace; collisions fail without publishing the destination.
 These limitations do not justify changing archived card paths or hashes.
+
+[tinystories-config]: https://github.com/supernovae/kybern-workshop/blob/1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab/configs/tinystories_dense_30m_data_rich_v1.yaml
+[tinystories-card]: https://github.com/supernovae/kybern-workshop/blob/1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab/src/sparselab/research/resources/catalog/tinystories-dense-30m-data-rich-v1.json
