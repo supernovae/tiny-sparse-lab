@@ -1,26 +1,32 @@
 # LAB86 package validation
 
-Metadata/source-only configuration assembly on 2026-10-17. No corpus/model
-payload download, tokenizer fit, model workload, container launch, image pull,
-package install or host modification occurred.
+Metadata/source-only configuration assembly and a narrow Parquet timestamp fix,
+2026-10-17. No corpus/model payload download, tokenizer fit, container launch,
+image pull/publish, package install or host modification occurred locally.
 
-Installed Python 3.14.4 in the existing Lab environment, WSL Ubuntu 26.04;
-OMP/MKL/OpenBLAS=1, HF Hub/Datasets/Transformers offline, GPU visibility empty.
-Native subprocess fixtures use the existing UV_PROJECT_ENVIRONMENT, no install.
+Existing Python 3.14.4 environment, WSL Ubuntu 26.04; OMP/MKL/OpenBLAS=1;
+HF Hub/Datasets/Transformers offline; GPU visibility empty. Native fixtures use
+the existing UV_PROJECT_ENVIRONMENT. HTTP responses are mocked or tiny local
+fixtures, never real dataset payloads.
 
-`pytest -q tests/test_lab86_package.py tests/test_preparation_commands.py
- tests/test_preparation_tokenizer_dispatch.py`: **31 passed in 35.84s**.
-The added manifest-integrity assertion was subsequently run separately.
-Ruff format/check and `git diff --check` passed.
+`pytest -q tests/test_lab86_package.py tests/test_corpus_acquisition.py
+ tests/test_preparation_commands.py tests/test_preparation_tokenizer_dispatch.py`:
+**94 passed in 38.05s**.
+Repository Ruff check/format, research lint (569 records), and staged diff checks
+passed. Fetched source evidence is retained as JSON text with original byte SHA256,
+which preserves upstream text while conforming to the research record format.
 
-Coverage includes real production project/source-effect hashes, deterministic
-84-shard reconstruction from pinned metadata, pilot ordering/gate arithmetic,
-cumulative/source/metadata/disk/wall budgets, policy document hashes, zero model
-counters, resource/tokenizer/mixture schemas and all 24 native argv compilations.
-Existing tests cover native tokenizer dispatch and template command wiring.
-A tiny generated Parquet fixture confirms the native datetime serialization
-boundary; a tiny code row confirms missing language is quarantined. These are
-boundary evidence, not tests asserting the real corpus is usable.
+Tests cover production project/source-effect hashes, deterministic 84-shard
+selection, pilot-first ordering/gate arithmetic, cumulative/source/metadata/disk/wall
+limits, policy hashes, zero-model counters, resource/tokenizer/mixture schemas,
+24 native phase commands and the four-slot pilot with only host bindings remaining.
+Connected mocked acquisition verifies nested timestamps, nulls, offset/precision,
+original shard SHA, canonical row hashes and cold snapshot/acquisition verification.
+Unknown non-JSON types still refuse. A code row without language acquires but remains
+quarantined at later qualification. Existing acquisition/dispatch tests also pass.
 
-Execution remains blocked as documented in lab86/README.md. CI and external
-review are independent checks; this document grants no clearance or job approval.
+Initial runtime still needs a reviewed release image containing the timestamp fix
+and matching Harness digest allowance; the previous cached image predates it.
+Host qualification/bindings belong to the chief. Downstream admission, family,
+late-binding and model-config questions do not block initial pilot evidence.
+No self-review clearance or operational gate release is implied.

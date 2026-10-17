@@ -163,7 +163,7 @@ def test_every_production_phase_compiles_and_has_matching_job(tmp_path):
                 compile_phase(PLAN, tmp_path, label, {})
 
 
-def test_native_timestamp_and_code_language_boundaries(tmp_path):
+def test_native_timestamp_support_and_code_language_boundary(tmp_path):
     pa = pytest.importorskip("pyarrow")
     pq = pytest.importorskip("pyarrow.parquet")
     path = tmp_path / "tiny.parquet"
@@ -174,8 +174,8 @@ def test_native_timestamp_and_code_language_boundaries(tmp_path):
         path,
     )
     row = next(_bounded_hf_rows(path, limit=1, max_line_bytes=1024))[1]
-    with pytest.raises(TypeError):
-        canonical_json(row)
+    assert row["metadata"]["date"] == "2024-01-01T00:00:00+00:00"
+    assert canonical_json(row)
     code = load_project(PACKAGE / "project-acquire.yaml").sources[2]
     reason, _ = exceptions(
         {
@@ -193,3 +193,26 @@ def test_native_timestamp_and_code_language_boundaries(tmp_path):
 def test_package_input_hashes():
     for relative, digest in read("package-sha256.json").items():
         assert hashlib.sha256((PACKAGE / relative).read_bytes()).hexdigest() == digest
+
+
+def test_pilot_boundary_has_only_host_bindings_and_no_future_evidence():
+    session = read("pilot-session.template.json")
+    assert [s["id"] for s in session["slots"]] == [
+        "attempt-init",
+        "transport-init",
+        "pilot-acquire",
+        "pilot-budget-status",
+    ]
+    identity = hashlib.sha256((PACKAGE / "pilot-content.json").read_bytes()).hexdigest()
+    contract = read("pilot-contract.template.json")
+    assert contract["content_identity_sha256"] == identity
+    assert [
+        v for v in contract.values() if isinstance(v, str) and v.startswith("${")
+    ] == ["${HOST_WORKSPACE_BASELINE_SHA256}"]
+    for slot in session["slots"]:
+        job = read(f"pilot-jobs/{slot['id']}.template.json")
+        assert job["argv"] == slot["argv"]
+        assert "GENERATED_" not in str(job)
+        assert "BASE_RUN_CONFIG" not in str(job)
+        if slot["id"] != "attempt-init":
+            assert job["argv"][-1] == identity

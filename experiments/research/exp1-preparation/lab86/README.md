@@ -4,8 +4,10 @@ This package supplies 84 exact source declarations, published content SHA-256s,
 a deterministic bounded shard selection, private application policy, resource
 policies, a zero-model contract and 24 native phase/job templates. It has not
 acquired corpus payloads, fitted a tokenizer or established 12B usable tokens.
-It is **not execution-ready** at the pinned runtime: the blockers below are real
-native compatibility gaps, not additional approval requests.
+The initial pilot boundary is fully declared in `pilot-session.template.json`
+and `pilot-jobs/`; only host/runtime/baseline bindings remain. Use a reviewed
+runtime containing this PR's timestamp fix. Later data-dependent review is not
+a prerequisite for safe initial acquisition. See `PILOT.md` for the exact boundary.
 
 ## Scope and metadata evidence
 
@@ -48,37 +50,40 @@ observed row counts. Parquet expanded bytes cannot be capped by this adapter.
 The 300 GiB whole-workspace monitor remains in force; per-shard ceilings do not
 imply every intermediate fits. Retained row-index receipts can themselves be large.
 
-## Native compatibility blockers
+## Initial acquisition versus later gates
 
-1. The FineWeb card declares `metadata.date: timestamp[s]`. The native Parquet
-   reader returns PyArrow Python values and canonical JSON rejects `datetime`.
-   A tiny fixture reproduces this boundary. No payload has been inspected to
-   claim all dates are non-null or already strings. Resolve native timestamp
-   serialization with provenance preserved before attempting this source.
-2. The pinned CodeParrot loader derives `language` from `path`. Its output schema
-   is not proof of a raw Parquet `language` column. Current native qualification
-   requires an explicit language field and does not derive extensions. The
-   declaration deliberately refuses missing language rather than admitting code
-   unchecked. Resolve this with verified raw-schema evidence or a reviewed native
-   capability; do not execute the external loader or relabel every row.
-3. Cosmopedia `seed_data` is preserved as the family key. Its card calls it seed
-   provenance, but document-level granularity is not proven. If it is a dataset
-   label, retain that coarse grouping. Fewer than 100 eligible families blocks
-   98/1/1 split freeze; prompts are not substitute seed IDs.
-4. Harness schema 4 fixes every slot's exact argv before launch, while native
-   `run-phase --bindings-json` embeds identities/paths learned only after upstream
-   receipts. The full session template therefore cannot be sealed before those
-   results exist. It is a reviewable command skeleton, not a runnable 48-hour
-   end-to-end session. A supported late-binding handoff is still needed; do not
-   replace future hashes with guesses or mutate a running session declaration.
+The verified initial-acquisition bug is fixed in this PR: nested Parquet timestamps
+are encoded as ISO 8601 strings, preserving precision, offset or lack of timezone.
+Original typed Parquet bytes remain identified by shard SHA256; emitted row hashes
+identify the JSON representation. Retrieval records the encoding and adapter module
+hash. Nulls and ordinary JSON values retain their meaning; other unsupported types
+still refuse. Tiny mocked acquisition and cold verification cover this path.
+The previously cached image lacks this fix: use a reviewed, smoke-tested updated
+image and matching Harness allowed-image pin before the real pilot. No image pull,
+publish or host execution was performed in this task.
 
-This PR does not modify either engine to hide these gaps. Keep real execution
-blocked pending the parent's resolution; existing owner scope does not make an
-unsupported path supported.
+The following are **later processing gates**, not initial download blockers:
+
+- CodeParrot's loader derives language from path. Raw Parquet language remains
+  unverified. Acquisition retains original rows without executing that loader;
+  later native qualification quarantines missing language. The pilot can supply
+  the schema evidence needed for a narrow reviewed extension policy if necessary.
+- Cosmopedia seed_data remains the family key. If it is a dataset label, preserve
+  coarse grouping; do not replace it with per-prompt IDs. Pilot family counts
+  determine whether the >=100-family split requirement is feasible. Choosing a
+  different family definition is a real scientific-policy decision, not binding.
+- Later release/tokenizer/packing paths and receipt identities must be produced in
+  order. The full 24-slot session skeleton cannot be sealed ahead of these outputs
+  because Harness fixes exact argv. This affects continuation, not the separately
+  sealable four-slot pilot session. No runtime declaration mutation is proposed.
+- A downstream EXP1 base/run config is absent. Initial acquisition needs neither
+  model architecture nor prepared-input config. Supply it only before export/pack;
+  no model design or training authority is invented here.
 
 ## Bindings and ordered execution boundary
 
-Use the existing `../preparation.json` native plan. `phase-bindings.template.json`
+Use `pilot-session.template.json` for the initial boundary and the existing
+`../preparation.json` native plan. `phase-bindings.template.json`
 separates fixed package paths from genuinely generated evidence. `jobs/` and
 `session.template.json` spell out exact native argv and one slot per phase; no
 run-all script or automatic failure acknowledgement is provided. Placeholder
@@ -91,10 +96,12 @@ Use `package-sha256.json` plus newly generated evidence; no guessed digest entri
 Host bindings: existing Linux amd64 Docker/cgroup-v2 execution path, cached image,
 actual Python executable/version/digest (and venv object if applicable), boot ID,
 source/config checkout roots, work/receipt roots, existing lease namespace,
-actual approval owner/reference, measured capacity and baseline. The source engine
-pin is `6f8b3047b3b5f30a4778f38de40b0bf45d13bdb1`; config lives in the reviewed
-package checkout. Harness pin is `9020bec32f82f0c5abe93ba0eba46d6402d97b14`.
-Cached image is `ghcr.io/supernovae/tiny-sparse-lab@sha256:4af84411f6af27bdb0e8e0c6c9e2d64569329df4f8f48f407c94b5d39808d1d8`.
+actual approval owner/reference, measured capacity and baseline. The old source engine pin was `6f8b3047b3b5f30a4778f38de40b0bf45d13bdb1`;
+`HOST_REVIEWED_LAB_COMMIT` must instead bind the reviewed timestamp-fix release.
+The old Harness pin `9020bec32f82f0c5abe93ba0eba46d6402d97b14` allows only image
+`ghcr.io/supernovae/tiny-sparse-lab@sha256:4af84411f6af27bdb0e8e0c6c9e2d64569329df4f8f48f407c94b5d39808d1d8`.
+That image predates the fix. Its reviewed replacement and the matching Harness
+allowlist update are concrete initial-runtime release blockers, not missing data.
 No pull, build, runtime qualification or runner execution was performed here.
 
 Generated inputs, not missing configuration decisions: workspace baseline and

@@ -9,7 +9,7 @@
   },
   "source": {
     "path": "${HOST_LAB_ROOT}",
-    "commit": "6f8b3047b3b5f30a4778f38de40b0bf45d13bdb1"
+    "commit": "${HOST_REVIEWED_LAB_COMMIT}"
   },
   "cwd": "${HOST_LAB_ROOT}",
   "output_root": "${HOST_RECEIPT_ROOT}/lab86-exp1-v1/A",
