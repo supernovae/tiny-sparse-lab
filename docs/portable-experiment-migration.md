@@ -54,7 +54,8 @@ provenance. Do not keep duplicate active copies under a historical label.
   runtime, recipe, source, tokenizer and prepared-data pins. Retain measurements,
   paired results, evaluation/panels and replay without duplicate attempts.
 - [ ] Complete the replacement map for every personal sample, route, catalog,
-  documentation link and test. EXP1 is the first scoped retirement; its
+  documentation link and test. Historical EXP1, now Workshop project DevMind
+  (recipe DevMind340MBase), is the first scoped retirement; its
   [file disposition and guarantee map](exp1-retirement.json) records the relocated
   bytes and retained generic test coverage. KML and other studies remain pending.
 - [ ] Explicit disposition of hosted/GPU samples: their own qualified replacement

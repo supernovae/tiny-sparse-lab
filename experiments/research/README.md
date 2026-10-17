@@ -6,8 +6,8 @@ DevMind and TinyStories records are in [history](history/README.md); its
 [path map](history/path-map.json) resolves original locations without rewriting
 historical content or maintaining old study executables.
 
-This directory is being retired as a home for personal science. EXP1 has moved
-to Workshop; see the [file disposition](../../docs/exp1-retirement.json). KML and
+This directory is being retired as a home for personal science. Historical EXP1
+has moved to Workshop project DevMind (recipe DevMind340MBase); see the [file disposition](../../docs/exp1-retirement.json). KML and
 historical material remain pending their separate dependency-preserving migration.
 Do not add new experiments here. Author recipe DSL/configuration in any user-owned
 directory or repository, with documentation and artifact references:
