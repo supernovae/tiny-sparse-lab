@@ -1323,6 +1323,17 @@
       "size_bytes": 22087,
       "sha256": "59cd26d37828e63b89170754c7dbe217fae567da93bf8f7f8b1830acabedbb10",
       "disposition": "historical_guide_redirect"
+    },
+    {
+      "source": "docs/research/known-good-baselines.md",
+      "destination": "provenance/lab/docs/research/known-good-baselines.md",
+      "git_mode": "100644",
+      "git_blob": "5f2a7c15d7e465a4109d9d9bc059ec8f96c38fd5",
+      "size_bytes": 6878,
+      "sha256": "bad915ae213cd3e5f825ab4a712e0ecfffbdd8a934ddb42e537e37a2265e6808",
+      "disposition": "historical_results_redirect_generic_guidance_retained",
+      "workshop_commit": "0f1bbaec53540c7d2b6ed23d7306d352ad83a7c4",
+      "preservation_manifest": "provenance/lab-report-guide-manifest.json"
     }
   ]
 }
