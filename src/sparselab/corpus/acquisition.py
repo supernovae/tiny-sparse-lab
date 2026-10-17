@@ -764,8 +764,13 @@ def _hf_pinned_metadata(
         for entry in entries
     ):
         raise ValueError("pinned HF config/split metadata missing or ambiguous")
-    pairs = {(entry.get("config"), entry.get("split")) for entry in entries}
-    if pairs != {(spec.config, spec.split)}:
+    # The endpoint lists all dataset configs and splits, not just our selection.
+    selected = [
+        entry
+        for entry in entries
+        if (entry["config"], entry["split"]) == (spec.config, spec.split)
+    ]
+    if len(selected) != 1:
         raise ValueError("pinned HF config/split metadata missing or ambiguous")
     return {"tree_url": tree_url, "splits_url": splits_url, "size": item["size"]}
 
