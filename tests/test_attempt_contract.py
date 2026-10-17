@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import psutil
 import pytest
@@ -490,27 +491,45 @@ def test_runtime_deadline_keeps_charge_and_zero_survivors(
             return original([command[0], "-c", script, *command[2:]], **kwargs)
 
         monkeypatch.setattr(module.subprocess, "Popen", spawn_after_deadline)
+    # Setup/SQLite latency is not the runtime deadline scenario. Freeze only
+    # this module's ledger clock until its first runtime budget read; leave the
+    # shared time module and the supervisor's monotonic deadline untouched.
+    origin_ns = time.time_ns()
+    runtime_started_ns: int | None = None
+
+    def ledger_time_ns() -> int:
+        if runtime_started_ns is None:
+            return origin_ns
+        return origin_ns + time.monotonic_ns() - runtime_started_ns
+
+    monkeypatch.setattr(
+        module,
+        "time",
+        SimpleNamespace(time_ns=ledger_time_ns, monotonic=time.monotonic),
+    )
     budget, paths = _fixture(tmp_path, updates=1, seconds=0.5)
+    # Deliberately exceed the contract during setup, before the first charge.
+    time.sleep(0.6)
     budget.reserve_vector(
         "earlier",
         generation_calls=1,
         generated_tokens=8,
         content_identity_sha256=paths["identity"],
     )
-    if delayed_budget_read:
-        remaining_seconds = budget.remaining_seconds
-        first_read = True
+    remaining_seconds = budget.remaining_seconds
 
-        def read_then_delay() -> float:
-            nonlocal first_read
-            remaining = remaining_seconds()
-            if first_read:
-                first_read = False
-                # Model commit/return latency after the wall-clock measurement.
-                time.sleep(0.1)
-            return remaining
+    def read_runtime_budget() -> float:
+        nonlocal runtime_started_ns
+        first_read = runtime_started_ns is None
+        if first_read:
+            runtime_started_ns = time.monotonic_ns()
+        remaining = remaining_seconds()
+        if first_read and delayed_budget_read:
+            # Model commit/return latency after the wall-clock measurement.
+            time.sleep(0.1)
+        return remaining
 
-        monkeypatch.setattr(budget, "remaining_seconds", read_then_delay)
+    monkeypatch.setattr(budget, "remaining_seconds", read_runtime_budget)
     completion = paths["root"] / "owned.json"
     with pytest.raises(AttemptBudgetError, match="wall-time limit"):
         budget.run_contract(
