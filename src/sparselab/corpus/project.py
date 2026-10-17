@@ -11,6 +11,7 @@ from pydantic import Field, field_validator, model_serializer, model_validator
 
 from sparselab.config.models import StrictModel
 from sparselab.corpus.rights import RightsPolicy
+from sparselab.corpus.row_qualification import RowQualification
 
 _ID = re.compile(r"[a-z][a-z0-9_-]*\Z")
 _HEX = re.compile(r"[0-9a-fA-F]{64}\Z")
@@ -151,6 +152,9 @@ class HFBoundedShard(StrictModel):
 
 
 class HuggingFaceAcquisition(StrictModel):
+    qualification: RowQualification | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     config: str
     split: str
     include: tuple[str, ...] = ()
@@ -162,6 +166,8 @@ class HuggingFaceAcquisition(StrictModel):
 
     @model_validator(mode="after")
     def selection_required(self) -> HuggingFaceAcquisition:
+        if self.qualification is not None and not self.bounded_shards:
+            raise ValueError("row qualification requires pinned bounded shards")
         if bool(self.include) == bool(self.bounded_shards):
             raise ValueError("HF requires either include or bounded_shards, not both")
         for pattern in self.include:

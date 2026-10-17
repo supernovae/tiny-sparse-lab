@@ -20,7 +20,12 @@ from sparselab.training.manifest import canonical_json, sha256_file
 
 
 def _verified_hf_metadata(
-    raw: bytes, file: dict[str, Any], retrieval: dict[str, Any], revision: str
+    raw: bytes,
+    file: dict[str, Any],
+    retrieval: dict[str, Any],
+    revision: str,
+    *,
+    original_rows: bool = False,
 ) -> dict[int, dict[str, Any]]:
     """Bind nested source metadata to every selected row in the shard receipt."""
     matching = [
@@ -58,7 +63,13 @@ def _verified_hf_metadata(
         ):
             raise ValueError("split inventory HF row provenance mismatch")
         metadata = original.get("metadata")
-        result[index] = metadata if isinstance(metadata, dict) else {}
+        result[index] = (
+            original
+            if original_rows
+            else metadata
+            if isinstance(metadata, dict)
+            else {}
+        )
     return result
 
 
@@ -89,6 +100,14 @@ def _family_hint(
 ) -> str:
     """Conservative grouping hint; a reviewer must merge mirrored/topic siblings."""
     metadata = document.get("metadata") or {}
+    qualification = getattr(getattr(source, "acquisition", None), "qualification", None)
+    if qualification is not None:
+        from sparselab.corpus.row_qualification import family_hint
+
+        try:
+            return family_hint(source_metadata, qualification)
+        except TypeError, ValueError:
+            return f"unresolved-family:{document['document_id']}"
     if source.kind == "huggingface_dataset":
         if "project_gutenberg" in source.canonical_uri:
             identifier = source_metadata.get("id") or metadata.get("id")
@@ -150,7 +169,14 @@ def write_split_inventory(
                     raw = (snapshot_path / "files" / path).read_bytes()
                     source_metadata = (
                         _verified_hf_metadata(
-                            raw, file, manifest["retrieval"], source.revision
+                            raw,
+                            file,
+                            manifest["retrieval"],
+                            source.revision,
+                            original_rows=getattr(
+                                source.acquisition, "qualification", None
+                            )
+                            is not None,
                         )
                         if source.kind == "huggingface_dataset"
                         else {}

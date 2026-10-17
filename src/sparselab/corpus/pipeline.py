@@ -569,6 +569,24 @@ def _records_for_file(
                 }
                 and isinstance(value, (str, int, float, bool))
             }
+            qualification = getattr(source.acquisition, "qualification", None)
+            if qualification is not None:
+                from sparselab.corpus.row_qualification import provenance
+
+                try:
+                    evidence = provenance(item, qualification)
+                    metadata["qualification_profile"] = evidence["profile"]
+                    metadata["qualification_family_hint"] = evidence["family_hint"]
+                    if "synthetic_provenance_sha256" in evidence:
+                        metadata["synthetic_provenance_sha256"] = evidence[
+                            "synthetic_provenance_sha256"
+                        ]
+                    for key, value in evidence.get("attribution", {}).items():
+                        if isinstance(value, str):
+                            metadata["qualification_" + key] = value
+                except TypeError, ValueError:
+                    metadata["qualification_profile"] = qualification.profile
+                    metadata["qualification_status"] = "unresolved"
             content = (
                 _normalized(item[field])
                 if suffix == ".jsonl" and isinstance(item[field], str)

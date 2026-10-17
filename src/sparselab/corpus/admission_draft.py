@@ -227,7 +227,9 @@ def draft_admission_manifest(
                         or original_sha != receipt["source_row_sha256"]
                     ):
                         raise ValueError("HF row differs from acquisition receipt")
-                    conflict, flags = _admission_exceptions(record, profile)
+                    conflict, flags = _admission_exceptions(
+                        record, profile, source_declaration_payload(source)
+                    )
                     flags = tuple(
                         sorted(
                             set(flags) | set(_additional_draft_flags(record, profile))
@@ -250,7 +252,11 @@ def draft_admission_manifest(
                             "qualify",
                             "covered by reviewed source policy; no automated exception",
                         )
-                    choice["issues"] = _optional_issues(record, profile)
+                    choice["issues"] = (
+                        []
+                        if profile == "declared_rows"
+                        else _optional_issues(record, profile)
+                    )
                     choice.update(
                         source_row_index=receipt["source_row_index"],
                         source_row_sha256=original_sha,
