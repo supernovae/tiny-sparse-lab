@@ -96,6 +96,21 @@ also explicitly select in-checkout `sparselab-work` preparation destinations;
 for each invocation; do not overwrite existing plans or active inputs. Tokenizer
 training and data preparation require separately authorized resources.
 
+The generated bound plan is intentionally ignored and uncommitted. Both
+`experiment run` commands below therefore explicitly pass
+`--allow-uncommitted-declaration`. This permits noncommitted declaration
+provenance; it does not make the plan committed or reproducible from Git.
+The lock pins declaration hashes, and dispatch still rejects bytes that differ
+from that lock. The flag grants no compute approval and bypasses neither
+artifact authentication nor runtime/resource gates.
+
+`STORAGE_INSIDE_GIT_CHECKOUT` is expected for this fixture's preparation and
+bound-declaration locations. Deleting the checkout can lose those bytes. Keep
+durable copies of required declarations, inputs and evidence outside the
+checkout before cleanup; retain their identities and do not assume a relocated
+copy is executable without the native binding checks.
+
+
 Bind the already-prepared tokenizer and packed root directly. The adapter
 authenticates the real tokenizer, prepared arrays and their relation to the run
 config before exclusively writing a complete plan; it never retrains, downloads
@@ -339,7 +354,8 @@ the checkpoint transition or establish model quality.
 Submit the root phase and start the controller:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain --json
+uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain \
+  --allow-uncommitted-declaration --json
 uv run --locked --extra cpu sparselab controller run --store "$WORK/controller"
 ```
 
@@ -356,7 +372,8 @@ Then explicitly submit the dependent phase; the same running controller will
 dispatch it:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue --json
+uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue \
+  --allow-uncommitted-declaration --json
 uv run --locked --extra cpu sparselab experiment list --store "$WORK/controller"
 ```
 
