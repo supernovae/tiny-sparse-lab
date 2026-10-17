@@ -7,18 +7,31 @@
 An authored YAML program can describe inputs, bounded axes, controlled changes
 and a sequence of checkpoints. SparseLab resolves it into an immutable lock,
 executes each cell through a worker, and collects evidence with the selected
-parent generation attached to each child. Use an externally authored current plan, RunConfig, tokenizer declaration and evaluation suite. Runtime choices belong to those declarations; see [runtime support](runtime.md). This guide describes the native interface
-and does not supply data, scientific settings or execution authorization.
+parent generation attached to each child. This guide runs a small offline
+synthetic fixture through fresh training followed by a full-state AdamW budget
+extension. For a story model first, see the [TinyStories microlab](tinystories-microlab.md).
 
-The former offline training example and its original instructions are retained as
-[historical evidence](https://github.com/supernovae/kybern-workshop/blob/df5a43aff682d14c3a3481413b80f12e7894a042/provenance/lab/docs/experiment-programs.md). Archived commands and budgets are not current guarantees or authority to
-execute. New reproductions need current declarations and a new experiment identity.
+The example uses a small offline fixture and explicit runtime settings so you
+can learn the whole workflow without downloading a corpus. Runtime choices
+belong to the concrete config and execution settings; see [runtime support](runtime.md).
+Corpus Forge programs seal portable provenance with their prepared inputs; see
+[Forge worker provenance](#forge-worker-provenance) for relocation and continuation.
+
+This synthetic program is retained as a neutral teaching fixture. Its fixed
+settings demonstrate the native phase interface, not personal model research.
+The [disposition map](sample-disposition.json) records retained files and
+[unchanged historical instructions](https://github.com/supernovae/kybern-workshop/blob/df5a43aff682d14c3a3481413b80f12e7894a042/provenance/lab/docs/experiment-programs.md).
+Preservation does not grant execution authority or transfer historical results.
+For your own experiment, supply current plan/run/tokenizer declarations with
+explicit paths and a new experiment identity.
 
 ## Read the program
 
-Author a phase template with explicit parent selections and budgets. The following
-fragment illustrates two phases; its numbers are explanatory placeholders, not a
-complete recipe or an approved allocation:
+The runnable [offline-chain.yaml](../experiments/samples/training-program/offline-chain.yaml)
+is a phase template paired with [run.yaml](../experiments/samples/training-program/run.yaml)
+and [tokenizer.yaml](../experiments/samples/training-program/tokenizer.yaml).
+Prepare the offline fixture and bind its actual hashes below; training then
+proceeds through these phases:
 
 ```yaml
 phases:
@@ -35,10 +48,12 @@ phases:
       optimizer.decay_steps: 20
 ```
 
-For this illustrative fragment, the declared parent must end at update 20 and the child
-extends to update 40. Set token budgets consistently with the actual sequence length,
-batch and accumulation in your RunConfig. The child carries full training state and the
-original decay horizon; no model-quality claim follows from successful continuation.
+The base config has sequence length 16, microbatch 1 and accumulation 2: 32
+supervised targets per full optimizer update. The parent ends at 20 updates /
+640 targets; the child ends at 40 cumulative updates / 1,280 targets. The child
+uses the parent's full training state and original decay horizon, rather than
+starting a fresh optimizer. This demonstrates preparation and checkpoint
+lineage, not useful technical knowledge or an architecture improvement.
 
 | Transition | What the child carries forward |
 |---|---|
@@ -55,29 +70,31 @@ checkpoint digest is recorded in the child execution binding.
 
 ## Prepare the inputs and bind the program
 
-Use the locked environment from the Lab checkout and an external persistent work root.
-Replace every `/absolute/...` placeholder with an explicit local path. Author a new plan
-ID and current input bindings; the work directory must match that ID. Run/tokenizer
-paths resolve according to their own declarations: setting the work root does not
-relocate an explicit destination. Keep input/output locations outside the source
-checkout.
-
-The next two preparation commands can train a tokenizer and prepare data. Run them only
-within the separately authorized data and resource scope; this documentation change has
-not executed them.
+From the repository root, use the locked Python 3.14 environment and an external
+persistent root. The plan ID supplies the experiment subdirectory. The sample
+run/tokenizer configurations retain their explicit in-checkout input destinations;
+this root setting does not relocate those paths. Author new configurations if
+you need external input storage, without editing an active or frozen sample:
 
 ```sh
-export SPARSELAB_WORK_DIR="/absolute/persistent/work"
-RUN="/absolute/recipe/run.yaml"
-TOKENIZER="/absolute/recipe/tokenizer.yaml"
-TEMPLATE="/absolute/recipe/phase-template.yaml"
-WORK="$SPARSELAB_WORK_DIR/experiments/your-new-plan-id"
-mkdir -p "$WORK/inputs"
+export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
+SAMPLE=experiments/samples/training-program
+WORK="$SPARSELAB_WORK_DIR/experiments/offline-training-chain-v1"
+DECLARATIONS="$PWD/sparselab-work/experiments/offline-training-chain-v1/inputs"
+mkdir -p "$WORK" "$DECLARATIONS"
 df -h "$WORK"
 df -i "$WORK"
-uv run --locked --extra cpu sparselab tokenizer train "$TOKENIZER"
-PREPARED=$(uv run --locked --extra cpu sparselab data prepare "$RUN")
+uv run --locked --extra cpu sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
+PREPARED=$(uv run --locked --extra cpu sparselab data prepare "$SAMPLE/run.yaml")
 ```
+
+`WORK` selects the external experiment/controller store. `DECLARATIONS` stays
+inside this checkout so standalone binding resolves the template's repository-
+relative evaluation suite to the same file. The run and tokenizer declarations
+also explicitly select in-checkout `sparselab-work` preparation destinations;
+`SPARSELAB_WORK_DIR` does not relocate them. Use a fresh task-owned destination
+for each invocation; do not overwrite existing plans or active inputs. Tokenizer
+training and data preparation require separately authorized resources.
 
 Bind the already-prepared tokenizer and packed root directly. The adapter
 authenticates the real tokenizer, prepared arrays and their relation to the run
@@ -97,10 +114,10 @@ export, so moving the authored output does not select another parent.
 
 ```sh
 uv run --locked --extra cpu sparselab experiment bind-inputs \
-  "$RUN" "$TEMPLATE" \
+  "$SAMPLE/run.yaml" "$SAMPLE/offline-chain.yaml" \
   --prepared-root "$PREPARED" \
-  --output "$WORK/inputs/plan.yaml" --json
-PLAN="$WORK/inputs/plan.yaml"
+  --output "$DECLARATIONS/plan.yaml" --json
+PLAN="$DECLARATIONS/plan.yaml"
 uv run --locked --extra cpu sparselab experiment validate "$PLAN" --json
 uv run --locked --extra cpu sparselab experiment inspect "$PLAN" --json
 LOCK=$(uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json | jq -r '.lock')
@@ -264,9 +281,9 @@ components. Neither output can be overwritten.
 
 ```sh
 uv run --locked --extra cpu sparselab experiment derive "$PLAN" \
-  --set 'id="your-new-derived-plan-id"' \
+  --set 'id="offline-training-chain-v2"' \
   --set retention.keep_periodic=false \
-  --output "$WORK/inputs/plan-v2.yaml" --json
+  --output "$DECLARATIONS/plan-v2.yaml" --json
 ```
 
 The output is a YAML declaration and
@@ -288,7 +305,7 @@ immutable runnable identity through the ordinary `experiment lock` command:
 
 ```sh
 LOCK=$(uv run --locked --extra cpu sparselab experiment lock \
-  "$WORK/inputs/plan-v2.yaml" --json | jq -r '.lock')
+  "$DECLARATIONS/plan-v2.yaml" --json | jq -r '.lock')
 ```
 
 Use `experiment bind-inputs` before derivation for templates that lack
@@ -348,8 +365,7 @@ dependent phases. Without `--phase`, it selects root phases only. A dependent
 submission requires exactly one matching completed and ingested parent, verifies
 the selected generation, and records its digest before dispatch. Failed,
 interrupted or pending parents do not satisfy this dependency. Use `--cell
-pretrain:single` to select a single root cell when your declaration uses these phase and
-axis labels; larger matrices
+pretrain:single` to select this example's single root cell; larger matrices
 include their axis labels in the returned cell IDs.
 
 ## Collect and read the outcomes
@@ -381,7 +397,9 @@ uv run --locked --extra cpu sparselab generate RETURNED_RUN_ID --runs-dir "$WORK
 ```
 
 Keep the declaration and small protocols under version control; keep mutable
-sources, workers, stores, stages and reports under this ignored workspace.
+sources, workers, stores, stages and reports at their declared locations: controller outputs under the external work root,
+and this fixture’s explicit prepared inputs and bound plans under the ignored
+in-checkout `sparselab-work` directory.
 Preserve failed and interrupted runs, and retain verified previous/best/terminal
 checkpoints under the declared policy. Only remove task-owned output after
 confirming no worker is active. For exact comparison contracts, typed external
