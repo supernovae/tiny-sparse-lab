@@ -120,6 +120,10 @@ def _committed_identity_bytes(repo: Path, commit: str) -> bytes:
                 with stream:
                     digest = hashlib.file_digest(stream, "sha256").hexdigest()
                 inventory.append((relative, digest))
+        # Tar EOF precedes the producer's trailing block padding. Keep the pipe
+        # open until Git finishes writing, or a complete inventory can SIGPIPE.
+        while process.stdout.read(64 * 1024):
+            pass
     finally:
         process.stdout.close()
         returncode = process.wait()
