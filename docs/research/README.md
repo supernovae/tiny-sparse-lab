@@ -88,7 +88,7 @@ preserves the original declarations and limitations. A new allocation experiment
 needs a current external resource closure, explicit seed options, actual input
 bindings and a separately reviewed plan. No standard seed set is supplied by Lab.
 
-Published worked examples: [FFN-substitution smoke report](../../artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) and [nano/offline FFN follow-up report](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html), with their [outcomes and interpretation](sample-report.md).
+Published worked examples: [FFN-substitution smoke report](https://github.com/supernovae/kybern-workshop/blob/a47389204a30da1bbfec5e0de4418b3e3e72d4f2/provenance/lab/artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) and [nano/offline FFN follow-up report](https://github.com/supernovae/kybern-workshop/blob/a47389204a30da1bbfec5e0de4418b3e3e72d4f2/provenance/lab/artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html), with their [outcomes and interpretation](sample-report.md).
 
 ## Controlled Engram portability
 

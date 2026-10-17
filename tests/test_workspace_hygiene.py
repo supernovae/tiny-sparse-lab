@@ -85,9 +85,8 @@ def test_retained_historical_evidence_keeps_exact_bytes() -> None:
     record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
     rows = record["retained_in_lab"]
     paths = {row["relative_path"] for row in rows}
-    assert len(rows) == len(paths) == 77
+    assert len(rows) == len(paths) == 72
     assert {
-        "docs/research/sample-report.md",
         "docs/context-engram-study.md",
         "docs/portable-engram.md",
         "docs/research/learned-engram-portability.md",
