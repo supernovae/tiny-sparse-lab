@@ -9,11 +9,11 @@ indexing. Snapshot verification is stubbed; this does not certify acquisition.
 from pathlib import Path
 
 import pytest
+from corpus_fixtures import neutral_corpus
 
 from sparselab.corpus import acquisition, large_build, pipeline
 from sparselab.corpus.large_build import _RIGHTS_HEADER_MAX_BYTES, _read_rights_header
 from sparselab.corpus.progress import BuildProgress
-from sparselab.corpus.project import load_project
 from sparselab.corpus.rights import RightsPolicy, resolve_file_rights
 from sparselab.training.manifest import sha256_file
 
@@ -122,8 +122,8 @@ def test_binary_reads_have_a_total_byte_bound(tmp_path, monkeypatch):
 def test_build_rights_before_actual_prepared_reuse(
     tmp_path, monkeypatch, suffix, ceiling
 ):
-    project = load_project("corpora/devmind-v2/corpus.yaml")
-    source = next(s for s in project.sources if s.id == "fineweb_edu_sample_10bt")
+    project = neutral_corpus(tmp_path)
+    source = next(s for s in project.sources if s.id == "fineweb_fixture")
     project = project.model_copy(update={"sources": (source,)})
     snapshot = tmp_path / "snapshot"
     (snapshot / "files").mkdir(parents=True)
