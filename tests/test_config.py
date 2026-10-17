@@ -192,9 +192,7 @@ def test_mixture_paths_preserve_source_targets(
 
 def test_memory_injection_serialization_preserves_legacy_final_config() -> None:
     config = load_config(
-        Path(__file__).resolve().parents[1]
-        / "configs"
-        / "runtime_smoke_cpu.yaml"
+        Path(__file__).resolve().parents[1] / "configs" / "runtime_smoke_cpu.yaml"
     )
     explicit_final = config.model_copy(
         update={"model": config.model.model_copy(update={"memory_injection": "final"})}

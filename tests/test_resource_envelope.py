@@ -297,9 +297,7 @@ def test_scientific_config_identity_excludes_operational_policy() -> None:
     from sparselab.config.models import RunConfig
 
     config = load_config(
-        Path(__file__).resolve().parents[1]
-        / "configs"
-        / "runtime_smoke_cpu.yaml"
+        Path(__file__).resolve().parents[1] / "configs" / "runtime_smoke_cpu.yaml"
     )
     scientific = config.model_dump(mode="json")
     assert "resource_envelope" not in scientific

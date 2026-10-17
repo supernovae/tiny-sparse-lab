@@ -500,9 +500,7 @@ def test_mlx_validation_rejects_enabled_memory_at_every_placement(
     placement: str,
 ) -> None:
     base = load_config(
-        Path(__file__).resolve().parents[1]
-        / "configs"
-        / "runtime_smoke_cpu.yaml"
+        Path(__file__).resolve().parents[1] / "configs" / "runtime_smoke_cpu.yaml"
     )
     model = base.model.model_copy(
         update={
