@@ -120,8 +120,19 @@
       "git_blob": "82a536fd284114d50e392ba1debc3bbe12a19057",
       "size_bytes": 74681,
       "sha256": "e23734fa46739ba87e0d1ee5f258e43646f41a8360e991273350dc419a80346e"
+    },
+    {
+      "source": "docs/path-domain-corpus.md",
+      "destination": "provenance/lab/docs/path-domain-corpus.md",
+      "git_blob": "ae37db92cd9a764349b0ea03effd5966451080a8",
+      "size_bytes": 16204,
+      "sha256": "842caf734a628a9d7597dd10eaed2468adf9601719e6d7cbe62b2a4115bd6641",
+      "group": "research_docs",
+      "disposition": "Lab guide replaced by archive pointer; original bytes remain at destination"
     }
   ],
-  "scope": "Historical originals preserved in Workshop; replacement default registry is empty. No runtime or reproduction claim.",
-  "lifecycle_supplement": "provenance/lab-lifecycle-supplement.json"
+  "scope": "Historical originals preserved in Workshop; personal recipe/catalog pairs retired, default registry emptied, and path-domain guide replaced by an archive pointer. No runtime or reproduction claim.",
+  "lifecycle_supplement": "provenance/lab-lifecycle-supplement.json",
+  "source_repository": "https://github.com/supernovae/tiny-sparse-lab",
+  "destination_repository": "https://github.com/supernovae/kybern-workshop"
 }

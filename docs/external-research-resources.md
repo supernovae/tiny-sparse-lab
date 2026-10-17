@@ -33,7 +33,8 @@ parent as in the existing local-entry contract. IDs resolve under `catalog/`,
 with recipe paths relative to the resource root.
 
 Every current recipe must declare a `seed` axis using the existing matrix option
-format. No implicit matched seed selection is injected, with or without a resource root.
+format, with every option explicitly setting the native `seed` field. Native run
+configuration validation still checks seed values. No implicit matched seed selection is injected, with or without a resource root.
 Scale profiles retain their current four-scale schema and native overlay behavior,
 including scale-dependent optimizer defaults; `base_set` can explicitly override
 those defaults. Backend selection remains independent. This interface adds no

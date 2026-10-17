@@ -462,3 +462,26 @@ def test_resource_root_requires_resolved_ancestors(
     with pytest.raises(ValueError, match="resource root must not traverse a symlink"):
         catalog.resource_root(parent_alias / closure.name)
     assert catalog.resource_root((parent_alias / closure.name).resolve()) == closure
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_seed_axis_name_alone_cannot_inherit_base_seed(
+    closure: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit_root: bool
+) -> None:
+    monkeypatch.setattr(catalog, "_RESOURCE_ROOT", closure)
+    path = closure / "recipes/neutral-study.json"
+    value = json.loads(path.read_text())
+    value["designs"]["default"]["smoke"]["axes"]["seed"] = [
+        {"label": "s5", "set": {"seed": 5}},
+        {"label": "misnamed", "set": {"training.max_steps": 7}},
+    ]
+    _json(path, value)
+    kwargs = {"root": closure} if explicit_root else {}
+    output = tmp_path / "result"
+    with pytest.raises(
+        ValueError, match="every seed axis option must explicitly set seed"
+    ):
+        scaffold_research(
+            "neutral-study", output, scale="smoke", data="neutral", **kwargs
+        )
+    assert not output.exists()

@@ -520,6 +520,8 @@ def scaffold_research(
         ) from error
     if "seed" not in scale_recipe.axes:
         raise ValueError("recipe must explicitly declare its matched seed axis")
+    if any("seed" not in option.set for option in scale_recipe.axes["seed"]):
+        raise ValueError("every seed axis option must explicitly set seed")
 
     destination, temporary = _destination(output)
     workspace_name = (

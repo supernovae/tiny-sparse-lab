@@ -67,12 +67,12 @@ def test_resource_retirement_records_originals_and_destination() -> None:
     import json
 
     record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
-    assert len(record["files"]) == 17
-    assert len({row["source"] for row in record["files"]}) == 17
+    assert len(record["files"]) == 18
+    assert len({row["source"] for row in record["files"]}) == 18
     for row in record["files"]:
         assert row["destination"] == "provenance/lab/" + row["source"]
         assert len(row["sha256"]) == 64
         assert row["size_bytes"] > 0
-        if not row["source"].endswith("/lifecycle.json"):
+        if not row["source"].endswith("/lifecycle.json") and "disposition" not in row:
             assert not (REPO / row["source"]).exists()
     assert record["lifecycle_supplement"] == "provenance/lab-lifecycle-supplement.json"
