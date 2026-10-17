@@ -491,6 +491,9 @@ def _bounded_git_acquire(
         except Exception:
             budget.finish_transfer(transfer_index, success=False)
             raise
+        except BaseException:
+            budget.finish_transfer(transfer_index, success=False, interrupted=True)
+            raise
         files.append(
             {
                 "path": blob.path,
@@ -1043,6 +1046,12 @@ def _bounded_hf_acquire(
                 if budget is not None and transfer_index is not None:
                     budget.finish_transfer(
                         transfer_index, success=False, interrupted=False
+                    )
+                raise
+            except BaseException:
+                if budget is not None and transfer_index is not None:
+                    budget.finish_transfer(
+                        transfer_index, success=False, interrupted=True
                     )
                 raise
             if digest != shard.expected_sha256.lower():

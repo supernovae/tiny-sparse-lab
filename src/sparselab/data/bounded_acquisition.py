@@ -210,6 +210,15 @@ class DatasetTransport(TransportBudget):
         self._read()
         self.observe()
 
+    # This admission schema deliberately has no corpus feasibility gate.
+    @property
+    def _total_body_limit(self):
+        return None
+
+    @property
+    def _initial_body_limit(self):
+        return None
+
     def _validate_state(self, state):
         super()._validate_state(state)
         for field, maximum in (

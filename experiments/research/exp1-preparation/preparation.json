@@ -1,0 +1,295 @@
+{
+  "format": "sparselab-preparation-v1",
+  "defaults": {
+    "MAX_INPUT_BYTES": "1073741824"
+  },
+  "phases": {
+    "transport-init": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "budget-init",
+        "${ACQUISITION_PROJECT}"
+      ]
+    },
+    "pilot-acquire": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${ACQUISITION_PROJECT}"
+      ]
+    },
+    "pilot-budget-status": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "budget-status",
+        "${ACQUISITION_PROJECT}"
+      ]
+    },
+    "pilot-reuse": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${PILOT_REUSE_PROJECT}"
+      ]
+    },
+    "pilot-admission-draft": {
+      "leaf": "pilot-admission-draft.json",
+      "args": [
+        "corpus",
+        "admission-draft",
+        "${PILOT_REUSE_PROJECT}",
+        "--template",
+        "${PILOT_APPLICATION_POLICY}",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--output",
+        "@pilot-admission-draft"
+      ]
+    },
+    "pilot-admission-inspection": {
+      "leaf": "pilot-admission-inspection.json",
+      "args": [
+        "corpus",
+        "inspect-admission",
+        "${PILOT_REUSE_PROJECT}",
+        "--draft",
+        "@pilot-admission-draft",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--selection",
+        "${PILOT_INSPECTION_SELECTION}",
+        "--output",
+        "@pilot-admission-inspection",
+        "--max-input-bytes",
+        "${MAX_INPUT_BYTES}",
+        "--max-excerpt-bytes",
+        "1024",
+        "--max-output-bytes",
+        "2097152"
+      ]
+    },
+    "pilot-split-inventory": {
+      "leaf": "pilot-split-inventory.jsonl",
+      "args": [
+        "corpus",
+        "split-inventory",
+        "${PILOT_REUSE_PROJECT}",
+        "--output",
+        "@pilot-split-inventory",
+        "--json"
+      ]
+    },
+    "continue-acquire": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${ACQUISITION_PROJECT}"
+      ]
+    },
+    "final-budget-status": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "budget-status",
+        "${ACQUISITION_PROJECT}"
+      ]
+    },
+    "admission-draft": {
+      "leaf": "admission-draft.json",
+      "args": [
+        "corpus",
+        "admission-draft",
+        "${ACQUISITION_PROJECT}",
+        "--template",
+        "${APPLICATION_POLICY}",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--output",
+        "@admission-draft"
+      ]
+    },
+    "admission-inspection": {
+      "leaf": "admission-inspection.json",
+      "args": [
+        "corpus",
+        "inspect-admission",
+        "${ACQUISITION_PROJECT}",
+        "--draft",
+        "@admission-draft",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--selection",
+        "${INSPECTION_SELECTION}",
+        "--output",
+        "@admission-inspection",
+        "--max-input-bytes",
+        "${MAX_INPUT_BYTES}",
+        "--max-excerpt-bytes",
+        "1024",
+        "--max-output-bytes",
+        "2097152"
+      ]
+    },
+    "split-inventory": {
+      "leaf": "split-inventory.jsonl",
+      "args": [
+        "corpus",
+        "split-inventory",
+        "${PRE_FREEZE_PROJECT}",
+        "--output",
+        "@split-inventory",
+        "--json"
+      ]
+    },
+    "freeze-splits": {
+      "leaf": "splits.yaml",
+      "args": [
+        "corpus",
+        "freeze-splits",
+        "${PRE_FREEZE_PROJECT}",
+        "--inventory",
+        "@split-inventory",
+        "--clusters",
+        "${REVIEWED_CLUSTERS}",
+        "--output",
+        "@freeze-splits",
+        "--json"
+      ]
+    },
+    "build": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "build",
+        "${BUILD_PROJECT}",
+        "--offline"
+      ]
+    },
+    "freeze-release": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "freeze",
+        "${BUILD_RESULT}"
+      ]
+    },
+    "family-inventory": {
+      "leaf": "family-inventory.jsonl",
+      "args": [
+        "corpus",
+        "finalize-family-inventory",
+        "${RELEASE}",
+        "--splits",
+        "@freeze-splits",
+        "--output",
+        "@family-inventory",
+        "--json"
+      ]
+    },
+    "audit-release": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "audit",
+        "${RELEASE}"
+      ]
+    },
+    "export-lm": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "export",
+        "${RELEASE}",
+        "--view",
+        "lm",
+        "--base-run-config",
+        "${BASE_RUN_CONFIG}",
+        "--vocab-size",
+        "32768",
+        "--min-frequency",
+        "1"
+      ]
+    },
+    "fit-tokenizer": {
+      "leaf": null,
+      "args": [
+        "tokenizer",
+        "train",
+        "${TOKENIZER_CONFIG}"
+      ]
+    },
+    "measure-tokens": {
+      "leaf": "token-measurements.json",
+      "args": [
+        "corpus",
+        "measure-tokens",
+        "${RELEASE}",
+        "--tokenizer",
+        "${TOKENIZER}",
+        "--tokenizer-origin-release",
+        "${RELEASE}",
+        "--family-inventory",
+        "@family-inventory",
+        "--policy",
+        "${TOKEN_FLOORS}",
+        "--output",
+        "@measure-tokens",
+        "--batch-source-bytes",
+        "8388608",
+        "--json"
+      ]
+    },
+    "materialize-unique": {
+      "leaf": "unique-mixture",
+      "args": [
+        "corpus",
+        "materialize-mixture",
+        "${MIXTURE_DECLARATION}",
+        "--output",
+        "@materialize-unique",
+        "--json"
+      ]
+    },
+    "verify-unique": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "verify-mixture",
+        "${MIXTURE_DECLARATION}",
+        "--output",
+        "@materialize-unique",
+        "--json"
+      ]
+    },
+    "pack": {
+      "leaf": "prepared-inputs",
+      "args": [
+        "data",
+        "prepared-inputs",
+        "publish",
+        "${RUN_CONFIG}",
+        "--output",
+        "@pack",
+        "--resource-envelope",
+        "${RESOURCE_ENVELOPE}",
+        "--tokenizer-batch-source-bytes",
+        "8388608"
+      ]
+    },
+    "verify-prepared": {
+      "leaf": null,
+      "args": [
+        "data",
+        "prepared-inputs",
+        "verify",
+        "${RUN_CONFIG}",
+        "@pack"
+      ]
+    }
+  }
+}

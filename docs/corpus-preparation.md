@@ -270,9 +270,9 @@ sampling:
 
 This is an **unexecuted fragment**: source IDs must cover the actual frozen
 release exactly, and the export must already specify vocabulary 32768. Run the
-existing `tokenizer train CONFIG` command. Adding this leaf to the supervised
-preparation plan is a separate integration prerequisite. The existing ByteLevel
-BPE trainer is used once, with no tokenizer normalizer.
+existing `tokenizer train CONFIG` command. The native preparation dispatcher supports this leaf with declared sampling,
+authenticated export, a new output inside the attempt root, and any required
+release acceptance binding. The existing ByteLevel BPE trainer is used once, with no tokenizer normalizer.
 
 Selection visits eligible documents in immutable release order, restricted to
 the authenticated LM TRAIN lineage. It takes whole UTF-8 documents without
@@ -313,7 +313,47 @@ selected-content hashes also consume memory. These costs need measurement in the
 pilot; a 512 MiB fit budget does not bound total I/O. This does not authorize
 fitting on a real corpus or running a model workload.
 
+## Initial transfer feasibility gate
+
+A new transport budget may specify `initial_body_bytes` below
+`max_total_body_bytes`. Both caps combine source and metadata **reservations**;
+failed/interrupted transfers and retries retain their full conservative charge.
+For the unexecuted fresh EXP1 plan these are 4 GiB and 100 GiB, respectively.
+Separate source/metadata caps, retry limits, disk checks and the original wall
+deadline still apply. Omitted fields preserve existing ledger bindings.
+
+Before a reservation crosses the initial cap, acquisition refuses and retains
+all completed snapshots and failure evidence. Save `corpus budget-status PROJECT`
+as the `ledger_receipt` member of a report with explicit `findings`. Findings must
+report `status: ready` to continue; blocked findings refuse. A separately
+reviewed JSON decision requires `decision: continue`, the exact report
+`report_sha256`, and an actual nonempty `approval_reference`. With real owner
+authorization, use `corpus budget-release-gate PROJECT --report REPORT --review
+REVIEW`. This action is intentionally excluded from automatic attempt dispatch.
+The ledger receipt must match exactly. Catchable interrupts mark reservations
+interrupted and re-raise. After an uncatchable stop, a reservation can still say
+`started`: before release, the owner must independently verify that its process
+and descendants have stopped, then add `stopped_transfers` to the reviewed
+JSON decision. This maps every started transfer key to a nonempty stop-evidence
+reference. Missing, extra or blank entries refuse. An unchanged receipt alone
+is not proof of shutdown. Release retains the pre-reconciliation receipt hash,
+records those references and marks only those entries interrupted; all charged
+bytes, retry history, deadline and scope remain unchanged. Partial or zero-byte
+pilot results must be disclosed in feasibility findings, never called completed
+preparation. A retry consumes another full reservation from the same total.
+Approval text or stop evidence in a file never creates authority or bypasses
+another hold. Never reconcile a live transfer.
+
+See the [unexecuted EXP1 plan](../experiments/research/exp1-preparation/README.md)
+for the full native phase sequence and remaining source/runtime bindings. A
+feasibility gate is not a new transfer allocation; never initialize a replacement
+ledger to evade a cap or change the full source scope after starting.
+
 Historical fixed evaluation selection/slice commands still require their three
 historical strata. Fresh `real_english`/`synthetic`/`code` preparation does not
 make those evaluation protocols compatible; a separately reviewed evaluation
 change is required before using fresh strata there.
+
+Tokenizer dispatch cold-verifies the export before reserving an attempt; the
+trainer verifies it again. This adds a full verification pass that must be
+included in the pilot's observed I/O and wall-time costs.

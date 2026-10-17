@@ -50,6 +50,20 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
+    if command == "budget-release-gate":
+        from sparselab.corpus.transport_budget import TransportBudget
+
+        project = load_project(Path(args.project))
+        ledger = TransportBudget(
+            root / "corpora" / project.config.id / "transport-budget.sqlite", project
+        )
+        print(
+            json.dumps(
+                ledger.release_gate(Path(args.report), Path(args.review)),
+                sort_keys=True,
+            )
+        )
+        return
     if command == "budget-status":
         from sparselab.corpus.transport_budget import TransportBudget
 
@@ -324,6 +338,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "budget-init", help="Start one durable bounded-HF transport attempt"
     )
     command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "budget-release-gate",
+        help="Record separately authorized review of the initial transfer feasibility gate",
+    )
+    command.add_argument("project")
+    command.add_argument("--report", required=True)
+    command.add_argument("--review", required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser("budget-status", help="Read the existing transport budget")
     command.add_argument("project")

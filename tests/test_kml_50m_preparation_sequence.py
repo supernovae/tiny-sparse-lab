@@ -1249,12 +1249,21 @@ def test_offline_preparation_sequence_through_native_supervision(
                 "completion"
             ],
         )
+    # All-reuse materialization is now allowed by the offline contract. Keep
+    # this negative probe genuinely live without changing the bound project.
+    live_probe = yaml.safe_load((recipe / "acquire.yaml").read_text())
+    effect = live_probe["source_effects"][0]
+    effect.update(effect="acquire")
+    effect.pop("origin_project_id")
+    effect.pop("snapshot_sha256")
+    live_probe_path = recipe / "live-acquisition-probe.yaml"
+    _write_yaml(live_probe_path, live_probe)
     denied_live = _phase(
         paths,
         "forbidden-live-acquisition",
         "corpus",
         "acquire",
-        str(recipe / "acquire.yaml"),
+        str(live_probe_path),
     )
     assert denied_live.returncode != 0
     assert "verified offline reuse only" in denied_live.stderr
