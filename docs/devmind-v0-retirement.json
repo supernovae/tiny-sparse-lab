@@ -12,10 +12,19 @@
   "coverage": {
     "runtime_or_test_consumers": "No devmind-v0 references in src, tests, CI workflows, package configuration or container code at source_commit. No tests or implementation are removed.",
     "retained_generic_fixtures": [
-      "corpora/devmind-sample-v0/",
-      "corpora/devmind-v2/"
+      "corpora/devmind-sample-v0/"
     ],
-    "historical_references": "Historical research protocols, receipts, source surveys and path maps remain byte-for-byte unchanged. Their old commands record past locations, not current execution instructions. Two documentation entry points redirect to immutable originals."
+    "historical_references": "Historical research protocols, receipts, source surveys and path maps remain byte-for-byte unchanged. Their old commands record past locations, not current execution instructions. Two documentation entry points redirect to immutable originals.",
+    "retained_pending_neutral_fixture": {
+      "path": "corpora/devmind-v2/",
+      "classification": "Personal research corpus retained pending neutral fixtures; not generic coverage or completed retirement.",
+      "test_consumers": [
+        "tests/test_corpus_large_build.py",
+        "tests/test_corpus_pipeline.py",
+        "tests/test_corpus_rights_header.py",
+        "tests/test_corpus_structure_cleaning.py"
+      ]
+    }
   },
   "limits": [
     "This preservation retirement does not validate an adapted native recipe or execute acquisition, tokenizer fitting, training or evaluation.",
