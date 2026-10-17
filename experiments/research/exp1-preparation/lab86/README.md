@@ -56,7 +56,9 @@ imply every intermediate fits. Retained row-index receipts can themselves be lar
 ## Initial acquisition versus later gates
 
 The verified initial-acquisition bug is fixed in this PR: nested Parquet timestamps
-are encoded as ISO 8601 strings, preserving precision, offset or lack of timezone.
+are encoded as ISO 8601 strings, retaining decoded timestamp values and numeric offsets or lack of timezone.
+Arrow units and named zones are not retained in JSON. Arrow map timestamps and
+`date32` remain unsupported and fail closed.
 Original typed Parquet bytes remain identified by shard SHA256; emitted row hashes
 identify the JSON representation. Retrieval records the encoding and adapter module
 hash. Nulls and ordinary JSON values retain their meaning; other unsupported types
@@ -98,11 +100,12 @@ of absolute path to actual SHA256 before launch, including the source declaratio
 project, policy, plan, resolved contract, baseline and bindings used by that job.
 Use `package-sha256.json` plus newly generated evidence; no guessed digest entries.
 
-Host bindings: existing Linux amd64 Docker/cgroup-v2 execution path, cached image,
+Host bindings: existing Linux amd64 Docker/cgroup-v2 execution path,
 actual Python executable/version/digest (and venv object if applicable), boot ID,
 source/config checkout roots, work/receipt roots, existing lease namespace,
 actual approval owner/reference, measured capacity and baseline. The old source engine pin was `6f8b3047b3b5f30a4778f38de40b0bf45d13bdb1`;
-`HOST_REVIEWED_LAB_COMMIT` must instead bind the reviewed timestamp-fix release.
+`HOST_REVIEWED_LAB_COMMIT` must bind this PR's reviewed merge commit or a later
+reviewed release containing its timestamp fix.
 The old Harness pin `9020bec32f82f0c5abe93ba0eba46d6402d97b14` allows only image
 `ghcr.io/supernovae/tiny-sparse-lab@sha256:4af84411f6af27bdb0e8e0c6c9e2d64569329df4f8f48f407c94b5d39808d1d8`.
 That image predates the fix. Its reviewed replacement and the matching Harness

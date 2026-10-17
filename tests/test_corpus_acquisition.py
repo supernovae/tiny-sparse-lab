@@ -505,6 +505,7 @@ def test_hf_legacy_declaration_hash_and_receipt_reuse(
     manifest = verify_snapshot(first["sources"]["one"]["snapshot_path"])
     assert manifest["declaration_sha256"] == declaration_sha256(source)
     assert "transport_budget" not in manifest["retrieval"]
+    assert "row_encoding" not in manifest["retrieval"]
     assert acquire(project, tmp_path / "work") == first
     assert len(calls) == 1
 

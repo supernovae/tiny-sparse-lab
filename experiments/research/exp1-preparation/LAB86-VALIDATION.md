@@ -11,7 +11,7 @@ fixtures, never real dataset payloads.
 
 `pytest -q tests/test_lab86_package.py tests/test_corpus_acquisition.py
  tests/test_preparation_commands.py tests/test_preparation_tokenizer_dispatch.py`:
-**106 passed in 41.71s**.
+**119 passed in 43.38s**.
 Repository Ruff check/format, research lint (570 records), and staged diff checks
 passed. Fetched source evidence is retained as JSON text with original byte SHA256,
 which preserves upstream text while conforming to the research record format.
@@ -39,5 +39,19 @@ Nine coordinated mutations (including all seven review mutants, slot-ID drift an
 lowercase slots) are rejected even after their manifest hashes are recomputed.
 Family merges now use the native JSON-array fragment slot. Pilot selection is
 independently checked against the smallest catalog shard; source-text envelopes
-are verified against their original byte digests. Host object assembly is explicitly
-JSON parsing, documented and tested; no quoted mapping is submitted to Harness.
+are verified against their original byte digests. Host object assembly remains a documented JSON data-binding step; it is not a
+native renderer feature. The operator round-trip test was removed in review r2.
+
+Review 5556484694: one derivation check now binds the pilot contract to the full
+zero-model contract, non-init jobs to their full counterparts with only the three
+permitted substitutions, the session envelope/approval to the full session, and
+pilot-content hashes/transfer ceilings to their actual referenced inputs. Thirteen
+coordinated pilot mutations are rejected at specifically named assertions, including
+all twelve reported mutations and the phase-wall case. Mutated content seals are
+propagated through contract/jobs/session and the package manifest is recomputed.
+
+Q1 decision: remove the JSON-library round-trip test and retain the documented
+operator binding step; no new renderer capability or framework. Timestamp wording
+now distinguishes decoded values/offsets from Arrow units/named zones, and the
+JSONL-only acquisition test requires absence of the Parquet encoding annotation.
+These changes preserve runtime behavior and the approved four-slot pilot boundary.

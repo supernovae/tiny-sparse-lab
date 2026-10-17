@@ -909,9 +909,10 @@ def _validate_hf_rows(path: Path, spec: HuggingFaceAcquisition, available: int) 
 
 
 def _parquet_json_value(value: Any) -> Any:
-    """Preserve Arrow timestamps as ISO 8601, including offset and precision.
+    """Encode decoded timestamps as ISO 8601, retaining their numeric UTC offset.
 
-    Naive timestamps stay naive: never invent a timezone. Shard SHA-256 keeps
+    Arrow units and named zones are not retained in JSON. Naive timestamps
+    stay naive: never invent a timezone. Shard SHA-256 keeps
     the original typed bytes; row SHA-256 identifies this JSON representation.
     Other unsupported Arrow values still fail canonical JSON serialization.
     """

@@ -389,17 +389,169 @@ def test_verbatim_source_evidence_hashes():
         )
 
 
-def test_host_object_binding_is_data_not_a_quoted_mapping(tmp_path):
-    _, outputs = _render_package_templates(PACKAGE, tmp_path)
-    job = json.loads(outputs["pilot-jobs/pilot-acquire.template.json"].read_text())
-    runtime = {"python": "3.14.4", "executable_sha256": "a" * 64}
-    required = {"/fixture/project-acquire.yaml": "b" * 64}
-    for field, value in (("runtime", runtime), ("required_files", required)):
-        path = tmp_path / (field + ".json")
-        path.write_text(json.dumps(value))
-        job[field] = str(path)
-        parsed = json.loads(Path(job[field]).read_text())
-        assert isinstance(parsed, dict) and parsed
-        job[field] = parsed
-    assert job["runtime"] == runtime
-    assert job["required_files"] == required
+def _assert_pilot_derivation(package):
+    def data(name):
+        return yaml.safe_load((package / name).read_text())
+
+    content = data("pilot-content.json")
+    references = {
+        "acquisition_project_file_sha256": "project-acquire.yaml",
+        "policy_sha256": "POLICY.md",
+        "phase_plan_sha256": "../preparation.json",
+    }
+    assert {k for k in content if k.endswith("_sha256")} == set(references), (
+        "pilot content hash fields"
+    )
+    for key, name in references.items():
+        assert (
+            content[key] == hashlib.sha256((package / name).read_bytes()).hexdigest()
+        ), "pilot content referenced hash"
+    budget = data("project-acquire.yaml")["transport_budget"]
+    for key in ("initial_body_bytes", "max_total_body_bytes"):
+        assert content[key] == budget[key], "pilot content transfer limits"
+    identity = hashlib.sha256((package / "pilot-content.json").read_bytes()).hexdigest()
+    contract = data("attempt-contract.template.json")
+    contract["content_identity_sha256"] = identity
+    assert data("pilot-contract.template.json") == contract, "pilot contract derivation"
+    full = data("session.template.json")
+    pilot = data("pilot-session.template.json")
+    assert pilot["session_id"] == "lab86-exp1-pilot-v1", "pilot receipt namespace"
+    for key in full.keys() - {"session_id", "slots"}:
+        assert pilot[key] == full[key], "pilot session envelope"
+    labels = ["transport-init", "pilot-acquire", "pilot-budget-status"]
+    assert content["ordered_phases"] == labels, "pilot content phase order"
+    assert [slot["id"] for slot in pilot["slots"]] == ["attempt-init", *labels], (
+        "pilot slot order"
+    )
+    for label in labels:
+        job = data(f"jobs/{label}.template.json")
+        job["output_root"] = "${HOST_RECEIPT_ROOT}/" + pilot["session_id"] + "/A"
+        job["required_files"] = "${HOST_REQUIRED_FILES_OBJECT}"
+        job["argv"] = [
+            identity if arg == "${GENERATED_CONTENT_IDENTITY_SHA256}" else arg
+            for arg in job["argv"]
+        ]
+        assert data(f"pilot-jobs/{label}.template.json") == job, "pilot job derivation"
+        slot = next(slot for slot in full["slots"] if slot["id"] == label)
+        slot["argv"] = job["argv"]
+        assert next(slot for slot in pilot["slots"] if slot["id"] == label) == slot, (
+            "pilot slot derivation"
+        )
+
+
+def test_pilot_is_derived_from_full_safety_declarations():
+    _assert_pilot_derivation(PACKAGE)
+
+
+@pytest.mark.parametrize(
+    "file,field,value,reason",
+    [
+        (
+            "pilot-contract.template.json",
+            "max_optimizer_updates",
+            1,
+            "pilot contract derivation",
+        ),
+        (
+            "pilot-contract.template.json",
+            "preparation_only",
+            False,
+            "pilot contract derivation",
+        ),
+        (
+            "pilot-contract.template.json",
+            "acquisition_project_sha256",
+            "b" * 64,
+            "pilot contract derivation",
+        ),
+        (
+            "pilot-contract.template.json",
+            "monitor_policy_sha256",
+            "b" * 64,
+            "pilot contract derivation",
+        ),
+        (
+            "pilot-jobs/pilot-acquire.template.json",
+            "limits.memory.max_bytes",
+            32 * GIB,
+            "pilot job derivation",
+        ),
+        (
+            "pilot-jobs/pilot-acquire.template.json",
+            "environment.TRANSFORMERS_OFFLINE",
+            "0",
+            "pilot job derivation",
+        ),
+        (
+            "pilot-jobs/pilot-acquire.template.json",
+            "environment.CUDA_VISIBLE_DEVICES",
+            "0",
+            "pilot job derivation",
+        ),
+        (
+            "pilot-jobs/pilot-acquire.template.json",
+            "output_root",
+            "${HOST_RECEIPT_ROOT}/lab86-exp1-v1/A",
+            "pilot job derivation",
+        ),
+        (
+            "pilot-jobs/pilot-acquire.template.json",
+            "limits.wall_seconds",
+            172800,
+            "pilot job derivation",
+        ),
+        (
+            "pilot-session.template.json",
+            "limits.rss.max_bytes",
+            32 * GIB,
+            "pilot session envelope",
+        ),
+        (
+            "pilot-session.template.json",
+            "limits.storage.root_bytes.A",
+            600 * GIB,
+            "pilot session envelope",
+        ),
+        (
+            "pilot-content.json",
+            "acquisition_project_file_sha256",
+            "b" * 64,
+            "pilot content referenced hash",
+        ),
+        (
+            "pilot-content.json",
+            "initial_body_bytes",
+            8 * GIB,
+            "pilot content transfer limits",
+        ),
+    ],
+)
+def test_coordinated_pilot_safety_tampering_is_rejected(
+    tmp_path, file, field, value, reason
+):
+    package = tmp_path / "package"
+    shutil.copytree(PACKAGE, package)
+    shutil.copyfile(PLAN, tmp_path / "preparation.json")
+    path = package / file
+    data = json.loads(path.read_text())
+    target = data
+    parts = field.split(".")
+    for part in parts[:-1]:
+        target = target[part]
+    target[parts[-1]] = value
+    old_identity = hashlib.sha256(
+        (package / "pilot-content.json").read_bytes()
+    ).hexdigest()
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    if file == "pilot-content.json":
+        identity = hashlib.sha256(path.read_bytes()).hexdigest()
+        # Propagate the mutated seal, not merely a stale identity that fails early.
+        for item in package.rglob("*.json"):
+            if item.name != "pilot-content.json":
+                item.write_text(item.read_text().replace(old_identity, identity))
+    manifest = json.loads((package / "package-sha256.json").read_text())
+    for name in manifest:
+        manifest[name] = hashlib.sha256((package / name).read_bytes()).hexdigest()
+    (package / "package-sha256.json").write_text(json.dumps(manifest))
+    with pytest.raises(AssertionError, match=reason):
+        _assert_pilot_derivation(package)
