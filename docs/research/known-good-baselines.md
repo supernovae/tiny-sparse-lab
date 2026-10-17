@@ -21,13 +21,26 @@ This is not a claim about all host storage or a recovered checkpoint.
 ## Use a reference in a new experiment
 
 Inspect a retained reference through the native lifecycle before planning a
-child. Set `BASELINE_ID` to the declared baseline you intend to inspect:
+child. The packaged registry is empty. Set `LIFECYCLE` to your explicit lifecycle
+JSON, `EVIDENCE_ROOT` to its evidence root, and `BASELINE_ID` to a baseline declared
+in that file. For the report command, save a `report-selectors.yaml` with the same
+locations (replace these absolute example paths), and set `REPORT_CONFIG` to it:
+
+```yaml
+report_config_version: 1
+lifecycle: /path/to/lifecycle.json
+evidence_root: /path/to/evidence
+```
 
 ```sh
-uv run --locked --extra cpu sparselab report --kind research --json
-uv run --locked --extra cpu sparselab research baseline describe "$BASELINE_ID"
-uv run --locked --extra cpu sparselab research validate --baseline "$BASELINE_ID"
+uv run --locked --extra cpu sparselab report --kind research --config "$REPORT_CONFIG" --json
+uv run --locked --extra cpu sparselab research baseline describe "$BASELINE_ID" --lifecycle "$LIFECYCLE" --evidence-root "$EVIDENCE_ROOT"
+uv run --locked --extra cpu sparselab research validate --baseline "$BASELINE_ID" --lifecycle "$LIFECYCLE" --evidence-root "$EVIDENCE_ROOT"
 ```
+
+`report` takes these selectors through `--config`; the research subcommands take
+`--lifecycle` and `--evidence-root` directly. Relative paths in report YAML resolve
+beside that YAML file.
 
 Historical evidence and locally available checkpoint bytes are different states.
 Use the [training-program guide](../experiment-programs.md) for a new declared
@@ -47,6 +60,6 @@ omitted checkpoint binaries locally available or runnable.
 
 A Finding records conditions, evidence, bounded claims, reviewer attribution, disposition, rationale, next action, and reopen conditions. Dispositions are: **rejected** (unsupported under declared conditions), **inconclusive** (unanswered), **learning** (useful evidence without justified compute), **replicate** (independent repetition justified), **scale** (replicated evidence warrants larger compute), and **promote** (eligible for integrated baseline review). Stages are descriptive: mechanism, micro, replicate, scale, confirm, promote. Maturity axes are independent implementation, capability, efficiency, and portability declarations; no axis numerically ranks another.
 
-Use `sparselab report --kind research` and `research baseline describe ID` to inspect declared branches and evidence availability. `report --kind research` is a declared next-test view, not optimal planning. A prior-design advisory never blocks planning; changing the sealed study/protocol identity can make equivalence unassessed.
+Use the explicitly selected report and baseline commands above to inspect declared branches and evidence availability. `report --kind research` is a declared next-test view, not optimal planning. A prior-design advisory never blocks planning; changing the sealed study/protocol identity can make equivalence unassessed.
 
-Promotion is an explicit reviewed lifecycle JSON change, never a metric trigger. A known-good baseline needs an accepted promotion and complete preparation, training, checkpoint, validation, capability, generation, resources, and static-report evidence. A replacement also needs its parent’s required regressions, identity-bound passed outcomes, a resource tradeoff, and explicit `supersedes`; parallel promotion leaves its parent active. Run `sparselab research validate --json` before relying on a declaration. Keep independent mechanism branches interpretable; a combined candidate needs its own campaign and regressions.
+Promotion is an explicit reviewed lifecycle JSON change, never a metric trigger. A known-good baseline needs an accepted promotion and complete preparation, training, checkpoint, validation, capability, generation, resources, and static-report evidence. A replacement also needs its parent’s required regressions, identity-bound passed outcomes, a resource tradeoff, and explicit `supersedes`; parallel promotion leaves its parent active. Run `sparselab research validate --lifecycle "$LIFECYCLE" --evidence-root "$EVIDENCE_ROOT" --json` before relying on a declaration. Keep independent mechanism branches interpretable; a combined candidate needs its own campaign and regressions.
