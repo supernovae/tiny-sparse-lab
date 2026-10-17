@@ -3,8 +3,8 @@
 Samples teach the workflow and are safe to copy. They are not claims that a
 mechanism improves quality or performance.
 
-- [TinyStories microlab](../../docs/tinystories-microlab.md): a small `try`/`report` width comparison, with
-  [copyable configs](tinystories-microlab/).
+- [TinyStories microlab](../../docs/tinystories-microlab.md): an optional external
+  Workshop recipe; its declarations are no longer copied into Lab.
 - [Chained training program](../../docs/experiment-programs.md): an offline
   authored plan with preparation, immutable locking, and a checkpoint-bound
   child phase.

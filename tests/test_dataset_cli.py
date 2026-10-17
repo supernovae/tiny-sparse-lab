@@ -15,7 +15,7 @@ from sparselab.cli.main import build_parser, main
 def test_retired_direct_source_rejected_before_side_effects(
     tmp_path, monkeypatch, command
 ):
-    sample = Path(__file__).parents[1] / "experiments/samples/tinystories-microlab"
+    sample = Path(__file__).parent / "fixtures/snapshot-comparison"
     filename = "tokenizer.yaml" if command == "tokenizer" else "run.yaml"
     config = yaml.safe_load((sample / filename).read_text())
     config["dataset"]["source"] = "tinystories"

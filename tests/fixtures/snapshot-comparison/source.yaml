@@ -1,0 +1,29 @@
+schema_version: 1
+kind: huggingface
+repo_id: fixture/neutral-text
+revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+config: default
+splits:
+  train: train
+  validation: validation
+text_field: text
+attribution: Synthetic rows supplied by test stream; no remote calls
+license: Synthetic test fixture
+license_url: https://example.invalid/fixture
+selection:
+  mode: bounded
+  documents:
+    train: 12
+    validation: 3
+dedup:
+  within_split: exclude
+  overlap: exclude
+  priority:
+  - validation
+  - train
+resources:
+  max_source_records: 32
+  max_text_bytes: 32768
+  max_record_bytes: 4096
+  max_work_bytes: 1048576
+  min_free_bytes: 1048576
