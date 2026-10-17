@@ -502,19 +502,39 @@ def resolve_file_rights(
 
 
 def _admission_profile(source: Mapping[str, Any]) -> str:
-    """This first record policy applies only to the two pinned HF source types."""
+    """Select the legacy or explicitly declared record admission policy."""
+    from sparselab.corpus.row_qualification import LEGACY_HF_ROW_URIS
+
+    if (
+        source.get("canonical_uri") in LEGACY_HF_ROW_URIS
+        and source.get("acquisition", {}).get("qualification") is not None
+    ):
+        raise ValueError("legacy HF row policies do not accept qualification overrides")
     uri = source["canonical_uri"]
     if uri == "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered":
         return "gutenberg"
     if uri == "https://huggingface.co/datasets/common-pile/wikimedia_filtered":
         return "wikimedia"
+    if source.get("acquisition", {}).get("qualification") is not None:
+        return "declared_rows"
     raise ValueError("record admission source is outside supported policy scope")
 
 
 def _admission_exceptions(
-    row: Mapping[str, Any], profile: str
+    row: Mapping[str, Any], profile: str, source: Mapping[str, Any] | None = None
 ) -> tuple[str | None, tuple[str, ...]]:
     """Return a material conflict or review flags from the original retained row."""
+    if profile == "declared_rows":
+        from sparselab.corpus.row_qualification import RowQualification, exceptions
+
+        if source is None:
+            raise ValueError("declared row policy requires source declaration")
+        spec = source["acquisition"]
+        return exceptions(
+            dict(row),
+            RowQualification.model_validate(spec["qualification"]),
+            spec["text_field"],
+        )
     metadata = row.get("metadata")
     if not isinstance(metadata, dict):
         return "missing source metadata", ()
@@ -804,16 +824,21 @@ def _verify_record_admission_v1(
                 or envelope.get("dataset_revision") != source["revision"]
                 or envelope.get("source_shard_path") != item["source_shard_path"]
                 or envelope.get("source_shard_sha256") != item["source_shard_sha256"]
-                or not isinstance(original.get("id"), str)
-                or original["id"] != envelope.get("id")
-                or not isinstance(provenance, str)
-                or re.fullmatch(
-                    re.escape(item["source_shard_path"]) + r":\d+", provenance
+                or (
+                    profile != "declared_rows"
+                    and (
+                        not isinstance(original.get("id"), str)
+                        or original["id"] != envelope.get("id")
+                        or not isinstance(provenance, str)
+                        or re.fullmatch(
+                            re.escape(item["source_shard_path"]) + r":\d+", provenance
+                        )
+                        is None
+                    )
                 )
-                is None
             ):
                 raise ValueError("record admission row provenance mismatch")
-            conflict, flags = _admission_exceptions(original, profile)
+            conflict, flags = _admission_exceptions(original, profile, source)
             if decision["decision"] == "qualify":
                 if conflict:
                     raise ValueError(

@@ -11,6 +11,7 @@ from pydantic import Field, field_validator, model_serializer, model_validator
 
 from sparselab.config.models import StrictModel
 from sparselab.corpus.rights import RightsPolicy
+from sparselab.corpus.row_qualification import LEGACY_HF_ROW_URIS, RowQualification
 
 _ID = re.compile(r"[a-z][a-z0-9_-]*\Z")
 _HEX = re.compile(r"[0-9a-fA-F]{64}\Z")
@@ -151,6 +152,9 @@ class HFBoundedShard(StrictModel):
 
 
 class HuggingFaceAcquisition(StrictModel):
+    qualification: RowQualification | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     config: str
     split: str
     include: tuple[str, ...] = ()
@@ -162,6 +166,8 @@ class HuggingFaceAcquisition(StrictModel):
 
     @model_validator(mode="after")
     def selection_required(self) -> HuggingFaceAcquisition:
+        if self.qualification is not None and not self.bounded_shards:
+            raise ValueError("row qualification requires pinned bounded shards")
         if bool(self.include) == bool(self.bounded_shards):
             raise ValueError("HF requires either include or bounded_shards, not both")
         for pattern in self.include:
@@ -337,6 +343,13 @@ class SourceDeclaration(StrictModel):
 
     @model_validator(mode="after")
     def validate_kind(self) -> SourceDeclaration:
+        if (
+            self.canonical_uri in LEGACY_HF_ROW_URIS
+            and getattr(self.acquisition, "qualification", None) is not None
+        ):
+            raise ValueError(
+                "legacy HF row policies do not accept qualification overrides"
+            )
         if type(self.acquisition) is not _ACQUISITION[self.kind]:
             raise ValueError("acquisition does not match source kind")
         if (

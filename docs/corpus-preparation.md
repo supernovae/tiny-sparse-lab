@@ -177,11 +177,78 @@ native RunConfig setting (`training.seq_len: 2048` for the approved fresh plan),
 and token storage remains native int32.
 
 These controls are preparation prerequisites, not an executable EXP1 allocation.
-Source qualification, train-only byte sampling/audits, and the first **4 GiB**
+Train-only byte sampling/audits and the first **4 GiB**
 feasibility report within the cumulative **100 GiB** transfer ledger require the
 remaining reviewed preparation integration. No data transfer is approved by these
 example declarations themselves.
 
+## Declared HF row qualification
+
+A bounded-shard Hugging Face source may declare `acquisition.qualification`.
+The declaration digest binds the profile and exact original-row field paths;
+the acquisition envelope still binds revision, shard, row index and row hash.
+Legacy Gutenberg/Wikimedia sources refuse qualification overrides, preserving
+one consistent admission/family policy. For example, this
+unexecuted code-policy fragment assumes these fields have been verified in the
+pinned source schema:
+
+```yaml
+qualification:
+  profile: code
+  family_fields: [repo_name]
+  language_field: language
+  allowed_languages: [Python, JavaScript, TypeScript, Go, Rust, Shell, SQL, Markdown]
+  repository_field: repo_name
+  path_field: path
+  license_field: license
+  license_labels:
+    mit: MIT
+    apache-2.0: Apache-2.0
+    bsd-2-clause: BSD-2-Clause
+    bsd-3-clause: BSD-3-Clause
+    isc: ISC
+```
+
+Code families group the entire repository; adding path fields to split one
+repository into smaller families is refused. Repository labels only narrow the
+candidate pool. Missing or incompatible labels, disallowed languages, unsafe or
+vendor/generated paths, generated notices, detected credentials/private
+identifiers and conflicting file-level notices quarantine rows. Other detected
+notice flags require review. The existing notice patterns are screening, not a
+complete license or secret detector. Verified repository/path/license/language
+attribution, including the mapped SPDX expression, remains in normalized document
+metadata. Repository family values are casefolded for GitHub identity grouping;
+original attribution is retained.
+
+`profile: synthetic_text` requires `family_fields` and
+`synthetic_provenance_fields` naming retained original seed/provenance fields.
+Only the declared acquisition `text_field` becomes training text; provenance is
+hashed into document metadata. Group shared seed families before split freezing.
+`profile: web_text` requires declared family fields and optionally a language
+field with exact allowed values. Dotted paths such as `metadata.url` and
+`metadata.language` traverse dictionaries only; empty, reserved, overlong or
+whitespace-padded path segments refuse. A FineWeb-shaped policy can group on
+`metadata.url` without treating each dump as a different family. Code-only fields
+on other profiles and synthetic provenance fields on other profiles refuse,
+rather than imply an unused screen. Whitespace-only provenance is missing.
+Cosmopedia `seed_data` is a dataset label, not an individual seed identity: it
+cannot alone establish seed families. Actual per-seed provenance and reviewed
+family grouping remain a source-qualification gate; no seed IDs are invented.
+Family hints are conservative inputs to the
+reviewed cluster declaration, not a replacement for duplicate/decontamination
+review. Missing family or synthetic provenance is a material conflict.
+
+Use native `corpus admission-draft` and the existing inspection/review/build
+sequence. Metadata inventory can enumerate unadmitted rows, marking unresolved
+provenance; enumeration is not admission. An unfrozen build without a reviewed
+record-admission manifest does not apply these screens. Freeze requires reviewed
+admission and refuses unresolved families. These declarations never grant source
+rights or owner approval.
+The current admission receipt supports **one selected HF shard per source
+entry**; declare separate pinned entries for additional shards and map them to
+the same source stratum. Verified repository/seed values can group across those
+entries. Real source schema, rights and provenance qualification remain gates;
+these synthetic fixtures do not establish the suitability of any remote corpus.
 
 Historical fixed evaluation selection/slice commands still require their three
 historical strata. Fresh `real_english`/`synthetic`/`code` preparation does not
