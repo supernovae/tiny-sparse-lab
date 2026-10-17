@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from research_fixtures import make_study_resources
 
 from sparselab.cli import entry
 from sparselab.cli import main as application
@@ -79,7 +80,7 @@ def test_removed_byte_route_fails_before_execution(
         "learn describe byte-engram",
         "learn scaffold byte-engram --output absent",
         'learn probe absent.yaml --prompt "é"',
-        "research scaffold engram-ffn-substitution-v1 --output absent",
+        "research scaffold neutral-study --resource-root absent --output absent",
         "study plan absent.yaml",
         "study submit absent.yaml",
         "study collect absent.yaml absent.json",
@@ -100,8 +101,9 @@ def test_retained_research_contracts_parse_without_inputs_or_dispatch(
 def test_study_instructions_have_one_preparation_and_native_dispatch(
     tmp_path: Path, data: str, backend: str
 ) -> None:
+    root = make_study_resources(tmp_path)
     readme = _study_readme(
-        load_research("engram-ffn-substitution-v1"),
+        load_research("neutral-study", root=root),
         "smoke",
         data,
         backend,
@@ -111,6 +113,7 @@ def test_study_instructions_have_one_preparation_and_native_dispatch(
         0,
         0,
         str(tmp_path / "work"),
+        root=root,
     )
     assert readme.count("sparselab tokenizer train") == 1
     assert readme.count("sparselab data prepare") == 1

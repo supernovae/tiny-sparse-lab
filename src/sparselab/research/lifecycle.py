@@ -610,7 +610,7 @@ def _strict_json(path: Path, *, limit: int | None = None) -> tuple[object, bytes
 
 
 def load_lifecycle(reference: Path | None = None) -> LifecycleRegistry:
-    """Load the packaged registry or one explicit replacement JSON document."""
+    """Load the empty current default or one explicit registry JSON document."""
     if reference is None:
         path = _RESOURCE / "lifecycle.json"
     else:

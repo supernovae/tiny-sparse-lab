@@ -22,7 +22,7 @@ def _signed_evidence() -> tuple[dict[str, object], bytes]:
     payload: dict[str, object] = {
         "format": "sparselab-portability-evidence",
         "version": 1,
-        "campaign_id": "engram-portability-v1-smoke",
+        "campaign_id": "neutral-portability-smoke",
         "scale": "smoke",
         "protocol_sha256": "a" * 64,
         "world_manifest_sha256": "b" * 64,
