@@ -1,0 +1,103 @@
+{
+  "format": "sparselab-preparation-v1",
+  "defaults": {},
+  "phases": {
+    "initialize": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "budget-init",
+        "${PROJECT}"
+      ]
+    },
+    "acquire": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${PROJECT}"
+      ]
+    },
+    "status": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "budget-status",
+        "${PROJECT}"
+      ]
+    },
+    "inventory": {
+      "leaf": "families.jsonl",
+      "args": [
+        "corpus",
+        "split-inventory",
+        "${PROJECT}",
+        "--output",
+        "@inventory",
+        "--json"
+      ]
+    },
+    "freeze": {
+      "leaf": "splits.yaml",
+      "args": [
+        "corpus",
+        "freeze-splits",
+        "${PROJECT}",
+        "--inventory",
+        "@inventory",
+        "--clusters",
+        "${CLUSTERS}",
+        "--output",
+        "@freeze",
+        "--json"
+      ]
+    },
+    "export": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "export",
+        "${RELEASE}",
+        "--view",
+        "lm",
+        "--base-run-config",
+        "${RUN_CONFIG}",
+        "--vocab-size",
+        "260"
+      ]
+    },
+    "fit-tokenizer": {
+      "leaf": null,
+      "args": [
+        "tokenizer",
+        "train",
+        "${TOKENIZER_CONFIG}"
+      ]
+    },
+    "pack": {
+      "leaf": "prepared",
+      "args": [
+        "data",
+        "prepared-inputs",
+        "publish",
+        "${RUN_CONFIG}",
+        "--output",
+        "@pack",
+        "--resource-envelope",
+        "${ENVELOPE}",
+        "--tokenizer-batch-source-bytes",
+        "1024"
+      ]
+    },
+    "verify": {
+      "leaf": null,
+      "args": [
+        "data",
+        "prepared-inputs",
+        "verify",
+        "${RUN_CONFIG}",
+        "@pack"
+      ]
+    }
+  }
+}
