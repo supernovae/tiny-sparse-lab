@@ -495,3 +495,131 @@ def test_reporting_refuses_unsafe_dataset_source(
         _json(receipt_path, receipt)
     with pytest.raises((ValueError, FileNotFoundError)):
         _validate_research(output / "research.json", output / "study.yaml")
+
+
+@pytest.mark.parametrize("through_link", [False, True])
+def test_local_entry_must_be_inside_root_without_symlink_parents(
+    closure: Path, tmp_path: Path, through_link: bool
+) -> None:
+    import shutil
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    _json(
+        outside / "neutral-study.json",
+        json.loads((closure / "catalog/neutral-study.json").read_text()),
+    )
+    shutil.copytree(closure / "recipes", outside / "recipes")
+    if through_link:
+        (closure / "forks").symlink_to(outside, target_is_directory=True)
+        source = closure / "forks/neutral-study.json"
+        reason = "symlink"
+    else:
+        source = outside / "neutral-study.json"
+        reason = "inside resource root"
+    with pytest.raises(ValueError, match=reason):
+        catalog.load_research(source, root=closure)
+
+
+def test_no_root_fork_preserves_seed_axis_refusal(
+    closure: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Substitute a neutral packaged closure; the public call still has no root.
+    monkeypatch.setattr(catalog, "_RESOURCE_ROOT", closure)
+    source = closure / "neutral-study.json"
+    _json(source, json.loads((closure / "catalog/neutral-study.json").read_text()))
+    with pytest.raises(ValueError, match="exclude seed"):
+        scaffold_research(source, tmp_path / "no-root", scale="smoke", data="neutral")
+    assert not (tmp_path / "no-root").exists()
+
+
+def _cli_args(closure: Path, tmp_path: Path):
+    from sparselab.cli.main import build_parser
+
+    return build_parser(work_dir=tmp_path / "work").parse_args(
+        [
+            "research",
+            "scaffold",
+            "neutral-study",
+            "--resource-root",
+            str(closure),
+            "--scale",
+            "smoke",
+            "--data",
+            "neutral",
+            "--output",
+            str(tmp_path / "result"),
+        ]
+    )
+
+
+def test_cli_missing_external_lifecycle_refuses(closure: Path, tmp_path: Path) -> None:
+    # Leave the genuine packaged registry available: silent fallback must fail this test.
+    (closure / "lifecycle.json").unlink()
+    args = _cli_args(closure, tmp_path)
+    with pytest.raises(FileNotFoundError, match="lifecycle.json"):
+        args.handler(args)
+    assert not (tmp_path / "result").exists()
+
+
+def test_cli_uses_distinct_external_lifecycle(
+    closure: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.research import lifecycle
+
+    # Two actual registry files, with incompatible versions: successful scaffolding
+    # proves the native loader read the valid selected closure, not the fallback.
+    packaged = tmp_path / "packaged"
+    invalid = json.loads((closure / "lifecycle.json").read_text())
+    invalid["version"] = 999
+    _json(packaged / "lifecycle.json", invalid)
+    monkeypatch.setattr(lifecycle, "_RESOURCE", packaged)
+    args = _cli_args(closure, tmp_path)
+    args.handler(args)
+    assert (tmp_path / "result/research.json").is_file()
+
+
+@pytest.mark.parametrize("mode", ["historical", "missing", "altered"])
+def test_original_base_receipt_compatibility(
+    closure: Path, tmp_path: Path, mode: str
+) -> None:
+    from sparselab.experiments.reporting import _validate_research
+    from sparselab.training.manifest import canonical_json
+
+    output = scaffold_research(
+        "neutral-study",
+        tmp_path / "receipt",
+        root=closure,
+        scale="smoke",
+        data="neutral",
+    )
+    base = output / "research_sources/base.yaml"
+    if mode == "altered":
+        base.write_bytes(base.read_bytes() + b"# altered original source\n")
+    else:
+        base.unlink()
+    if mode == "historical":
+        receipt_path = output / "research.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["inputs"] = [
+            item
+            for item in receipt["inputs"]
+            if item["path"] != "research_sources/base.yaml"
+        ]
+        receipt.pop("research_sha256")
+        receipt["research_sha256"] = hashlib.sha256(canonical_json(receipt)).hexdigest()
+        _json(receipt_path, receipt)
+        _validate_research(receipt_path, output / "study.yaml")
+    else:
+        with pytest.raises((ValueError, FileNotFoundError)):
+            _validate_research(output / "research.json", output / "study.yaml")
+
+
+def test_resource_root_requires_resolved_ancestors(
+    closure: Path, tmp_path: Path
+) -> None:
+    parent_alias = tmp_path / "parent-alias"
+    parent_alias.symlink_to(closure.parent, target_is_directory=True)
+    with pytest.raises(ValueError, match="resource root must not traverse a symlink"):
+        catalog.resource_root(parent_alias / closure.name)
+    assert catalog.resource_root((parent_alias / closure.name).resolve()) == closure

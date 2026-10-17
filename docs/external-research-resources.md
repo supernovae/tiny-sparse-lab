@@ -24,7 +24,10 @@ The selected directory uses the existing research schemas and layout:
 
 A resource root selects one closure. Missing files fail instead of falling back
 to packaged resources. Resource paths must remain inside the root and cannot
-traverse symlinks. An explicit local JSON entry is also supported; with a resource
+traverse symlinks, including ancestors of the root. Supply a fully resolved root
+path (for example, `/private/tmp/resources` rather than a symlinked `/tmp/resources`
+on macOS). This restriction applies to the supplied resource root, not the output
+directory. An explicit local JSON entry is also supported; with a resource
 root it must be inside that root, and its recipe remains relative to the entry's
 parent as in the existing local-entry contract. IDs resolve under `catalog/`,
 with recipe paths relative to the resource root.
@@ -65,3 +68,11 @@ This change does not externalize specialized learned-portability or Pythia
 protocol selection, historical lint path exemptions, benchmark defaults, or
 runtime assets. Those require separate coordinated migrations. It does not make
 an unbound model recipe runnable or supply corpus/tokenizer/checkpoint evidence.
+
+Legacy allocation cards such as `../../artifacts/allocation/cards/*.json` are not
+contained authoring resources and refuse this copy path. Their native adaptation
+must use safe relative card paths within the selected root. Likewise, local JSON
+forks using path-based cards should supply `--resource-root`; the old no-root
+interface retains packaged auxiliary-resource selection. Generated filenames and
+card paths share a namespace; collisions fail without publishing the destination.
+These limitations do not justify changing archived card paths or hashes.

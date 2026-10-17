@@ -3585,16 +3585,28 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     research_scaffold.add_argument(
         "reference", help="Packaged research ID or explicit JSON fork"
     )
-    research_scaffold.add_argument("--resource-root", type=Path)
+    research_scaffold.add_argument(
+        "--resource-root",
+        type=Path,
+        help="Complete local authoring resource directory; defaults to packaged resources",
+    )
     research_scaffold.add_argument("--output", required=True)
     research_scaffold.add_argument(
         "--scale", choices=("smoke", "nano", "micro", "tiny"), default="micro"
     )
-    research_scaffold.add_argument("--data", default="offline")
+    research_scaffold.add_argument(
+        "--data",
+        default="offline",
+        help="Dataset profile name from the selected resource directory",
+    )
     research_scaffold.add_argument(
         "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"
     )
-    research_scaffold.add_argument("--design", default="default")
+    research_scaffold.add_argument(
+        "--design",
+        default="default",
+        help="Design name from the selected native recipe",
+    )
     research_scaffold.add_argument("--lifecycle")
     research_scaffold.add_argument("--evidence-root", default=".")
     research_scaffold.set_defaults(handler=_research_scaffold)
@@ -3747,12 +3759,20 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     learn_describe.set_defaults(handler=_learn_describe)
     learn_scaffold = learn_commands.add_parser("scaffold")
     learn_scaffold.add_argument("identifier")
-    learn_scaffold.add_argument("--resource-root", type=Path)
+    learn_scaffold.add_argument(
+        "--resource-root",
+        type=Path,
+        help="Complete local authoring resource directory; defaults to packaged resources",
+    )
     learn_scaffold.add_argument("--output", required=True)
     learn_scaffold.add_argument(
         "--scale", choices=("smoke", "nano", "micro", "tiny"), default="smoke"
     )
-    learn_scaffold.add_argument("--data", default="offline")
+    learn_scaffold.add_argument(
+        "--data",
+        default="offline",
+        help="Dataset profile name from the selected resource directory",
+    )
     learn_scaffold.add_argument(
         "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"
     )
