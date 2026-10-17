@@ -28,6 +28,10 @@ def main() -> None:
         # particular it neither reads credentials nor configures a work root.
         # Preparation apply/resume requires its own explicit command-local root.
         recipe_main(args.command[2:])
+    elif not extras and args.command[:2] == ["config", "validate"]:
+        from sparselab.config.validation import main as validation_main
+
+        validation_main(args.command[2:])
     elif not extras and args.command[:1] == ["lab-job"]:
         from sparselab.lab_job import main as job_main
 

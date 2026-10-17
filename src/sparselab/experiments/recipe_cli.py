@@ -10,6 +10,15 @@ from pathlib import Path
 
 def add_commands(parser: argparse.ArgumentParser) -> None:
     commands = parser.add_subparsers(dest="recipe_command", required=True)
+    from sparselab.experiments.recipe_export import handle as export_handler
+
+    export = commands.add_parser(
+        "export",
+        help="Copy an existing authenticated recipe inventory to a new directory",
+    )
+    export.add_argument("source", type=Path)
+    export.add_argument("--output", type=Path, required=True)
+    export.set_defaults(handler=export_handler)
     inspect = commands.add_parser(
         "inspect", help="Preview an inventoried native recipe; never execute"
     )
