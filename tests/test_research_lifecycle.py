@@ -18,8 +18,7 @@ from sparselab.research.lifecycle import (
 )
 from sparselab.training.manifest import sha256_file
 
-_ROOT = Path(__file__).resolve().parents[1]
-_ENTRY = "engram-ffn-substitution-v1"
+_ENTRY = "catalog/neutral-study.json"
 
 
 def _mapping(value: object) -> dict[str, object]:
@@ -374,41 +373,55 @@ def test_evidence_status_distinguishes_verified_missing_tampered_and_symlink(
     )
 
 
-def test_archived_tinystories_evidence_remains_available_without_rewriting_identity():
-    from sparselab.research.lifecycle import load_lifecycle
+def test_default_registry_is_empty_and_grants_no_scientific_clearance(tmp_path: Path):
+    from sparselab.research.lifecycle import load_lifecycle, research_status
 
     registry = load_lifecycle()
-    reference = next(
-        row for row in registry.evidence if row.id == "tinystories-data-rich-evidence"
+    assert not registry.entries
+    assert not registry.evidence
+    assert not registry.baselines
+    assert not registry.findings
+    assert not registry.promotions
+    status = research_status(registry, evidence_root=tmp_path)
+    assert status["findings"] == status["promotions"] == status["baselines"] == []
+    assert all(not row["assessed"] for row in status["entries"])
+    assert next_experiments(registry, evidence_root=tmp_path)["items"] == []
+
+
+def test_explicit_registry_evidence_is_selected_and_missing_registry_refuses(
+    tmp_path: Path,
+):
+    from sparselab.research.lifecycle import load_lifecycle
+
+    artifact = tmp_path / "note.txt"
+    artifact.write_text("Synthetic historical evidence, not a current claim.\n")
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(_root(evidence=[_evidence(artifact)])))
+    registry = load_lifecycle(path)
+    status = validate_lifecycle(registry, evidence_root=tmp_path)
+    assert status["availability"]["history"]["status"] == "verified"
+    artifact.write_text("changed")
+    assert (
+        validate_lifecycle(registry, evidence_root=tmp_path)["availability"]["history"][
+            "status"
+        ]
+        == "invalid"
     )
-    assert reference.artifact.sha256 == (
-        "c928b823b6c899a2092c8ccda84af22e30f5dcb0641ba9dace6822793218ff14"
-    )
-    assert reference.artifact.size_bytes == 12316
-    # Exercise the public reader, not merely existence of the relocated file.
-    report = validate_lifecycle(registry, evidence_root=_ROOT)
-    evidence = _mapping(_mapping(report["availability"])[reference.id])
-    assert evidence["status"] == "verified"
-    assert evidence["path"] == str(_ROOT / reference.artifact.relative_path)
+    path.unlink()
+    with pytest.raises(ValueError, match="unavailable"):
+        load_lifecycle(path)
 
 
 def test_next_replicate_gate_does_not_treat_documentation_as_measurement(
     tmp_path: Path,
 ) -> None:
-    evidence_root = tmp_path / "evidence"
-    evidence_root.mkdir()
+    from research_fixtures import make_resources
+
+    evidence_root = make_resources(tmp_path)
     evidence = evidence_root / "history.md"
     evidence.write_text("A source note, not measured behavior.\n", encoding="utf-8")
     finding = _finding("history")
-    entry_path = (
-        _ROOT
-        / "src"
-        / "sparselab"
-        / "research"
-        / "resources"
-        / "catalog"
-        / f"{_ENTRY}.json"
-    )
+    entry_path = evidence_root / _ENTRY
 
     entry = {
         "entry": _ENTRY,
@@ -529,3 +542,21 @@ def test_prior_design_warning_matches_exact_identity_and_includes_positive_findi
         )
     with pytest.raises(ValueError, match="lowercase SHA-256"):
         prior_evidence_warnings(registry, study_sha256="not-a-digest")
+
+
+def test_lessons_do_not_depend_on_personal_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from sparselab.research import lifecycle
+    from sparselab.research.catalog import list_lessons
+    from sparselab.research.scaffold import scaffold_lesson
+
+    empty_resources = tmp_path / "empty-resources"
+    empty_resources.mkdir()
+    monkeypatch.setattr(lifecycle, "_RESOURCE", empty_resources)
+    with pytest.raises(ValueError, match="lifecycle metadata is unavailable"):
+        lifecycle.load_lifecycle()
+    assert len(list_lessons()) == 11
+    output = scaffold_lesson("dense", tmp_path / "lesson", scale="smoke")
+    assert (output / "model.yaml").is_file()
+    assert not (output / "artifacts").exists()

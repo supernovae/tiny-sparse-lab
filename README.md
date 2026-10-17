@@ -35,11 +35,11 @@ Prefer containers? See [the CPU image guide](docs/containers.md) for direct CLI 
 separate web usage, with no host Python installation.
 For Apple Silicon GPU execution, use the [native MLX setup](docs/macos-mlx.md).
 
-Follow **[the TinyStories microlab](docs/tinystories-microlab.md)**: copy three
-existing declarations, prepare a small pinned story dataset and tokenizer, then
-compare one FFN-width change with `try`. It teaches the workflow on CPU; the tiny
-training budget does not promise fluent stories. The walkthrough labels source
-downloads and model work before their commands.
+Use a recipe from any local directory or repository with the native Lab
+commands below. The optional **[Workshop TinyStories microlab](docs/tinystories-microlab.md)**
+provides a concrete CPU example; its recipe owns the data and training choices.
+Its workflow budget does not promise fluent stories. Source downloads and model
+work require their own explicit resource choices.
 
 Already have a RunConfig and its tokenizer? Start with
 **[lab mode](docs/lab-mode.md)**:
@@ -55,7 +55,7 @@ uv run --locked --extra cpu sparselab report TRY_ID
 ```
 
 Replace `BASELINE.yaml` with your config and `TRY_ID` with the printed record ID;
-choose a width different from your baseline (the TinyStories baseline is 256).
+choose a width different from your baseline.
 `try` prepares data as needed, trains both arms, scores the same held-out protocol
 and runs fast probes. It reuses only a verified matching completed baseline.
 Use `--config standard`, `--config no-probes` or a [validated try declaration](docs/try-config.md)

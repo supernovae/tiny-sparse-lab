@@ -483,19 +483,31 @@ def _reject_nonfinite(value: object, path: Path) -> None:
             _reject_nonfinite(item, path)
 
 
-def _read_packaged(relative: str) -> tuple[object, bytes, Path]:
-    resource = _relative_resource(relative, "resource path")
-    path = _RESOURCE_ROOT.joinpath(resource)
-    cursor = _RESOURCE_ROOT
-    for component in resource.parts:
-        cursor = cursor / component
-        if cursor.is_symlink():
-            raise ValueError(f"packaged resource path traverses a symlink: {relative}")
-    resolved = path.resolve(strict=True)
-    if _RESOURCE_ROOT not in resolved.parents:
-        raise ValueError(f"resource escapes packaged resource directory: {relative}")
-    value, data = _read_json(resolved)
-    return value, data, resolved
+def resource_root(root: Path | None = None) -> Path:
+    """Select one resource closure, refusing symlinked local roots."""
+    candidate = _RESOURCE_ROOT if root is None else Path(root).expanduser().absolute()
+    for component in (candidate, *candidate.parents):
+        if component.is_symlink():
+            raise ValueError("resource root must not traverse a symlink")
+    resolved = candidate.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError("resource root must be a directory")
+    return resolved
+
+
+def resource_path(relative: str, *, root: Path | None = None) -> Path:
+    path = _validate_contained(resource_root(root), relative, "resource")
+    if not path.is_file():
+        raise ValueError(f"resource must be a regular file: {relative}")
+    return path
+
+
+def _read_packaged(
+    relative: str, *, root: Path | None = None
+) -> tuple[object, bytes, Path]:
+    path = resource_path(relative, root=root)
+    value, data = _read_json(path)
+    return value, data, path
 
 
 def _validate_contained(root: Path, relative: str, field: str) -> Path:
@@ -540,11 +552,11 @@ def _validate_recipe_file(path: Path, entry_id: str) -> ResearchRecipe:
     return recipe
 
 
-def _available_ids(folder: str) -> list[str]:
-    return sorted(path.stem for path in (_RESOURCE_ROOT / folder).glob("*.json"))
+def _available_ids(folder: str, *, root: Path | None = None) -> list[str]:
+    return sorted(path.stem for path in (resource_root(root) / folder).glob("*.json"))
 
 
-def load_research(reference: str | Path) -> ResearchEntry:
+def load_research(reference: str | Path, *, root: Path | None = None) -> ResearchEntry:
     """Load a packaged entry id or an explicit local JSON fork."""
     candidate = Path(reference).expanduser()
     local_file = candidate.suffix.lower() == ".json"
@@ -552,11 +564,20 @@ def load_research(reference: str | Path) -> ResearchEntry:
         if not candidate.exists():
             raise ValueError(
                 f"research entry file does not exist: {candidate}; packaged IDs: "
-                f"{', '.join(_available_ids('catalog'))}"
+                f"{', '.join(_available_ids('catalog', root=root))}"
             )
         if candidate.is_symlink():
             raise ValueError("local research entry must not be a symlink")
         source = candidate.resolve(strict=True)
+        if root is not None:
+            selected_root = resource_root(root)
+            try:
+                relative = candidate.absolute().relative_to(selected_root)
+            except ValueError as error:
+                raise ValueError(
+                    "local research entry must be inside resource root"
+                ) from error
+            source = resource_path(relative.as_posix(), root=selected_root)
         raw, _ = _read_json(source)
         entry = ResearchEntry.model_validate(raw)
         recipe_path = (
@@ -566,17 +587,19 @@ def load_research(reference: str | Path) -> ResearchEntry:
         )
     else:
         identifier = str(reference)
-        if not _ID.fullmatch(identifier) or identifier not in _available_ids("catalog"):
+        if not _ID.fullmatch(identifier) or identifier not in _available_ids(
+            "catalog", root=root
+        ):
             raise ValueError(
                 f"unknown research entry {identifier!r}; available IDs: "
-                f"{', '.join(_available_ids('catalog'))}"
+                f"{', '.join(_available_ids('catalog', root=root))}"
             )
-        raw, _, _ = _read_packaged(f"catalog/{identifier}.json")
+        raw, _, _ = _read_packaged(f"catalog/{identifier}.json", root=root)
         entry = ResearchEntry.model_validate(raw)
         recipe_path = (
             None
             if entry.recipe is None
-            else _validate_contained(_RESOURCE_ROOT, entry.recipe, "recipe")
+            else _validate_contained(resource_root(root), entry.recipe, "recipe")
         )
     if entry.id != (candidate.stem if local_file else str(reference)):
         raise ValueError("research entry id does not match requested identifier")
@@ -598,20 +621,22 @@ def load_recipe(
     return _validate_recipe_file(path, entry.id)
 
 
-def list_research() -> tuple[ResearchEntry, ...]:
+def list_research(*, root: Path | None = None) -> tuple[ResearchEntry, ...]:
     identifiers = sorted(
-        path.stem for path in (_RESOURCE_ROOT / "catalog").glob("*.json")
+        path.stem for path in (resource_root(root) / "catalog").glob("*.json")
     )
-    return tuple(load_research(identifier) for identifier in identifiers)
+    return tuple(load_research(identifier, root=root) for identifier in identifiers)
 
 
-def load_lesson(identifier: str) -> MechanismLesson:
-    if not _ID.fullmatch(identifier) or identifier not in _available_ids("lessons"):
+def load_lesson(identifier: str, *, root: Path | None = None) -> MechanismLesson:
+    if not _ID.fullmatch(identifier) or identifier not in _available_ids(
+        "lessons", root=root
+    ):
         raise ValueError(
             f"unknown lesson {identifier!r}; available IDs: "
-            f"{', '.join(_available_ids('lessons'))}"
+            f"{', '.join(_available_ids('lessons', root=root))}"
         )
-    raw, _, _ = _read_packaged(f"lessons/{identifier}.json")
+    raw, _, _ = _read_packaged(f"lessons/{identifier}.json", root=root)
     lesson = MechanismLesson.model_validate(raw)
     if lesson.id != identifier:
         raise ValueError("lesson id does not match requested identifier")
@@ -619,42 +644,40 @@ def load_lesson(identifier: str) -> MechanismLesson:
     return lesson
 
 
-def list_lessons() -> tuple[MechanismLesson, ...]:
+def list_lessons(*, root: Path | None = None) -> tuple[MechanismLesson, ...]:
     identifiers = sorted(
-        path.stem for path in (_RESOURCE_ROOT / "lessons").glob("*.json")
+        path.stem for path in (resource_root(root) / "lessons").glob("*.json")
     )
-    return tuple(load_lesson(identifier) for identifier in identifiers)
+    return tuple(load_lesson(identifier, root=root) for identifier in identifiers)
 
 
-def load_profiles() -> ProfilesFile:
-    raw, _, _ = _read_packaged("profiles.json")
+def load_profiles(*, root: Path | None = None) -> ProfilesFile:
+    raw, _, _ = _read_packaged("profiles.json", root=root)
     profiles = ProfilesFile.model_validate(raw)
     if set(profiles.scales) != set(_SCALE_IDS):
         raise ValueError("profiles must define exactly smoke, nano, micro, tiny")
     return profiles
 
 
-def load_datasets() -> DatasetsFile:
-    raw, _, _ = _read_packaged("datasets.json")
+def load_datasets(*, root: Path | None = None) -> DatasetsFile:
+    raw, _, _ = _read_packaged("datasets.json", root=root)
     datasets = DatasetsFile.model_validate(raw)
     for dataset in datasets.datasets.values():
         _validate_https(dataset.source_url, "dataset source URL")
         if dataset.source_declaration is not None:
-            load_dataset_source(dataset)
-    if set(datasets.datasets) != {"offline", "tinystories", "fineweb_edu"}:
-        raise ValueError(
-            "research datasets must define exactly offline, tinystories, and fineweb_edu"
-        )
+            load_dataset_source(dataset, root=root)
     return datasets
 
 
-def load_dataset_source(profile: DatasetProfile) -> dict[str, object]:
+def load_dataset_source(
+    profile: DatasetProfile, *, root: Path | None = None
+) -> dict[str, object]:
     """Read an inert packaged declaration without resolving/acquiring Hub data."""
     from sparselab.data.sources import DatasetSource
 
     if profile.source_declaration is None:
         raise ValueError("profile has no source declaration")
-    raw, _, _ = _read_packaged(profile.source_declaration)
+    raw, _, _ = _read_packaged(profile.source_declaration, root=root)
     source = DatasetSource.model_validate(raw)
     if source.kind != "huggingface" or set(source.splits) != {"train", "validation"}:
         raise ValueError(
@@ -674,8 +697,8 @@ def load_dataset_source(profile: DatasetProfile) -> dict[str, object]:
     return source.model_dump(mode="json")
 
 
-def resource_sha256(relative: str) -> str:
-    _, _, path = _read_packaged(relative)
+def resource_sha256(relative: str, *, root: Path | None = None) -> str:
+    _, _, path = _read_packaged(relative, root=root)
     return sha256_file(path)
 
 

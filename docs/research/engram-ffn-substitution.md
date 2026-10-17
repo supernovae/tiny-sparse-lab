@@ -1,12 +1,10 @@
-# Lookup and narrower FFNs
+# Lookup and narrower FFNs — historical archive
 
-`engram-ffn-substitution-v1` asks whether lexical lookup can compensate for a narrower dense FFN at a declared endpoint. It varies only `model.ffn_dim` (4×, 2×, and 1× hidden width) and `model.memory`; the complete design exposes all six raw outcomes rather than treating narrow-plus-memory versus wide-plus-none as a one-variable ablation.
+The original guide and its experiment claims are preserved as
+[historical evidence in Workshop](https://github.com/supernovae/kybern-workshop/blob/1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab/docs/research/engram-ffn-substitution.md).
+Its recipe ID is no longer a packaged Lab scaffold. Old commands and outcomes
+do not establish current compatibility, scientific clearance, or permission to run.
 
-The fixed controls are tokenizer/data packing per route, matched seed, backbone dimensions apart from FFN width, optimizer, runtime, budget, evaluator, and endpoint policy. Held-out LM loss and the three cards—training-format alias retention, held-out-wording alias recall, and context override—remain separate. Recall/completion might survive while composition or override behavior declines. Confounders include changed module inventories/initialization draws, tokenizer-specific addresses, the finite offline curriculum, capacity-dependent optimization, approximate scale ranges, and educational runtime overhead.
-
-```sh
-sparselab research scaffold engram-ffn-substitution-v1 --scale smoke --data offline --backend cpu --output experiments/ffn-memory
-sparselab study plan experiments/ffn-memory/study.yaml
-```
-
-`smoke` is runnable; `tiny` is the catalog recommendation for a larger bounded trial, not a learning-efficiency result. The study can establish declared controlled endpoint deltas, not a training-efficiency, semantic/hybrid-memory, speed, or cross-tokenizer claim. Semantic and hybrid arms are prerequisite-gated and are not generated. [SwiGLU/FFN lesson details](lesson-paths.md) and [Engram diagnostics](../engram.md) explain the mechanisms first.
+For new declarations, use the [current external-resource authoring contract](../external-research-resources.md) with explicit seeds and current input bindings.
+Reproduction requires a new experiment identity and a separately reviewed plan;
+the archive is not an executable fallback.

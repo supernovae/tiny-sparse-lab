@@ -307,11 +307,8 @@ Future experiments follow the same pattern:
 
 ```text
 <persistent-root>/experiments/
-  dense-lm-v1/
-  dense-lm-token-budget-v1/
-  dense-lm-scale-v1/
-  engram-ffn-substitution-v1/
-  engram-mla-compression-v1/
+  new-study/
+  independent-replication/
 ```
 
 ## Historical paths and relocation

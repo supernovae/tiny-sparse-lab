@@ -29,24 +29,18 @@ from sparselab.research.catalog import (
     load_profiles,
     load_recipe,
     load_research,
+    resource_path,
+    resource_root,
     resource_sha256,
 )
 from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
 
-_RESOURCE_ROOT = Path(__file__).resolve().parent / "resources"
 
-
-def _dataset_names() -> tuple[str, ...]:
-    return tuple(sorted(load_datasets().datasets))
+def _dataset_names(*, root: Path | None = None) -> tuple[str, ...]:
+    return tuple(sorted(load_datasets(root=root).datasets))
 
 
 _BACKENDS = frozenset({"cpu", "mps", "cuda", "rocm", "xpu"})
-_SEEDS = (17, 41, 73)
-_CARDS = (
-    "chat-alias-retention-v1",
-    "chat-alias-recall-v1",
-    "chat-context-override-v1",
-)
 _PATH_KEYS = frozenset(
     {
         "path",
@@ -83,7 +77,7 @@ def _yaml_bytes(value: object) -> bytes:
 
 
 def _source_paths(
-    reference: str | Path, entry: ResearchEntry
+    reference: str | Path, entry: ResearchEntry, *, root: Path | None = None
 ) -> tuple[Path | None, Path]:
     candidate = Path(reference).expanduser()
     if candidate.suffix.lower() == ".json" and candidate.is_file():
@@ -91,16 +85,16 @@ def _source_paths(
         recipe_path = (entry_path.parent / entry.recipe).resolve(strict=True)
         return entry_path, recipe_path
     return (
-        _RESOURCE_ROOT / "catalog" / f"{entry.id}.json",
-        _RESOURCE_ROOT / entry.recipe,
+        resource_path(f"catalog/{entry.id}.json", root=root),
+        resource_path(entry.recipe, root=root),
     )
 
 
-def _dataset_mapping(name: str) -> dict[str, object]:
+def _dataset_mapping(name: str, *, root: Path | None = None) -> dict[str, object]:
     try:
-        profile = load_datasets().datasets[name]
+        profile = load_datasets(root=root).datasets[name]
     except KeyError as error:
-        choices = ", ".join(_dataset_names())
+        choices = ", ".join(_dataset_names(root=root))
         raise ValueError(
             f"unknown dataset profile {name!r}; choose {choices}"
         ) from error
@@ -120,7 +114,7 @@ def _dataset_mapping(name: str) -> dict[str, object]:
         "allocation_manifest_path": None,
     }
     if profile.source_declaration is not None:
-        source = load_dataset_source(profile)
+        source = load_dataset_source(profile, root=root)
         result.update(
             revision=source["revision"],
             license=source["license"],
@@ -131,10 +125,10 @@ def _dataset_mapping(name: str) -> dict[str, object]:
     return result
 
 
-def _tokenizer_values(name: str) -> dict[str, object]:
-    profile = load_datasets().datasets[name]
+def _tokenizer_values(name: str, *, root: Path | None = None) -> dict[str, object]:
+    profile = load_datasets(root=root).datasets[name]
     dataset = {
-        **_dataset_mapping(name),
+        **_dataset_mapping(name, root=root),
         "train_max_documents": profile.tokenizer_max_documents,
         "validation_max_documents": profile.tokenizer_validation_max_documents,
         "train_max_tokens": profile.tokenizer_train_max_tokens,
@@ -151,21 +145,24 @@ def _tokenizer_values(name: str) -> dict[str, object]:
     }
 
 
-def _write_dataset_source(directory: Path, data: str) -> list[str]:
-    profile = load_datasets().datasets[data]
+def _write_dataset_source(
+    directory: Path, data: str, *, root: Path | None = None
+) -> list[str]:
+    profile = load_datasets(root=root).datasets[data]
     if profile.source_declaration is None:
         return []
-    source = load_dataset_source(profile)
+    source = load_dataset_source(profile, root=root)
     _write(directory / "source.yaml", _yaml_bytes(source))
     relative = "research_sources/" + profile.source_declaration
     _write(
-        directory / relative, (_RESOURCE_ROOT / profile.source_declaration).read_bytes()
+        directory / relative,
+        resource_path(profile.source_declaration, root=root).read_bytes(),
     )
     return ["source.yaml", relative]
 
 
-def _acquisition_commands(data: str, command: str) -> str:
-    if load_datasets().datasets[data].source_declaration is None:
+def _acquisition_commands(data: str, command: str, *, root: Path | None = None) -> str:
+    if load_datasets(root=root).datasets[data].source_declaration is None:
         return ""
     return (
         "# Acquire once before tokenizer fitting; reuse the verified snapshot thereafter.\n"
@@ -175,18 +172,20 @@ def _acquisition_commands(data: str, command: str) -> str:
     )
 
 
-def _scale_patch(scale: str, data: str, backend: str) -> dict[str, object]:
+def _scale_patch(
+    scale: str, data: str, backend: str, *, root: Path | None = None
+) -> dict[str, object]:
     try:
-        profile = load_profiles().scales[scale]
+        profile = load_profiles(root=root).scales[scale]
     except KeyError as error:
-        choices = ", ".join(load_profiles().scales)
+        choices = ", ".join(load_profiles(root=root).scales)
         raise ValueError(
             f"unsupported runnable scale {scale!r}; choose {choices}. Larger classes are recommendation-only."
         ) from error
     try:
-        dataset = load_datasets().datasets[data]
+        dataset = load_datasets(root=root).datasets[data]
     except KeyError as error:
-        choices = ", ".join(_dataset_names())
+        choices = ", ".join(_dataset_names(root=root))
         raise ValueError(f"unsupported dataset {data!r}; choose {choices}") from error
     return {
         "model.vocab_size": dataset.vocab_size,
@@ -196,7 +195,7 @@ def _scale_patch(scale: str, data: str, backend: str) -> dict[str, object]:
         "model.ffn_dim": profile.ffn_dim,
         "model.max_seq_len": profile.max_seq_len,
         "tokenizer.path": "artifacts/tokenizer/tokenizer.json",
-        "dataset": _dataset_mapping(data),
+        "dataset": _dataset_mapping(data, root=root),
         "training.seq_len": profile.seq_len,
         "training.max_steps": profile.max_steps,
         "training.max_tokens": profile.max_tokens,
@@ -267,8 +266,10 @@ def _write_resolved_config(config: RunConfig, root: Path, directory: Path) -> by
     return _yaml_bytes(rebase(value))
 
 
-def _load_base() -> dict[str, object]:
-    value = yaml.safe_load((_RESOURCE_ROOT / "base.yaml").read_text(encoding="utf-8"))
+def _load_base(*, root: Path | None = None) -> dict[str, object]:
+    value = yaml.safe_load(
+        resource_path("base.yaml", root=root).read_text(encoding="utf-8")
+    )
     if not isinstance(value, dict):
         raise TypeError("packaged base config must contain a mapping")
     patchable = patchable_config(value)
@@ -306,13 +307,13 @@ def _cleanup(temporary: Path) -> None:
 
 
 def _read_recipe(
-    entry: ResearchEntry, reference: str | Path
+    entry: ResearchEntry, reference: str | Path, *, root: Path | None = None
 ) -> tuple[ResearchRecipe, Path | None, Path]:
-    entry_path, recipe_path = _source_paths(reference, entry)
+    entry_path, recipe_path = _source_paths(reference, entry, root=root)
     local_root = (
         entry_path.parent
-        if entry_path and entry_path.parent != (_RESOURCE_ROOT / "catalog")
-        else None
+        if Path(reference).suffix.lower() == ".json"
+        else resource_root(root)
     )
     recipe = load_recipe(entry, local_root=local_root)
     return recipe, entry_path, recipe_path
@@ -343,12 +344,14 @@ def _study_readme(
     pair_count: int,
     factorial_count: int,
     workspace: str,
+    *,
+    root: Path | None = None,
 ) -> str:
-    profile = load_datasets().datasets[data]
+    profile = load_datasets(root=root).datasets[data]
     command, environment_note = _command_environment(backend)
     choices = "\n".join(
         f"- `{size}` — {scale.hidden_dim}D, {scale.num_layers} layers, {scale.num_heads} heads, FFN {scale.ffn_dim}, {scale.max_steps} steps / {scale.max_tokens} target tokens"
-        for size, scale in sorted(load_profiles().scales.items())
+        for size, scale in sorted(load_profiles(root=root).scales.items())
     )
     coordinate_rows = "\n".join(
         f"| `{json.dumps(item['coordinate'], sort_keys=True)}` | `configs/{item['config_sha256']}.yaml` |"
@@ -391,15 +394,15 @@ This study's preparation and matched-coordinate commands are below.
 
 ## Fixed data, scale, and runtime
 
-- Dataset `{data}`: {profile.notes[0]} {profile.notes[-1]}
+- Dataset `{data}`: {" ".join(profile.notes)}
 - Source and rights: {profile.license} [{profile.source_url}]({profile.source_url})
-- Dataset seed `{profile.dataset_seed}` is independent of model seeds `{", ".join(map(str, _SEEDS))}`.
+- Dataset seed `{profile.dataset_seed}` is independent of model seeds declared in `matrix.yaml`.
 - Scale `{scale}`; backend `{backend}`; design `{design}`. The recipe has {run_count} planned coordinates, {pair_count} declared pairs, and {factorial_count} versioned 2×2 factorial designs.
 - Other supported profiles (scale is independent of data and budget):
 {choices}
 - Tokenizer fitting uses only the declared training prefix. Held-out validation and capability-card examples are not tokenizer inputs. Remote acquisition is explicit; scaffolding never accesses dataset bodies. Snapshot profiles declare their acquisition and exclusion policies in `source.yaml`; strict whole-document budgets may differ from retired direct-loading selections.
 - Existing numeric budgets are retained. If strict whole-document preparation rejects a token cap, review the declared document selection and token limits in a new config; the scaffold does not silently resize them.
-- Capability cards: {", ".join(f"`{card}` ({profile.card_applicability.get(card, 'not applicable')})" for card in _CARDS)}. Cards are unchanged, unsealed development/stress evaluations; remote-corpus profiles use them only as out-of-domain stress, not corpus-quality tests. Held-out LM loss and each card stay separate. Generated stories are unscored examples.
+- Capability cards: {", ".join(f"`{card}` ({profile.card_applicability.get(card, 'not applicable')})" for card in (item.reference for item in entry.cards))}. Cards are unchanged, unsealed development/stress evaluations; remote-corpus profiles use them only as out-of-domain stress, not corpus-quality tests. Held-out LM loss and each card stay separate. Generated stories are unscored examples.
 - Configured endpoint stops at the first existing step or target-token limit. Periodic validation is not a preregistered milestone; primary thresholds are absent. Actual steps and targets must be reported.
 
 ## Prepare explicitly, then plan or train
@@ -407,7 +410,7 @@ This study's preparation and matched-coordinate commands are below.
 Acquisition precedes tokenizer fitting and preparation for snapshot profiles:
 
 ```sh
-{_acquisition_commands(data, command)}\
+{_acquisition_commands(data, command, root=root)}\
 {command} sparselab tokenizer train tokenizer.yaml
 {prep}
 {command} sparselab study plan study.yaml
@@ -465,7 +468,7 @@ The scaffold itself performs no tokenization, data preparation/download, trainin
 
 **Prerequisites / unavailable arms:** {"; ".join(entry.prerequisites) if entry.prerequisites else "None for the declared recipe."}
 
-The first displayed configuration is a runnable `{scale}`/`{data}`/`{backend}` example. The smoke/offline/cpu entry route remains available by scaffolding with `--scale smoke --data offline --backend cpu`; public-data options remain independent, for example `--scale micro --data tinystories` or `--scale micro --data fineweb_edu`. Larger reference-small, medium-research, and large-local profiles are recommendations only here; no GQA/reference aliases are generated.
+The first displayed configuration is a `{scale}`/`{data}`/`{backend}` authoring example. Dataset choices in the selected resources are {", ".join(f"`{name}`" for name in _dataset_names(root=root))}. Runtime and input readiness still require the explicit checks above. Larger reference-small, medium-research, and large-local profiles are recommendations only here; no GQA/reference aliases are generated.
 
 """
 
@@ -482,28 +485,34 @@ def scaffold_research(
     data: str = "offline",
     backend: str = "cpu",
     design: str = "default",
+    root: Path | None = None,
 ) -> Path:
     """Write a complete editable study scaffold; never prepare or execute it."""
-    entry = load_research(reference)
+    entry = load_research(reference, root=root)
     if entry.id == "learned-engram-portability-v1":
         raise ValueError(
             "learned-engram-portability-v1 uses research portability build "
             "--experiment learned-engram-portability-v1, not research scaffold"
         )
-    if data not in _dataset_names():
+    if entry.recipe is None:
         raise ValueError(
-            f"unsupported dataset {data!r}; choose {', '.join(_dataset_names())}"
+            f"research entry {entry.id!r} has no scaffold recipe; "
+            "provide a current recipe-backed entry with --resource-root"
+        )
+    if data not in _dataset_names(root=root):
+        raise ValueError(
+            f"unsupported dataset {data!r}; choose {', '.join(_dataset_names(root=root))}"
         )
     if backend not in _BACKENDS:
         raise ValueError(
             f"unsupported backend {backend!r}; choose {', '.join(sorted(_BACKENDS))}"
         )
-    profiles = load_profiles()
+    profiles = load_profiles(root=root)
     if scale not in profiles.scales:
         raise ValueError(
             f"unsupported runnable scale {scale!r}; supported: {', '.join(profiles.scales)}; larger named classes are recommendation-only"
         )
-    recipe, entry_path, recipe_path = _read_recipe(entry, reference)
+    recipe, entry_path, recipe_path = _read_recipe(entry, reference, root=root)
     if design not in recipe.designs:
         raise ValueError(
             f"unsupported design {design!r} for {entry.id}; choose {', '.join(sorted(recipe.designs))}"
@@ -514,8 +523,10 @@ def scaffold_research(
         raise ValueError(
             f"recipe {entry.id} has no {scale!r} scale for design {design!r}"
         ) from error
-    if "seed" in scale_recipe.axes:
-        raise ValueError("recipe axes must exclude seed; scaffold owns matched seeds")
+    if "seed" not in scale_recipe.axes:
+        raise ValueError("recipe must explicitly declare its matched seed axis")
+    if any("seed" not in option.set for option in scale_recipe.axes["seed"]):
+        raise ValueError("every seed axis option must explicitly set seed")
 
     destination, temporary = _destination(output)
     workspace_name = (
@@ -526,8 +537,8 @@ def scaffold_research(
     )
     workspace = study_workspace(workspace_name)
     try:
-        base = _load_base()
-        base = _apply_overlay(base, _scale_patch(scale, data, backend))
+        base = _load_base(root=root)
+        base = _apply_overlay(base, _scale_patch(scale, data, backend, root=root))
         base = _apply_overlay(base, scale_recipe.base_set)
         base = _apply_overlay(
             base,
@@ -540,16 +551,13 @@ def scaffold_research(
         base["name"] = f"{entry.id}-{scale}-{data}"
         _validate_run(base)
         _write(temporary / "base.yaml", _yaml_bytes(base))
-        tokenizer_values = _tokenizer_values(data)
+        tokenizer_values = _tokenizer_values(data, root=root)
         TokenizerTrainConfig.model_validate(tokenizer_values)
         _write(temporary / "tokenizer.yaml", _yaml_bytes(tokenizer_values))
 
         axes = {
-            "seed": [{"label": f"s{seed}", "set": {"seed": seed}} for seed in _SEEDS],
-            **{
-                name: [option.model_dump(mode="json") for option in options]
-                for name, options in scale_recipe.axes.items()
-            },
+            name: [option.model_dump(mode="json") for option in options]
+            for name, options in scale_recipe.axes.items()
         }
         matrix = {
             "matrix_version": 1,
@@ -565,6 +573,12 @@ def scaffold_research(
             "comparisons": [item for item in scale_recipe.comparisons],
         }
         _write(temporary / "matrix.yaml", _yaml_bytes(matrix))
+        card_inputs = []
+        for card in entry.cards:
+            if Path(card.reference).suffix.lower() in {".yaml", ".yml", ".json"}:
+                card_path = resource_path(card.reference, root=root)
+                _write(temporary / card.reference, card_path.read_bytes())
+                card_inputs.append(card.reference)
         _write(temporary / "study.yaml", _yaml_bytes(study))
         # Existing expansion and study planning are the only matrix/pair engines.
         expanded = expand(temporary / "matrix.yaml")
@@ -623,18 +637,20 @@ def scaffold_research(
             len(planned.pairs),
             len(scale_recipe.factorial_designs),
             Path(os.path.relpath(workspace, destination.resolve())).as_posix(),
+            root=root,
         )
         _write(temporary / "README.md", readme)
-        dataset_inputs = _write_dataset_source(temporary, data)
+        dataset_inputs = _write_dataset_source(temporary, data, root=root)
         source_inputs = {
             "research_sources/catalog-entry.json": (
                 entry_path
                 if entry_path is not None
-                else _RESOURCE_ROOT / "catalog" / f"{entry.id}.json"
+                else resource_path(f"catalog/{entry.id}.json", root=root)
             ),
             "research_sources/recipe.json": recipe_path,
-            "research_sources/profiles.json": _RESOURCE_ROOT / "profiles.json",
-            "research_sources/datasets.json": _RESOURCE_ROOT / "datasets.json",
+            "research_sources/base.yaml": resource_path("base.yaml", root=root),
+            "research_sources/profiles.json": resource_path("profiles.json", root=root),
+            "research_sources/datasets.json": resource_path("datasets.json", root=root),
         }
         for relative, source in source_inputs.items():
             _write(temporary / relative, source.read_bytes())
@@ -644,6 +660,7 @@ def scaffold_research(
             "matrix.yaml",
             "study.yaml",
             *dataset_inputs,
+            *card_inputs,
             *source_inputs,
             *sorted(str(item["path"]) for item in coordinates),
         ]
@@ -655,8 +672,8 @@ def scaffold_research(
             entry_digest = sha256_file(entry_path)
             recipe_digest = sha256_file(recipe_path)
         else:
-            entry_digest = resource_sha256(f"catalog/{entry.id}.json")
-            recipe_digest = resource_sha256(entry.recipe)
+            entry_digest = resource_sha256(f"catalog/{entry.id}.json", root=root)
+            recipe_digest = resource_sha256(entry.recipe, root=root)
         metadata: dict[str, object] = {
             "format": "sparselab-research-scaffold",
             "version": 1,
@@ -1093,6 +1110,7 @@ def _lesson_readme(
     *,
     artifact: bool,
     workspace: str | None = None,
+    root: Path | None = None,
 ) -> str:
     command, environment_note = _command_environment("cpu" if artifact else backend)
     if artifact and lesson.id == "semantic-retrieval":
@@ -1173,7 +1191,7 @@ Before running the probe, predict the output shape and diagnostic values from th
 WORK="{workspace}"
 mkdir -p "$WORK"
 export SPARSELAB_WORK_DIR="$WORK"
-{_acquisition_commands(data, command)}\
+{_acquisition_commands(data, command, root=root)}\
 {command} sparselab tokenizer train tokenizer.yaml
 {command} sparselab data prepare model.yaml
 {command} sparselab inspect model.yaml --json
@@ -1211,19 +1229,20 @@ def scaffold_lesson(
     data: str = "offline",
     backend: str = "cpu",
     memory_package: Path | None = None,
+    root: Path | None = None,
 ) -> Path:
     """Write a single-mechanism lesson configuration or an artifact walkthrough."""
-    lesson = load_lesson(identifier)
-    if data not in _dataset_names():
+    lesson = load_lesson(identifier, root=root)
+    if data not in _dataset_names(root=root):
         raise ValueError(
-            f"unsupported dataset {data!r}; choose {', '.join(_dataset_names())}"
+            f"unsupported dataset {data!r}; choose {', '.join(_dataset_names(root=root))}"
         )
     if backend not in _BACKENDS:
         raise ValueError(
             f"unsupported backend {backend!r}; choose {', '.join(sorted(_BACKENDS))}"
         )
     if lesson.mechanism_kind == "model":
-        if scale not in load_profiles().scales:
+        if scale not in load_profiles(root=root).scales:
             raise ValueError(
                 f"unsupported runnable scale {scale!r}; larger named classes are recommendation-only"
             )
@@ -1261,7 +1280,7 @@ def scaffold_lesson(
             "format": "sparselab-lesson-scaffold",
             "version": 1,
             "lesson": lesson.model_dump(mode="json"),
-            "lesson_sha256": resource_sha256(f"lessons/{identifier}.json"),
+            "lesson_sha256": resource_sha256(f"lessons/{identifier}.json", root=root),
             "selection": {"scale": scale, "data": data, "backend": backend},
         }
         if lesson.mechanism_kind == "artifact":
@@ -1306,11 +1325,11 @@ def scaffold_lesson(
                 ]
             _write(
                 temporary / "README.md",
-                _lesson_readme(lesson, scale, data, backend, artifact=True),
+                _lesson_readme(lesson, scale, data, backend, artifact=True, root=root),
             )
         else:
-            base = _load_base()
-            base = _apply_overlay(base, _scale_patch(scale, data, backend))
+            base = _load_base(root=root)
+            base = _apply_overlay(base, _scale_patch(scale, data, backend, root=root))
             patch = lesson.patches_by_scale.get(scale, {})
             base = _apply_overlay(base, patch)
             base = _apply_overlay(
@@ -1355,11 +1374,11 @@ def scaffold_lesson(
                     }
                 ]
             config = _validate_run(base)
-            tokenizer_values = _tokenizer_values(data)
+            tokenizer_values = _tokenizer_values(data, root=root)
             TokenizerTrainConfig.model_validate(tokenizer_values)
             _write(temporary / "model.yaml", _yaml_bytes(base))
             _write(temporary / "tokenizer.yaml", _yaml_bytes(tokenizer_values))
-            dataset_inputs = _write_dataset_source(temporary, data)
+            dataset_inputs = _write_dataset_source(temporary, data, root=root)
             if dataset_inputs:
                 lesson_payload.setdefault("inputs", []).extend(
                     {"path": relative, "sha256": sha256_file(temporary / relative)}
@@ -1385,7 +1404,19 @@ def scaffold_lesson(
                             destination.resolve(),
                         )
                     ).as_posix(),
+                    root=root,
                 ),
+            )
+        source_inputs = {"lesson.json": f"lessons/{identifier}.json"}
+        if lesson.mechanism_kind == "model":
+            source_inputs.update(
+                {name: name for name in ("base.yaml", "profiles.json", "datasets.json")}
+            )
+        for name, source in source_inputs.items():
+            relative = f"research_sources/{name}"
+            _write(temporary / relative, resource_path(source, root=root).read_bytes())
+            lesson_payload.setdefault("inputs", []).append(
+                {"path": relative, "sha256": sha256_file(temporary / relative)}
             )
         lesson_payload["lesson_scaffold_sha256"] = hashlib.sha256(
             canonical_json(lesson_payload)

@@ -20,8 +20,9 @@ ExperimentPlans, and do not request Campaign approvals. Iterate: read the
 record, change one setting, try again. A lab record is evidence of one local
 comparison, not a release, promotion or scientific conclusion.
 
-For a new user, follow the [TinyStories lab walkthrough](docs/tinystories-microlab.md):
-prepare the three sample inputs, then use `try` and `report`. Keep advanced
+For a new user, follow [lab mode](docs/lab-mode.md) with an explicit local recipe.
+The optional [Workshop TinyStories example](docs/tinystories-microlab.md) is owned
+outside Lab. Prepare its declared inputs, then use `try` and `report`. Keep advanced
 continuation, matrices and release instructions in their own guides. Run IDs
 belong to `probe`/`explore`; sealed record IDs work across `report`/`compare` and
 `probe`/`explore` (the record's candidate checkpoint, never a newer `latest`).
@@ -125,8 +126,13 @@ protocol with generic dispatch. Mechanism lessons live in `learn`; research
 scaffolds emit native study declarations. Keep one current public command/schema
 path; update callers together
 instead of adding executable version forks, compatibility aliases or a second
-runner. Necessary historical readers belong in private, read-only compatibility
-code. Do not reimplement hashing, checkpoint selection, accounting or workflow
+runner. Until a production release is tagged, adapt experiment plans, recipes
+and models to current Lab behavior; do not add backward compatibility or version
+adapters to preserve old execution behavior. Historical evidence may be read and
+audited without making old artifacts executable or treating historical claims
+as current guarantees. Follow the [migration and review policy](CONTRIBUTING.md#pre-production-migration-policy),
+including new experiment identities and the release-tag boundary.
+Do not reimplement hashing, checkpoint selection, accounting or workflow
 state in task scripts. Before building new training, evaluation or quantization
 machinery, check existing libraries (nanoGPT/modded-nanogpt, litgpt,
 lm-evaluation-harness, llm-compressor) and wrap them. Record a genuinely
