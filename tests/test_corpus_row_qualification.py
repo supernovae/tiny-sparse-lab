@@ -393,6 +393,7 @@ def test_profile_policy_guards(payload, reason):
 @pytest.mark.parametrize(
     "change",
     [
+        {"language_field": None, "allowed_languages": []},
         {"license_field": None},
         {"repository_field": None},
         {"path_field": None},
@@ -617,3 +618,19 @@ def test_nested_path_bounds_and_code_paths_are_explicit():
     nested = {"code": row.pop("code"), "metadata": row}
     assert exceptions(nested, policy, "code") == (None, ())
     assert provenance(nested, policy)["attribution"]["license_expression"] == "MIT"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("license_field", "license"),
+        ("license_labels", {"mit": "MIT"}),
+        ("repository_field", "repo_name"),
+        ("path_field", "path"),
+    ],
+)
+def test_noncode_policy_refuses_each_code_only_field(field, value):
+    with pytest.raises(ValueError, match="code-only"):
+        RowQualification.model_validate(
+            {"profile": "web_text", "family_fields": ["id"], field: value}
+        )
