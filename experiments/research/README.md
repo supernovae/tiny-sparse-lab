@@ -6,8 +6,12 @@ DevMind and TinyStories records are in [history](history/README.md); its
 [path map](history/path-map.json) resolves original locations without rewriting
 historical content or maintaining old study executables.
 
-Each active subdirectory represents one real campaign or experiment family. Check in
-only the material needed to understand and reproduce the design:
+This directory is being retired as a home for personal science. Historical EXP1
+has moved to Workshop project DevMind (recipe DevMind 340M Base); see the [file disposition](../../docs/exp1-retirement.json). KML and
+historical material remain pending their separate dependency-preserving migration.
+Do not add new experiments here. Author recipe DSL/configuration in any user-owned
+directory or repository, with documentation and artifact references:
+
 
 - question, competing explanations, and falsifiable acceptance gates;
 - immutable or content-addressed config/protocol references;
@@ -52,9 +56,8 @@ rights. See the [lifecycle recovery procedure](../../docs/research/lifecycle-rec
 before claiming a missing release was rebuilt or a lost checkpoint was restored.
 
 Current long-form protocols and findings remain indexed from
-[`docs/research/README.md`](../../docs/research/README.md). New campaigns can
-adopt this directory incrementally; moving an established identity-bound config
-is not required merely to satisfy the layout.
+[`docs/research/README.md`](../../docs/research/README.md). New campaigns belong outside Lab. Relocation preserves original scientific
+identities and evidence; Git history retains removed source paths.
 
 ## Offline record lint
 

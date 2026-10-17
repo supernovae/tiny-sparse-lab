@@ -51,7 +51,7 @@ def setup(tmp_path, *, require_acceptance=False):
 def run(paths, config_path):
     from sparselab.training.preparation import compile_phase
 
-    plan = Path("experiments/research/exp1-preparation/preparation.json")
+    plan = Path(__file__).parent / "fixtures/preparation-commands/plan.json"
     compiled = compile_phase(
         plan, paths["root"], "fit-tokenizer", {"TOKENIZER_CONFIG": str(config_path)}
     )
@@ -103,11 +103,11 @@ def test_invalid_tokenizer_output_or_unbounded_input_refuses_before_reservation(
     assert AttemptBudget(paths["ledger"]).status()["reservations"] == []
 
 
-def test_exp1_plan_compiles_every_public_leaf_and_refuses_missing_bindings(tmp_path):
+def test_neutral_plan_compiles_public_leaves_and_refuses_missing_bindings(tmp_path):
     from sparselab.cli.main import build_parser
     from sparselab.training.preparation import compile_phase, load_preparation
 
-    path = Path("experiments/research/exp1-preparation/preparation.json")
+    path = Path(__file__).parent / "fixtures/preparation-commands/plan.json"
     plan = load_preparation(path)
     for label, phase in plan["phases"].items():
         required = {word[2:-1] for word in phase["args"] if word.startswith("${")}
@@ -131,7 +131,7 @@ def test_exp1_plan_compiles_every_public_leaf_and_refuses_missing_bindings(tmp_p
         assert classified.effect in {"preparation", "inspection"}
         assert "budget-release-gate" not in compiled["args"]
     with pytest.raises(ValueError, match="missing preparation bindings"):
-        compile_phase(path, tmp_path, "pilot-acquire", {})
+        compile_phase(path, tmp_path, "acquire", {})
 
 
 def test_tokenizer_cannot_bypass_required_release_acceptance(tmp_path):
@@ -347,3 +347,35 @@ def test_pilot_dispatch_enforces_bound_reuse_only_without_allocation(tmp_path, c
         with pytest.raises(AttemptBudgetError, match="verified offline reuse only"):
             run_words(paths, "corpus", "acquire", str(recipe))
         assert AttemptBudget(paths["ledger"]).status()["reservations"] == []
+
+
+@pytest.mark.parametrize(
+    "mutation,reason",
+    [
+        ("duplicate", "duplicate preparation leaf"),
+        ("unresolved", "unresolved preparation binding"),
+        ("unknown", "unknown preparation leaf reference"),
+        ("output", "phase output differs from declared leaf"),
+    ],
+)
+def test_neutral_plan_rejects_invalid_composition(tmp_path, mutation, reason):
+    from sparselab.training.preparation import compile_phase
+
+    fixture = Path(__file__).parent / "fixtures/preparation-commands/plan.json"
+    payload = json.loads(fixture.read_text())
+    phase = payload["phases"]["inventory"]
+    if mutation == "duplicate":
+        payload["phases"]["freeze"]["leaf"] = phase["leaf"]
+    elif mutation == "unresolved":
+        phase["args"][2] = "${lowercase}"
+    elif mutation == "unknown":
+        phase["args"][4] = "@missing"
+    else:
+        phase["args"][4] = str(tmp_path / "wrong-output")
+    target = tmp_path / "plan.json"
+    target.write_text(json.dumps(payload))
+    bindings = (
+        {} if mutation == "unresolved" else {"PROJECT": str(tmp_path / "project")}
+    )
+    with pytest.raises(ValueError, match=reason):
+        compile_phase(target, tmp_path, "inventory", bindings)
