@@ -63,22 +63,64 @@ def test_workspace_is_git_ignored() -> None:
     assert result.returncode == 0
 
 
-def test_registered_historical_documents_keep_their_byte_identities() -> None:
-    """Old command examples can be frozen evidence; supersede, never rewrite."""
+def test_resource_retirement_records_originals_and_destination() -> None:
+    import json
+
+    record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
+    assert len(record["files"]) == 24
+    assert len({row["source"] for row in record["files"]}) == 24
+    for row in record["files"]:
+        assert row["destination"] == "provenance/lab/" + row["source"]
+        assert len(row["sha256"]) == 64
+        assert row["size_bytes"] > 0
+        if not row["source"].endswith("/lifecycle.json") and "disposition" not in row:
+            assert not (REPO / row["source"]).exists()
+    assert record["lifecycle_supplement"] == "provenance/lab-lifecycle-supplement.json"
+
+
+def test_retained_historical_evidence_keeps_exact_bytes() -> None:
     import hashlib
     import json
 
-    registry = json.loads(
-        (REPO / "src/sparselab/research/resources/lifecycle.json").read_text()
-    )
-    checked = []
-    for evidence in registry["evidence"]:
-        artifact = evidence.get("artifact", {})
-        relative = artifact.get("relative_path", "")
-        if evidence["kind"] != "document" or not relative.startswith("docs/"):
-            continue
-        payload = (REPO / relative).read_bytes()
-        assert len(payload) == artifact["size_bytes"], relative
-        assert hashlib.sha256(payload).hexdigest() == artifact["sha256"], relative
-        checked.append(relative)
-    assert checked
+    record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
+    rows = record["retained_in_lab"]
+    paths = {row["relative_path"] for row in rows}
+    assert len(rows) == len(paths) == 77
+    assert {
+        "docs/research/sample-report.md",
+        "docs/context-engram-study.md",
+        "docs/portable-engram.md",
+        "docs/research/learned-engram-portability.md",
+    } <= paths
+    assert "docs/path-domain-corpus.md" not in paths
+    for row in rows:
+        content = (REPO / row["relative_path"]).read_bytes()
+        assert len(content) == row["size_bytes"], row["relative_path"]
+        assert hashlib.sha256(content).hexdigest() == row["sha256"], row[
+            "relative_path"
+        ]
+
+
+def test_active_research_guides_use_external_resource_authoring() -> None:
+    for relative in (
+        "docs/research/README.md",
+        "papers.md",
+        "experiments/samples/README.md",
+    ):
+        text = (REPO / relative).read_text()
+        assert "--resource-root /path/to/resources" in text
+        assert "research scaffold engram-" not in text
+        assert "research describe engram-" not in text
+        assert "research scaffold memory-allocation-curve-v1" not in text
+    for name in (
+        "engram-ffn-substitution",
+        "engram-mla-compression",
+        "engram-moe-capacity",
+        "engram-placement",
+        "engram-sparse-budget",
+        "lexical-memory-heavy",
+    ):
+        text = (REPO / f"docs/research/{name}.md").read_text()
+        assert "1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab/" in text
+        assert "new experiment identity" in text
+        assert "research scaffold " not in text

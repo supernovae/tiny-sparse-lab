@@ -20,187 +20,9 @@ def _json(path: Path, payload: object) -> None:
 
 @pytest.fixture
 def closure(tmp_path: Path) -> Path:
-    root = tmp_path / "resources"
-    root.mkdir()
-    base = {
-        "schema_version": 2,
-        "name": "neutral-base",
-        "seed": 5,
-        "model": {
-            "vocab_size": 260,
-            "hidden_dim": 16,
-            "num_layers": 1,
-            "num_heads": 2,
-            "ffn_dim": 32,
-            "max_seq_len": 16,
-        },
-        "tokenizer": {"path": "artifacts/tokenizer/tokenizer.json"},
-        "dataset": {
-            "source": "chat_recall",
-            "cache_dir": "artifacts/data",
-            "train_max_documents": 2,
-            "validation_max_documents": 2,
-            "train_max_tokens": 64,
-            "validation_max_tokens": 64,
-            "synthetic_seed": 3,
-        },
-        "training": {
-            "seq_len": 8,
-            "micro_batch_size": 1,
-            "gradient_accumulation": 1,
-            "max_steps": 8,
-            "max_tokens": 64,
-        },
-        "optimizer": {"name": "adamw", "warmup_steps": 2},
-        "logging": {"root_dir": "runs"},
-    }
-    from sparselab.config.models import RunConfig
+    from research_fixtures import make_resources
 
-    base = RunConfig.model_validate(base).model_dump(mode="json")
-    (root / "base.yaml").write_text(yaml.safe_dump(base), encoding="utf-8")
-    profile = {
-        "hidden_dim": 16,
-        "num_layers": 1,
-        "num_heads": 2,
-        "ffn_dim": 32,
-        "seq_len": 8,
-        "max_seq_len": 16,
-        "micro_batch_size": 1,
-        "gradient_accumulation": 1,
-        "max_steps": 8,
-        "max_tokens": 64,
-        "validation_steps": 4,
-        "memory_table_size": 17,
-        "memory_dim": 4,
-    }
-    scales = ("smoke", "nano", "micro", "tiny")
-    _json(
-        root / "profiles.json",
-        {
-            "format": "sparselab-research-profiles",
-            "version": 1,
-            "scales": {scale: profile for scale in scales},
-        },
-    )
-    dataset = {
-        "source": "chat_recall",
-        "revision": None,
-        "dataset_seed": 3,
-        "train_max_documents": 2,
-        "validation_max_documents": 2,
-        "train_max_tokens": 64,
-        "validation_max_tokens": 64,
-        "vocab_size": 260,
-        "min_frequency": 1,
-        "tokenizer_max_documents": 2,
-        "tokenizer_train_max_tokens": 64,
-        "tokenizer_validation_max_documents": 2,
-        "tokenizer_validation_max_tokens": 64,
-        "license": "CC0-1.0",
-        "source_url": "https://example.org/neutral",
-        "notes": [],
-        "card_applicability": {},
-    }
-    _json(
-        root / "datasets.json",
-        {
-            "format": "sparselab-research-datasets",
-            "version": 1,
-            "datasets": {"neutral": dataset},
-        },
-    )
-    entry = {
-        "format": "sparselab-research-entry",
-        "version": 1,
-        "id": "neutral-study",
-        "title": "Neutral comparison",
-        "question": "Does the plan bind two widths?",
-        "mechanisms": [],
-        "hypothesis": "Widths differ",
-        "failure_interpretation": "Invalid plan",
-        "controls": [],
-        "independent_variables": [],
-        "dependent_metrics": [],
-        "confounders": [],
-        "minimum_useful_scale": "smoke",
-        "recommended_scale": "smoke",
-        "hardware_notes": "Metadata only",
-        "runtime_class": "fixture",
-        "evaluation_policy": {
-            "periodic_validation_steps": {},
-            "endpoint_cards": [],
-            "endpoint_policy": "first_configured_limit",
-            "milestones_supported": False,
-            "primary_thresholds": [],
-        },
-        "cards": [
-            {
-                "reference": "cards/neutral.json",
-                "role": "development",
-                "category": "fixture",
-                "applicability": {},
-            }
-        ],
-        "papers": [],
-        "implementation_links": [],
-        "docs": [],
-        "can_establish": [],
-        "cannot_establish": [],
-        "prerequisites": [],
-        "recipe": "recipes/neutral-study.json",
-    }
-    _json(root / "catalog/neutral-study.json", entry)
-    recipe = {
-        "base_set": {},
-        "axes": {
-            "seed": [{"label": "s5", "set": {"seed": 5}}],
-            "width": [
-                {"label": "small", "set": {"model.ffn_dim": 32}},
-                {"label": "wide", "set": {"model.ffn_dim": 48}},
-            ],
-        },
-        "comparisons": [
-            {
-                "id": "width-effect",
-                "vary": "custom",
-                "vary_fields": ["model.ffn_dim"],
-                "baseline": {"width": "small"},
-                "variant": {"width": "wide"},
-            }
-        ],
-    }
-    _json(
-        root / "recipes/neutral-study.json",
-        {
-            "format": "sparselab-research-recipe",
-            "version": 1,
-            "id": "neutral-study",
-            "designs": {"default": {scale: recipe for scale in scales}},
-        },
-    )
-    # Capability implementation is generic Lab code, independent of research resources.
-    from sparselab.evaluation.capabilities import (
-        capability_card,
-        capability_card_payload,
-    )
-
-    _json(
-        root / "cards/neutral.json",
-        capability_card_payload(capability_card("chat-alias-recall-v1")),
-    )
-    _json(
-        root / "lifecycle.json",
-        {
-            "format": "sparselab-research-lifecycle",
-            "version": 1,
-            "entries": [],
-            "evidence": [],
-            "baselines": [],
-            "findings": [],
-            "promotions": [],
-        },
-    )
-    return root
+    return make_resources(tmp_path)
 
 
 def test_external_closure_without_packaged_resources(
@@ -521,16 +343,33 @@ def test_local_entry_must_be_inside_root_without_symlink_parents(
         catalog.load_research(source, root=closure)
 
 
-def test_no_root_fork_preserves_seed_axis_refusal(
-    closure: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("explicit_root", [False, True])
+@pytest.mark.parametrize("declare_seed", [False, True])
+def test_one_seed_contract_for_all_resource_locations(
+    closure: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    explicit_root: bool,
+    declare_seed: bool,
 ) -> None:
-    # Substitute a neutral packaged closure; the public call still has no root.
     monkeypatch.setattr(catalog, "_RESOURCE_ROOT", closure)
     source = closure / "neutral-study.json"
     _json(source, json.loads((closure / "catalog/neutral-study.json").read_text()))
-    with pytest.raises(ValueError, match="exclude seed"):
-        scaffold_research(source, tmp_path / "no-root", scale="smoke", data="neutral")
-    assert not (tmp_path / "no-root").exists()
+    recipe_path = closure / "recipes/neutral-study.json"
+    recipe = json.loads(recipe_path.read_text())
+    if not declare_seed:
+        del recipe["designs"]["default"]["smoke"]["axes"]["seed"]
+        _json(recipe_path, recipe)
+    kwargs = {"root": closure} if explicit_root else {}
+    output = tmp_path / "result"
+    if not declare_seed:
+        with pytest.raises(ValueError, match="explicitly declare.*seed"):
+            scaffold_research(source, output, scale="smoke", data="neutral", **kwargs)
+        assert not output.exists()
+    else:
+        scaffold_research(source, output, scale="smoke", data="neutral", **kwargs)
+        matrix = yaml.safe_load((output / "matrix.yaml").read_text())
+        assert matrix["axes"]["seed"] == [{"label": "s5", "set": {"seed": 5}}]
 
 
 def _cli_args(closure: Path, tmp_path: Path):
@@ -623,3 +462,26 @@ def test_resource_root_requires_resolved_ancestors(
     with pytest.raises(ValueError, match="resource root must not traverse a symlink"):
         catalog.resource_root(parent_alias / closure.name)
     assert catalog.resource_root((parent_alias / closure.name).resolve()) == closure
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_seed_axis_name_alone_cannot_inherit_base_seed(
+    closure: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit_root: bool
+) -> None:
+    monkeypatch.setattr(catalog, "_RESOURCE_ROOT", closure)
+    path = closure / "recipes/neutral-study.json"
+    value = json.loads(path.read_text())
+    value["designs"]["default"]["smoke"]["axes"]["seed"] = [
+        {"label": "s5", "set": {"seed": 5}},
+        {"label": "misnamed", "set": {"training.max_steps": 7}},
+    ]
+    _json(path, value)
+    kwargs = {"root": closure} if explicit_root else {}
+    output = tmp_path / "result"
+    with pytest.raises(
+        ValueError, match="every seed axis option must explicitly set seed"
+    ):
+        scaffold_research(
+            "neutral-study", output, scale="smoke", data="neutral", **kwargs
+        )
+    assert not output.exists()

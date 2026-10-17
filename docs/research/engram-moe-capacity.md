@@ -1,12 +1,10 @@
-# Routed experts or lookup
+# Routed experts or lookup — historical archive
 
-`engram-moe-capacity-v1` asks where observed conditional capacity resides: routed experts or lexical lookup. It compares dense 2×/4× FFNs and a local MoE (four experts, FFN width `D`, top-2 routing) with memory absent/present. The independent fields are `model.ffn`, `model.ffn_dim`, `model.num_experts`, `model.experts_per_token`, and `model.memory`; the controlled recipe fixes `model.router_aux_loss_coefficient` at zero.
+The original guide and its experiment claims are preserved as
+[historical evidence in Workshop](https://github.com/supernovae/kybern-workshop/blob/1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab/docs/research/engram-moe-capacity.md).
+Its recipe ID is no longer a packaged Lab scaffold. Old commands and outcomes
+do not establish current compatibility, scientific clearance, or permission to run.
 
-Matched controls and separate LM/card reporting are the catalog convention. Use router entropy, maximum-expert fraction, and mean top-k probability as mechanism diagnostics; no-memory arms do not manufacture Engram metrics. Module construction RNG, router/optimizer-state changes, tokenizer addresses, finite offline repetition, capacity-dependent optimization, scale ranges, and educational overhead confound interpretation.
-
-```sh
-sparselab research scaffold engram-moe-capacity-v1 --scale smoke --data offline --backend cpu --output experiments/moe-memory
-sparselab study plan experiments/moe-memory/study.yaml
-```
-
-Dense 2× and MoE approximately share selected FFN matrix capacity; that is not measured equal FLOPs or time. The recipe can show controlled endpoint deltas over its declared dense/routed options, but not iso-compute, speed, semantic-memory, or auxiliary-balancing conclusions. `tiny` is recommended for a larger bounded run. See [the MoE mechanism](../moe.md).
+For new declarations, use the [current external-resource authoring contract](../external-research-resources.md) with explicit seeds and current input bindings.
+Reproduction requires a new experiment identity and a separately reviewed plan;
+the archive is not an executable fallback.

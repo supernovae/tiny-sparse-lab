@@ -9,6 +9,7 @@ import pytest
 import torch
 import yaml
 from pydantic import ValidationError
+from research_fixtures import make_study_resources
 from tokenizers import Tokenizer
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.models import BPE
@@ -66,34 +67,21 @@ def _weight_rows(value: object) -> list[list[float]]:
     return cast(list[list[float]], value)
 
 
-def test_packaged_catalog_factorial_designs_and_strict_versions() -> None:
-    entries = list_research()
-    assert load_research("learned-engram-portability-v1").recipe is None
-    learning_reference = load_research("dense-lm-v1")
-    assert learning_reference.classification == "learning_reference"
-    assert learning_reference.recipe is None
-    assert learning_reference.evaluation_policy.primary_thresholds == []
-    assert not learning_reference.evaluation_policy.milestones_supported
-
-    recipes = {
-        entry.id: load_recipe(entry) for entry in entries if entry.recipe is not None
+def test_current_catalog_and_neutral_factorial_strict_versions(tmp_path: Path) -> None:
+    # Personal no-recipe cards await their separate protocol retirement.
+    assert {entry.id for entry in list_research()} == {
+        "dense-lm-v1",
+        "learned-engram-portability-v1",
+        "tinystories-dense-30m-data-rich-v1",
     }
+    root = make_study_resources(tmp_path)
+    entry = load_research("neutral-study", root=root)
+    recipe = load_recipe(entry, local_root=root)
     assert [
         factor.axis
-        for factor in recipes["engram-mla-compression-v1"]
-        .designs["latent-sweep"]["smoke"]
-        .factorial_designs[0]
-        .factors
-    ] == ["attention", "memory"]
-    assert [
-        factor.axis
-        for factor in recipes["engram-sparse-budget-v1"]
-        .designs["budget-sweep"]["smoke"]
-        .factorial_designs[0]
-        .factors
-    ] == ["attention", "memory"]
-
-    invalid = entries[0].model_dump(mode="json")
+        for factor in recipe.designs["default"]["smoke"].factorial_designs[0].factors
+    ] == ["width", "depth"]
+    invalid = entry.model_dump(mode="json")
     invalid["version"] = True
     with pytest.raises(ValidationError, match="version must be integer 1"):
         ResearchEntry.model_validate(invalid)
@@ -127,27 +115,28 @@ def test_catalog_rejects_duplicate_json_and_lists_unknown_ids(tmp_path: Path) ->
 
     with pytest.raises(ValueError, match="available IDs") as error:
         load_research("not-a-research-entry")
-    assert "engram-ffn-substitution-v1" in str(error.value)
+    assert "dense-lm-v1" in str(error.value)
 
 
 def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     tmp_path: Path,
 ) -> None:
+    root = make_study_resources(tmp_path)
     output = scaffold_research(
-        "engram-ffn-substitution-v1", tmp_path / "study", scale="smoke", data="offline"
+        "neutral-study", tmp_path / "study", scale="smoke", data="offline", root=root
     )
     plan = plan_study(output / "study.yaml")
     metadata = json.loads((output / "research.json").read_text(encoding="utf-8"))
 
-    assert len(plan.expanded) == 18
-    assert len(plan.pairs) == 21
-    assert {item.config.seed for item in plan.expanded} == {17, 41, 73}
-    assert metadata["factorial_designs"][0]["id"] == "wide-vs-narrow-memory"
+    assert len(plan.expanded) == 8
+    assert len(plan.pairs) == 4
+    assert {item.config.seed for item in plan.expanded} == {5, 9}
+    assert metadata["factorial_designs"][0]["id"] == "width-depth"
     assert metadata["factorial_designs"][0]["version"] == 1
     assert "1 versioned 2×2 factorial designs" in (output / "README.md").read_text(
         encoding="utf-8"
     )
-    assert len({item["config_sha256"] for item in metadata["coordinates"]}) == 18
+    assert len({item["config_sha256"] for item in metadata["coordinates"]}) == 8
     for item in metadata["inputs"]:
         content = (output / item["path"]).read_bytes()
         assert hashlib.sha256(content).hexdigest() == item["sha256"]
@@ -164,20 +153,22 @@ def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     marker = output / "keep.txt"
     marker.write_text("user data", encoding="utf-8")
     with pytest.raises(FileExistsError):
-        scaffold_research("engram-ffn-substitution-v1", output, scale="smoke")
+        scaffold_research("neutral-study", output, scale="smoke", root=root)
     assert marker.read_text(encoding="utf-8") == "user data"
 
 
 def test_canonical_research_scaffold_uses_campaign_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    root = make_study_resources(tmp_path)
     work = tmp_path / "sparselab-work"
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(work))
     output = scaffold_research(
-        "engram-ffn-substitution-v1",
+        "neutral-study",
         tmp_path / "experiments/research/new-campaign",
         scale="smoke",
         data="offline",
+        root=root,
     )
     config = load_config(output / "base.yaml")
     assert config.logging.root_dir == work / "experiments/new-campaign/runs"
@@ -190,16 +181,19 @@ def test_canonical_research_scaffold_uses_campaign_workspace(
 def test_fineweb_edu_scaffold_is_pinned_and_does_not_prepare_data(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    root = make_study_resources(tmp_path)
+
     def forbid_download(*_: object, **__: object) -> None:
         raise AssertionError("scaffolding must not access remote datasets")
 
     monkeypatch.setattr("sparselab.data.datasets.load_dataset", forbid_download)
     profile = load_datasets().datasets["fineweb_edu"]
     output = scaffold_research(
-        "engram-ffn-substitution-v1",
+        "neutral-study",
         tmp_path / "fineweb-study",
         scale="micro",
         data="fineweb_edu",
+        root=root,
     )
     plan = plan_study(output / "study.yaml")
     bound_research = _validate_research(output / "research.json", output / "study.yaml")
@@ -215,8 +209,8 @@ def test_fineweb_edu_scaffold_is_pinned_and_does_not_prepare_data(
     assert profile.validation_max_tokens == 65_536
     assert profile.license == "ODC-BY 1.0; attribution required."
     assert "web-crawled" in " ".join(profile.notes)
-    assert len(plan.expanded) == 18
-    assert {item.config.seed for item in plan.expanded} == {17, 41, 73}
+    assert len(plan.expanded) == 8
+    assert {item.config.seed for item in plan.expanded} == {5, 9}
     assert {item.config.dataset.source for item in plan.expanded} == {"fineweb_edu"}
     assert {
         (
@@ -243,12 +237,14 @@ def test_fineweb_edu_scaffold_is_pinned_and_does_not_prepare_data(
 def test_tinystories_scaffold_sets_runnable_tokenizer_prefix(
     tmp_path: Path,
 ) -> None:
+    root = make_study_resources(tmp_path)
     profile = load_datasets().datasets["tinystories"]
     output = scaffold_research(
-        "engram-ffn-substitution-v1",
+        "neutral-study",
         tmp_path / "tinystories-study",
         scale="smoke",
         data="tinystories",
+        root=root,
     )
     tokenizer = _mapping(yaml.safe_load((output / "tokenizer.yaml").read_text()))
     tokenizer_dataset = _mapping(tokenizer["dataset"])
@@ -263,10 +259,11 @@ def test_tinystories_scaffold_sets_runnable_tokenizer_prefix(
 def test_research_scaffold_rebases_paths_from_symlinked_destination(
     tmp_path: Path,
 ) -> None:
+    root = make_study_resources(tmp_path)
     alias = tmp_path.parent / f"{tmp_path.name}-alias"
     alias.symlink_to(tmp_path, target_is_directory=True)
     output = scaffold_research(
-        "engram-ffn-substitution-v1", alias / "study", scale="smoke", data="offline"
+        "neutral-study", alias / "study", scale="smoke", data="offline", root=root
     )
     config_path = next((output / "configs").glob("*.yaml"))
     config = load_config(config_path)
@@ -276,10 +273,7 @@ def test_research_scaffold_rebases_paths_from_symlinked_destination(
     assert config.dataset.cache_dir == root / "artifacts/data"
     from sparselab.experiments.study import study_workspace
 
-    assert (
-        config.logging.root_dir
-        == study_workspace("engram-ffn-substitution-v1") / "runs"
-    )
+    assert config.logging.root_dir == study_workspace("neutral-study") / "runs"
     readme = (output / "README.md").read_text()
     assert 'WORK="' in readme
     assert '--store "$WORK/runs"' in readme
@@ -452,3 +446,15 @@ def test_semantic_retrieval_lesson_builds_verified_pack_and_runnable_workspace(
         "lesson-fork-left",
         "lesson-fork-right",
     )
+
+
+@pytest.mark.parametrize(
+    "entry_id", ["dense-lm-v1", "tinystories-dense-30m-data-rich-v1"]
+)
+def test_recipe_less_cards_refuse_scaffold_before_writing(
+    tmp_path: Path, entry_id: str
+):
+    output = tmp_path / "not-created"
+    with pytest.raises(ValueError, match="has no scaffold recipe.*--resource-root"):
+        scaffold_research(entry_id, output)
+    assert not output.exists()

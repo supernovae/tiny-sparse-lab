@@ -129,67 +129,40 @@ def _analysis(design: str) -> dict[str, object]:
     )
 
 
-def test_memory_allocation_recipe_declares_all_weights_and_regimes() -> None:
-    entry = load_research("memory-allocation-curve-v1")
-    recipe = load_recipe(entry)
+def test_native_recipe_preserves_declared_allocation_paths_and_weights(
+    tmp_path: Path,
+) -> None:
+    from research_fixtures import make_resources
 
-    assert set(recipe.designs) == {
-        "default",
-        "iso-total",
-        "iso-active",
-        "iso-token",
-        "iso-flop",
-    }
-    for design in recipe.designs.values():
-        ownership = design["smoke"].axes["ownership"]
-        weights = design["smoke"].axes["neural_loss_weight"]
-        assert [option.label for option in ownership] == [
-            "n100",
-            "n75",
-            "n50",
-            "n25",
-            "n0",
+    root = make_resources(tmp_path)
+    path = root / "recipes/neutral-study.json"
+    payload = json.loads(path.read_text())
+    for scale in payload["designs"]["default"].values():
+        scale["axes"]["ownership"] = [
+            {
+                "label": label,
+                "set": {
+                    "dataset.allocation_manifest_path": f"allocations/{label}.json"
+                },
+            }
+            for label in ("first", "second")
         ]
-        assert all(
-            "dataset.allocation_manifest_path" in option.set for option in ownership
-        )
-        assert [option.label for option in weights] == [
-            "w100",
-            "w75",
-            "w50",
-            "w25",
-            "w0",
+        scale["axes"]["neural_loss_weight"] = [
+            {"label": label, "set": {"training.neural_loss_weight": weight}}
+            for label, weight in (("full", 1.0), ("partial", 0.25), ("none", 0.0))
         ]
-        assert [option.set["training.neural_loss_weight"] for option in weights] == [
-            1,
-            0.75,
-            0.5,
-            0.25,
-            0,
-        ]
-        for scale in design.values():
-            assert scale.base_set["dataset.source"] == "local_chat"
-            assert (
-                scale.base_set["dataset.train_path"]
-                == "../../data/path_domain_v1/train.jsonl"
-            )
-            assert (
-                scale.base_set["dataset.validation_path"]
-                == "../../data/path_domain_v1/development.jsonl"
-            )
-            assert scale.base_set["dataset.license"] == (
-                "MIT; original synthetic path_domain_v1 corpus; "
-                "see data/path_domain_v1/provenance.json"
-            )
-            assert (
-                scale.base_set["tokenizer.path"]
-                == "../../artifacts/tokenizer_path_domain_v1/tokenizer.json"
-            )
-            assert scale.base_set["model.vocab_size"] == 512
-            assert scale.base_set["model.memory"] == "ngram"
-            assert len(scale.comparisons) == 40
-
-            assert scale.base_set["model.semantic_memory_dim"] == 8
+    path.write_text(json.dumps(payload))
+    entry = load_research("neutral-study", root=root)
+    recipe = load_recipe(entry, local_root=root)
+    for scale in recipe.designs["default"].values():
+        assert [
+            option.set["dataset.allocation_manifest_path"]
+            for option in scale.axes["ownership"]
+        ] == ["allocations/first.json", "allocations/second.json"]
+        assert [
+            option.set["training.neural_loss_weight"]
+            for option in scale.axes["neural_loss_weight"]
+        ] == [1.0, 0.25, 0.0]
 
 
 def test_allocation_analysis_retains_task_checkpoint_points_and_nonmonotonicity() -> (

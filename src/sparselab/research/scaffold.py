@@ -41,7 +41,6 @@ def _dataset_names(*, root: Path | None = None) -> tuple[str, ...]:
 
 
 _BACKENDS = frozenset({"cpu", "mps", "cuda", "rocm", "xpu"})
-_SEEDS = (17, 41, 73)
 _PATH_KEYS = frozenset(
     {
         "path",
@@ -495,6 +494,11 @@ def scaffold_research(
             "learned-engram-portability-v1 uses research portability build "
             "--experiment learned-engram-portability-v1, not research scaffold"
         )
+    if entry.recipe is None:
+        raise ValueError(
+            f"research entry {entry.id!r} has no scaffold recipe; "
+            "provide a current recipe-backed entry with --resource-root"
+        )
     if data not in _dataset_names(root=root):
         raise ValueError(
             f"unsupported dataset {data!r}; choose {', '.join(_dataset_names(root=root))}"
@@ -519,14 +523,10 @@ def scaffold_research(
         raise ValueError(
             f"recipe {entry.id} has no {scale!r} scale for design {design!r}"
         ) from error
-    if root is None and "seed" in scale_recipe.axes:
-        raise ValueError(
-            "packaged recipe axes must exclude seed; scaffold owns matched seeds"
-        )
-    if root is not None and "seed" not in scale_recipe.axes:
-        raise ValueError(
-            "external recipe must explicitly declare its matched seed axis"
-        )
+    if "seed" not in scale_recipe.axes:
+        raise ValueError("recipe must explicitly declare its matched seed axis")
+    if any("seed" not in option.set for option in scale_recipe.axes["seed"]):
+        raise ValueError("every seed axis option must explicitly set seed")
 
     destination, temporary = _destination(output)
     workspace_name = (
@@ -556,11 +556,8 @@ def scaffold_research(
         _write(temporary / "tokenizer.yaml", _yaml_bytes(tokenizer_values))
 
         axes = {
-            "seed": [{"label": f"s{seed}", "set": {"seed": seed}} for seed in _SEEDS],
-            **{
-                name: [option.model_dump(mode="json") for option in options]
-                for name, options in scale_recipe.axes.items()
-            },
+            name: [option.model_dump(mode="json") for option in options]
+            for name, options in scale_recipe.axes.items()
         }
         matrix = {
             "matrix_version": 1,

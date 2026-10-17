@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from research_fixtures import make_study_resources
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.data.sources import load_source
@@ -16,8 +17,9 @@ from sparselab.research import catalog, scaffold
 def test_snapshot_scaffold_binds_resource_and_paths(tmp_path: Path, kind: str) -> None:
     if kind == "research":
         output = scaffold.scaffold_research(
-            "engram-ffn-substitution-v1",
+            "neutral-study",
             tmp_path / "new",
+            root=make_study_resources(tmp_path),
             scale="smoke",
             data="tinystories",
         )

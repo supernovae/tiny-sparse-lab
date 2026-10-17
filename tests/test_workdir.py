@@ -324,6 +324,9 @@ def test_worker_rpc_fallback_allocates_under_work_dir_and_cleans_up(
 
 
 def test_research_scaffold_cli_uses_explicit_work_dir(tmp_path: Path) -> None:
+    from research_fixtures import make_study_resources
+
+    resources = make_study_resources(tmp_path)
     work_dir = tmp_path / "scratch"
     output = tmp_path / "scaffold"
     result = subprocess.run(
@@ -335,7 +338,9 @@ def test_research_scaffold_cli_uses_explicit_work_dir(tmp_path: Path) -> None:
             str(work_dir),
             "research",
             "scaffold",
-            "engram-ffn-substitution-v1",
+            "neutral-study",
+            "--resource-root",
+            str(resources),
             "--output",
             str(output),
             "--scale",
