@@ -1,0 +1,77 @@
+{
+  "schema": 2,
+  "job_id": "lab86-pilot-split-inventory",
+  "card_id": "LAB86",
+  "approval": {
+    "owner": "${HOST_APPROVAL_OWNER}",
+    "reference": "${HOST_ACTUAL_APPROVAL_REFERENCE}",
+    "approved_wall_seconds": 172800
+  },
+  "source": {
+    "path": "${HOST_LAB_ROOT}",
+    "commit": "${HOST_REVIEWED_LAB_COMMIT}"
+  },
+  "cwd": "${HOST_LAB_ROOT}",
+  "output_root": "${HOST_RECEIPT_ROOT}/lab86-exp1-v1/A",
+  "argv": [
+    "${HOST_PYTHON}",
+    "-B",
+    "-m",
+    "sparselab",
+    "--work-dir",
+    "${HOST_WORK_ROOT}",
+    "attempt",
+    "run-phase",
+    "--plan",
+    "${PACKAGE_ROOT}/../preparation.json",
+    "--attempt-root",
+    "${HOST_WORK_ROOT}/phases",
+    "--label",
+    "pilot-split-inventory",
+    "--bindings-json",
+    "{\"PILOT_REUSE_PROJECT\":\"${GENERATED_PILOT_REUSE_PROJECT}\"}",
+    "--ledger",
+    "${HOST_WORK_ROOT}/pilot-attempt.sqlite",
+    "--workspace",
+    "${HOST_WORK_ROOT}",
+    "--policy",
+    "${PACKAGE_ROOT}/monitor.yaml",
+    "--preparation-policy",
+    "${PACKAGE_ROOT}/monitor.yaml",
+    "--baseline",
+    "${HOST_WORK_ROOT}/baseline.json",
+    "--content-identity-sha256",
+    "${GENERATED_PILOT_CONTENT_IDENTITY_SHA256}"
+  ],
+  "runtime": "${HOST_RUNTIME_OBJECT}",
+  "required_files": "${GENERATED_REQUIRED_FILES_OBJECT}",
+  "wrap": null,
+  "environment": {
+    "SPARSELAB_WORK_DIR": "${HOST_WORK_ROOT}",
+    "SPARSELAB_WORKER_LEASE_DIR": "${HOST_EXISTING_LEASE_NAMESPACE}",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "HF_HUB_OFFLINE": "1",
+    "HF_DATASETS_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "UV_OFFLINE": "1",
+    "HF_HOME": "${HOST_WORK_ROOT}/hf_home",
+    "HF_HUB_CACHE": "${HOST_WORK_ROOT}/hf_hub_cache",
+    "HF_DATASETS_CACHE": "${HOST_WORK_ROOT}/hf_datasets_cache",
+    "TMPDIR": "${HOST_WORK_ROOT}/tmpdir",
+    "XDG_CACHE_HOME": "${HOST_WORK_ROOT}/xdg_cache_home"
+  },
+  "environment_profile": "preparation-offline",
+  "limits": {
+    "wall_seconds": 3600,
+    "log_bytes": 67108864,
+    "artifact_bytes": 1048576,
+    "artifact_entries": 128,
+    "memory": {
+      "mode": "observe_rss",
+      "max_bytes": 17179869184
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "purpose": "LAB86 initial pilot acquisition only; no gate release or model work",
+  "acquisition_project_file_sha256": "c1e7e031aa9ed81a8304c7fc1e77afdd89ae4ed4dd8eb3c3b18400725d235ba8",
+  "policy_sha256": "d3e0c858553d70d6acb39afd9ec5da58bc57ae7438d6aa441ab0821764d76cb4",
+  "phase_plan_sha256": "af54055489d43ec2598293d963e15f58c715ebe75ef60cfd73261a9c9f5ee1b5",
+  "initial_body_bytes": 4294967296,
+  "max_total_body_bytes": 107374182400,
+  "ordered_phases": [
+    "transport-init",
+    "pilot-acquire",
+    "pilot-budget-status"
+  ]
+}

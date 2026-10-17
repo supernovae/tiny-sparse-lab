@@ -1,0 +1,7 @@
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  lab86_web: train
+  lab86_synthetic: train
+  lab86_code: train

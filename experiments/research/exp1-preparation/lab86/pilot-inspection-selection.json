@@ -1,0 +1,67 @@
+{
+  "format": "sparselab-admission-inspection-selection-v1",
+  "seed": "lab86-exp1-inspection-v1",
+  "normalizer": "normalizer-structure-v3",
+  "sources": [
+    {
+      "source_id": "lab86_000_web",
+      "exception_count": 4,
+      "strata": [
+        {
+          "id": "short",
+          "count": 4,
+          "path_prefix": null,
+          "length_band": "short",
+          "issues_nonempty": null
+        },
+        {
+          "id": "long",
+          "count": 4,
+          "path_prefix": null,
+          "length_band": "long",
+          "issues_nonempty": null
+        }
+      ]
+    },
+    {
+      "source_id": "lab86_001_synthetic",
+      "exception_count": 4,
+      "strata": [
+        {
+          "id": "short",
+          "count": 4,
+          "path_prefix": null,
+          "length_band": "short",
+          "issues_nonempty": null
+        },
+        {
+          "id": "long",
+          "count": 4,
+          "path_prefix": null,
+          "length_band": "long",
+          "issues_nonempty": null
+        }
+      ]
+    },
+    {
+      "source_id": "lab86_002_code",
+      "exception_count": 4,
+      "strata": [
+        {
+          "id": "short",
+          "count": 4,
+          "path_prefix": null,
+          "length_band": "short",
+          "issues_nonempty": null
+        },
+        {
+          "id": "long",
+          "count": 4,
+          "path_prefix": null,
+          "length_band": "long",
+          "issues_nonempty": null
+        }
+      ]
+    }
+  ]
+}

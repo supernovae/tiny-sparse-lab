@@ -21,6 +21,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
@@ -907,6 +908,23 @@ def _validate_hf_rows(path: Path, spec: HuggingFaceAcquisition, available: int) 
     return len(records)
 
 
+def _parquet_json_value(value: Any) -> Any:
+    """Encode decoded timestamps as ISO 8601, retaining their numeric UTC offset.
+
+    Arrow units and named zones are not retained in JSON. Naive timestamps
+    stay naive: never invent a timezone. Shard SHA-256 keeps
+    the original typed bytes; row SHA-256 identifies this JSON representation.
+    Other unsupported Arrow values still fail canonical JSON serialization.
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _parquet_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_parquet_json_value(item) for item in value]
+    return value
+
+
 def _bounded_hf_rows(
     path: Path,
     *,
@@ -929,7 +947,7 @@ def _bounded_hf_rows(
             for row in batch.to_pylist():
                 if index >= limit:
                     return
-                yield index, row
+                yield index, _parquet_json_value(row)
                 index += 1
         return
     stream = gzip.open if path.name.endswith(".gz") else open
@@ -1190,6 +1208,8 @@ def _bounded_hf_acquire(
         "sampling": "sha256-revision-path-zero-index-modulus-v1",
         "shards": receipts,
     }
+    if any(shard.path.endswith(".parquet") for shard in spec.bounded_shards):
+        retrieval["row_encoding"] = "json-with-iso8601-timestamps-v1"
     if budget is not None:
         retrieval["transport_budget"] = budget.receipt()
     return inventory, retrieval

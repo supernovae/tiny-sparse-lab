@@ -1,0 +1,19 @@
+schema_version: 2
+publication_mode: metadata_reconstruction_only
+mixture:
+  web: 0.6
+  synthetic: 0.2
+  code: 0.2
+lm:
+  selected: true
+  training_splits:
+  - train
+  - validation
+chat:
+  selected: false
+  training_splits: []
+keep_nonredistributable_local: true
+record_admission:
+  path: ${GENERATED_REVIEWED_ADMISSION_PATH}
+  sha256: ${GENERATED_REVIEWED_ADMISSION_SHA256}
+normalizer: normalizer-structure-v3

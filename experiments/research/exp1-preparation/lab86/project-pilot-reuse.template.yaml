@@ -1,0 +1,25 @@
+schema_version: 1
+id: lab86-fresh-exp1-pilot-view-v1
+sources:
+- sources/000-web.yaml
+- sources/001-synthetic.yaml
+- sources/002-code.yaml
+transforms: []
+splits: splits-acquire.yaml
+release: release-quarantine.yaml
+source_effects:
+- source_id: lab86_000_web
+  declaration_sha256: d73eb8420061c9cae52d8ba6b07f0754d9b115208a931f3e5bd7b63a676aabcf
+  effect: reuse_only
+  origin_project_id: lab86-fresh-exp1-v1
+  snapshot_sha256: ${GENERATED_SNAPSHOT_SHA256_LAB86_000_WEB}
+- source_id: lab86_001_synthetic
+  declaration_sha256: 3650408470dd2e7fd0204eaed17f0e7f5f1f0098bbc67a245d6b18c11decd23d
+  effect: reuse_only
+  origin_project_id: lab86-fresh-exp1-v1
+  snapshot_sha256: ${GENERATED_SNAPSHOT_SHA256_LAB86_001_SYNTHETIC}
+- source_id: lab86_002_code
+  declaration_sha256: af5dd2047302010764de501b9b99ef0db0a3971cc75383a5ecfddd05a0e6b61e
+  effect: reuse_only
+  origin_project_id: lab86-fresh-exp1-v1
+  snapshot_sha256: ${GENERATED_SNAPSHOT_SHA256_LAB86_002_CODE}

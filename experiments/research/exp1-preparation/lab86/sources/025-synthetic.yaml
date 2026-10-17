@@ -1,0 +1,48 @@
+schema_version: 2
+id: lab86_025_synthetic
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus
+revision: 3ba9d605774198c5868892d7a8deda78031a781f
+license: Multiple underlying content rights; pinned dataset card claim only
+license_url: https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/blob/3ba9d605774198c5868892d7a8deda78031a781f/README.md
+rights:
+  training_eligibility: review_required
+  redistribution_mode: metadata_reconstruction_only
+  license_references:
+  - https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/blob/3ba9d605774198c5868892d7a8deda78031a781f/README.md
+  notices:
+  - Private quarantine only; dataset labels do not establish underlying file/content
+    permission. Apply POLICY.md and review actual rows before model use.
+notes: Unexecuted LAB86 candidate. Schema/family checks in README.md block execution
+  readiness. Row ceiling selects a bounded prefix; it is not an asserted full-shard
+  row count.
+domains:
+- synthetic
+document_kinds:
+- prose
+source_family: lab86_synthetic
+acquisition:
+  config: cosmopedia-v2
+  split: train
+  text_field: text
+  max_rows: 5000000
+  max_bytes: 8589934592
+  bounded_shards:
+  - path: cosmopedia-v2/train-00027-of-00104.parquet
+    expected_sha256: 813cbf7ec1283c61b311b69c82a4e4ef012facf8a76ee139a92a8a097e8b51b2
+    max_shard_bytes: 1176468135
+    max_scanned_rows: 5000000
+    hash_modulus: 1
+    hash_remainders:
+    - 0
+    declared_config: cosmopedia-v2
+    declared_split: train
+  qualification:
+    profile: synthetic_text
+    family_fields:
+    - seed_data
+    synthetic_provenance_fields:
+    - seed_data
+    - prompt
+    - audience
+    - format

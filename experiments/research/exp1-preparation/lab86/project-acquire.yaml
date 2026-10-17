@@ -1,0 +1,353 @@
+schema_version: 1
+id: lab86-fresh-exp1-v1
+sources:
+- sources/000-web.yaml
+- sources/001-synthetic.yaml
+- sources/002-code.yaml
+- sources/003-web.yaml
+- sources/004-web.yaml
+- sources/005-web.yaml
+- sources/006-web.yaml
+- sources/007-web.yaml
+- sources/008-web.yaml
+- sources/009-web.yaml
+- sources/010-web.yaml
+- sources/011-web.yaml
+- sources/012-web.yaml
+- sources/013-web.yaml
+- sources/014-web.yaml
+- sources/015-web.yaml
+- sources/016-web.yaml
+- sources/017-web.yaml
+- sources/018-web.yaml
+- sources/019-web.yaml
+- sources/020-web.yaml
+- sources/021-web.yaml
+- sources/022-web.yaml
+- sources/023-web.yaml
+- sources/024-synthetic.yaml
+- sources/025-synthetic.yaml
+- sources/026-synthetic.yaml
+- sources/027-synthetic.yaml
+- sources/028-synthetic.yaml
+- sources/029-synthetic.yaml
+- sources/030-synthetic.yaml
+- sources/031-synthetic.yaml
+- sources/032-synthetic.yaml
+- sources/033-synthetic.yaml
+- sources/034-synthetic.yaml
+- sources/035-synthetic.yaml
+- sources/036-synthetic.yaml
+- sources/037-code.yaml
+- sources/038-code.yaml
+- sources/039-code.yaml
+- sources/040-code.yaml
+- sources/041-code.yaml
+- sources/042-code.yaml
+- sources/043-code.yaml
+- sources/044-code.yaml
+- sources/045-code.yaml
+- sources/046-code.yaml
+- sources/047-code.yaml
+- sources/048-code.yaml
+- sources/049-code.yaml
+- sources/050-code.yaml
+- sources/051-code.yaml
+- sources/052-code.yaml
+- sources/053-code.yaml
+- sources/054-code.yaml
+- sources/055-code.yaml
+- sources/056-code.yaml
+- sources/057-code.yaml
+- sources/058-code.yaml
+- sources/059-code.yaml
+- sources/060-code.yaml
+- sources/061-code.yaml
+- sources/062-code.yaml
+- sources/063-code.yaml
+- sources/064-code.yaml
+- sources/065-code.yaml
+- sources/066-code.yaml
+- sources/067-code.yaml
+- sources/068-code.yaml
+- sources/069-code.yaml
+- sources/070-code.yaml
+- sources/071-code.yaml
+- sources/072-code.yaml
+- sources/073-code.yaml
+- sources/074-code.yaml
+- sources/075-code.yaml
+- sources/076-code.yaml
+- sources/077-code.yaml
+- sources/078-code.yaml
+- sources/079-code.yaml
+- sources/080-code.yaml
+- sources/081-code.yaml
+- sources/082-code.yaml
+- sources/083-code.yaml
+transforms: []
+splits: splits-acquire.yaml
+release: release-quarantine.yaml
+source_effects:
+- source_id: lab86_000_web
+  declaration_sha256: d73eb8420061c9cae52d8ba6b07f0754d9b115208a931f3e5bd7b63a676aabcf
+  effect: acquire
+- source_id: lab86_001_synthetic
+  declaration_sha256: 3650408470dd2e7fd0204eaed17f0e7f5f1f0098bbc67a245d6b18c11decd23d
+  effect: acquire
+- source_id: lab86_002_code
+  declaration_sha256: af5dd2047302010764de501b9b99ef0db0a3971cc75383a5ecfddd05a0e6b61e
+  effect: acquire
+- source_id: lab86_003_web
+  declaration_sha256: c14d8fdae764db1fe544568361ac1c37620db8306528d0cec515157b42fa0607
+  effect: acquire
+- source_id: lab86_004_web
+  declaration_sha256: e7ea57a667ef49dcfd77a5bab1298dbf844b5cfecea76ea4b0fbb9ef4a5aa333
+  effect: acquire
+- source_id: lab86_005_web
+  declaration_sha256: 2d64b41591d4799bed9612bf923a009098af5af9e4bbbc1b10b19f71b81323bd
+  effect: acquire
+- source_id: lab86_006_web
+  declaration_sha256: 385b12ced136b8fb4c7dac03cdab9db780932868b368db0f0afd4e136c1dacf4
+  effect: acquire
+- source_id: lab86_007_web
+  declaration_sha256: 750053cf90fdd47bf33c066960d05725a9bfcd843c74e77434a149d5b719b5b7
+  effect: acquire
+- source_id: lab86_008_web
+  declaration_sha256: 34da1ee3fe59fc2e952843e96a42ff75191f85bce46af5abb9db9a3bb1e59a1a
+  effect: acquire
+- source_id: lab86_009_web
+  declaration_sha256: 20d1b650691fed6135b9ace63ab3f01a95cc41a6a653cf9acd8e30a548aea8ea
+  effect: acquire
+- source_id: lab86_010_web
+  declaration_sha256: 4ad99363ed6caf420ff975d0580798fb25db7aa231b5b73e56913881f5a16f66
+  effect: acquire
+- source_id: lab86_011_web
+  declaration_sha256: 84120a5e659b72d33d3a92a3fb54d9ebe6986e41b4a42b949b35c483c14b09d5
+  effect: acquire
+- source_id: lab86_012_web
+  declaration_sha256: 7d39f0a2c9d8c95d3d49aca4857b63dcc7669252941d7d9ae4442f57137a6895
+  effect: acquire
+- source_id: lab86_013_web
+  declaration_sha256: 149b77a495a69dc7cfa4da567cfd054ccead46ccc75a412aacf7d4acf8626078
+  effect: acquire
+- source_id: lab86_014_web
+  declaration_sha256: 349d9c4168f5ceac2653c8c17d553d641563ad8e7f629826b1bac68df359feab
+  effect: acquire
+- source_id: lab86_015_web
+  declaration_sha256: 52f9f7e630939561a35e3706e02741496fa59a321dc4bd8f52444a2cc2c8f977
+  effect: acquire
+- source_id: lab86_016_web
+  declaration_sha256: 8246fe103a70ca47d100db93e297f324940f904bf4f4c8dfd01da496e4694037
+  effect: acquire
+- source_id: lab86_017_web
+  declaration_sha256: bdeac22c41e146617ed79bef193bcb10fd6b4ad32945b7d741cb1091ff16bf9c
+  effect: acquire
+- source_id: lab86_018_web
+  declaration_sha256: 04ea95425c8e3b8a28de2caa88fd5b2d11a808cb81d67b174798a8a18c7e6590
+  effect: acquire
+- source_id: lab86_019_web
+  declaration_sha256: e7c7f94482b79e5092bb12391f835ba77bbb2869bef682531e1c2a35f428f13e
+  effect: acquire
+- source_id: lab86_020_web
+  declaration_sha256: edcba5b45869477242f9f5c2f9e839cbd8bcd0463f7f8800713ccfb905355078
+  effect: acquire
+- source_id: lab86_021_web
+  declaration_sha256: bb9792128b94ed1c9793f13d2d5ba6703721102e639970f6d39e93b6087f0e56
+  effect: acquire
+- source_id: lab86_022_web
+  declaration_sha256: fe4671baf3410a2d3aca786a95e4779b946aeaf824ad11fa242c89c21e75cde4
+  effect: acquire
+- source_id: lab86_023_web
+  declaration_sha256: cf9956e7bc1701b32a2cbaca724cb4f7359dc4e878a0fbcb3c621ba38e50211f
+  effect: acquire
+- source_id: lab86_024_synthetic
+  declaration_sha256: f84a0bbc692c1ab698f11559688fe721951955feefaa6806b6b6dce33178eee8
+  effect: acquire
+- source_id: lab86_025_synthetic
+  declaration_sha256: 7a85c63c9b84e4129d9f7fc5cc987db726feaa123e6ff76e54b1d77f32e9ab29
+  effect: acquire
+- source_id: lab86_026_synthetic
+  declaration_sha256: 8657c38812e746b9ccbccdc7f6c65ede8dda99715cf62e0bdf0717b7dd832253
+  effect: acquire
+- source_id: lab86_027_synthetic
+  declaration_sha256: 75da10a270797f2dbd6822bb12fdb7009c353b0e557e1e69c34c7d313f05d330
+  effect: acquire
+- source_id: lab86_028_synthetic
+  declaration_sha256: e0a45ae81e47a8611ce950675b2925c83a10bc340d82b1013484f5afa4a43e85
+  effect: acquire
+- source_id: lab86_029_synthetic
+  declaration_sha256: 80656ad86a53a9c7ca7f5f1d9a8bceefe49895eab9e464115519d6512d8c2aa6
+  effect: acquire
+- source_id: lab86_030_synthetic
+  declaration_sha256: 3c728d291a82f1dcc5726e3182d560b4a2b121935a989ed3eecdf925b2e8fce3
+  effect: acquire
+- source_id: lab86_031_synthetic
+  declaration_sha256: 0085277fb416c2db43bc61e1e99d9cddd0f2b14c4c0c7e996cac7fb1aeac199e
+  effect: acquire
+- source_id: lab86_032_synthetic
+  declaration_sha256: 7c9b599bb7a0d7c7f2acf4b0bf5398f87b604b9ac13f27502adaf36d7bfcbe51
+  effect: acquire
+- source_id: lab86_033_synthetic
+  declaration_sha256: 068a24c0beef4977ad163a2ce0e4917fa50d5776c1e1444212a584c378ef973e
+  effect: acquire
+- source_id: lab86_034_synthetic
+  declaration_sha256: e483920039e2d9b9730324d28073d92fec9ac4c67e8c2540b83c7caa8c8c1f5d
+  effect: acquire
+- source_id: lab86_035_synthetic
+  declaration_sha256: 43234ecd140f5b86b63d4978d230b6ee8634cf03d9d67764258f9526074cd44c
+  effect: acquire
+- source_id: lab86_036_synthetic
+  declaration_sha256: ea5607f990232fe7a8d8f5f392abbb31743f6e53fe168935ed16c1d386d558b1
+  effect: acquire
+- source_id: lab86_037_code
+  declaration_sha256: 861a5db610748b259d76d4ddf203d20c09db7b9a8d5bef19ec61aafc306819d8
+  effect: acquire
+- source_id: lab86_038_code
+  declaration_sha256: 44e52a0ac3c397393992649c029843e3cc69585910591e79d17ce9ac4fb73e4b
+  effect: acquire
+- source_id: lab86_039_code
+  declaration_sha256: bba9a8dfd113a4b61009a65be3da03507fdf879b3a59d4d2bee3fb029f0fadb0
+  effect: acquire
+- source_id: lab86_040_code
+  declaration_sha256: 6f26a02a29b2ae92a4d06814ba9f26e3ea3bed61afac5c6e32fa480ca6de781a
+  effect: acquire
+- source_id: lab86_041_code
+  declaration_sha256: 8217bd467e0f769ad46585199b3c9013604778e80dc09a49b061732687ce7bb0
+  effect: acquire
+- source_id: lab86_042_code
+  declaration_sha256: 1b6194e7a78799287ca474ba5d9c9b119e247853a31c2779f6912763a1d2ceb9
+  effect: acquire
+- source_id: lab86_043_code
+  declaration_sha256: b4ca98d75c1fb795f08314aedbc1d6119e9432fd8b21a2a8fead48466991c7a9
+  effect: acquire
+- source_id: lab86_044_code
+  declaration_sha256: 6228981397d88f88608d4f3656a852b12a772692291c968ead984d4d84d22025
+  effect: acquire
+- source_id: lab86_045_code
+  declaration_sha256: 71c83c41537dce448e0ff449213ff2cb13041f2920d0664e0b806a57c11590f6
+  effect: acquire
+- source_id: lab86_046_code
+  declaration_sha256: b1ddb499c5f96172e918abbc5613703f188c58bf30a9637aac1878a29bed34ff
+  effect: acquire
+- source_id: lab86_047_code
+  declaration_sha256: b69f414cfc8da1d38507c590c4fc48174327584a6df4e405ed984755aefa143b
+  effect: acquire
+- source_id: lab86_048_code
+  declaration_sha256: 5f8d9a4d73d6778e3e2ed35e98ab105b2df0f70e9cfb81b743e2709977012ffb
+  effect: acquire
+- source_id: lab86_049_code
+  declaration_sha256: b220c9d1571607e14a29db37b70adcc78a4df12ab8beae2cbad497f8326a7365
+  effect: acquire
+- source_id: lab86_050_code
+  declaration_sha256: ab94dd6cc833c7c9cd98fc47f8f6d8e1323c52050950a9045d8623aec78caf8e
+  effect: acquire
+- source_id: lab86_051_code
+  declaration_sha256: e01ac9bd8a462f3b629c03f66082d08ca1340378390398c5a09c3cc189c8f408
+  effect: acquire
+- source_id: lab86_052_code
+  declaration_sha256: 14ef591aebc532a8b6300e03605ab9fc35e365ec263d7ceadf4df3ebb2efb3c8
+  effect: acquire
+- source_id: lab86_053_code
+  declaration_sha256: 38b65d686a700a096ea8097d95fd201e3fd8ddfeb0a86bbba8a34edcdc454870
+  effect: acquire
+- source_id: lab86_054_code
+  declaration_sha256: fa72fd731f4578976ca7d876c3552e10f1b6002b32ef9b220b0b79edea2be149
+  effect: acquire
+- source_id: lab86_055_code
+  declaration_sha256: d77593b774c3eb9f74c1914cbdd6af87d283b1b270cb93a2a12f3960f841c7c9
+  effect: acquire
+- source_id: lab86_056_code
+  declaration_sha256: a8b105de53cd6fd86fcf1130858a7aa609dc6be7133a6c8c07aff61d08b55e6b
+  effect: acquire
+- source_id: lab86_057_code
+  declaration_sha256: 345d1eb2c3c77a529103fb5e901b23b562716cc35043ebc8fb162380238770b1
+  effect: acquire
+- source_id: lab86_058_code
+  declaration_sha256: c3a917a0f7d45d50ed6a9d1d1fbc3387596213898f1975863e699094b4dd2128
+  effect: acquire
+- source_id: lab86_059_code
+  declaration_sha256: 14b1b22bbec98281cde80e686b8b087f4ad0a944f5b5de8abacaaaf4df4db8c5
+  effect: acquire
+- source_id: lab86_060_code
+  declaration_sha256: e84797a36de900ca405c445abcc73e80fc8d4d8794c638f30f9a42f13a54c710
+  effect: acquire
+- source_id: lab86_061_code
+  declaration_sha256: f70efea17838883a8f2df7a7d2e9ca9ffd948194c3e87fdab0b606477bb2314a
+  effect: acquire
+- source_id: lab86_062_code
+  declaration_sha256: b927c2c48a23cb377864df8b0a8fc80aaef6ee7dc559aab440068501494c3c85
+  effect: acquire
+- source_id: lab86_063_code
+  declaration_sha256: 6ffc949dc6069c7fea73984a20d3547d2dec221ed89b6ab35f860da0b83a9231
+  effect: acquire
+- source_id: lab86_064_code
+  declaration_sha256: 227b8cbbb722b0d1fd6e557fa40ffb30e860766f3acfef4397867c3d6f2c414d
+  effect: acquire
+- source_id: lab86_065_code
+  declaration_sha256: 8fe7371a1057515b180f985fd557240026dea58971b8d18480489e56dc11b9ac
+  effect: acquire
+- source_id: lab86_066_code
+  declaration_sha256: d554c579bc3c2a54bc96130800a62f8c746242f1a518803ec8d63c163f120f2c
+  effect: acquire
+- source_id: lab86_067_code
+  declaration_sha256: a23423641c1d2c1a4a1f7eccf2428b137d0458e2f81a44c446ceece88fcb106c
+  effect: acquire
+- source_id: lab86_068_code
+  declaration_sha256: 0ae581d9eee7b972a3109650622d8ef4658ec75ca27c0421a374acde373f2ca7
+  effect: acquire
+- source_id: lab86_069_code
+  declaration_sha256: a7124e8f6915838ecf91b534ef5ad5f00f5e83b6af1dcb269e4f0bc5399b3cf6
+  effect: acquire
+- source_id: lab86_070_code
+  declaration_sha256: 59514d7e2bd9b58069b5ad98bbe5f8967a7edea0a54f1a8c8c2a4e04ed79bdf1
+  effect: acquire
+- source_id: lab86_071_code
+  declaration_sha256: ad757f5f3c3d55072f3044b303f89e92598c9ab7151058ca89ef6a5db834da73
+  effect: acquire
+- source_id: lab86_072_code
+  declaration_sha256: 5716b425317e4d3211c9d57681fb5f9f046600a18a55728ee7d9994a4c124a96
+  effect: acquire
+- source_id: lab86_073_code
+  declaration_sha256: 245f6eddb74c400c3f8c61470a9b3fa80198e9b9152e1c809d49a4f5c019710d
+  effect: acquire
+- source_id: lab86_074_code
+  declaration_sha256: c4b3efc735468a041607d777e6faeb79fcfef040636ab25ed5fc3cd3aca0c6e1
+  effect: acquire
+- source_id: lab86_075_code
+  declaration_sha256: fa9492f8dad56a08ef283da772361475b6c1556858373f201e2041f4906b85dd
+  effect: acquire
+- source_id: lab86_076_code
+  declaration_sha256: aaef47e1b60059acabb9169ee055a669f148ed2081f14348de6e661d9c443343
+  effect: acquire
+- source_id: lab86_077_code
+  declaration_sha256: 8b2b882d0355a6a2ccb4eef6fe0f302f4b329d369d403f7bf28b0d24bd515fed
+  effect: acquire
+- source_id: lab86_078_code
+  declaration_sha256: 9eadb84235385a9f0f11771114c369db6738d21d941480275b68d6b4b412b858
+  effect: acquire
+- source_id: lab86_079_code
+  declaration_sha256: 84658436d60924dbf86d90ab4efc709e8c06eaef4092a7beabf77d75e9a15869
+  effect: acquire
+- source_id: lab86_080_code
+  declaration_sha256: e181236e79e574ee6e1c1face47ac857ec08c253cf65042734b980ef4e9520e2
+  effect: acquire
+- source_id: lab86_081_code
+  declaration_sha256: f2437c072cb1247f40605c8891c8a6e5fdd129a79d60e94c55a71767e12d20fb
+  effect: acquire
+- source_id: lab86_082_code
+  declaration_sha256: 8d6be7abd94c0c4f5ccdb4087d4ca4f19dd68dd5da666354f308381cd3c44472
+  effect: acquire
+- source_id: lab86_083_code
+  declaration_sha256: 8973cad09248bc98fe06e21d92c33928fadd0a9ba103f6df303105fb292b86f5
+  effect: acquire
+transport_budget:
+  attempt_id: lab86-fresh-exp1-v1
+  max_source_body_bytes: 106300440576
+  max_metadata_body_bytes: 1073741824
+  max_transfers: 4096
+  max_retries_per_shard: 1
+  max_wall_seconds: 172800
+  max_disk_bytes: 322122547200
+  initial_body_bytes: 4294967296
+  max_total_body_bytes: 107374182400

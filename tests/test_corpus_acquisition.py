@@ -505,6 +505,7 @@ def test_hf_legacy_declaration_hash_and_receipt_reuse(
     manifest = verify_snapshot(first["sources"]["one"]["snapshot_path"])
     assert manifest["declaration_sha256"] == declaration_sha256(source)
     assert "transport_budget" not in manifest["retrieval"]
+    assert "row_encoding" not in manifest["retrieval"]
     assert acquire(project, tmp_path / "work") == first
     assert len(calls) == 1
 
@@ -2055,3 +2056,123 @@ def test_hf_transport_rejects_malformed_unselected_metadata(
         acquire(project, root)
     assert len(calls) == 2
     assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
+
+
+def test_bounded_parquet_timestamp_snapshot_and_cold_verification(
+    tmp_path, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    rows = [
+        {
+            "text": "one",
+            "metadata": {"date": datetime(2024, 1, 2, 3, 4, 5, 123456, tzinfo=UTC)},
+            "history": [datetime(2024, 1, 1, tzinfo=UTC)],
+        },
+        {"text": "two", "metadata": {"date": None}, "history": []},
+    ]
+    payload = tmp_path / "fixture.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), payload)
+    content = payload.read_bytes()
+    recipe = _bounded_hf_fixture(
+        tmp_path, content, "default/train/data.parquet", rows=2
+    )
+    path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(path.read_text())
+    source["acquisition"]["bounded_shards"][0].update(
+        hash_modulus=1, hash_remainders=[0]
+    )
+    _yaml(path, source)
+    calls = _mock_hf_stream(monkeypatch, content)
+    project = load_project(recipe)
+    lock = acquire(project, tmp_path / "work")
+    snapshot = Path(lock["sources"]["one"]["snapshot_path"])
+    manifest = verify_snapshot(snapshot)
+    assert manifest["retrieval"]["row_encoding"] == "json-with-iso8601-timestamps-v1"
+    shard = manifest["retrieval"]["shards"][0]
+    assert shard["source_shard_sha256"] == hashlib.sha256(content).hexdigest()
+    emitted = [
+        json.loads(line)
+        for line in (snapshot / "files" / shard["output_path"]).read_text().splitlines()
+    ]
+    assert emitted[0]["metadata"]["date"] == "2024-01-02T03:04:05.123456+00:00"
+    assert emitted[0]["history"] == ["2024-01-01T00:00:00+00:00"]
+    assert emitted[1]["metadata"]["date"] is None
+    for row, receipt in zip(emitted, shard["selected_rows"], strict=True):
+        row.pop("_sparselab_source")
+        from sparselab.training.manifest import canonical_json
+
+        assert (
+            hashlib.sha256(canonical_json(row)).hexdigest()
+            == receipt["source_row_sha256"]
+        )
+    assert verify_acquisition(project, tmp_path / "work") == lock
+    assert len(calls) == 1
+
+
+def test_parquet_timestamp_encoding_keeps_naive_offset_and_json_values():
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+
+    from sparselab.corpus.acquisition import _parquet_json_value
+    from sparselab.training.manifest import canonical_json
+
+    value = {
+        "naive": datetime(2024, 1, 1, tzinfo=None),  # noqa: DTZ001 - preserve source naivety
+        "offset": datetime(2024, 1, 1, tzinfo=timezone(timedelta(hours=2))),
+        "json": [None, True, 2, "text"],
+    }
+    assert _parquet_json_value(value) == {
+        "naive": "2024-01-01T00:00:00",
+        "offset": "2024-01-01T00:00:00+02:00",
+        "json": value["json"],
+    }
+    with pytest.raises(TypeError):
+        canonical_json(_parquet_json_value({"unsupported": Decimal("1.2")}))
+
+
+def test_code_language_review_does_not_block_quarantined_acquisition(
+    tmp_path, monkeypatch
+):
+    from sparselab.corpus.row_qualification import exceptions
+
+    row = {
+        "code": "print(1)",
+        "repo_name": "example/repo",
+        "path": "main.py",
+        "license": "mit",
+    }
+    content = json.dumps(row).encode() + b"\n"
+    recipe = _bounded_hf_fixture(tmp_path, content, "default/train/code.jsonl", rows=1)
+    path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(path.read_text())
+    source["acquisition"]["text_field"] = "code"
+    source["acquisition"]["bounded_shards"][0].update(
+        hash_modulus=1, hash_remainders=[0]
+    )
+    source["acquisition"]["qualification"] = {
+        "profile": "code",
+        "family_fields": ["repo_name"],
+        "language_field": "language",
+        "allowed_languages": ["Python"],
+        "license_field": "license",
+        "license_labels": {"mit": "MIT"},
+        "repository_field": "repo_name",
+        "path_field": "path",
+    }
+    _yaml(path, source)
+    calls = _mock_hf_stream(monkeypatch, content)
+    project = load_project(recipe)
+    lock = acquire(project, tmp_path / "work")
+    assert (
+        verify_snapshot(lock["sources"]["one"]["snapshot_path"])["retrieval"]["rows"]
+        == 1
+    )
+    assert len(calls) == 1
+    assert (
+        exceptions(row, project.sources[0].acquisition.qualification, "code")[0]
+        == "record outside declared language policy"
+    )

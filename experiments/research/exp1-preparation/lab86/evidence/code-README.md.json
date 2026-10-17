@@ -1,0 +1,5 @@
+{
+  "source_url": "https://huggingface.co/datasets/codeparrot/github-code-clean/resolve/c48d40f9e70f0196f8236901ee35807f7d6c44c0/README.md",
+  "raw_sha256": "3a3d0085618244734660b2b2ebe6183106a47ad1f88a490b52554833d6fb362a",
+  "text": "---\nlicense: apache-2.0\n---\nThis is a cleaner version of [Github-code dataset](https://huggingface.co/datasets/codeparrot/github-code), we add the following filters:\n* Average line length < 100\n* Alpha numeric characters fraction > 0.25\n* Remove auto-generated files (keyword search)\n\n3.39M files are removed making up 2.94% of the dataset."
+}
