@@ -1038,7 +1038,17 @@
       "Ruff check",
       "Ruff format --check",
       "git diff --check"
-    ]
+    ],
+    "integration": {
+      "base_commit": "eab014ef7ca92de89d37b47c30df2ebf021d9473",
+      "method": "Ordinary merge of main containing reviewed archive-pipe fix",
+      "tests": [
+        "tests/test_source_archive_inventory.py",
+        "tests/test_preparation_tokenizer_dispatch.py"
+      ],
+      "passed": 30,
+      "seconds": 19.42
+    }
   },
   "destination_pull_request": "https://github.com/supernovae/kybern-workshop/pull/24"
 }
