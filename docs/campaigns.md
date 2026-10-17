@@ -377,7 +377,7 @@ needed.
 No tokenizer bakeoff, architecture selection, auto-generated evaluation protocol
 or worker-farm scheduling stage is provided. Campaigns can prepare generic dataset
 snapshots, train tokenizers, prepare arrays or reference verified existing inputs.
-See [datasets](datasets.md) and the [teaching Campaign declarations](../experiments/samples/tinystories-microlab/README.md#advanced-declarations).
+See [datasets](datasets.md) and the [optional external recipe example](tinystories-microlab.md).
 Accelerator acceptance requires
 a matching declared profile ID or named worker; pass `--runtime-profile PROFILE`
 to each apply/resume that needs it. Each runtime stage authorizes only its assigned

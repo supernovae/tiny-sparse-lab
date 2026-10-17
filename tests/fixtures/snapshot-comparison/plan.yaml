@@ -1,0 +1,54 @@
+plan_version: 1
+id: snapshot-phases
+base_run: run.yaml
+evaluation_suite: suite.yaml
+axes:
+- name: architecture
+  choices:
+  - label: baseline
+    set: {}
+  - label: wider
+    set:
+      model.ffn_dim: 48
+comparisons:
+- id: width
+  baseline:
+    architecture: baseline
+  variant:
+    architecture: wider
+  interventions:
+  - model.ffn_dim
+  phases:
+  - pretrain
+  invariants:
+  - seed
+  - dataset.source
+  - dataset.revision
+  - artifacts.tokenizer.sha256
+  - artifacts.prepared_data.sha256
+  - training.seq_len
+  - training.micro_batch_size
+  - training.gradient_accumulation
+  - training.max_steps
+  - training.max_tokens
+  - optimizer.name
+  - optimizer.peak
+  - optimizer.floor
+  - optimizer.warmup_steps
+  - runtime.engine
+  - runtime.backend
+  - runtime.precision
+phases:
+- id: pretrain
+  transition: fresh
+- id: continue
+  transition: extend_budget
+  parent: pretrain
+  selector: terminal
+  at_step: 2
+  set:
+    training.max_steps: 4
+    training.max_tokens: 128
+    optimizer.decay_steps: 2
+execution:
+  backend: cpu

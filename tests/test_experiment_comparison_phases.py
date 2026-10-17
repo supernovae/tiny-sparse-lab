@@ -1,4 +1,4 @@
-"""Phase-scoped comparisons preserve legacy payloads and compile shipped plans."""
+"""Phase-scoped comparisons preserve legacy payloads and compile neutral declarations."""
 
 from __future__ import annotations
 
@@ -78,12 +78,8 @@ def test_phase_selection_validates_declared_and_implicit_main():
         ExperimentPlan.model_validate({**raw, "phases": [{"id": "pretrain"}]})
 
 
-def test_shipped_sample_resolves_with_offline_snapshot_and_original_budgets(
-    tmp_path, monkeypatch
-):
-    sample = (
-        Path(__file__).resolve().parents[1] / "experiments/samples/tinystories-microlab"
-    )
+def test_neutral_snapshot_plan_resolves_with_phase_budgets(tmp_path, monkeypatch):
+    sample = Path(__file__).parent / "fixtures/snapshot-comparison"
     declarations = tmp_path / "inputs"
     declarations.mkdir()
     for name in (
@@ -128,13 +124,11 @@ def test_shipped_sample_resolves_with_offline_snapshot_and_original_budgets(
     assert "artifacts.tokenizer.sha256" in pair.invariants
     for cell in resolved.cells:
         assert cell.config.dataset == config.dataset
-        assert cell.config.model.vocab_size == 2048
-        assert cell.config.training.seq_len == 64
-        assert cell.config.training.max_steps == (
-            40 if cell.phase == "pretrain" else 80
-        )
+        assert cell.config.model.vocab_size == 260
+        assert cell.config.training.seq_len == 16
+        assert cell.config.training.max_steps == (2 if cell.phase == "pretrain" else 4)
         assert cell.config.training.max_tokens == (
-            10240 if cell.phase == "pretrain" else 20480
+            64 if cell.phase == "pretrain" else 128
         )
     reopened = open_lock(publish_lock(resolved, tmp_path / "experiment"))
     assert reopened.plan_sha256 == resolved.plan_sha256

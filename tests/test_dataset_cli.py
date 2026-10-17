@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from sparselab.cli.main import build_parser, main
+from sparselab.data import sources
 
 
 @pytest.mark.parametrize(
@@ -15,7 +16,12 @@ from sparselab.cli.main import build_parser, main
 def test_retired_direct_source_rejected_before_side_effects(
     tmp_path, monkeypatch, command
 ):
-    sample = Path(__file__).parents[1] / "experiments/samples/tinystories-microlab"
+    def unexpected_execution(*args, **kwargs):
+        pytest.fail("retired loader reached dataset streaming or tokenizer fitting")
+
+    monkeypatch.setattr(sources, "_stream", unexpected_execution)
+    monkeypatch.setattr("sparselab.cli.main.train_tokenizer", unexpected_execution)
+    sample = Path(__file__).parent / "fixtures/snapshot-comparison"
     filename = "tokenizer.yaml" if command == "tokenizer" else "run.yaml"
     config = yaml.safe_load((sample / filename).read_text())
     config["dataset"]["source"] = "tinystories"

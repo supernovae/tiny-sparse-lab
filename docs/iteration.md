@@ -47,11 +47,10 @@ uv run --locked --extra cpu sparselab readiness smoke --family dense --output "$
 
 In PowerShell use `$env:SPARSELAB_WORK_DIR` for the environment variable and
 `$CONFIG`, `$CAMPAIGN`, `$GENERATION`, `$RUN_ID` for shell variables. Write
-continued Bash commands on one line instead of using `\`. For the TinyStories
-copy step, set `$WORK = Join-Path $env:SPARSELAB_WORK_DIR 'experiments/tinystories-microlab'`,
-create a fresh `$WORK/inputs` directory with `New-Item -ItemType Directory`,
-and copy `source.yaml`, `tokenizer.yaml` and `run.yaml` with `Copy-Item` into it. Use forward slashes
-or quoted absolute paths in YAML. Do not edit the checked-in templates.
+continued Bash commands on one line instead of using `\`. For a recipe copy, create a fresh
+`$WORK/inputs` directory with `New-Item -ItemType Directory`, and use `Copy-Item`
+for the recipe's declared files. Use forward slashes or quoted absolute paths
+in YAML. Preserve reviewed inputs and their recorded identities.
 
 For a dense-model session, run the bounded CPU wiring check once into a new,
 task-owned output directory:
