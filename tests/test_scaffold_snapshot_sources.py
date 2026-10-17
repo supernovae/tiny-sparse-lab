@@ -61,9 +61,7 @@ def test_snapshot_scaffold_binds_resource_and_paths(tmp_path: Path, kind: str) -
     assert not (output / "artifacts").exists()
 
 
-def test_source_mapping_is_generic(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_source_mapping_is_generic(tmp_path: Path) -> None:
     profiles = catalog.load_datasets()
     profile = profiles.datasets["tinystories"]
     source = catalog.load_dataset_source(profile)
@@ -74,15 +72,13 @@ def test_source_mapping_is_generic(
         update={"source_declaration": "other.json", "revision": "b" * 40}
     )
     profiles = profiles.model_copy(update={"datasets": {"another": other}})
-    monkeypatch.setattr(catalog, "_RESOURCE_ROOT", tmp_path)
-    monkeypatch.setattr(scaffold, "_RESOURCE_ROOT", tmp_path)
-    monkeypatch.setattr(scaffold, "load_datasets", lambda: profiles)
-    mapping = scaffold._dataset_mapping("another")
+    (tmp_path / "datasets.json").write_text(profiles.model_dump_json())
+    mapping = scaffold._dataset_mapping("another", root=tmp_path)
     assert mapping["license"] == "CC0-1.0"
     assert mapping["revision"] == "b" * 40
     assert mapping["source"] == "snapshot"
     output = tmp_path / "out"
-    scaffold._write_dataset_source(output, "another")
+    scaffold._write_dataset_source(output, "another", root=tmp_path)
     assert (
         yaml.safe_load((output / "source.yaml").read_text())["repo_id"]
         == "another/corpus"
