@@ -346,7 +346,7 @@ another hold. Never reconcile a live transfer.
 
 Concrete preparation recipes belong in user-owned directories or repositories.
 The historical EXP1 declarations moved to the DevMind project in Workshop
-(recipe DevMind340MBase); the [disposition record](exp1-retirement.json)
+(recipe DevMind 340M Base); the [disposition record](exp1-retirement.json)
 binds their original bytes to the destination commit. Lab supplies the native
 commands described here; Workshop and an internal runner are not prerequisites.
 A feasibility gate is not a new transfer allocation; never initialize a replacement
