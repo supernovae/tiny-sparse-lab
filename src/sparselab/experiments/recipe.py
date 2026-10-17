@@ -27,7 +27,13 @@ from sparselab.config.recipe_paths import (
 )
 from sparselab.declaration_context import RecipeContext, canonical_reference, safe_path
 from sparselab.documents import parse_document
-from sparselab.experiments.compiler import compare_configs, expand_axes, flatten_config
+from sparselab.experiments.compiler import (
+    apply_patch,
+    compare_configs,
+    expand_axes,
+    flatten_config,
+)
+from sparselab.experiments.phase_graph import validate_phase_graph
 from sparselab.experiments.plan import ExperimentPlan
 from sparselab.recovery.provenance import declaration_reference
 from sparselab.training.manifest import canonical_json, config_sha256, source_identity
@@ -169,9 +175,7 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
     # These features require native artifact/phase/evaluation resolution. Do not
     # silently drop them or import their execution stack during a partial preview.
     for field in (
-        "artifacts",
         "inputs",
-        "phases",
         "corpus_variants",
         "evaluations",
     ):
@@ -185,6 +189,11 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
     if isinstance(execution, dict) and execution.get("attempt_contract") is not None:
         raise _unavailable("execution.attempt_contract")
     plan = ExperimentPlan.model_validate(raw)
+    if any(artifact.kind != "checkpoint" for artifact in plan.artifacts.values()):
+        raise _unavailable("artifacts (only checkpoint declarations supported)")
+    phases = validate_phase_graph(plan)
+    if plan.phases and plan.comparisons:
+        raise _unavailable("phase comparisons")
     if plan.execution.attempt_contract is not None:
         raise _unavailable("execution.attempt_contract")
     if not isinstance(plan.base_run, str):
@@ -217,8 +226,31 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
                     for item in path_fields
                 ):
                     raise ValueError(f"unavailable recipe path intervention: {field}")
+    for phase in phases:
+        for field in phase.set:
+            if any(
+                field == item or item.startswith(field + ".") for item in path_fields
+            ):
+                raise ValueError(f"unavailable recipe path intervention: {field}")
     base = _bind_config(base, base_path, context)
     cells = expand_axes(base, plan.axes, max_runs=max_runs, base_dir=context.root)
+    phase_previews = []
+    for phase in phases:
+        # These are requested per-phase patches only. Checkpoint compatibility,
+        # parent inheritance and resolved budgets require the native lock verifier.
+        patched = [
+            RunConfig.model_validate(apply_patch(cell, phase.set)) for cell, _ in cells
+        ]
+        phase_previews.append(
+            {
+                **phase.model_dump(mode="json"),
+                "consumption": "supplied_checkpoint"
+                if phase.checkpoint
+                else ("produced_checkpoint" if phase.parent else "fresh_training"),
+                "requested_configs": [cell.model_dump(mode="json") for cell in patched],
+                "validation": "declaration_connectivity_only",
+            }
+        )
     comparisons = []
     for comparison in plan.comparisons:
         selected = []
@@ -257,6 +289,35 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
         }
         for field, value in sorted(inputs.items())
     ]
+    for name, artifact in sorted(plan.artifacts.items()):
+        if artifact.from_phase is not None:
+            if artifact.from_phase not in {phase.id for phase in phases}:
+                raise ValueError(f"checkpoint {name} references unknown producer phase")
+            requirements.append(
+                {
+                    "kind": "checkpoint",
+                    "name": name,
+                    "status": "planned",
+                    "from_phase": artifact.from_phase,
+                    "selector": artifact.selector,
+                    "expected_sha256": None,
+                }
+            )
+        else:
+            # Explicit paths remain recipe-root relative, never cwd fallback.
+            path = safe_path(context.root, artifact.path)
+            requirements.append(
+                {
+                    "kind": "checkpoint",
+                    "name": name,
+                    "path": str(path),
+                    "expected_sha256": artifact.sha256,
+                    "state": artifact.state,
+                    "producer": artifact.producer,
+                    "identifier": artifact.identifier,
+                    "status": "unverified" if path.exists() else "unavailable",
+                }
+            )
     requirements.append(
         {
             "kind": "runtime",
@@ -294,6 +355,7 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
             for cell, coordinate in cells
         ],
         "comparisons": comparisons,
+        "phases": phase_previews,
         "execution_request": plan.execution.model_dump(mode="json"),
         "requirements": requirements,
         "status": "incomplete",
@@ -302,5 +364,6 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
             "not a resolved lock or complete workflow plan",
             "no artifact content verification or runtime validation",
             "recipe fingerprint is not scientific equivalence",
+            "phase previews do not resolve parent inheritance, checkpoint compatibility or evaluation",
         ],
     }

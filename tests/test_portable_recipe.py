@@ -298,9 +298,14 @@ def test_descriptor_rejects_ambiguity_and_unavailable_contracts(tmp_path, mutati
 )
 def test_unsupported_composition_is_explicit_not_silently_omitted(tmp_path, field):
     source = write_recipe(tmp_path / "recipe", plan_updates={field: "unsupported"})
-    with pytest.raises(
-        ValueError, match=f"unavailable recipe preview feature: {field}"
-    ):
+    # Checkpoint artifacts/phases now reach native schema validation; malformed
+    # declarations still refuse. Other composed features remain unavailable.
+    message = (
+        field
+        if field in {"phases", "artifacts"}
+        else f"unavailable recipe preview feature: {field}"
+    )
+    with pytest.raises(ValueError, match=message):
         inspect_recipe(source)
 
 

@@ -10,8 +10,36 @@ from pathlib import Path
 
 def add_commands(parser: argparse.ArgumentParser) -> None:
     commands = parser.add_subparsers(dest="recipe_command", required=True)
+    from sparselab.experiments.recipe_authoring import handle as create_handler
     from sparselab.experiments.recipe_export import handle as export_handler
 
+    create = commands.add_parser(
+        "create",
+        help="Inventory explicit native declarations into a new recipe directory",
+    )
+    create.add_argument("root", type=Path)
+    create.add_argument(
+        "--profile", choices=("matrix", "preparation", "workflow"), required=True
+    )
+    create.add_argument("--id", required=True)
+    create.add_argument("--entrypoint", required=True)
+    create.add_argument(
+        "--file",
+        action="append",
+        required=True,
+        help="ROLE:RELATIVE_PATH; repeat for every metadata member",
+    )
+    create.add_argument(
+        "--artifacts",
+        type=Path,
+        help="Existing profile artifact identity mapping; never future hashes",
+    )
+    create.add_argument(
+        "--campaign",
+        help="Workflow campaign path already included as a metadata member",
+    )
+    create.add_argument("--output", type=Path, required=True)
+    create.set_defaults(handler=create_handler)
     export = commands.add_parser(
         "export",
         help="Copy an existing authenticated recipe inventory to a new directory",
