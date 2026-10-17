@@ -1670,3 +1670,13 @@ def test_real_lineage_audit_blocks_protected_family_moved_to_train(
     assert result["status"] == "BLOCKED"
     assert result["new_train_family_collisions"]
     assert output.exists()
+
+
+def test_retained_measurement_evidence_pins():
+    # Historical claims cite these bytes; generic argv coverage lives separately.
+    assert sha256_file(_PACKET / "measurement-only.json") == (
+        "066d6e37c3703d120dbeabd89846dd9133483ad9ade2617b1832b862ddee952a"
+    )
+    assert sha256_file(_PACKET / "measurement-domains.yaml") == (
+        "5954443818a492600fcb5d8f5f4b775b297f0989ab3983b7e06302409e0ea268"
+    )

@@ -2,7 +2,13 @@
   "format": "sparselab-preparation-v1",
   "defaults": {
     "ACQUISITION_PROJECT": "./project.yaml",
+    "POLICY_DOCUMENT": "./policy.md",
+    "INSPECTION_SELECTION": "./selection.json",
     "TOKEN_FLOORS": "./token-floors.yaml",
+    "RESOURCE_ENVELOPE": "./envelope.yaml",
+    "MAX_INPUT_BYTES": "4096",
+    "MAX_EXCERPT_BYTES": "64",
+    "MAX_OUTPUT_BYTES": "1024",
     "BATCH_SOURCE_BYTES": "1024"
   },
   "phases": {
@@ -15,8 +21,72 @@
         "--offline"
       ]
     },
+    "application-declaration": {
+      "leaf": "application.json",
+      "template": "application.template.json",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@application-declaration"
+      ]
+    },
+    "admission-draft": {
+      "leaf": "admission-draft.json",
+      "args": [
+        "corpus",
+        "admission-draft",
+        "${ACQUISITION_PROJECT}",
+        "--template",
+        "@application-declaration",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--output",
+        "@admission-draft"
+      ]
+    },
+    "admission-inspection": {
+      "leaf": "admission-inspection.json",
+      "args": [
+        "corpus",
+        "inspect-admission",
+        "${ACQUISITION_PROJECT}",
+        "--draft",
+        "@admission-draft",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--selection",
+        "${INSPECTION_SELECTION}",
+        "--output",
+        "@admission-inspection",
+        "--max-input-bytes",
+        "${MAX_INPUT_BYTES}",
+        "--max-excerpt-bytes",
+        "${MAX_EXCERPT_BYTES}",
+        "--max-output-bytes",
+        "${MAX_OUTPUT_BYTES}"
+      ]
+    },
+    "reviewed-admission": {
+      "leaf": "admission.json",
+      "template": "@admission-draft",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@reviewed-admission"
+      ]
+    },
     "source-declaration": {
-      "leaf": "source.yaml",
+      "leaf": "sources/source-a.yaml",
       "template": "source.template.yaml",
       "args": [
         "corpus",
@@ -61,6 +131,46 @@
         "SPLITS_FILE": "@split-declaration"
       }
     },
+    "split-inventory": {
+      "leaf": "split-inventory.jsonl",
+      "args": [
+        "corpus",
+        "split-inventory",
+        "@pre-freeze-declaration",
+        "--output",
+        "@split-inventory",
+        "--json"
+      ]
+    },
+    "reviewed-family-decisions": {
+      "leaf": "clusters-reviewed.json",
+      "template": "family-clusters-reviewed.template.json",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@reviewed-family-decisions"
+      ]
+    },
+    "family-freeze": {
+      "leaf": "splits-reviewed.yaml",
+      "args": [
+        "corpus",
+        "freeze-splits",
+        "@pre-freeze-declaration",
+        "--inventory",
+        "@split-inventory",
+        "--clusters",
+        "@reviewed-family-decisions",
+        "--output",
+        "@family-freeze",
+        "--json"
+      ]
+    },
     "final-build-declaration": {
       "leaf": "build.yaml",
       "template": "project.template.yaml",
@@ -76,8 +186,76 @@
       ],
       "template_bindings": {
         "SOURCE_FILE": "@source-declaration",
-        "SPLITS_FILE": "@split-declaration"
+        "SPLITS_FILE": "@family-freeze"
       }
+    },
+    "offline-build": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "build",
+        "@final-build-declaration",
+        "--offline"
+      ]
+    },
+    "freeze-release": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "freeze",
+        "${BUILD_PATH}"
+      ]
+    },
+    "release-audit": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "audit",
+        "${RELEASE_PATH}"
+      ]
+    },
+    "near-duplicate-audit": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "near-duplicates",
+        "${RELEASE_PATH}"
+      ]
+    },
+    "final-family": {
+      "leaf": "family.jsonl",
+      "args": [
+        "corpus",
+        "finalize-family-inventory",
+        "${RELEASE_PATH}",
+        "--splits",
+        "@family-freeze",
+        "--output",
+        "@final-family",
+        "--json"
+      ]
+    },
+    "protected-lineage": {
+      "leaf": "protected-lineage.json",
+      "args": [
+        "corpus",
+        "audit-protected-lineage",
+        "--prior-release",
+        "${PRIOR_RELEASE}",
+        "--candidate-release",
+        "${RELEASE_PATH}",
+        "--prior-inventory",
+        "${PRIOR_FAMILY}",
+        "--candidate-inventory",
+        "@final-family",
+        "--profile",
+        "${PROFILE}",
+        "--suite",
+        "${SUITE}",
+        "--output",
+        "@protected-lineage",
+        "--json"
+      ]
     },
     "measure-accepted-supply": {
       "leaf": "unique-train.json",
@@ -90,7 +268,7 @@
         "--tokenizer-origin-release",
         "${PRIOR_RELEASE}",
         "--family-inventory",
-        "${FAMILY_INVENTORY}",
+        "@final-family",
         "--policy",
         "${TOKEN_FLOORS}",
         "--output",
@@ -100,12 +278,79 @@
         "--json"
       ]
     },
-    "freeze-release": {
+    "mixture-declaration": {
+      "leaf": "mixture.yaml",
+      "template": "mixture.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@mixture-declaration"
+      ]
+    },
+    "materialize-mixture": {
+      "leaf": "mixture",
+      "args": [
+        "corpus",
+        "materialize-mixture",
+        "@mixture-declaration",
+        "--output",
+        "@materialize-mixture",
+        "--json"
+      ]
+    },
+    "cold-verify-mixture": {
       "leaf": null,
       "args": [
         "corpus",
-        "freeze",
-        "${BUILD_PATH}"
+        "verify-mixture",
+        "@mixture-declaration",
+        "--output",
+        "@materialize-mixture",
+        "--json"
+      ]
+    },
+    "prepared-run-declaration": {
+      "leaf": "prepared-run.yaml",
+      "template": "prepared-run.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@prepared-run-declaration"
+      ]
+    },
+    "publish-prepared-bundle": {
+      "leaf": "prepared-bundle",
+      "args": [
+        "data",
+        "prepared-inputs",
+        "publish",
+        "@prepared-run-declaration",
+        "--output",
+        "@publish-prepared-bundle",
+        "--resource-envelope",
+        "${RESOURCE_ENVELOPE}",
+        "--tokenizer-batch-source-bytes",
+        "${BATCH_SOURCE_BYTES}"
+      ]
+    },
+    "cold-verify-prepared-bundle": {
+      "leaf": null,
+      "args": [
+        "data",
+        "prepared-inputs",
+        "verify",
+        "@prepared-run-declaration",
+        "@publish-prepared-bundle"
       ]
     }
   }

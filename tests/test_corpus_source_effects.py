@@ -369,6 +369,7 @@ def test_declaration_permits_only_pinned_new_source_acquisition(
         "cached_gamma": "reuse_only",
         "new_source": "acquire",
     }
+    # Field round-trip only; test_preflight_fails_before_any_transport[declaration] guards bad-pin refusal.
     pins = {source.id: declaration_sha256(source) for source in project.sources}
     assert all(
         effect.declaration_sha256 == pins[effect.source_id]
