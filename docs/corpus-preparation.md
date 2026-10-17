@@ -152,7 +152,10 @@ These are **family ratios**, not promises of exact byte or token ratios. Group
 repositories, duplicate clusters and synthetic seed families before freezing.
 Source strata use nonempty lowercase identifiers, so fresh real-English,
 synthetic and code groups need not borrow historical domain names. Existing
-cross-stratum family and cross-split content refusals remain in force.
+cross-stratum family and cross-split content refusals remain in force. Each
+source's stratum must also appear in its declared `domains`: the mixture verifier
+checks this relationship. Split freezing currently validates identifier syntax,
+not that downstream domain relationship; review it before publishing splits.
 
 Omitting weights preserves the existing 8/1/1 allocation and receipt shape.
 Changed weights require new declarations and outputs; no historical assignments,
@@ -178,3 +181,9 @@ Source qualification, train-only byte sampling/audits, and the first **4 GiB**
 feasibility report within the cumulative **100 GiB** transfer ledger require the
 remaining reviewed preparation integration. No data transfer is approved by these
 example declarations themselves.
+
+
+Historical fixed evaluation selection/slice commands still require their three
+historical strata. Fresh `real_english`/`synthetic`/`code` preparation does not
+make those evaluation protocols compatible; a separately reviewed evaluation
+change is required before using fresh strata there.
