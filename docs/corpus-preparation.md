@@ -131,3 +131,59 @@ screening, acquisition budgets and normalizer identities are unchanged. Fallback
 preparation still materializes complete inputs (including JSON arrays, Parquet
 and monolithic text normalization); bounding that memory remains separate LAB-52
 work. The rights-header fix does not make all fallback formats memory-bounded.
+
+## Reviewed split ratios and unique-target exports
+
+The reviewed family-cluster declaration consumed by `corpus freeze-splits` may
+include `split_weights`, with exactly `train`, `validation`, and `test` positive
+integer weights (sum at most 10000). For fresh EXP1 preparation the unexecuted
+configuration is:
+
+```json
+"split_weights": {"train": 98, "validation": 1, "test": 1}
+```
+
+The existing cluster digest binds these weights, source-to-stratum mapping, seed,
+and reviewed family merges. The receipt records requested weights and realized
+family counts. Each source stratum needs at least the sum of the weights in
+eligible families (100 for 98/1/1); smaller inventories refuse rather than lose a
+held-out split through rounding. Largest-remainder allocation is deterministic.
+These are **family ratios**, not promises of exact byte or token ratios. Group
+repositories, duplicate clusters and synthetic seed families before freezing.
+Source strata use nonempty lowercase identifiers, so fresh real-English,
+synthetic and code groups need not borrow historical domain names. Existing
+cross-stratum family and cross-split content refusals remain in force. Each
+source's stratum must also appear in its declared `domains`: the mixture verifier
+checks this relationship. Split freezing currently validates identifier syntax,
+not that downstream domain relationship; review it before publishing splits.
+
+Omitting weights preserves the existing 8/1/1 allocation and receipt shape.
+Changed weights require new declarations and outputs; no historical assignments,
+receipts or protected family identities are rewritten.
+
+Native mixture declarations accept integer `max_exposures: 1` or `2`. Use `1`
+when preparing a unique-target inventory: insufficient unique positions refuse
+publication and report the stratum, available unique positions, requested quota,
+exposure limit and shortfall. No extra exposure is silently added. Successful
+receipts report actual and unique scheduled positions separately and retain the
+existing cold replay verification. Boolean, string and floating-point exposure
+limits are refused. Existing explicit `2` declarations retain their behavior.
+
+One-exposure **preparation** does not authorize model training or prescribe its
+later epoch count. Counts include the existing segment-EOS semantics; only the
+native packing verification establishes supervised target counts. Do not call a
+repeated-position export a larger unique corpus. Sequence length remains the
+native RunConfig setting (`training.seq_len: 2048` for the approved fresh plan),
+and token storage remains native int32.
+
+These controls are preparation prerequisites, not an executable EXP1 allocation.
+Source qualification, train-only byte sampling/audits, and the first **4 GiB**
+feasibility report within the cumulative **100 GiB** transfer ledger require the
+remaining reviewed preparation integration. No data transfer is approved by these
+example declarations themselves.
+
+
+Historical fixed evaluation selection/slice commands still require their three
+historical strata. Fresh `real_english`/`synthetic`/`code` preparation does not
+make those evaluation protocols compatible; a separately reviewed evaluation
+change is required before using fresh strata there.

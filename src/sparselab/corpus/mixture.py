@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import DatasetConfig
@@ -38,13 +38,20 @@ class MixtureDeclaration(BaseModel):
     source_strata: dict[str, str]
     target_quotas: dict[str, int]
     seed: int
-    max_exposures: Literal[2]
+    max_exposures: Literal[1, 2]
     order_policy: Literal["kml-card03-v1"] | None = None
     # Reuse an authenticated tokenizer fitted to an earlier frozen release.
     # Absent for legacy declarations, preserving their canonical identity.
     tokenizer_origin_release_id: str | None = Field(
         default=None, pattern=r"^[0-9a-f]{64}$"
     )
+
+    @field_validator("max_exposures", mode="before")
+    @classmethod
+    def strict_exposure_limit(cls, value: object) -> object:
+        if type(value) is not int:
+            raise ValueError("max_exposures must be integer 1 or 2")
+        return value
 
     @model_validator(mode="after")
     def valid(self) -> MixtureDeclaration:
@@ -281,7 +288,9 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
                     available += len(ids) + 1
                 if available * spec.max_exposures < quota:
                     raise ValueError(
-                        f"required quota impossible for {stratum}: {available} unique, {quota} required"
+                        f"required quota impossible for {stratum}: {available} unique, "
+                        f"{quota} required, max_exposures={spec.max_exposures}, "
+                        f"shortfall={quota - available * spec.max_exposures}"
                     )
                 available_unique[stratum] = available
                 eligible_families[stratum] = len(
