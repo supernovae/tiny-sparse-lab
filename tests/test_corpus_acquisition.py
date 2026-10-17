@@ -729,6 +729,7 @@ def _mock_budgeted_hf_http(
     tree_size: int | None = None,
     xet: bool = False,
     lfs_oid: bool = False,
+    metadata_splits: list[dict[str, str]] | None = None,
 ) -> tuple[list[str], list[int]]:
     calls: list[str] = []
     reads: list[int] = []
@@ -750,10 +751,10 @@ def _mock_budgeted_hf_http(
         ]
     ).encode()
     split_rows = [{"dataset": "org/dataset", "config": "default", "split": "train"}]
+    if metadata_splits is not None:
+        split_rows = metadata_splits
     if ambiguous:
-        split_rows.append(
-            {"dataset": "org/dataset", "config": "other", "split": "train"}
-        )
+        split_rows.append(dict(split_rows[0]))
     splits = json.dumps({"splits": split_rows}).encode()
 
     class Response(io.BytesIO):
@@ -1977,3 +1978,80 @@ def test_hf_without_transport_ledger_retains_interrupted_shard(
     assert receipt["status"] == "interrupted"
     assert receipt["resources"]["peak_staging_bytes"] == 4
     assert not list(parent.glob(".acquire-*"))
+
+
+@pytest.mark.parametrize("extra_pair", [("other", "train"), ("default", "test")])
+def test_hf_transport_accepts_selected_pair_in_dataset_wide_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra_pair: tuple[str, str]
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    rows = [
+        {"dataset": "org/dataset", "config": config, "split": split}
+        for config, split in [("default", "train"), extra_pair]
+    ]
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content, metadata_splits=rows)
+    acquire(project, root)
+    assert "/paths-info/" + "d" * 40 in calls[0]
+    assert "revision=" + "d" * 40 in calls[1]
+    assert TransportBudget(ledger_path, project).receipt()["source_actual"] == len(
+        content
+    )
+
+
+@pytest.mark.parametrize(
+    "pairs",
+    [
+        [],
+        [("other", "train")],
+        [("default", "test")],
+        [("default", "test"), ("other", "train")],
+        [("default", "train"), ("default", "train")],
+    ],
+)
+def test_hf_transport_refuses_missing_or_duplicate_selected_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[tuple[str, str]]
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    project = load_project(_budgeted_hf_fixture(tmp_path, content))
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    rows = [
+        {"dataset": "org/dataset", "config": config, "split": split}
+        for config, split in pairs
+    ]
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content, metadata_splits=rows)
+    with pytest.raises(ValueError, match="config/split metadata missing or ambiguous"):
+        acquire(project, root)
+    assert len(calls) == 2
+    assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
+
+
+@pytest.mark.parametrize(
+    "bad_row",
+    [
+        {"dataset": "wrong/dataset", "config": "other", "split": "train"},
+        {"dataset": "org/dataset", "split": "train"},
+        {"dataset": "org/dataset", "config": "other"},
+        {"dataset": "org/dataset", "config": 1, "split": "train"},
+    ],
+)
+def test_hf_transport_rejects_malformed_unselected_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad_row: dict
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    project = load_project(_budgeted_hf_fixture(tmp_path, content))
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    rows = [{"dataset": "org/dataset", "config": "default", "split": "train"}, bad_row]
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content, metadata_splits=rows)
+    with pytest.raises(ValueError, match="config/split metadata missing or ambiguous"):
+        acquire(project, root)
+    assert len(calls) == 2
+    assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
