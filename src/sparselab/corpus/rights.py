@@ -502,6 +502,13 @@ def resolve_file_rights(
 
 
 def _admission_profile(source: Mapping[str, Any]) -> str:
+    from sparselab.corpus.row_qualification import LEGACY_HF_ROW_URIS
+
+    if (
+        source.get("canonical_uri") in LEGACY_HF_ROW_URIS
+        and source.get("acquisition", {}).get("qualification") is not None
+    ):
+        raise ValueError("legacy HF row policies do not accept qualification overrides")
     """This first record policy applies only to the two pinned HF source types."""
     uri = source["canonical_uri"]
     if uri == "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered":

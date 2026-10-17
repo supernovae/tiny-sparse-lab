@@ -185,9 +185,10 @@ example declarations themselves.
 ## Declared HF row qualification
 
 A bounded-shard Hugging Face source may declare `acquisition.qualification`.
-The declaration digest binds the profile and exact original-row field names;
+The declaration digest binds the profile and exact original-row field paths;
 the acquisition envelope still binds revision, shard, row index and row hash.
-Legacy Gutenberg/Wikimedia source policies remain unchanged. For example, this
+Legacy Gutenberg/Wikimedia sources refuse qualification overrides, preserving
+one consistent admission/family policy. For example, this
 unexecuted code-policy fragment assumes these fields have been verified in the
 pinned source schema:
 
@@ -215,19 +216,34 @@ vendor/generated paths, generated notices, detected credentials/private
 identifiers and conflicting file-level notices quarantine rows. Other detected
 notice flags require review. The existing notice patterns are screening, not a
 complete license or secret detector. Verified repository/path/license/language
-attribution remains in normalized document metadata.
+attribution, including the mapped SPDX expression, remains in normalized document
+metadata. Repository family values are casefolded for GitHub identity grouping;
+original attribution is retained.
 
 `profile: synthetic_text` requires `family_fields` and
 `synthetic_provenance_fields` naming retained original seed/provenance fields.
 Only the declared acquisition `text_field` becomes training text; provenance is
 hashed into document metadata. Group shared seed families before split freezing.
 `profile: web_text` requires declared family fields and optionally a language
-field with exact allowed values. Family hints are conservative inputs to the
+field with exact allowed values. Dotted paths such as `metadata.url` and
+`metadata.language` traverse dictionaries only; empty, reserved, overlong or
+whitespace-padded path segments refuse. A FineWeb-shaped policy can group on
+`metadata.url` without treating each dump as a different family. Code-only fields
+on other profiles and synthetic provenance fields on other profiles refuse,
+rather than imply an unused screen. Whitespace-only provenance is missing.
+Cosmopedia `seed_data` is a dataset label, not an individual seed identity: it
+cannot alone establish seed families. Actual per-seed provenance and reviewed
+family grouping remain a source-qualification gate; no seed IDs are invented.
+Family hints are conservative inputs to the
 reviewed cluster declaration, not a replacement for duplicate/decontamination
 review. Missing family or synthetic provenance is a material conflict.
 
 Use native `corpus admission-draft` and the existing inspection/review/build
-sequence. These declarations never grant source rights or owner approval.
+sequence. Metadata inventory can enumerate unadmitted rows, marking unresolved
+provenance; enumeration is not admission. An unfrozen build without a reviewed
+record-admission manifest does not apply these screens. Freeze requires reviewed
+admission and refuses unresolved families. These declarations never grant source
+rights or owner approval.
 The current admission receipt supports **one selected HF shard per source
 entry**; declare separate pinned entries for additional shards and map them to
 the same source stratum. Verified repository/seed values can group across those
