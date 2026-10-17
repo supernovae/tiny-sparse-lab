@@ -250,7 +250,6 @@ the same source stratum. Verified repository/seed values can group across those
 entries. Real source schema, rights and provenance qualification remain gates;
 these synthetic fixtures do not establish the suitability of any remote corpus.
 
-
 ## One native tokenizer with TRAIN byte sampling
 
 For a newly verified LM export, copy its tokenizer configuration to a new
@@ -272,7 +271,8 @@ sampling:
 This is an **unexecuted fragment**: source IDs must cover the actual frozen
 release exactly, and the export must already specify vocabulary 32768. Run the
 existing `tokenizer train CONFIG` command. Adding this leaf to the supervised
-preparation plan is a separate integration prerequisite. The existing ByteLevel BPE trainer is used once, with no tokenizer normalizer.
+preparation plan is a separate integration prerequisite. The existing ByteLevel
+BPE trainer is used once, with no tokenizer normalizer.
 
 Selection visits eligible documents in immutable release order, restricted to
 the authenticated LM TRAIN lineage. It takes whole UTF-8 documents without
@@ -280,6 +280,8 @@ repeating content until each stratum's byte cap is reached or its bounded scan
 is exhausted. Largest-remainder integer byte caps implement the requested
 weights; whole-document granularity can leave unused bytes. This is a
 deterministic prefix within each stratum, **not a representative random sample**.
+Native release rows are sorted by digest-based `document_id`, so this is hash
+order rather than source/acquisition order.
 `max_documents` bounds inspected TRAIN documents. The manifest records requested
 caps, realized bytes/documents, unfilled bytes, order and selected identity hash.
 An empty selected stratum refuses training. No validation/test document is used
@@ -288,7 +290,13 @@ for fit or audit, and no duplicate is added to fill a quota.
 The audit uses different TRAIN content hashes, up to 1000 documents per stratum
 by default and a finite shared byte cap. It reports exact round-trip failures,
 unknown tokens and bytes/token; fixed identifier, numeric, multilingual and code
-whitespace probes are reported separately. Missing audit documents are explicit
+whitespace probes are reported separately. Audits encode literal special-token
+spellings such as `<unk>` as ordinary text on an isolated tokenizer copy; the
+saved tokenizer's production encoding behavior is unchanged. The report records
+this audit encoding policy and cold replay applies it identically. The audit
+population is the remainder after fit selection and can favor documents that
+were too large for the remaining fit caps; its bytes/token is descriptive for
+that population, not an unbiased corpus estimate. Missing audit documents are explicit
 shortfalls, not passes or claims that enough unseen data was available. Unknown
 tokens or failed round-trips refuse artifact publication. Cold tokenizer
 verification replays selection and audit against the authenticated export; a
@@ -297,7 +305,12 @@ configurations keep their prior serialization and behavior.
 
 The 512 MiB cap bounds selected fit bytes, not process RSS. The existing trainer
 and release verifier may use more memory; the 16 GiB operational target still
-requires runtime observation and the feasibility gate. This does not authorize
+requires runtime observation and the feasibility gate. The current sampled fit
+makes four scans of the document prefix (statistics, fit, audit re-selection,
+audit); cold verification makes three. Each scan JSON-decodes rows, including
+held-out rows that are then excluded from fit/scoring. The TRAIN-lineage set and
+selected-content hashes also consume memory. These costs need measurement in the
+pilot; a 512 MiB fit budget does not bound total I/O. This does not authorize
 fitting on a real corpus or running a model workload.
 
 Historical fixed evaluation selection/slice commands still require their three
