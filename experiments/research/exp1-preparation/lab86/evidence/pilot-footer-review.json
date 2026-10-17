@@ -1,0 +1,36 @@
+{
+  "review": "https://github.com/supernovae/tiny-sparse-lab/pull/156#pullrequestreview-5556404189",
+  "reviewed_commit": "51fb403a9d2b946c4ffe1c98774aacef9414add2",
+  "verification": "External reviewer footer-only metadata report; not independently fetched by this writer. Actual acquisition receipts remain required.",
+  "observations": [
+    {
+      "repository": "codeparrot/github-code-clean",
+      "revision": "c48d40f9e70f0196f8236901ee35807f7d6c44c0",
+      "path": "data/train-00570-of-00880.parquet",
+      "columns": [
+        "code",
+        "repo_name",
+        "path",
+        "language",
+        "license",
+        "size"
+      ],
+      "language_type": "string",
+      "language_stats_min": "Assembly",
+      "language_stats_max": "Visual Basic"
+    },
+    {
+      "repository": "HuggingFaceTB/smollm-corpus",
+      "revision": "3ba9d605774198c5868892d7a8deda78031a781f",
+      "path": "fineweb-edu-dedup/train-00068-of-00234.parquet",
+      "metadata_date_type": "timestamp[ms]",
+      "rows": 812684
+    },
+    {
+      "repository": "HuggingFaceTB/smollm-corpus",
+      "revision": "3ba9d605774198c5868892d7a8deda78031a781f",
+      "path": "cosmopedia-v2/train-00000-of-00104.parquet",
+      "rows": 376289
+    }
+  ]
+}

@@ -15,7 +15,10 @@ Canonical approval provenance: [LAB86](https://app.notion.com/p/3fb3b68cca2281a5
 The pinned source cards and CodeParrot loader text are retained in `evidence/`;
 the loader is evidence only and is never imported or executed. The catalog is a
 projection of complete pinned HF tree metadata (path, published bytes, LFS SHA256).
-LFS content hashes are not Xet hashes. No Parquet bytes were read for assembly.
+LFS content hashes are not Xet hashes. No Parquet bytes were read by this writer. External review subsequently supplied
+footer-only observations, retained separately with attribution: the FineWeb pilot
+has `timestamp[ms]` (the card says seconds), 812684 rows; Cosmopedia has 376289
+rows. These are metadata observations, not completed acquisition evidence.
 
 | Input metadata | SHA256 of fetched response |
 | --- | --- |
@@ -64,10 +67,12 @@ publish or host execution was performed in this task.
 
 The following are **later processing gates**, not initial download blockers:
 
-- CodeParrot's loader derives language from path. Raw Parquet language remains
-  unverified. Acquisition retains original rows without executing that loader;
-  later native qualification quarantines missing language. The pilot can supply
-  the schema evidence needed for a narrow reviewed extension policy if necessary.
+- The external reviewer reports a real string `language` column in the pinned
+  code pilot footer. This narrows the question to verifying every selected shard;
+  see `evidence/pilot-footer-review.json` for attributed metadata. Acquisition
+  retains original rows without executing the loader; later qualification still
+  quarantines any missing language. No extension-based derivation is needed for
+  the reported pilot schema.
 - Cosmopedia seed_data remains the family key. If it is a dataset label, preserve
   coarse grouping; do not replace it with per-prompt IDs. Pilot family counts
   determine whether the >=100-family split requirement is feasible. Choosing a

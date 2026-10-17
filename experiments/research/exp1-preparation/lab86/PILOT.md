@@ -51,3 +51,34 @@ transport ledger; it must not reset the original 48-hour or disk accounting. If 
 this initial session prevents a supported continuation within those constraints,
 report that remaining orchestration gap before continuing, not before acquiring pilot
 evidence. The pilot is useful even if subsequent continuation is blocked.
+
+## Materialize host object bindings as JSON data
+
+`HOST_RUNTIME_OBJECT` and `HOST_REQUIRED_FILES_OBJECT` bind to absolute paths of
+pre-launch JSON files containing the measured runtime object and exact required-file
+mapping. The later skeleton uses `GENERATED_REQUIRED_FILES_OBJECT` for the same
+operation after its inputs exist. These are not native `_JSON` array fragments.
+The native renderer fills string slots only; do not submit that intermediate file
+to Harness. Materialize the two object fields with Python's existing JSON library,
+then commit the final job. For example, after native template rendering:
+
+```python
+import json
+from pathlib import Path
+
+job = json.loads(rendered_job.read_text())
+for field in ("runtime", "required_files"):
+    value = json.loads(Path(job[field]).read_text())
+    if not isinstance(value, dict) or not value:
+        raise ValueError(f"{field} requires a nonempty JSON object")
+    job[field] = value
+with final_job.open("x") as stream:
+    json.dump(job, stream, indent=2)
+    stream.write("\n")
+```
+
+`rendered_job` and `final_job` are distinct absolute Paths inside the work root.
+Populate the runtime object's native venv block when the actual interpreter uses
+one, and copy that same block to `session.runtime_venv` before final serialization.
+The measured runtime JSON and input map are host facts, not future dataset evidence.
+No subprocess, shell, evaluation, automatic approval or workload launch is involved.

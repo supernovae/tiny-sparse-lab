@@ -1,6 +1,6 @@
 {
   "selection_seed": "lab86-full-scope-v1",
-  "selection_rule": "Per stream: pilot first; SHA256(seed + LF + repo + LF + revision + LF + path) ranked prefix until next shard exceeds cap. After pilots, remaining web, synthetic, code.",
+  "selection_rule": "Per stream: pilot = smallest shard per stream (path breaks ties), first; SHA256(seed + LF + repo + LF + revision + LF + path) ranked prefix until next shard exceeds cap. After pilots, remaining web, synthetic, code.",
   "compressed_caps_bytes": {
     "web": 51539607552,
     "synthetic": 17179869184,

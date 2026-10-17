@@ -93,7 +93,7 @@
     "validation": 1,
     "test": 1
   },
-  "merges": "${REVIEWED_DUPLICATE_AND_FAMILY_MERGES}",
+  "merges": "${REVIEWED_DUPLICATE_AND_FAMILY_MERGES_JSON}",
   "reviewer": "${ACTUAL_REVIEWER}",
   "reviewed_on": "${ACTUAL_REVIEW_DATE}"
 }

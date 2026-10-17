@@ -1,6 +1,9 @@
 """Production LAB86 declarations; metadata and tiny fixtures only, no HTTP."""
 
 import hashlib
+import json
+import re
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,8 +13,10 @@ import yaml
 from sparselab.cli.main import build_parser
 from sparselab.config.models import TokenizerSampling
 from sparselab.corpus.acquisition import _bounded_hf_rows, _project_sha
+from sparselab.corpus.admission_inspection import _selection
+from sparselab.corpus.declaration_render import render_declaration
 from sparselab.corpus.mixture import MixtureDeclaration
-from sparselab.corpus.project import load_project
+from sparselab.corpus.project import ReleaseDeclaration, load_project
 from sparselab.corpus.row_qualification import exceptions
 from sparselab.operational_monitor import MonitorPolicy
 from sparselab.training.attempt_budget import AttemptContract
@@ -37,6 +42,10 @@ def test_full_scope_selection_and_first_gate():
     remainder = []
     for domain, candidates in catalog.items():
         pilot = next(r for r in rows if r["domain"] == domain and r["pilot"])
+        assert (
+            pilot["path"]
+            == min(candidates, key=lambda r: (r["bytes"], r["path"]))["path"]
+        )
         total = pilot["bytes"]
         expected.append(pilot["path"])
         ranked = sorted(
@@ -148,6 +157,7 @@ def test_every_production_phase_compiles_and_has_matching_job(tmp_path):
     for slot, (label, phase) in zip(
         session["slots"], plan["phases"].items(), strict=True
     ):
+        assert slot["id"] == label
         needed = {a[2:-1] for a in phase["args"] if a.startswith("${")} - plan[
             "defaults"
         ].keys()
@@ -191,7 +201,14 @@ def test_native_timestamp_support_and_code_language_boundary(tmp_path):
 
 
 def test_package_input_hashes():
-    for relative, digest in read("package-sha256.json").items():
+    manifest = read("package-sha256.json")
+    expected = {
+        p.relative_to(PACKAGE).as_posix()
+        for p in PACKAGE.rglob("*")
+        if p.is_file() and p.name != "package-sha256.json"
+    } | {"../preparation.json"}
+    assert set(manifest) == expected
+    for relative, digest in manifest.items():
         assert hashlib.sha256((PACKAGE / relative).read_bytes()).hexdigest() == digest
 
 
@@ -216,3 +233,173 @@ def test_pilot_boundary_has_only_host_bindings_and_no_future_evidence():
         assert "BASE_RUN_CONFIG" not in str(job)
         if slot["id"] != "attempt-init":
             assert job["argv"][-1] == identity
+
+
+def _render_package_templates(package, output_root):
+    """Render production text with fixture bindings, never execute generated argv."""
+    output_root.mkdir(parents=True, exist_ok=True)
+    fixture = output_root / "package"
+    shutil.copytree(package, fixture)
+    outputs = {}
+    for template in sorted(fixture.rglob("*.template.*")):
+        slots = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*)\}", template.read_text()))
+        values = {}
+        for key in slots:
+            if key.endswith("_JSON"):
+                value = "[]"
+            elif "SHA256" in key or key == "GENERATED_RELEASE_ID":
+                value = "a" * 64
+            elif key == "HOST_REVIEWED_LAB_COMMIT":
+                value = "b" * 40
+            else:
+                value = "/fixture/" + key
+            values[key] = value
+        relative = {
+            "GENERATED_REVIEWED_RELEASE_DECLARATION": "release-reviewed.yaml",
+            "GENERATED_FROZEN_SPLITS": "splits-acquire.yaml",
+            "GENERATED_REVIEWED_ADMISSION_PATH": "fixture-admission.json",
+        }
+        values.update({key: value for key, value in relative.items() if key in slots})
+        destination = template.with_name(template.name.replace(".template.", "."))
+        render_declaration(template, json.dumps(values), destination, output_root)
+        outputs[template.relative_to(fixture).as_posix()] = destination
+    return fixture, outputs
+
+
+def _assert_downstream_semantics(package, output_root):
+    fixture, outputs = _render_package_templates(package, output_root)
+    full = load_project(fixture / "project-acquire.yaml")
+    pilot = load_project(outputs["project-pilot-reuse.template.yaml"])
+    assert pilot.config.sources == full.config.sources[:3]
+    assert pilot.config.transport_budget is None
+    assert [s.id for s in pilot.sources] == [s.id for s in full.sources[:3]]
+    for effect, original in zip(
+        pilot.config.source_effects, full.config.source_effects[:3], strict=True
+    ):
+        assert effect.effect == "reuse_only"
+        assert effect.origin_project_id == full.config.id
+        assert effect.source_id == original.source_id
+        assert effect.declaration_sha256 == original.declaration_sha256
+        assert effect.snapshot_sha256 == "a" * 64
+    for name in ("project-pre-freeze.template.yaml", "project-build.template.yaml"):
+        project = load_project(outputs[name])
+        assert project.config.id == full.config.id
+        assert project.config.sources == full.config.sources
+        assert project.config.source_effects == full.config.source_effects
+        assert project.config.transport_budget == full.config.transport_budget
+        assert _project_sha(project) == _project_sha(full)
+        assert project.release.record_admission is not None
+        assert project.release.normalizer == "normalizer-structure-v3"
+    release = ReleaseDeclaration.model_validate(
+        yaml.safe_load(outputs["release-reviewed.template.yaml"].read_text())
+    )
+    assert release.lm.training_splits == ("train", "validation")
+    assert release.lm.selected and not release.chat.selected
+    assert release.mixture == {"web": 0.6, "synthetic": 0.2, "code": 0.2}
+    clusters = json.loads(outputs["family-clusters.template.json"].read_text())
+    assert isinstance(clusters["merges"], list)
+    for name, project in (
+        ("inspection-selection.json", full),
+        ("pilot-inspection-selection.json", pilot),
+    ):
+        _selection(fixture / name, fixture, {s.id for s in project.sources})
+    plan = load_preparation(PLAN)
+    session = json.loads(outputs["session.template.json"].read_text())
+    assert [s["id"] for s in session["slots"]] == list(plan["phases"])
+    for label in plan["phases"]:
+        job = yaml.safe_load(outputs[f"jobs/{label}.template.json"].read_text())
+        slot = next(s for s in session["slots"] if s["id"] == label)
+        assert job["argv"] == slot["argv"]
+    return outputs
+
+
+def test_all_templates_render_and_downstream_semantics_hold(tmp_path):
+    outputs = _assert_downstream_semantics(PACKAGE, tmp_path)
+    assert len(outputs) == len(list(PACKAGE.rglob("*.template.*")))
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "pilot_digest",
+        "pilot_origin",
+        "pre_freeze_source",
+        "build_source",
+        "build_budget",
+        "test_training_split",
+        "inspection_id",
+        "slot_id",
+        "lowercase_slot",
+    ],
+)
+def test_coordinated_template_tampering_is_rejected(tmp_path, mutation):
+    package = tmp_path / "mutated"
+    shutil.copytree(PACKAGE, package)
+    name = {
+        "pilot_digest": "project-pilot-reuse.template.yaml",
+        "pilot_origin": "project-pilot-reuse.template.yaml",
+        "pre_freeze_source": "project-pre-freeze.template.yaml",
+        "build_source": "project-build.template.yaml",
+        "build_budget": "project-build.template.yaml",
+        "test_training_split": "release-reviewed.template.yaml",
+        "inspection_id": "inspection-selection.json",
+        "slot_id": "session.template.json",
+        "lowercase_slot": "project-pilot-reuse.template.yaml",
+    }[mutation]
+    path = package / name
+    value = yaml.safe_load(path.read_text())
+    if mutation == "pilot_digest":
+        value["source_effects"][0]["declaration_sha256"] = "b" * 64
+    elif mutation == "pilot_origin":
+        value["source_effects"][0]["origin_project_id"] = "different-origin"
+    elif mutation in {"pre_freeze_source", "build_source"}:
+        value["sources"].pop()
+        value["source_effects"].pop()  # Consistent lists still violate full scope.
+    elif mutation == "build_budget":
+        value["transport_budget"]["max_total_body_bytes"] *= 2
+    elif mutation == "test_training_split":
+        value["lm"]["training_splits"].append("test")
+    elif mutation == "inspection_id":
+        value["sources"][0]["source_id"] = "unknown-source"
+    elif mutation == "slot_id":
+        value["slots"][0]["id"] = "wrong-phase"
+    else:
+        value["source_effects"][0]["snapshot_sha256"] = (
+            "${GENERATED_SNAPSHOT_SHA256_lowercase}"
+        )
+    path.write_text(
+        json.dumps(value, indent=2)
+        if path.suffix == ".json"
+        else yaml.safe_dump(value, sort_keys=False)
+    )
+    manifest = json.loads((package / "package-sha256.json").read_text())
+    manifest[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (package / "package-sha256.json").write_text(json.dumps(manifest))
+    # Manifest is deliberately consistent; semantic validation must kill the mutant.
+    with pytest.raises((AssertionError, ValueError)):
+        _assert_downstream_semantics(package, tmp_path / "rendered")
+
+
+def test_verbatim_source_evidence_hashes():
+    for name in ("code-README.md.json", "smollm-README.md.json", "code-loader.py.json"):
+        evidence = read("evidence/" + name)
+        assert (
+            hashlib.sha256(evidence["text"].encode()).hexdigest()
+            == evidence["raw_sha256"]
+        )
+
+
+def test_host_object_binding_is_data_not_a_quoted_mapping(tmp_path):
+    _, outputs = _render_package_templates(PACKAGE, tmp_path)
+    job = json.loads(outputs["pilot-jobs/pilot-acquire.template.json"].read_text())
+    runtime = {"python": "3.14.4", "executable_sha256": "a" * 64}
+    required = {"/fixture/project-acquire.yaml": "b" * 64}
+    for field, value in (("runtime", runtime), ("required_files", required)):
+        path = tmp_path / (field + ".json")
+        path.write_text(json.dumps(value))
+        job[field] = str(path)
+        parsed = json.loads(Path(job[field]).read_text())
+        assert isinstance(parsed, dict) and parsed
+        job[field] = parsed
+    assert job["runtime"] == runtime
+    assert job["required_files"] == required

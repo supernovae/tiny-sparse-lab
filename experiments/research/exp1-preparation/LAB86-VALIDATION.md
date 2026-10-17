@@ -11,8 +11,8 @@ fixtures, never real dataset payloads.
 
 `pytest -q tests/test_lab86_package.py tests/test_corpus_acquisition.py
  tests/test_preparation_commands.py tests/test_preparation_tokenizer_dispatch.py`:
-**94 passed in 38.05s**.
-Repository Ruff check/format, research lint (569 records), and staged diff checks
+**106 passed in 41.71s**.
+Repository Ruff check/format, research lint (570 records), and staged diff checks
 passed. Fetched source evidence is retained as JSON text with original byte SHA256,
 which preserves upstream text while conforming to the research record format.
 
@@ -30,3 +30,14 @@ and matching Harness digest allowance; the previous cached image predates it.
 Host qualification/bindings belong to the chief. Downstream admission, family,
 late-binding and model-config questions do not block initial pilot evidence.
 No self-review clearance or operational gate release is implied.
+
+Review 5556404189 reconciliation: B1 evidence-format and B2 uppercase-slot fixes
+were already in b2fc3aa. B3 now renders every production template, loads pilot
+reuse/prefreeze/build with native schemas, verifies exact source scope/budgets,
+reviewed release training splits, origin/digests and both inspection selections.
+Nine coordinated mutations (including all seven review mutants, slot-ID drift and
+lowercase slots) are rejected even after their manifest hashes are recomputed.
+Family merges now use the native JSON-array fragment slot. Pilot selection is
+independently checked against the smallest catalog shard; source-text envelopes
+are verified against their original byte digests. Host object assembly is explicitly
+JSON parsing, documented and tested; no quoted mapping is submitted to Harness.
