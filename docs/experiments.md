@@ -1,12 +1,14 @@
 # Independent experiments and controlled comparisons
 
-This guide explains the execution machinery. Copyable walkthroughs are indexed
-under [`experiments/samples/`](../experiments/samples/); identity-bound research
-campaigns and iteration notes belong under
-[`experiments/research/`](../experiments/research/). Keep downloads, prepared
-data, run stores, checkpoints, logs, and generated reports under the external persistent root at
+This guide explains the execution machinery. Neutral teaching walkthroughs are
+indexed under [`experiments/samples/`](../experiments/samples/). Keep your current
+research declarations in a user-owned recipe directory; the local
+[`experiments/research/`](../experiments/research/) tree retains historical references. Keep downloads, prepared
+data, run stores, checkpoints, logs, and generated reports under the external
+persistent root at
 `$SPARSELAB_WORK_DIR/experiments/<campaign>/`.
-Report code gaps through the [contribution workflow](../CONTRIBUTING.md#planning-and-contributions); scientific
+Report code gaps through the
+[contribution workflow](../CONTRIBUTING.md#planning-and-contributions); scientific
 next steps remain in the research roadmap/lifecycle.
 
 For one local comparison, start with [the TinyStories lab loop](tinystories-microlab.md)
@@ -74,6 +76,13 @@ must match the reused artifact unless `fraction_tokenizer` explicitly names a
 second verified external tokenizer artifact with that selector's SHA.
 `release_set.accepted_generation_statuses` accepts Corpus Forge's verification
 labels as unordered filter classes, not a quality ranking or score.
+
+The following retained neutral fixture teaches corpus-shape and exact-fraction
+semantics. It is not a model-quality experiment. For another plan, replace the
+sample path with your explicit current declaration and its bound inputs.
+Preparation can train tokenizers and materialize data; use separately authorized
+resources. The [disposition map](sample-disposition.json) identifies the fixture
+and its unchanged historical preservation.
 
 ```sh
 uv run --locked --extra cpu sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json

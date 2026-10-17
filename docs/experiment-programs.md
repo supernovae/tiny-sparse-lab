@@ -17,6 +17,14 @@ belong to the concrete config and execution settings; see [runtime support](runt
 Corpus Forge programs seal portable provenance with their prepared inputs; see
 [Forge worker provenance](#forge-worker-provenance) for relocation and continuation.
 
+This synthetic program is retained as a neutral teaching fixture. Its fixed
+settings demonstrate the native phase interface, not personal model research.
+The [disposition map](sample-disposition.json) records retained files and
+[unchanged historical instructions](https://github.com/supernovae/kybern-workshop/blob/df5a43aff682d14c3a3481413b80f12e7894a042/provenance/lab/docs/experiment-programs.md).
+Preservation does not grant execution authority or transfer historical results.
+For your own experiment, supply current plan/run/tokenizer declarations with
+explicit paths and a new experiment identity.
+
 ## Read the program
 
 The runnable [offline-chain.yaml](../experiments/samples/training-program/offline-chain.yaml)
@@ -72,12 +80,36 @@ you need external input storage, without editing an active or frozen sample:
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 SAMPLE=experiments/samples/training-program
 WORK="$SPARSELAB_WORK_DIR/experiments/offline-training-chain-v1"
-mkdir -p "$WORK/inputs"
+DECLARATIONS="$PWD/sparselab-work/experiments/offline-training-chain-v1/inputs"
+mkdir -p "$WORK" "$DECLARATIONS"
 df -h "$WORK"
 df -i "$WORK"
 uv run --locked --extra cpu sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
 PREPARED=$(uv run --locked --extra cpu sparselab data prepare "$SAMPLE/run.yaml")
 ```
+
+`WORK` selects the external experiment/controller store. `DECLARATIONS` stays
+inside this checkout so standalone binding resolves the template's repository-
+relative evaluation suite to the same file. The run and tokenizer declarations
+also explicitly select in-checkout `sparselab-work` preparation destinations;
+`SPARSELAB_WORK_DIR` does not relocate them. Use a fresh task-owned destination
+for each invocation; do not overwrite existing plans or active inputs. Tokenizer
+training and data preparation require separately authorized resources.
+
+The generated bound plan is intentionally ignored and uncommitted. Both
+`experiment run` commands below therefore explicitly pass
+`--allow-uncommitted-declaration`. This permits noncommitted declaration
+provenance; it does not make the plan committed or reproducible from Git.
+The lock pins declaration hashes, and dispatch still rejects bytes that differ
+from that lock. The flag grants no compute approval and bypasses neither
+artifact authentication nor runtime/resource gates.
+
+`STORAGE_INSIDE_GIT_CHECKOUT` is expected for this fixture's preparation and
+bound-declaration locations. Deleting the checkout can lose those bytes. Keep
+durable copies of required declarations, inputs and evidence outside the
+checkout before cleanup; retain their identities and do not assume a relocated
+copy is executable without the native binding checks.
+
 
 Bind the already-prepared tokenizer and packed root directly. The adapter
 authenticates the real tokenizer, prepared arrays and their relation to the run
@@ -99,8 +131,8 @@ export, so moving the authored output does not select another parent.
 uv run --locked --extra cpu sparselab experiment bind-inputs \
   "$SAMPLE/run.yaml" "$SAMPLE/offline-chain.yaml" \
   --prepared-root "$PREPARED" \
-  --output "$WORK/inputs/plan.yaml" --json
-PLAN="$WORK/inputs/plan.yaml"
+  --output "$DECLARATIONS/plan.yaml" --json
+PLAN="$DECLARATIONS/plan.yaml"
 uv run --locked --extra cpu sparselab experiment validate "$PLAN" --json
 uv run --locked --extra cpu sparselab experiment inspect "$PLAN" --json
 LOCK=$(uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json | jq -r '.lock')
@@ -266,7 +298,7 @@ components. Neither output can be overwritten.
 uv run --locked --extra cpu sparselab experiment derive "$PLAN" \
   --set 'id="offline-training-chain-v2"' \
   --set retention.keep_periodic=false \
-  --output "$WORK/inputs/plan-v2.yaml" --json
+  --output "$DECLARATIONS/plan-v2.yaml" --json
 ```
 
 The output is a YAML declaration and
@@ -288,7 +320,7 @@ immutable runnable identity through the ordinary `experiment lock` command:
 
 ```sh
 LOCK=$(uv run --locked --extra cpu sparselab experiment lock \
-  "$WORK/inputs/plan-v2.yaml" --json | jq -r '.lock')
+  "$DECLARATIONS/plan-v2.yaml" --json | jq -r '.lock')
 ```
 
 Use `experiment bind-inputs` before derivation for templates that lack
@@ -322,7 +354,8 @@ the checkpoint transition or establish model quality.
 Submit the root phase and start the controller:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain --json
+uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain \
+  --allow-uncommitted-declaration --json
 uv run --locked --extra cpu sparselab controller run --store "$WORK/controller"
 ```
 
@@ -339,7 +372,8 @@ Then explicitly submit the dependent phase; the same running controller will
 dispatch it:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue --json
+uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue \
+  --allow-uncommitted-declaration --json
 uv run --locked --extra cpu sparselab experiment list --store "$WORK/controller"
 ```
 
@@ -380,7 +414,10 @@ uv run --locked --extra cpu sparselab generate RETURNED_RUN_ID --runs-dir "$WORK
 ```
 
 Keep the declaration and small protocols under version control; keep mutable
-sources, workers, stores, stages and reports under this ignored workspace.
+sources, workers, stores, stages and reports at their declared locations:
+controller outputs under the external work root,
+and this fixture’s explicit prepared inputs and bound plans under the ignored
+in-checkout `sparselab-work` directory.
 Preserve failed and interrupted runs, and retain verified previous/best/terminal
 checkpoints under the declared policy. Only remove task-owned output after
 confirming no worker is active. For exact comparison contracts, typed external

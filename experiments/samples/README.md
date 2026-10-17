@@ -29,6 +29,19 @@ research evidence.
 A sample should say what it demonstrates, what it deliberately does not prove,
 the expected cost class, and which paths can be deleted safely.
 
+## Retained neutral teaching fixtures
+
+The training-program trio, corpus-shape plan, held-out gate and pinned fraction
+tokenizer remain active Lab teaching fixtures. They teach native interfaces using
+synthetic inputs; preserving copies in Workshop does not make them personal
+research or remove their current teaching role. See the
+[explicit disposition map](../../docs/sample-disposition.json) for byte identities
+and separate stage-one, stage-two and guide preservation records.
+
+Original prose is [historical evidence](https://github.com/supernovae/kybern-workshop/blob/df5a43aff682d14c3a3481413b80f12e7894a042/provenance/lab/experiments/samples/README.md),
+not authority to run or a guarantee of model quality. Current commands below use
+the retained Lab files. Personal research belongs in externally authored recipes.
+
 ## Corpus shape and exact generated fraction
 
 [`corpus-shape-fraction.yaml`](corpus-shape-fraction.yaml) is an offline CPU
