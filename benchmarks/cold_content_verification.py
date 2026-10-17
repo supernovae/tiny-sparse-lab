@@ -143,6 +143,11 @@ def benchmark(
     train_array = prepared_root.absolute() / "train.npy"
     if not train_array.is_file():
         raise FileNotFoundError(train_array)
+    manifest_path = train_array.parent / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    expected_train_sha256 = manifest["train"]["sha256"]
+    if manifest["train"]["size_bytes"] != train_array.stat().st_size:
+        raise ValueError("prepared manifest train size differs from array")
     root.mkdir(parents=True, exist_ok=True)
     storage = os.statvfs(root)
     if (
@@ -155,11 +160,6 @@ def benchmark(
         fixture(fixture_path)
     elif fixture_path.stat().st_size != FIXTURE_BYTES:
         raise ValueError("existing fixture has unexpected size")
-    manifest_path = train_array.parent / "manifest.json"
-    manifest = json.loads(manifest_path.read_text())
-    expected_train_sha256 = manifest["train"]["sha256"]
-    if manifest["train"]["size_bytes"] != train_array.stat().st_size:
-        raise ValueError("prepared manifest train size differs from array")
     # Bounded by the existing host planner; an operator may cap this below host capacity.
     plan = sha_work_plan(operator_cap=4)
     hardware = hardware_observation()
@@ -269,7 +269,7 @@ def benchmark(
         if digests["blake3_1"] != digests["blake3_bounded"]:
             raise RuntimeError(f"BLAKE3 thread variants disagree: {name}")
     return {
-        "format": "cold-content-verification-v1",
+        "format": "cold-content-verification-v2",
         "metadata": metadata,
         "inputs": {
             name: {"path": str(path), "fingerprint": baselines[name]}
@@ -289,7 +289,7 @@ def benchmark(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path, help="new external JSON result path")
     parser.add_argument(
         "--fixture-root",
         type=Path,

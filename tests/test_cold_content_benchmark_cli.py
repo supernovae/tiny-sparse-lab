@@ -77,3 +77,47 @@ def test_benchmark_routes_only_explicit_paths(tmp_path, monkeypatch):
     assert json.loads(output.read_text()) == {"samples": []}
     assert not fixture.exists()
     assert not prepared.exists()
+
+
+@pytest.mark.parametrize(
+    "invalid", ["missing_array", "missing_manifest", "size_mismatch"]
+)
+def test_benchmark_validates_prepared_input_before_allocation(
+    tmp_path, monkeypatch, invalid
+):
+    module = _module()
+    prepared = tmp_path / "selected-prepared"
+    prepared.mkdir()
+    array = prepared / "train.npy"
+    if invalid != "missing_array":
+        array.write_bytes(b"tiny")
+    if invalid == "size_mismatch":
+        (prepared / "manifest.json").write_text(
+            json.dumps({"train": {"sha256": "a" * 64, "size_bytes": 5}})
+        )
+    # An unrelated cwd must never substitute its self-consistent input.
+    other = tmp_path / "unrelated-cwd"
+    other.mkdir()
+    (other / "train.npy").write_bytes(b"decoy")
+    (other / "manifest.json").write_text(
+        json.dumps({"train": {"sha256": "b" * 64, "size_bytes": 5}})
+    )
+    monkeypatch.chdir(other)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid prepared input reached allocation or host work")
+
+    for name in ("fixture", "sha_work_plan", "hardware_observation"):
+        monkeypatch.setattr(module, name, forbidden)
+    output = tmp_path / "result.json"
+    fixture_root = tmp_path / "must-not-exist"
+    if invalid == "size_mismatch":
+        with pytest.raises(ValueError, match="prepared manifest train size differs"):
+            module.benchmark(output, fixture_root, 3, 180, prepared)
+    else:
+        with pytest.raises(FileNotFoundError) as error:
+            module.benchmark(output, fixture_root, 3, 180, prepared)
+        missing = array if invalid == "missing_array" else prepared / "manifest.json"
+        assert str(missing) in str(error.value)
+    assert not fixture_root.exists()
+    assert not output.exists()
