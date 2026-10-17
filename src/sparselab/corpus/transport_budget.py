@@ -99,6 +99,16 @@ class TransportBudget:
         self.binding = _binding(project)
         self._read()
 
+    @property
+    def _total_body_limit(self) -> int | None:
+        # Portable acquisition shares ledger mechanics with its own admission
+        # schema; it does not declare the corpus-only combined/gate limits.
+        return getattr(self.spec, "max_total_body_bytes", None)
+
+    @property
+    def _initial_body_limit(self) -> int | None:
+        return getattr(self.spec, "initial_body_bytes", None)
+
     def _validate_state(self, state: dict[str, Any]) -> None:
         if state["binding"] != self.binding:
             raise ValueError("transport budget binding changed")
@@ -125,21 +135,18 @@ class TransportBudget:
         ):
             raise ValueError("transport budget ledger counters are invalid")
         charged = state["source_charged"] + state["metadata_charged"]
-        if (
-            self.spec.max_total_body_bytes is not None
-            and charged > self.spec.max_total_body_bytes
-        ):
+        if self._total_body_limit is not None and charged > self._total_body_limit:
             raise ValueError("transport budget cumulative total exceeded")
         if (
-            self.spec.initial_body_bytes is not None
+            self._initial_body_limit is not None
             and "gate_review" not in state
-            and charged > self.spec.initial_body_bytes
+            and charged > self._initial_body_limit
         ):
             raise ValueError("transport budget initial gate exceeded")
         if "gate_review" in state:
             review = state["gate_review"]
             if (
-                self.spec.initial_body_bytes is None
+                self._initial_body_limit is None
                 or not isinstance(review, dict)
                 or set(review)
                 != {"receipt_sha256", "report_sha256", "approval_reference"}
@@ -423,17 +430,14 @@ class TransportBudget:
         if type(amount) is not int or amount <= 0:
             raise ValueError("transport reservation requires positive integer bytes")
         charged = state["source_charged"] + state["metadata_charged"] + amount
-        if (
-            self.spec.max_total_body_bytes is not None
-            and charged > self.spec.max_total_body_bytes
-        ):
+        if self._total_body_limit is not None and charged > self._total_body_limit:
             raise ValueError(
                 "transport budget cumulative source-plus-metadata allowance exhausted"
             )
         if (
-            self.spec.initial_body_bytes is not None
+            self._initial_body_limit is not None
             and "gate_review" not in state
-            and charged > self.spec.initial_body_bytes
+            and charged > self._initial_body_limit
         ):
             raise ValueError(
                 "transport initial feasibility gate requires an owner-reviewed report"
@@ -475,7 +479,7 @@ class TransportBudget:
             )
 
         def update(state: dict[str, Any]) -> dict[str, Any]:
-            if self.spec.initial_body_bytes is None or "gate_review" in state:
+            if self._initial_body_limit is None or "gate_review" in state:
                 raise ValueError("transport initial gate is absent or already released")
             if state != report_value["ledger_receipt"]:
                 raise ValueError("gate report is stale or belongs to another ledger")
