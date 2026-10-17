@@ -141,3 +141,77 @@ compilation/admission through the existing executor, packaging/publication, and
 bounded actual CPU/GPU portability evidence with current pins. This preview is
 not that evidence. No proof stores, lock publication, new science identity,
 Workshop/website changes, or release tags are introduced.
+
+## Author and relocate declarations with installed Lab
+
+Recipes are YAML/JSON and optional documentation in any user directory or Git
+repository. Lab owns parsing, planning and execution. Neither Workshop, our
+GitHub organization, Notion nor an internal runner is needed.
+
+Validate an authored native section without probing a runtime or opening model
+or corpus payloads:
+
+```sh
+sparselab config validate model.json --kind model --json
+sparselab config validate optimizer.yaml --kind optimizer --json
+sparselab config validate run.yaml --kind run --json
+sparselab config validate tokenizer.yaml --kind tokenizer --json
+```
+
+These commands use the existing ModelConfig, optimizer union, RunConfig and
+TokenizerTrainConfig schemas. They reject unknown fields and malformed YAML/JSON,
+including duplicate keys. A valid individual section does not prove its compatibility
+with other sections, artifact availability, hardware capacity or scientific readiness.
+They do not allocate a model, train, download or evaluate anything.
+
+For an existing inventoried matrix, preparation or workflow descriptor:
+
+```sh
+sparselab experiment recipe export /source/recipe.yaml --output /my/new-recipe
+sparselab experiment recipe inspect /my/new-recipe/recipe.yaml --json
+```
+
+Export copies exactly the authenticated descriptor and its declared metadata
+members. It refuses existing destinations, symlinks, missing files and digest
+mismatches. The parent directory must exist. The descriptor is written last;
+an I/O failure can leave a partial destination, which is not silently overwritten
+on retry. Export does not copy undeclared payloads or credentials, create approval,
+remap external artifact bindings, or publish to Git. Never inventory secrets.
+Preparation/workflow exports use their respective native inspect commands with
+new explicit local bindings; inventory validation alone is not a workflow plan.
+Ordinary Git can then commit/push the authored directory to a user-selected remote.
+
+Existing `research scaffold` composes native studies from its selected research
+entry and catalog profiles; `config derive` authors a typed variant. Export reuses
+an existing descriptor: it is **not** a complete general recipe generator. Native
+creation of a fully connected recipe from arbitrary new inputs, broader training
+continuation and accelerator/evaluation composition remain gaps. A missing future
+checkpoint or tokenizer digest must remain missing, never a fabricated placeholder
+claimed as verified. Use existing native artifact verification after real outputs
+exist. Full reproducibility of a model recipe cannot be inferred from schema dry run.
+
+## Explicit content admission outside Git
+
+Preparation and workflow execution accept exactly one source selection:
+
+- `reviewed_commit`: existing clean committed inventory at the exact current recipe
+  HEAD; unchanged semantics.
+- `reviewed_descriptor_sha256`: SHA-256 of the exact descriptor bytes, for explicitly
+  selected content in a plain directory or arbitrary repository. Omit
+  `reviewed_commit` entirely in this mode.
+
+Both still require the real `recipe_sha256` and `binding_sha256` returned by native
+inspection, the current CPU interpreter and every existing resource/operation limit.
+For example, obtain the content selection with `sha256sum /my/recipe.yaml`, then
+put that digest in `reviewed_descriptor_sha256` of the normal admission document.
+No command fills approval or admits execution automatically.
+
+The context authenticates the descriptor and every inventoried member before
+execution and on refresh. Receipts report `CONTENT_BOUND` and `source_commit: null`;
+this is byte identity, **not** Git provenance, author authentication or new compute
+authority. Changing bytes, bindings, source-selection mode or admission invalidates
+resume. Existing native artifact checks, approvals, output ownership and resource
+ceilings still apply. Content mode does not permit the Git-only recovery-publication
+mutation exception. Execution outputs still require an explicit root outside Git.
+This makes the currently supported native CPU preparation/workflow contracts usable
+without a recipe Git checkout; it does not expand their supported operations.

@@ -16,12 +16,13 @@ from sparselab.config.models import StrictModel
 from sparselab.experiments.compiler import expand_axes
 from sparselab.experiments.plan import recipe_run_config
 from sparselab.experiments.preparation_execution import _environment
+from sparselab.experiments.recipe_admission import RecipeAdmission
 from sparselab.experiments.workflow_recipe import (
     _location,
     load_workflow,
     locked_workflow_context,
 )
-from sparselab.recovery.provenance import git_provenance, repository_root
+from sparselab.recovery.provenance import repository_root
 
 
 class WorkflowLimits(StrictModel):
@@ -32,8 +33,7 @@ class WorkflowLimits(StrictModel):
     max_eval_batches: StrictInt = Field(gt=0)
 
 
-class WorkflowAdmission(StrictModel):
-    reviewed_commit: StrictStr = Field(pattern=r"^[0-9a-f]{40}$")
+class WorkflowAdmission(RecipeAdmission):
     recipe_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     binding_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     cpu_python: Path
@@ -280,19 +280,9 @@ class WorkflowExecution:
         _location(self.bindings, str(self.work_dir))
         if repository_root(self.work_dir) is not None:
             raise ValueError("workflow work root must be outside Git")
-        provenance = git_provenance(
-            (
-                self.source,
-                *(current.context.root / name for name in current.context.documents),
-            )
+        provenance = self.admission.provenance(
+            self.source, current.context, operation="workflow"
         )
-        if (
-            provenance["status"] != "CLEAN_AND_COMMITTED"
-            or provenance["source_commit"] != self.admission.reviewed_commit
-        ):
-            raise ValueError(
-                "workflow requires unchanged clean declarations at the selected reviewed commit"
-            )
         return {
             **provenance,
             "allow_uncommitted_declaration": False,

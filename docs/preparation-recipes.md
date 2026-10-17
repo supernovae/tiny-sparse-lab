@@ -136,14 +136,17 @@ and `resume` require an explicit local admission document with all these fields:
 
 Digest placeholders above must be replaced with real hexadecimal identities.
 The selected Python must be the interpreter running the command; the command
-never provisions or launches another environment. Recipe descriptor and every
-inventoried declaration must be clean and committed at `reviewed_commit` in their
+never provisions or launches another environment. When selecting `reviewed_commit`,
+the recipe descriptor and every inventoried declaration must be clean and committed in their
 own repository: `reviewed_commit` must equal the recipe repository's current
 HEAD. Any later commit, including an unrelated change elsewhere in that repository,
 invalidates the admission. Selecting that commit asserts that the owner reviewed the recipe.
 Git proves committed bytes, **not trusted authorship** or review. No uncommitted
 or model-execution override is accepted on this route. Legacy Campaign overrides
-and readers retain their existing behavior for legacy records.
+and readers retain their existing behavior for legacy records. Alternatively, select
+exact descriptor content with `reviewed_descriptor_sha256` and omit `reviewed_commit`;
+see [content admission](portable-recipes.md#explicit-content-admission-outside-git).
+All other admission limits and artifact checks remain required.
 
 For the synthetic route, the total train plus
 validation document and token limits of each native config must fit the explicit

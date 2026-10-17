@@ -3060,6 +3060,14 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     weight_import.set_defaults(handler=_weights_import)
     config = commands.add_parser("config")
     config_commands = config.add_subparsers(dest="config_command", required=True)
+    from sparselab.config.validation import add_arguments as validation_arguments
+
+    validation_arguments(
+        config_commands.add_parser(
+            "validate",
+            help="Validate native declaration schema without runtime probing",
+        )
+    )
     config_derive = config_commands.add_parser(
         "derive",
         help="Publish a typed config variant; validates schema compatibility, not artifacts or runtime",

@@ -17,17 +17,17 @@ from pathlib import Path
 
 from pydantic import Field, StrictInt, StrictStr, model_validator
 
-from sparselab.config.models import StrictModel, TokenizerTrainConfig
+from sparselab.config.models import TokenizerTrainConfig
 from sparselab.config.recipe_paths import _paths
 from sparselab.experiments.acquisition_admission import AcquisitionAdmission
 from sparselab.experiments.preparation_recipe import load_preparation_recipe
+from sparselab.experiments.recipe_admission import RecipeAdmission
 from sparselab.experiments.workflow_recipe import _location
-from sparselab.recovery.provenance import git_provenance, repository_root
+from sparselab.recovery.provenance import repository_root
 from sparselab.training.manifest import source_identity
 
 
-class PreparationAdmission(StrictModel):
-    reviewed_commit: StrictStr = Field(pattern=r"^[0-9a-f]{40}$")
+class PreparationAdmission(RecipeAdmission):
     recipe_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     binding_sha256: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
     cpu_python: Path
@@ -249,18 +249,9 @@ class PreparationExecution:
                         raise ValueError(
                             "snapshot input overlaps native operational storage"
                         )
-        paths = (
-            self.source,
-            *(current.context.root / name for name in current.context.documents),
+        provenance = self.admission.provenance(
+            self.source, current.context, operation="preparation"
         )
-        provenance = git_provenance(paths)
-        if (
-            provenance["status"] != "CLEAN_AND_COMMITTED"
-            or provenance["source_commit"] != self.admission.reviewed_commit
-        ):
-            raise ValueError(
-                "preparation requires unchanged clean declarations at the selected reviewed commit"
-            )
         ancestor = self.work_dir
         while not ancestor.exists():
             ancestor = ancestor.parent

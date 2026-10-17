@@ -184,8 +184,10 @@ The existing typed Campaign validator checks dependencies and producer kinds.
 `WorkflowExecution` accepts the descriptor, bindings, absolute work root outside
 Git and one current `WorkflowAdmission` containing the reviewed recipe commit,
 recipe and binding digests, current CPU Python and explicit `limits`. These are explicit caller
-assertions, not remote author attestation. It requires unchanged clean committed
-inventory, one unexpanded synthetic CPU PyTorch cell, and local native runtime
+assertions, not remote author attestation. Alternatively select exact descriptor
+bytes with `reviewed_descriptor_sha256` instead of `reviewed_commit`, as described in
+[content admission](portable-recipes.md#explicit-content-admission-outside-git).
+It requires unchanged authenticated inventory, one unexpanded synthetic CPU PyTorch cell, and local native runtime
 acceptance. Profile/worker selection, accelerator evaluation, continuations, acquisition and
 alternate evaluation kinds remain unavailable. The controlled snapshot pair below
 uses the same admission contract and graph validator.
