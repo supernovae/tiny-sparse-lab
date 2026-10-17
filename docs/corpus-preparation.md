@@ -313,7 +313,6 @@ selected-content hashes also consume memory. These costs need measurement in the
 pilot; a 512 MiB fit budget does not bound total I/O. This does not authorize
 fitting on a real corpus or running a model workload.
 
-
 ## Initial transfer feasibility gate
 
 A new transport budget may specify `initial_body_bytes` below
@@ -327,13 +326,23 @@ Before a reservation crosses the initial cap, acquisition refuses and retains
 all completed snapshots and failure evidence. Save `corpus budget-status PROJECT`
 as the `ledger_receipt` member of a report with explicit `findings`. Findings must
 report `status: ready` to continue; blocked findings refuse. A separately
-reviewed JSON decision contains exactly `decision: continue`, the exact report
+reviewed JSON decision requires `decision: continue`, the exact report
 `report_sha256`, and an actual nonempty `approval_reference`. With real owner
 authorization, use `corpus budget-release-gate PROJECT --report REPORT --review
 REVIEW`. This action is intentionally excluded from automatic attempt dispatch.
-The ledger receipt must match exactly and no transfer may be active. The action
-records review provenance once and changes no spent counter, deadline, source
-scope or other hold. Approval text in a file never creates authority.
+The ledger receipt must match exactly. Catchable interrupts mark reservations
+interrupted and re-raise. After an uncatchable stop, a reservation can still say
+`started`: before release, the owner must independently verify that its process
+and descendants have stopped, then add `stopped_transfers` to the reviewed
+JSON decision. This maps every started transfer key to a nonempty stop-evidence
+reference. Missing, extra or blank entries refuse. An unchanged receipt alone
+is not proof of shutdown. Release retains the pre-reconciliation receipt hash,
+records those references and marks only those entries interrupted; all charged
+bytes, retry history, deadline and scope remain unchanged. Partial or zero-byte
+pilot results must be disclosed in feasibility findings, never called completed
+preparation. A retry consumes another full reservation from the same total.
+Approval text or stop evidence in a file never creates authority or bypasses
+another hold. Never reconcile a live transfer.
 
 See the [unexecuted EXP1 plan](../experiments/research/exp1-preparation/README.md)
 for the full native phase sequence and remaining source/runtime bindings. A
@@ -344,3 +353,7 @@ Historical fixed evaluation selection/slice commands still require their three
 historical strata. Fresh `real_english`/`synthetic`/`code` preparation does not
 make those evaluation protocols compatible; a separately reviewed evaluation
 change is required before using fresh strata there.
+
+Tokenizer dispatch cold-verifies the export before reserving an attempt; the
+trainer verifies it again. This adds a full verification pass that must be
+included in the pilot's observed I/O and wall-time costs.

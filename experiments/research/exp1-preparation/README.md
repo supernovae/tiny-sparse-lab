@@ -18,6 +18,11 @@ public help for required ledger/baseline arguments. There is no run-all command.
    `codeparrot/github-code-clean` to
    `c48d40f9e70f0196f8236901ee35807f7d6c44c0`. Each admission source entry selects
    one exact shard; entries share reviewed strata and repository/seed families.
+   Acquisition walks sorted declaration paths. Put the three reviewed pilot
+   declarations first (web, synthetic, code), followed by the remaining scope;
+   verify that the next reservation exceeds the remaining initial allowance.
+   Without this ordering and size check, the gate selects an alphabetical
+   prefix, not a three-stream pilot. Do not initialize until that check passes.
 2. Initialize once, then acquire under the initial gate. Whole-file reservations
    crossing 4 GiB refuse before transfer; earlier completed snapshots and all
    failure evidence remain. Such a refused acquisition is **not success**. Read
@@ -33,8 +38,10 @@ public help for required ledger/baseline arguments. There is no run-all command.
    `PILOT_APPLICATION_POLICY` and `PILOT_INSPECTION_SELECTION` to this pilot view.
    Its separate zero-model attempt contract must bind that exact project; retain
    the whole-preparation disk baseline, wall deadline and resource envelope.
+   Set `offline_retained_sources_only: true` in that project-bound contract.
    Initial local copy materialization uses `acquire` without `--offline` (that
-   flag verifies an already published lock); every source must be `reuse_only`.
+   flag verifies an already published lock). Dispatch permits it only with a
+   bound project, every source effect `reuse_only`, and no transport budget.
    Copies count against additional workspace bytes. This creates no second
    network allocation and does not change the full-scope transport ledger.
 3. Stop for actual owner review of schema/rights, provenance, usable yields,

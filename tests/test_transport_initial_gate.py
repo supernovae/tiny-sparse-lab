@@ -218,3 +218,328 @@ def test_invalid_reservation_cannot_change_charges(tmp_path, amount, kind):
         else:
             ledger.reserve_transfer("one", "invalid", amount)
     assert ledger.receipt() == before
+
+
+def mutate_ledger(ledger, change):
+    import sqlite3
+
+    with sqlite3.connect(ledger.path) as db:
+        state = json.loads(
+            db.execute("SELECT body FROM state WHERE id=1").fetchone()[0]
+        )
+        change(state)
+        db.execute("UPDATE state SET body=? WHERE id=1", (json.dumps(state),))
+
+
+@pytest.mark.parametrize(
+    "change", ["total", "initial", "ungated", "keys", "blank", "stop_refs"]
+)
+def test_tampered_gate_ledger_refuses_read(tmp_path, change):
+    ledger, _ = fixture(tmp_path)
+    pilot(ledger)
+    if change == "ungated":
+        ledger.spec = ledger.spec.model_copy(update={"initial_body_bytes": None})
+
+    def tamper(state):
+        if change in {"total", "initial"}:
+            state["metadata_charged"] = 90 if change == "total" else 20
+            if change == "total":
+                state["gate_review"] = {
+                    "receipt_sha256": "a",
+                    "report_sha256": "b",
+                    "approval_reference": "fixture",
+                }
+        else:
+            state["gate_review"] = {
+                "receipt_sha256": "a",
+                "report_sha256": "b",
+                "approval_reference": "fixture",
+            }
+            if change == "keys":
+                state["gate_review"]["extra"] = "x"
+            elif change == "blank":
+                state["gate_review"]["approval_reference"] = "  "
+            elif change == "stop_refs":
+                state["gate_review"]["stopped_transfers"] = {"one": " "}
+
+    mutate_ledger(ledger, tamper)
+    with pytest.raises(
+        ValueError, match="total exceeded|initial gate exceeded|gate review is invalid"
+    ):
+        ledger.receipt()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "report_link",
+        "review_link",
+        "large_report",
+        "large_review",
+        "report_keys",
+        "decision_keys",
+        "stop",
+        "blank",
+        "ungated",
+        "deadline",
+    ],
+)
+def test_release_review_guards_preserve_ledger(tmp_path, monkeypatch, change):
+    import time
+
+    ledger, _ = fixture(tmp_path)
+    pilot(ledger)
+    report, review = evidence(tmp_path, ledger)
+    before = ledger.receipt()
+    if change.endswith("_link"):
+        original = report if change == "report_link" else review
+        link = tmp_path / "link.json"
+        link.symlink_to(original)
+        if change == "report_link":
+            report = link
+        else:
+            review = link
+    elif change.startswith("large_"):
+        target = report if change == "large_report" else review
+        target.write_text(target.read_text() + " " * (1024 * 1024))
+        if change == "large_report":
+            decision = json.loads(review.read_text())
+            decision["report_sha256"] = hashlib.sha256(report.read_bytes()).hexdigest()
+            review.write_text(json.dumps(decision))
+    elif change == "report_keys":
+        value = json.loads(report.read_text())
+        value["extra"] = True
+        report.write_text(json.dumps(value))
+        value = json.loads(review.read_text())
+        value["report_sha256"] = hashlib.sha256(report.read_bytes()).hexdigest()
+        review.write_text(json.dumps(value))
+    elif change in {"decision_keys", "stop", "blank"}:
+        value = json.loads(review.read_text())
+        if change == "decision_keys":
+            value["extra"] = True
+        elif change == "stop":
+            value["decision"] = "stop"
+        else:
+            value["approval_reference"] = "  "
+        review.write_text(json.dumps(value))
+    elif change == "ungated":
+        ledger.spec = ledger.spec.model_copy(update={"initial_body_bytes": None})
+    else:
+        monkeypatch.setattr(time, "time", lambda: before["deadline"] + 1)
+    with pytest.raises(ValueError):
+        ledger.release_gate(report, review)
+    assert ledger.receipt() == before
+
+
+def test_gate_records_exact_reviewed_receipt_hash(tmp_path):
+    from sparselab.training.manifest import canonical_json
+
+    ledger, _ = fixture(tmp_path)
+    pilot(ledger)
+    report, review = evidence(tmp_path, ledger)
+    expected = hashlib.sha256(canonical_json(ledger.receipt())).hexdigest()
+    result = ledger.release_gate(report, review)
+    assert result["receipt_sha256"] == expected
+    assert result["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("field", ["initial_body_bytes", "max_total_body_bytes"])
+@pytest.mark.parametrize(
+    "value", [True, 1.0, 1.5, "1", 0, -1, float("nan"), float("inf")]
+)
+def test_gate_spec_strict_positive_caps(tmp_path, field, value):
+    from sparselab.corpus.project import TransportBudgetSpec
+
+    ledger, _ = fixture(tmp_path)
+    payload = ledger.spec.model_dump(mode="json")
+    payload[field] = value
+    if field == "max_total_body_bytes":
+        payload.pop("initial_body_bytes")
+    with pytest.raises(ValueError):
+        TransportBudgetSpec.model_validate(payload)
+
+
+@pytest.mark.parametrize("total", [None, 40, 39])
+def test_gate_requires_larger_total(tmp_path, total):
+    from sparselab.corpus.project import TransportBudgetSpec
+
+    ledger, _ = fixture(tmp_path)
+    payload = ledger.spec.model_dump(mode="json")
+    payload["max_total_body_bytes"] = total
+    with pytest.raises(ValueError, match="larger cumulative"):
+        TransportBudgetSpec.model_validate(payload)
+
+
+def test_legacy_caps_serialize_without_new_fields_and_missing_fields_fail_closed(
+    tmp_path,
+):
+    from sparselab.corpus.project import TransportBudgetSpec
+
+    ledger, _ = fixture(tmp_path)
+    old = ledger.spec.model_dump(mode="json")
+    old.pop("initial_body_bytes")
+    old.pop("max_total_body_bytes")
+    assert TransportBudgetSpec.model_validate(old).model_dump(mode="json") == old
+    for field in ("initial_body_bytes", "max_total_body_bytes"):
+        original = ledger.spec
+        ledger.spec = original.model_copy()
+        ledger.spec.__dict__.pop(field)
+        with pytest.raises(AttributeError):
+            ledger.receipt()
+        ledger.spec = original
+
+
+@pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit, "uncatchable"])
+def test_interrupted_pilot_report_release_and_continuation(
+    tmp_path, monkeypatch, interruption
+):
+    from test_corpus_acquisition import _mock_budgeted_hf_http
+
+    from sparselab.corpus import acquisition
+    from sparselab.training.manifest import canonical_json
+
+    content = gzip.compress(
+        json.dumps({"text": bytes(range(256)).hex() * 3}).encode() + b"\n", mtime=0
+    )
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    config = yaml.safe_load(recipe.read_text())
+    # Enough for one source plus metadata, but not its retry after more metadata.
+    config["transport_budget"].update(
+        initial_body_bytes=len(content) + 400, max_total_body_bytes=10000
+    )
+    recipe.write_text(yaml.safe_dump(config))
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger = TransportBudget.initialize(
+        root / "corpora/example/transport-budget.sqlite", project
+    )
+    _mock_budgeted_hf_http(monkeypatch, content)
+    original = acquisition._copy_hf_body
+
+    def interrupt(response, output, limit, budget, index, resources):
+        budget.charge_transfer_actual(index, 4)
+        raise (
+            KeyboardInterrupt("fixture stop")
+            if interruption == "uncatchable"
+            else interruption("fixture stop")
+        )
+
+    monkeypatch.setattr(acquisition, "_copy_hf_body", interrupt)
+    with pytest.raises(
+        KeyboardInterrupt if interruption == "uncatchable" else interruption
+    ):
+        acquisition.acquire(project, root)
+    assert ledger.receipt()["transfers"][0]["status"] == "interrupted"
+    if interruption == "uncatchable":
+        mutate_ledger(
+            ledger, lambda state: state["transfers"][0].update(status="started")
+        )
+    monkeypatch.setattr(acquisition, "_copy_hf_body", original)
+    with pytest.raises(ValueError, match="initial feasibility gate"):
+        acquisition.acquire(project, root)
+    report, review = evidence(tmp_path, ledger)
+    before = ledger.receipt()
+    if interruption == "uncatchable":
+        with pytest.raises(ValueError, match="explicit stop evidence"):
+            ledger.release_gate(report, review)
+        decision = json.loads(review.read_text())
+        decision["stopped_transfers"] = {
+            before["transfers"][0]["key"]: "fixture supervisor confirmed stopped"
+        }
+        review.write_text(json.dumps(decision))
+    released = ledger.release_gate(report, review)
+    assert (
+        released["receipt_sha256"] == hashlib.sha256(canonical_json(before)).hexdigest()
+    )
+    after = ledger.receipt()
+    for key in (
+        "source_charged",
+        "source_actual",
+        "metadata_charged",
+        "deadline",
+        "failures",
+    ):
+        assert after[key] == before[key]
+    lock = acquisition.acquire(project, root)
+    assert acquisition.verify_acquisition(project, root) == lock
+    after = ledger.receipt()
+    assert after["source_charged"] == 2 * len(content)
+    assert [t["status"] for t in after["transfers"]] == ["interrupted", "complete"]
+
+
+@pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit])
+def test_git_transfer_interrupt_is_recorded_and_reraised(
+    tmp_path, monkeypatch, interruption
+):
+    from test_corpus_acquisition import _bounded_git_fixture, _mock_bounded_git_http
+
+    from sparselab.corpus import acquisition
+
+    content = b"tiny fixture blob"
+    recipe, oid = _bounded_git_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger = TransportBudget.initialize(
+        root / "corpora/example/transport-budget.sqlite", project
+    )
+    _mock_bounded_git_http(monkeypatch, content, oid)
+    original = acquisition._copy_hf_body
+    error = interruption("fixture interrupted Git")
+
+    def interrupt(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(acquisition, "_copy_hf_body", interrupt)
+    with pytest.raises(interruption) as caught:
+        acquisition.acquire(project, root)
+    assert caught.value is error
+    before = ledger.receipt()
+    assert before["transfers"][0]["status"] == "interrupted"
+    assert before["source_charged"] == len(content)
+    monkeypatch.setattr(acquisition, "_copy_hf_body", original)
+    acquisition.acquire(project, root)
+    after = ledger.receipt()
+    assert after["source_charged"] == 2 * len(content)
+    assert after["deadline"] == before["deadline"]
+
+
+@pytest.mark.parametrize(
+    "stops",
+    [
+        {"one:pilot": " "},
+        {"other": "fixture stop"},
+        {"one:pilot": "fixture stop", "extra": "fixture"},
+        [],
+    ],
+)
+def test_stop_evidence_must_exactly_cover_started_transfers(tmp_path, stops):
+    ledger, _ = fixture(tmp_path)
+    ledger.reserve_transfer("one", "pilot", 40)
+    report, review = evidence(tmp_path, ledger)
+    value = json.loads(review.read_text())
+    value["stopped_transfers"] = stops
+    review.write_text(json.dumps(value))
+    before = ledger.receipt()
+    with pytest.raises(ValueError):
+        ledger.release_gate(report, review)
+    assert ledger.receipt() == before
+
+
+def test_explicit_stopped_transfer_recovery_before_first_byte(tmp_path):
+    ledger, _ = fixture(tmp_path)
+    ledger.reserve_transfer("one", "pilot", 40)
+    report, review = evidence(tmp_path, ledger)
+    value = json.loads(review.read_text())
+    value["stopped_transfers"] = {
+        "one:pilot": "fixture supervisor verified process tree stopped"
+    }
+    review.write_text(json.dumps(value))
+    before = ledger.receipt()
+    ledger.release_gate(report, review)
+    after = ledger.receipt()
+    assert after["source_actual"] == before["source_actual"] == 0
+    assert after["source_charged"] == before["source_charged"] == 40
+    assert after["transfers"][0]["status"] == "interrupted"
+    assert after["gate_review"]["stopped_transfers"] == value["stopped_transfers"]
+    ledger.reserve_transfer("one", "pilot", 40)
+    assert ledger.receipt()["source_charged"] == 80

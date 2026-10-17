@@ -1328,14 +1328,31 @@ class AttemptBudget:
             and classified.work_dir.resolve() != resolved_root
         ):
             raise AttemptBudgetError("native work directory differs from attempt root")
-        if contract.offline_retained_sources_only and (
-            classified.operation in {"corpus budget-init", "corpus alias-snapshot"}
-            or (
-                classified.operation == "corpus acquire"
-                and not classified.options.get("--offline")
-            )
-        ):
-            raise AttemptBudgetError("this attempt permits verified offline reuse only")
+        verified_retained_copy = False
+        if contract.offline_retained_sources_only:
+            if classified.operation in {"corpus budget-init", "corpus alias-snapshot"}:
+                raise AttemptBudgetError(
+                    "this attempt permits verified offline reuse only"
+                )
+            if classified.operation == "corpus acquire" and not classified.options.get(
+                "--offline"
+            ):
+                from sparselab.corpus.project import load_project
+
+                reuse_project = load_project(Path(classified.args[2]))
+                if (
+                    contract.acquisition_project_sha256 is None
+                    or reuse_project.config.transport_budget is not None
+                    or not reuse_project.config.source_effects
+                    or any(
+                        effect.effect != "reuse_only"
+                        for effect in reuse_project.config.source_effects
+                    )
+                ):
+                    raise AttemptBudgetError(
+                        "this attempt permits verified offline reuse only"
+                    )
+                verified_retained_copy = True
         if "--output" in classified.options:
             output = Path(str(classified.options["--output"]))
             if not output.is_absolute() or (
@@ -1403,9 +1420,18 @@ class AttemptBudget:
                     "admission inspection input differs from contract"
                 )
         if classified.operation == "tokenizer train":
+            import yaml
+
             from sparselab.config.loading import load_tokenizer_config
             from sparselab.corpus.export import verify_release_export
 
+            declaration = yaml.safe_load(Path(classified.args[2]).read_text())
+            declared_output = declaration.get("output_dir")
+            if (
+                not isinstance(declared_output, str)
+                or not Path(declared_output).is_absolute()
+            ):
+                raise AttemptBudgetError("tokenizer output must be declared absolute")
             tokenizer_config = load_tokenizer_config(Path(classified.args[2]))
             destination = tokenizer_config.output_dir
             if tokenizer_config.sampling is None:
@@ -1413,8 +1439,7 @@ class AttemptBudget:
                     "tokenizer preparation requires declared bounded TRAIN sampling"
                 )
             if (
-                not destination.is_absolute()
-                or destination.is_symlink()
+                destination.is_symlink()
                 or destination.resolve() == resolved_root
                 or not destination.resolve().is_relative_to(resolved_root)
             ):
@@ -1571,8 +1596,10 @@ class AttemptBudget:
             raise AttemptBudgetError(
                 "fixed evaluation requires the bound output monitor"
             )
-        if classified.operation == "corpus acquire" and not classified.options.get(
-            "--offline"
+        if (
+            classified.operation == "corpus acquire"
+            and not classified.options.get("--offline")
+            and not verified_retained_copy
         ):
             from sparselab.corpus.project import load_project
             from sparselab.corpus.transport_budget import TransportBudget

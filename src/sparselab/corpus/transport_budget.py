@@ -101,13 +101,11 @@ class TransportBudget:
 
     @property
     def _total_body_limit(self) -> int | None:
-        # Portable acquisition shares ledger mechanics with its own admission
-        # schema; it does not declare the corpus-only combined/gate limits.
-        return getattr(self.spec, "max_total_body_bytes", None)
+        return self.spec.max_total_body_bytes
 
     @property
     def _initial_body_limit(self) -> int | None:
-        return getattr(self.spec, "initial_body_bytes", None)
+        return self.spec.initial_body_bytes
 
     def _validate_state(self, state: dict[str, Any]) -> None:
         if state["binding"] != self.binding:
@@ -148,11 +146,13 @@ class TransportBudget:
             if (
                 self._initial_body_limit is None
                 or not isinstance(review, dict)
-                or set(review)
+                or set(review) - {"stopped_transfers"}
                 != {"receipt_sha256", "report_sha256", "approval_reference"}
+                or not self._valid_stop_evidence(review.get("stopped_transfers", {}))
                 or any(
                     not isinstance(value, str) or not value.strip()
-                    for value in review.values()
+                    for key, value in review.items()
+                    if key != "stopped_transfers"
                 )
             ):
                 raise ValueError("transport budget gate review is invalid")
@@ -443,6 +443,16 @@ class TransportBudget:
                 "transport initial feasibility gate requires an owner-reviewed report"
             )
 
+    @staticmethod
+    def _valid_stop_evidence(value: Any) -> bool:
+        return isinstance(value, dict) and all(
+            isinstance(key, str)
+            and key.strip()
+            and isinstance(reference, str)
+            and reference.strip()
+            for key, reference in value.items()
+        )
+
     def release_gate(self, report: Path, review: Path) -> dict[str, Any]:
         """Record separately authorized gate review; never resets any counter.
 
@@ -468,7 +478,9 @@ class TransportBudget:
             )
         if (
             not isinstance(decision, dict)
-            or set(decision) != {"decision", "report_sha256", "approval_reference"}
+            or set(decision) - {"stopped_transfers"}
+            != {"decision", "report_sha256", "approval_reference"}
+            or not self._valid_stop_evidence(decision.get("stopped_transfers", {}))
             or decision["decision"] != "continue"
             or decision["report_sha256"] != hashlib.sha256(report_bytes).hexdigest()
             or not isinstance(decision["approval_reference"], str)
@@ -483,17 +495,29 @@ class TransportBudget:
                 raise ValueError("transport initial gate is absent or already released")
             if state != report_value["ledger_receipt"]:
                 raise ValueError("gate report is stale or belongs to another ledger")
-            if state["source_actual"] <= 0 or any(
-                item["status"] == "started" for item in state["transfers"]
-            ):
+            started = {
+                item["key"]
+                for item in state["transfers"]
+                if item["status"] == "started"
+            }
+            stopped = decision.get("stopped_transfers", {})
+            if state["source_charged"] <= 0 or set(stopped) != started:
                 raise ValueError(
-                    "gate report requires completed pilot evidence and no active transfer"
+                    "gate report requires pilot reservations and explicit stop evidence for every started transfer"
                 )
+            # Hash the reviewed state before reconciling abandoned reservations.
+            # Stop references attest external cleanup; receipt equality is not
+            # evidence of process death. No charge, deadline or retry is reset.
             state["gate_review"] = {
                 "receipt_sha256": hashlib.sha256(canonical_json(state)).hexdigest(),
                 "report_sha256": decision["report_sha256"],
                 "approval_reference": decision["approval_reference"],
             }
+            if stopped:
+                state["gate_review"]["stopped_transfers"] = stopped
+                for item in state["transfers"]:
+                    if item["status"] == "started":
+                        item["status"] = "interrupted"
             return state["gate_review"]
 
         return self._mutate(update)
