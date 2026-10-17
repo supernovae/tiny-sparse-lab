@@ -23,7 +23,8 @@
         "tests/test_corpus_pipeline.py",
         "tests/test_corpus_rights_header.py",
         "tests/test_corpus_structure_cleaning.py"
-      ]
+      ],
+      "current_disposition": "Superseded by devmind-v2-retirement.json: neutral engine fixtures now replace these dependencies; the preserved personal declarations are retired."
     }
   },
   "limits": [

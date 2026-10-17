@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pytest
+from corpus_fixtures import neutral_corpus
 from test_corpus_rights_integration import _prospective
 
 from sparselab.corpus import large_build
@@ -20,7 +21,7 @@ from sparselab.corpus.large_build import (
 )
 from sparselab.corpus.pipeline import _records_for_file, build
 from sparselab.corpus.progress import BuildProgress
-from sparselab.corpus.project import Project, load_project
+from sparselab.corpus.project import Project
 from sparselab.corpus.release import freeze, verify_release
 from sparselab.corpus.rights import resolve_file_rights
 from sparselab.training.manifest import sha256_file
@@ -135,8 +136,8 @@ def test_streamed_and_legacy_lm_outputs_have_same_hashes(tmp_path: Path) -> None
 def test_hf_rows_are_streamed_with_original_ids_and_verified_resume(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project = load_project("corpora/devmind-v2/corpus.yaml")
-    source = next(s for s in project.sources if s.id == "fineweb_edu_sample_10bt")
+    project = neutral_corpus(tmp_path)
+    source = next(s for s in project.sources if s.id == "fineweb_fixture")
     source = source.model_copy(
         update={"acquisition": source.acquisition.model_copy(update={"max_rows": 3})}
     )
@@ -238,42 +239,42 @@ def test_shard_process_capacity_requires_memory_and_independent_inputs(
 def test_sqlite_dedup_keeps_heldout_and_rejects_validation_test_overlap(
     tmp_path: Path,
 ) -> None:
-    project = load_project("corpora/devmind-v2/corpus.yaml")
+    project = neutral_corpus(tmp_path)
     shard = tmp_path / "prepared"
     shard.mkdir()
     records = [
         (
             "train-page",
-            "fineweb_edu_sample_10bt",
-            "fineweb_edu_sample_10bt_train",
+            "fineweb_fixture",
+            "fineweb_fixture_family",
             "Draft text one",
             "https://example.org/a?utm_source=crawl",
         ),
         (
             "validation-page",
-            "v2_git_technical",
-            "v2_git_technical_validation",
+            "validation_fixture",
+            "validation_fixture_family",
             "Edited text on a page",
             "https://example.org/a",
         ),
         (
             "independent",
-            "fineweb_edu_sample_10bt",
-            "fineweb_edu_sample_10bt_train",
+            "fineweb_fixture",
+            "fineweb_fixture_family",
             "Independent item",
             "https://example.org/b",
         ),
         (
             "test-exact",
-            "v2_prometheus_promql",
-            "v2_prometheus_promql_test",
+            "test_fixture",
+            "test_fixture_family",
             "Identical secret example",
             "https://example.org/c",
         ),
         (
             "train-exact",
-            "fineweb_edu_sample_10bt",
-            "fineweb_edu_sample_10bt_train",
+            "fineweb_fixture",
+            "fineweb_fixture_family",
             "Identical secret example",
             "https://example.org/d",
         ),
@@ -330,8 +331,8 @@ def test_sqlite_dedup_keeps_heldout_and_rejects_validation_test_overlap(
         + [
             (
                 "test-page",
-                "v2_prometheus_promql",
-                "v2_prometheus_promql_test",
+                "test_fixture",
+                "test_fixture_family",
                 "Another copy of page a",
                 "https://example.org/a",
             )
@@ -359,8 +360,8 @@ def test_process_shard_reduction_preserves_full_build_bytes_and_failure_counters
 ) -> None:
     from sparselab.corpus import acquisition
 
-    project = load_project("corpora/devmind-v2/corpus.yaml")
-    source = next(s for s in project.sources if s.id == "fineweb_edu_sample_10bt")
+    project = neutral_corpus(tmp_path)
+    source = next(s for s in project.sources if s.id == "fineweb_fixture")
     project = project.model_copy(
         update={
             "sources": (source,),

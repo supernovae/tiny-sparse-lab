@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
+from corpus_fixtures import neutral_corpus
 
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
@@ -257,13 +258,12 @@ def test_large_dedup_preserves_metadata_only_document_but_excludes_lm(
 def test_large_shard_prepare_uses_same_opt_in_parser_without_acquisition(
     tmp_path: Path,
 ) -> None:
-    from sparselab.corpus.project import load_project
     from sparselab.corpus.rights import resolve_file_rights
 
     source = next(
         item
-        for item in load_project("corpora/devmind-v2/corpus.yaml").sources
-        if item.id == "fineweb_edu_sample_10bt"
+        for item in neutral_corpus(tmp_path).sources
+        if item.id == "fineweb_fixture"
     )
     path = tmp_path / "sample.jsonl"
     content = (
