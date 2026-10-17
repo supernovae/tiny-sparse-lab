@@ -1,0 +1,22 @@
+{
+  "contract_version": 1,
+  "max_optimizer_updates": 0,
+  "max_actual_target_positions": 0,
+  "max_generation_calls": 0,
+  "max_generated_tokens": 0,
+  "max_fixed_profile_forward_positions": 0,
+  "max_nontraining_forward_positions": 0,
+  "max_operational_validation_batches": 0,
+  "max_operational_validation_forward_positions": 0,
+  "max_wall_seconds": 172800,
+  "content_identity_sha256": "${GENERATED_CONTENT_IDENTITY_SHA256}",
+  "monitor_policy_sha256": "48359ad0124e95f1a005686a460c204126987748ed6b9312b8824b972b08b3a5",
+  "workspace_baseline_sha256": "${HOST_WORKSPACE_BASELINE_SHA256}",
+  "acquisition_project_sha256": "c1e7e031aa9ed81a8304c7fc1e77afdd89ae4ed4dd8eb3c3b18400725d235ba8",
+  "preparation_acquisition_identity_sha256": "73a9b78138d256159166ebbb7ff55191e7a9f28fb5dac5407a2ddb80ba8aec79",
+  "preparation_normalizer": "normalizer-structure-v3",
+  "preparation_monitor_policy_sha256": "48359ad0124e95f1a005686a460c204126987748ed6b9312b8824b972b08b3a5",
+  "require_preledger_monitor_binding": true,
+  "preparation_only": true,
+  "require_release_acceptance_binding": true
+}

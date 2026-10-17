@@ -1,0 +1,62 @@
+schema_version: 2
+id: lab86_060_code
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/codeparrot/github-code-clean
+revision: c48d40f9e70f0196f8236901ee35807f7d6c44c0
+license: Multiple underlying content rights; pinned dataset card claim only
+license_url: https://huggingface.co/datasets/codeparrot/github-code-clean/blob/c48d40f9e70f0196f8236901ee35807f7d6c44c0/README.md
+rights:
+  training_eligibility: review_required
+  redistribution_mode: metadata_reconstruction_only
+  license_references:
+  - https://huggingface.co/datasets/codeparrot/github-code-clean/blob/c48d40f9e70f0196f8236901ee35807f7d6c44c0/README.md
+  notices:
+  - Private quarantine only; dataset labels do not establish underlying file/content
+    permission. Apply POLICY.md and review actual rows before model use.
+notes: Unexecuted LAB86 candidate. Schema/family checks in README.md block execution
+  readiness. Row ceiling selects a bounded prefix; it is not an asserted full-shard
+  row count.
+domains:
+- code
+document_kinds:
+- code
+source_family: lab86_code
+acquisition:
+  config: all-all
+  split: train
+  text_field: code
+  max_rows: 5000000
+  max_bytes: 8589934592
+  bounded_shards:
+  - path: data/train-00383-of-00880.parquet
+    expected_sha256: 68088c9e9a3a3b87dd34448f1ded859375432349ba722f0b85f11de88580c6ee
+    max_shard_bytes: 362171919
+    max_scanned_rows: 5000000
+    hash_modulus: 1
+    hash_remainders:
+    - 0
+    declared_config: all-all
+    declared_split: train
+  qualification:
+    profile: code
+    family_fields:
+    - repo_name
+    language_field: language
+    allowed_languages:
+    - Python
+    - JavaScript
+    - TypeScript
+    - GO
+    - Rust
+    - Shell
+    - SQL
+    - Markdown
+    license_field: license
+    license_labels:
+      mit: MIT
+      apache-2.0: Apache-2.0
+      bsd-2-clause: BSD-2-Clause
+      bsd-3-clause: BSD-3-Clause
+      isc: ISC
+    repository_field: repo_name
+    path_field: path

@@ -1,0 +1,48 @@
+{
+  "policy_id": "lab86-exp1-private-v1",
+  "policy_sha256": "d3e0c858553d70d6acb39afd9ec5da58bc57ae7438d6aa441ab0821764d76cb4",
+  "sources": [
+    {
+      "source_id": "lab86_000_web",
+      "license_label": "Multiple underlying content rights; pinned dataset card claim only",
+      "rights": {
+        "training_eligibility": "review_required",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "license_references": [
+          "https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/blob/3ba9d605774198c5868892d7a8deda78031a781f/README.md"
+        ],
+        "notices": [
+          "Private quarantine only; dataset labels do not establish underlying file/content permission. Apply POLICY.md and review actual rows before model use."
+        ]
+      }
+    },
+    {
+      "source_id": "lab86_001_synthetic",
+      "license_label": "Multiple underlying content rights; pinned dataset card claim only",
+      "rights": {
+        "training_eligibility": "review_required",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "license_references": [
+          "https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/blob/3ba9d605774198c5868892d7a8deda78031a781f/README.md"
+        ],
+        "notices": [
+          "Private quarantine only; dataset labels do not establish underlying file/content permission. Apply POLICY.md and review actual rows before model use."
+        ]
+      }
+    },
+    {
+      "source_id": "lab86_002_code",
+      "license_label": "Multiple underlying content rights; pinned dataset card claim only",
+      "rights": {
+        "training_eligibility": "review_required",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "license_references": [
+          "https://huggingface.co/datasets/codeparrot/github-code-clean/blob/c48d40f9e70f0196f8236901ee35807f7d6c44c0/README.md"
+        ],
+        "notices": [
+          "Private quarantine only; dataset labels do not establish underlying file/content permission. Apply POLICY.md and review actual rows before model use."
+        ]
+      }
+    }
+  ]
+}

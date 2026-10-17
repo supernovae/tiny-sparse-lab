@@ -1,0 +1,2 @@
+# Preserve fetched source evidence verbatim, including upstream whitespace.
+evidence/* -whitespace

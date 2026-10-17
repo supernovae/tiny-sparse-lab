@@ -1,5 +1,9 @@
 # Fresh EXP1 native preparation (unexecuted)
 
+The [LAB86 package](lab86/README.md) now supplies pinned candidate shard/source
+declarations, policies and job templates. It also records concrete native
+compatibility blockers; it is not yet execution-ready.
+
 LAB89 software plan for LAB86. This plan has **not acquired or prepared a real
 corpus**. It compiles native argv only. Missing bindings refuse; it contains no
 owner approval, guessed shard hashes or historical corpus/tokenizer reuse.
