@@ -67,8 +67,8 @@ def test_resource_retirement_records_originals_and_destination() -> None:
     import json
 
     record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
-    assert len(record["files"]) == 24
-    assert len({row["source"] for row in record["files"]}) == 24
+    assert len(record["files"]) == 26
+    assert len({row["source"] for row in record["files"]}) == 26
     for row in record["files"]:
         assert row["destination"] == "provenance/lab/" + row["source"]
         assert len(row["sha256"]) == 64
