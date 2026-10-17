@@ -427,8 +427,8 @@ class TransportBudget:
         self._mutate(update, check_deadline=False)
 
     def _check_combined(self, state: dict[str, Any], amount: int) -> None:
-        if type(amount) is not int or amount <= 0:
-            raise ValueError("transport reservation requires positive integer bytes")
+        if type(amount) is not int or amount < 0:
+            raise ValueError("transport reservation requires nonnegative integer bytes")
         charged = state["source_charged"] + state["metadata_charged"] + amount
         if self._total_body_limit is not None and charged > self._total_body_limit:
             raise ValueError(

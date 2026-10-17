@@ -194,3 +194,27 @@ def test_pilot_reuse_materializes_without_full_origin_lock(tmp_path, monkeypatch
     inventory = tmp_path / "pilot-inventory.jsonl"
     write_split_inventory(project, tmp_path, inventory)
     assert inventory.read_text().strip()
+
+
+def test_empty_metadata_body_preserves_gate_charge(tmp_path):
+    ledger, _ = fixture(tmp_path)
+    pilot(ledger)
+    before = ledger.receipt()
+    ledger.reserve_metadata(0)
+    ledger.charge_metadata_actual(0)
+    assert ledger.receipt() == before
+    with pytest.raises(ValueError, match="initial feasibility gate"):
+        ledger.reserve_metadata(1)
+
+
+@pytest.mark.parametrize("amount", [-1, True, 1.5])
+@pytest.mark.parametrize("kind", ["metadata", "source"])
+def test_invalid_reservation_cannot_change_charges(tmp_path, amount, kind):
+    ledger, _ = fixture(tmp_path)
+    before = ledger.receipt()
+    with pytest.raises(ValueError, match="nonnegative integer"):
+        if kind == "metadata":
+            ledger.reserve_metadata(amount)
+        else:
+            ledger.reserve_transfer("one", "invalid", amount)
+    assert ledger.receipt() == before
