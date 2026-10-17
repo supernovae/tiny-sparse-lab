@@ -20,6 +20,29 @@ setting, train a baseline and candidate, and inspect the evidence. Native lab
 mode keeps inputs, checkpoints and results together without requiring a research
 Campaign for an ordinary local experiment.
 
+## Experiments and research projects
+
+[Kybern Workshop](https://github.com/supernovae/kybern-workshop) owns personal
+experiment definitions and their preserved evidence; Lab provides the reusable
+interfaces. Browse its [portfolio](https://github.com/supernovae/kybern-workshop/blob/main/catalog/README.md)
+for project identities, original records and current prerequisites.
+
+- [DevMind — DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind):
+  authored preparation and proposed science; not trained or execution-ready.
+  Historical DevMind v0–v5 remain separate portfolio entries.
+- [Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/main/experiments/kernel-memory-lab):
+  active research intent with preserved evidence; current-runtime validation and
+  verified artifact bindings remain prerequisites.
+- [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab):
+  declarative teaching recipe with metadata checks; the recipe and useful-story
+  validation remain unexecuted. Earlier small smoke results have their own pins
+  and limits.
+
+Historical outcomes are not current Lab guarantees. Portfolio activity does not
+mean a job is running or a model is available. Neutral teaching examples and
+generic fixtures remain in Lab; use the native commands below with your own
+current declarations.
+
 ## First run
 
 Install **Python 3.14** and [uv](https://docs.astral.sh/uv/), then:

@@ -1,14 +1,28 @@
 # Research experiments
 
-Current project: [Kernel Memory Lab](kernel-memory-lab/README.md), with its own
-[status and execution boundaries](kernel-memory-lab/STATUS.md). Completed dense,
-DevMind and TinyStories records are in [history](history/README.md); its
-[path map](history/path-map.json) resolves original locations without rewriting
-historical content or maintaining old study executables.
+Personal research projects now have discovery homes in the
+[Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/main/catalog/README.md):
+[Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/main/experiments/kernel-memory-lab),
+[DevMind — DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind),
+and [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab).
+KML has active research intent with preserved evidence awaiting current-runtime
+qualification. DevMind 340M Base is authored/proposed, not trained or
+execution-ready; it is distinct from historical DevMind v0–v5. The TinyStories
+recipe has metadata validation but remains unexecuted, including its useful-story
+proposal. Historical smoke results do not establish current story quality.
 
-This directory is being retired as a home for personal science. Historical EXP1
-has moved to Workshop project DevMind (recipe DevMind 340M Base); see the [file disposition](../../docs/exp1-retirement.json). KML and
-historical material remain pending their separate dependency-preserving migration.
+This directory still retains [KML declarations](kernel-memory-lab/README.md) and
+[historical records](history/README.md) pending their dependency-preserving
+retirement. The [history path map](history/path-map.json) resolves original
+locations without rewriting evidence. These retained copies are not the home for
+new personal experiments. EXP1 preparation moved to Workshop DevMind; see its
+[file disposition](../../docs/exp1-retirement.json).
+
+The [preserved navigation originals](https://github.com/supernovae/kybern-workshop/blob/a47389204a30da1bbfec5e0de4418b3e3e72d4f2/catalog/NAVIGATION-PRESERVATION.md)
+record the three Lab README versions at `faf415e3754f4018674a734547c66df7ddca8333`.
+Older README revisions remain in Lab Git history unless separately archived;
+this is not a claim that every revision was copied to Workshop.
+
 Do not add new experiments here. Author recipe DSL/configuration in any user-owned
 directory or repository, with documentation and artifact references:
 
