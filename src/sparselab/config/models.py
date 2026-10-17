@@ -645,6 +645,34 @@ class RunConfig(StrictModel):
         return self
 
 
+class TokenizerSampling(StrictModel):
+    """Deterministic whole-document byte quotas over an authenticated TRAIN view."""
+
+    source_strata: dict[str, str]
+    byte_weights: dict[str, Annotated[int, Field(strict=True, gt=0)]]
+    max_fit_bytes: int = Field(strict=True, gt=0, le=512 * 1024 * 1024)
+    audit_documents_per_stratum: int = Field(default=1000, strict=True, gt=0, le=10000)
+    max_audit_bytes: int = Field(
+        default=64 * 1024 * 1024, strict=True, gt=0, le=512 * 1024 * 1024
+    )
+
+    @model_validator(mode="after")
+    def strata(self):
+        if (
+            not self.source_strata
+            or not self.byte_weights
+            or set(self.source_strata.values()) != set(self.byte_weights)
+            or any(
+                not value.strip() for value in (*self.source_strata, *self.byte_weights)
+            )
+            or sum(self.byte_weights.values()) > 10000
+        ):
+            raise ValueError(
+                "sampling requires matching source strata and bounded positive byte weights"
+            )
+        return self
+
+
 class TokenizerTrainConfig(StrictModel):
     schema_version: Literal[1]
     vocab_size: int = Field(ge=260)
@@ -652,3 +680,19 @@ class TokenizerTrainConfig(StrictModel):
     max_documents: int = Field(gt=0)
     output_dir: Path
     dataset: DatasetConfig
+    sampling: TokenizerSampling | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def authenticated_sampling(self):
+        if self.sampling is not None and (
+            self.dataset.source != "local_text"
+            or self.dataset.corpus_release_path is None
+            or self.dataset.corpus_export_path is None
+            or self.sampling.max_fit_bytes > self.dataset.train_max_tokens
+        ):
+            raise ValueError(
+                "stratified sampling requires a verified corpus LM export and a compatible byte budget"
+            )
+        return self

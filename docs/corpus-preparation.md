@@ -231,3 +231,53 @@ entry**; declare separate pinned entries for additional shards and map them to
 the same source stratum. Verified repository/seed values can group across those
 entries. Real source schema, rights and provenance qualification remain gates;
 these synthetic fixtures do not establish the suitability of any remote corpus.
+
+
+## One native tokenizer with TRAIN byte sampling
+
+For a newly verified LM export, copy its tokenizer configuration to a new
+reviewed declaration, retaining its dataset/export bindings, and add:
+
+```yaml
+vocab_size: 32768
+sampling:
+  source_strata:
+    fineweb_shard_000: real_english
+    cosmopedia_shard_000: synthetic
+    code_shard_000: code
+  byte_weights: {real_english: 60, synthetic: 20, code: 20}
+  max_fit_bytes: 536870912
+  audit_documents_per_stratum: 1000
+  max_audit_bytes: 67108864
+```
+
+This is an **unexecuted fragment**: source IDs must cover the actual frozen
+release exactly, and the export must already specify vocabulary 32768. Run the
+existing `tokenizer train CONFIG` command. Adding this leaf to the supervised
+preparation plan is a separate integration prerequisite. The existing ByteLevel BPE trainer is used once, with no tokenizer normalizer.
+
+Selection visits eligible documents in immutable release order, restricted to
+the authenticated LM TRAIN lineage. It takes whole UTF-8 documents without
+repeating content until each stratum's byte cap is reached or its bounded scan
+is exhausted. Largest-remainder integer byte caps implement the requested
+weights; whole-document granularity can leave unused bytes. This is a
+deterministic prefix within each stratum, **not a representative random sample**.
+`max_documents` bounds inspected TRAIN documents. The manifest records requested
+caps, realized bytes/documents, unfilled bytes, order and selected identity hash.
+An empty selected stratum refuses training. No validation/test document is used
+for fit or audit, and no duplicate is added to fill a quota.
+
+The audit uses different TRAIN content hashes, up to 1000 documents per stratum
+by default and a finite shared byte cap. It reports exact round-trip failures,
+unknown tokens and bytes/token; fixed identifier, numeric, multilingual and code
+whitespace probes are reported separately. Missing audit documents are explicit
+shortfalls, not passes or claims that enough unseen data was available. Unknown
+tokens or failed round-trips refuse artifact publication. Cold tokenizer
+verification replays selection and audit against the authenticated export; a
+changed declaration requires a new output location. Existing unsampled tokenizer
+configurations keep their prior serialization and behavior.
+
+The 512 MiB cap bounds selected fit bytes, not process RSS. The existing trainer
+and release verifier may use more memory; the 16 GiB operational target still
+requires runtime observation and the feasibility gate. This does not authorize
+fitting on a real corpus or running a model workload.
