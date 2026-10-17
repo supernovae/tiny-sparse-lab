@@ -152,7 +152,10 @@ These are **family ratios**, not promises of exact byte or token ratios. Group
 repositories, duplicate clusters and synthetic seed families before freezing.
 Source strata use nonempty lowercase identifiers, so fresh real-English,
 synthetic and code groups need not borrow historical domain names. Existing
-cross-stratum family and cross-split content refusals remain in force.
+cross-stratum family and cross-split content refusals remain in force. Each
+source's stratum must also appear in its declared `domains`: the mixture verifier
+checks this relationship. Split freezing currently validates identifier syntax,
+not that downstream domain relationship; review it before publishing splits.
 
 Omitting weights preserves the existing 8/1/1 allocation and receipt shape.
 Changed weights require new declarations and outputs; no historical assignments,
@@ -179,13 +182,13 @@ feasibility report within the cumulative **100 GiB** transfer ledger require the
 remaining reviewed preparation integration. No data transfer is approved by these
 example declarations themselves.
 
-
 ## Declared HF row qualification
 
 A bounded-shard Hugging Face source may declare `acquisition.qualification`.
-The declaration digest binds the profile and exact original-row field names;
+The declaration digest binds the profile and exact original-row field paths;
 the acquisition envelope still binds revision, shard, row index and row hash.
-Legacy Gutenberg/Wikimedia source policies remain unchanged. For example, this
+Legacy Gutenberg/Wikimedia sources refuse qualification overrides, preserving
+one consistent admission/family policy. For example, this
 unexecuted code-policy fragment assumes these fields have been verified in the
 pinned source schema:
 
@@ -213,19 +216,34 @@ vendor/generated paths, generated notices, detected credentials/private
 identifiers and conflicting file-level notices quarantine rows. Other detected
 notice flags require review. The existing notice patterns are screening, not a
 complete license or secret detector. Verified repository/path/license/language
-attribution remains in normalized document metadata.
+attribution, including the mapped SPDX expression, remains in normalized document
+metadata. Repository family values are casefolded for GitHub identity grouping;
+original attribution is retained.
 
 `profile: synthetic_text` requires `family_fields` and
 `synthetic_provenance_fields` naming retained original seed/provenance fields.
 Only the declared acquisition `text_field` becomes training text; provenance is
 hashed into document metadata. Group shared seed families before split freezing.
 `profile: web_text` requires declared family fields and optionally a language
-field with exact allowed values. Family hints are conservative inputs to the
+field with exact allowed values. Dotted paths such as `metadata.url` and
+`metadata.language` traverse dictionaries only; empty, reserved, overlong or
+whitespace-padded path segments refuse. A FineWeb-shaped policy can group on
+`metadata.url` without treating each dump as a different family. Code-only fields
+on other profiles and synthetic provenance fields on other profiles refuse,
+rather than imply an unused screen. Whitespace-only provenance is missing.
+Cosmopedia `seed_data` is a dataset label, not an individual seed identity: it
+cannot alone establish seed families. Actual per-seed provenance and reviewed
+family grouping remain a source-qualification gate; no seed IDs are invented.
+Family hints are conservative inputs to the
 reviewed cluster declaration, not a replacement for duplicate/decontamination
 review. Missing family or synthetic provenance is a material conflict.
 
 Use native `corpus admission-draft` and the existing inspection/review/build
-sequence. These declarations never grant source rights or owner approval.
+sequence. Metadata inventory can enumerate unadmitted rows, marking unresolved
+provenance; enumeration is not admission. An unfrozen build without a reviewed
+record-admission manifest does not apply these screens. Freeze requires reviewed
+admission and refuses unresolved families. These declarations never grant source
+rights or owner approval.
 The current admission receipt supports **one selected HF shard per source
 entry**; declare separate pinned entries for additional shards and map them to
 the same source stratum. Verified repository/seed values can group across those
@@ -309,3 +327,8 @@ See the [unexecuted EXP1 plan](../experiments/research/exp1-preparation/README.m
 for the full native phase sequence and remaining source/runtime bindings. A
 feasibility gate is not a new transfer allocation; never initialize a replacement
 ledger to evade a cap or change the full source scope after starting.
+
+Historical fixed evaluation selection/slice commands still require their three
+historical strata. Fresh `real_english`/`synthetic`/`code` preparation does not
+make those evaluation protocols compatible; a separately reviewed evaluation
+change is required before using fresh strata there.
