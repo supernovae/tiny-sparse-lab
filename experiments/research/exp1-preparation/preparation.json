@@ -28,6 +28,61 @@
         "${ACQUISITION_PROJECT}"
       ]
     },
+    "pilot-reuse": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${PILOT_REUSE_PROJECT}"
+      ]
+    },
+    "pilot-admission-draft": {
+      "leaf": "pilot-admission-draft.json",
+      "args": [
+        "corpus",
+        "admission-draft",
+        "${PILOT_REUSE_PROJECT}",
+        "--template",
+        "${PILOT_APPLICATION_POLICY}",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--output",
+        "@pilot-admission-draft"
+      ]
+    },
+    "pilot-admission-inspection": {
+      "leaf": "pilot-admission-inspection.json",
+      "args": [
+        "corpus",
+        "inspect-admission",
+        "${PILOT_REUSE_PROJECT}",
+        "--draft",
+        "@pilot-admission-draft",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--selection",
+        "${PILOT_INSPECTION_SELECTION}",
+        "--output",
+        "@pilot-admission-inspection",
+        "--max-input-bytes",
+        "${MAX_INPUT_BYTES}",
+        "--max-excerpt-bytes",
+        "1024",
+        "--max-output-bytes",
+        "2097152"
+      ]
+    },
+    "pilot-split-inventory": {
+      "leaf": "pilot-split-inventory.jsonl",
+      "args": [
+        "corpus",
+        "split-inventory",
+        "${PILOT_REUSE_PROJECT}",
+        "--output",
+        "@pilot-split-inventory",
+        "--json"
+      ]
+    },
     "continue-acquire": {
       "leaf": null,
       "args": [

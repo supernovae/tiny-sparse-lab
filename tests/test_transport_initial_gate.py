@@ -146,3 +146,51 @@ def test_gate_release_is_public_but_not_automatic_attempt_dispatch(tmp_path):
                 "review.json",
             ]
         )
+
+
+def test_pilot_reuse_materializes_without_full_origin_lock(tmp_path, monkeypatch):
+    import shutil
+
+    from test_kml_50m_preparation_sequence import _sources
+
+    from sparselab.corpus import acquisition
+    from sparselab.corpus.split_inventory import write_split_inventory
+
+    origin, _ = _sources(tmp_path, "full-origin")
+    origin_project = load_project(origin / "acquire.yaml")
+    lock = acquisition.verify_acquisition(origin_project, tmp_path)
+    lock_path = tmp_path / "corpora/full-origin/acquisition.json"
+    preserved = lock_path.with_suffix(".fixture-evidence")
+    lock_path.rename(preserved)
+    before = preserved.read_bytes()
+    pilot_root = tmp_path / "pilot-view"
+    shutil.copytree(origin, pilot_root)
+    config = yaml.safe_load((pilot_root / "acquire.yaml").read_text())
+    config["id"] = "pilot-view"
+    config["source_effects"] = [
+        {
+            "source_id": source_id,
+            "effect": "reuse_only",
+            "origin_project_id": "full-origin",
+            "declaration_sha256": entry["declaration_sha256"],
+            "snapshot_sha256": entry["snapshot_sha256"],
+        }
+        for source_id, entry in lock["sources"].items()
+    ]
+    recipe = pilot_root / "acquire.yaml"
+    recipe.write_text(yaml.safe_dump(config))
+
+    def refuse_transport(*args, **kwargs):
+        raise AssertionError("pilot reuse must never acquire new bytes")
+
+    for name in ("_acquire_git", "_acquire_http", "_acquire_hf", "_acquire_wikimedia"):
+        monkeypatch.setattr(acquisition, name, refuse_transport)
+    project = load_project(recipe)
+    result = acquisition.acquire(project, tmp_path)
+    assert acquisition.verify_acquisition(project, tmp_path) == result
+    assert not lock_path.exists()
+    assert preserved.read_bytes() == before
+    assert not (tmp_path / "corpora/pilot-view/transport-budget.sqlite").exists()
+    inventory = tmp_path / "pilot-inventory.jsonl"
+    write_split_inventory(project, tmp_path, inventory)
+    assert inventory.read_text().strip()

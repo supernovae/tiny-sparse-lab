@@ -23,8 +23,24 @@ public help for required ledger/baseline arguments. There is no run-all command.
    failure evidence remain. Such a refused acquisition is **not success**. Read
    `pilot-budget-status`, preserve its ledger receipt and prepare explicit
    feasibility findings. Metadata and retries consume the same allowance.
+   A refused full acquisition has no complete acquisition lock. Before
+   inspection, bind a separate `PILOT_REUSE_PROJECT` containing only completed
+   pilot snapshots with exact `reuse_only` source effects (origin project,
+   declaration hash and snapshot hash). Retain the same source declarations;
+   omit transport allocation from this local copy project. `pilot-reuse` uses
+   native verified retained-copy acquisition without HTTP, then the pilot
+   admission/inspection/inventory phases provide review evidence. Bind
+   `PILOT_APPLICATION_POLICY` and `PILOT_INSPECTION_SELECTION` to this pilot view.
+   Its separate zero-model attempt contract must bind that exact project; retain
+   the whole-preparation disk baseline, wall deadline and resource envelope.
+   Initial local copy materialization uses `acquire` without `--offline` (that
+   flag verifies an already published lock); every source must be `reuse_only`.
+   Copies count against additional workspace bytes. This creates no second
+   network allocation and does not change the full-scope transport ledger.
 3. Stop for actual owner review of schema/rights, provenance, usable yields,
-   family counts, projected unique-token shortfalls and measured resource use.
+   family counts, qualified row/byte yields and measured resource use. Final
+   tokenizer yield remains unknown before the full split and single fit; report
+   conditional projections as estimates, never as measured unique tokens.
    No automatic gate release is included. A separately authorized
    `corpus budget-release-gate PROJECT --report REPORT --review REVIEW` records
    the report-bound decision; then `continue-acquire` uses the same ledger.
@@ -66,7 +82,7 @@ silently reuse the smallest-shard pilot as a representative corpus.
 ## Envelope and remaining operational gates
 
 Use one immutable transport budget with `initial_body_bytes: 4294967296` and
-`max_total_body_bytes: 107374182400`. Source/metadata individual allowances also
+`max_total_body_bytes: 107374182400`. These are response-body charges, not TLS/wire overhead. Source/metadata individual allowances also
 remain enforced. Declare the full source scope before initialization: changing
 sources, pins or budgets changes ledger identity and cannot reset spent bytes.
 The wall ceiling is 172800 seconds; the whole preparation monitor binds at most
