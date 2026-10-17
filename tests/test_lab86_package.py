@@ -1,5 +1,6 @@
 """Production LAB86 declarations; metadata and tiny fixtures only, no HTTP."""
 
+import copy
 import hashlib
 import json
 import re
@@ -277,16 +278,18 @@ def _assert_downstream_semantics(package, output_root):
         pilot.config.source_effects, full.config.source_effects[:3], strict=True
     ):
         assert effect.effect == "reuse_only"
-        assert effect.origin_project_id == full.config.id
+        assert effect.origin_project_id == full.config.id, "pilot reuse origin"
         assert effect.source_id == original.source_id
         assert effect.declaration_sha256 == original.declaration_sha256
         assert effect.snapshot_sha256 == "a" * 64
     for name in ("project-pre-freeze.template.yaml", "project-build.template.yaml"):
         project = load_project(outputs[name])
         assert project.config.id == full.config.id
-        assert project.config.sources == full.config.sources
+        assert project.config.sources == full.config.sources, "full source scope"
         assert project.config.source_effects == full.config.source_effects
-        assert project.config.transport_budget == full.config.transport_budget
+        assert project.config.transport_budget == full.config.transport_budget, (
+            "full transport budget"
+        )
         assert _project_sha(project) == _project_sha(full)
         assert project.release.record_admission is not None
         assert project.release.normalizer == "normalizer-structure-v3"
@@ -305,7 +308,9 @@ def _assert_downstream_semantics(package, output_root):
         _selection(fixture / name, fixture, {s.id for s in project.sources})
     plan = load_preparation(PLAN)
     session = json.loads(outputs["session.template.json"].read_text())
-    assert [s["id"] for s in session["slots"]] == list(plan["phases"])
+    assert [s["id"] for s in session["slots"]] == list(plan["phases"]), (
+        "full slot order"
+    )
     for label in plan["phases"]:
         job = yaml.safe_load(outputs[f"jobs/{label}.template.json"].read_text())
         slot = next(s for s in session["slots"] if s["id"] == label)
@@ -376,7 +381,18 @@ def test_coordinated_template_tampering_is_rejected(tmp_path, mutation):
     manifest[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     (package / "package-sha256.json").write_text(json.dumps(manifest))
     # Manifest is deliberately consistent; semantic validation must kill the mutant.
-    with pytest.raises((AssertionError, ValueError)):
+    reasons = {
+        "pilot_digest": "source effect declaration mismatch",
+        "pilot_origin": "pilot reuse origin",
+        "pre_freeze_source": "full source scope",
+        "build_source": "full source scope",
+        "build_budget": "full transport budget",
+        "test_training_split": "test is held out of training",
+        "inspection_id": "invalid admission inspection source selection",
+        "slot_id": "full slot order",
+        "lowercase_slot": "retains slots",
+    }
+    with pytest.raises((AssertionError, ValueError), match=reasons[mutation]):
         _assert_downstream_semantics(package, tmp_path / "rendered")
 
 
@@ -416,6 +432,7 @@ def _assert_pilot_derivation(package):
     full = data("session.template.json")
     pilot = data("pilot-session.template.json")
     assert pilot["session_id"] == "lab86-exp1-pilot-v1", "pilot receipt namespace"
+    assert pilot.keys() == full.keys(), "pilot session keys"
     for key in full.keys() - {"session_id", "slots"}:
         assert pilot[key] == full[key], "pilot session envelope"
     labels = ["transport-init", "pilot-acquire", "pilot-budget-status"]
@@ -438,6 +455,45 @@ def _assert_pilot_derivation(package):
             "pilot slot derivation"
         )
 
+    init_argv = [
+        "${HOST_PYTHON}",
+        "-B",
+        "-m",
+        "sparselab",
+        "--work-dir",
+        "${HOST_WORK_ROOT}",
+        "attempt",
+        "init",
+        "--ledger",
+        "${HOST_WORK_ROOT}/attempt.sqlite",
+        "--contract",
+        "${HOST_WORK_ROOT}/pilot-contract.json",
+        "--contract-sha256",
+        "${HOST_RENDERED_CONTRACT_SHA256}",
+        "--policy",
+        "${PACKAGE_ROOT}/monitor.yaml",
+        "--baseline",
+        "${HOST_WORK_ROOT}/baseline.json",
+        "--workspace",
+        "${HOST_WORK_ROOT}",
+    ]
+    init_job = data("pilot-jobs/transport-init.template.json")
+    init_job.update(job_id="lab86-attempt-init", argv=init_argv)
+    init_job["limits"]["wall_seconds"] = 300
+    assert data("pilot-jobs/attempt-init.template.json") == init_job, (
+        "pilot init job derivation"
+    )
+    init_slot = copy.deepcopy(
+        next(s for s in pilot["slots"] if s["id"] == "transport-init")
+    )
+    init_slot.update(
+        id="attempt-init",
+        argv=init_argv,
+        allowance_seconds=300,
+        retained_allowance_bytes=64 * 1024**2,
+    )
+    assert pilot["slots"][0] == init_slot, "pilot init slot derivation"
+
 
 def test_pilot_is_derived_from_full_safety_declarations():
     _assert_pilot_derivation(PACKAGE)
@@ -446,6 +502,37 @@ def test_pilot_is_derived_from_full_safety_declarations():
 @pytest.mark.parametrize(
     "file,field,value,reason",
     [
+        (
+            "pilot-jobs/attempt-init.template.json",
+            "output_root",
+            "${HOST_RECEIPT_ROOT}/lab86-exp1-v1/A",
+            "pilot init job derivation",
+        ),
+        (
+            "pilot-jobs/attempt-init.template.json",
+            "limits.memory.max_bytes",
+            32 * GIB,
+            "pilot init job derivation",
+        ),
+        (
+            "pilot-jobs/attempt-init.template.json",
+            "environment.TRANSFORMERS_OFFLINE",
+            "0",
+            "pilot init job derivation",
+        ),
+        (
+            "pilot-jobs/attempt-init.template.json",
+            "environment.CUDA_VISIBLE_DEVICES",
+            "0",
+            "pilot init job derivation",
+        ),
+        (
+            "pilot-session.template.json",
+            "slots.0.environment_profile",
+            "preparation-acquire",
+            "pilot init slot derivation",
+        ),
+        ("pilot-session.template.json", "extra_key", True, "pilot session keys"),
         (
             "pilot-contract.template.json",
             "max_optimizer_updates",
@@ -537,7 +624,7 @@ def test_coordinated_pilot_safety_tampering_is_rejected(
     target = data
     parts = field.split(".")
     for part in parts[:-1]:
-        target = target[part]
+        target = target[int(part)] if isinstance(target, list) else target[part]
     target[parts[-1]] = value
     old_identity = hashlib.sha256(
         (package / "pilot-content.json").read_bytes()
@@ -555,3 +642,148 @@ def test_coordinated_pilot_safety_tampering_is_rejected(
     (package / "package-sha256.json").write_text(json.dumps(manifest))
     with pytest.raises(AssertionError, match=reason):
         _assert_pilot_derivation(package)
+
+
+def _assert_shared_safety(package):
+    def data(name):
+        return yaml.safe_load((package / name).read_text())
+
+    monitor = data("monitor.yaml")
+    budget = data("project-acquire.yaml")["transport_budget"]
+    rss = monitor["max_tree_rss_bytes"]
+    disk = monitor["max_added_workspace_bytes"]
+    assert rss == 16 * GIB, "approved RSS ceiling"
+    assert disk == budget["max_disk_bytes"] == 300 * GIB, "approved disk ceiling"
+    for session_file, directory in (
+        ("session.template.json", "jobs"),
+        ("pilot-session.template.json", "pilot-jobs"),
+    ):
+        session = data(session_file)
+        limits = session["limits"]
+        assert limits["rss"] == {"mode": "observe_rss", "max_bytes": rss}, (
+            "shared session RSS"
+        )
+        storage = limits["storage"]
+        assert storage["mode"] == "observe_retained", "shared storage mode"
+        assert storage["aggregate_bytes"] == disk, "shared aggregate disk ceiling"
+        # The root allowance reserves shared evidence within, not beyond, 300 GiB.
+        assert storage["root_bytes"] == {
+            "A": disk - storage["shared_overhead_bytes"]
+        }, "shared root disk ceiling"
+        assert storage["shared_overhead_bytes"] == 64 * 1024**2, (
+            "shared evidence reserve"
+        )
+        paths = list((package / directory).glob("*.template.json"))
+        assert {p.name.removesuffix(".template.json") for p in paths} == {
+            slot["id"] for slot in session["slots"]
+        }, "shared job slot coverage"
+        for slot in session["slots"]:
+            job = data(f"{directory}/{slot['id']}.template.json")
+            assert job["limits"]["memory"] == {
+                "mode": "observe_rss",
+                "max_bytes": rss,
+            }, "shared job RSS"
+            expected_profile = (
+                "preparation-acquire"
+                if slot["id"] in {"pilot-acquire", "continue-acquire"}
+                else "preparation-offline"
+            )
+            assert (
+                job["environment_profile"]
+                == slot["environment_profile"]
+                == expected_profile
+            ), "shared environment profile"
+            env = job["environment"]
+            assert env["CUDA_VISIBLE_DEVICES"] == "", "shared no CUDA"
+            expected_offline = dict.fromkeys(
+                (
+                    "HF_HUB_OFFLINE",
+                    "HF_DATASETS_OFFLINE",
+                    "TRANSFORMERS_OFFLINE",
+                    "UV_OFFLINE",
+                ),
+                "1",
+            )
+            if expected_profile == "preparation-acquire":
+                expected_offline.update(HF_HUB_OFFLINE="0", HF_DATASETS_OFFLINE="0")
+            assert {
+                k: v for k, v in env.items() if k.endswith("_OFFLINE")
+            } == expected_offline, "shared offline policy"
+            assert job["approval"] == session["approval"], "shared approval"
+            assert (
+                job["output_root"]
+                == "${HOST_RECEIPT_ROOT}/" + session["session_id"] + "/A"
+            ), "shared receipt namespace"
+            assert job["limits"]["wall_seconds"] == slot["allowance_seconds"], (
+                "shared slot wall"
+            )
+            assert job["argv"] == slot["argv"], "shared slot argv"
+
+
+def test_full_and_pilot_jobs_share_approved_safety_invariants():
+    _assert_shared_safety(PACKAGE)
+
+
+@pytest.mark.parametrize(
+    "files,field,value,reason",
+    [
+        (
+            (
+                "jobs/pilot-acquire.template.json",
+                "pilot-jobs/pilot-acquire.template.json",
+            ),
+            "limits.memory.max_bytes",
+            24 * GIB,
+            "shared job RSS",
+        ),
+        (
+            ("session.template.json", "pilot-session.template.json"),
+            "limits.rss.max_bytes",
+            24 * GIB,
+            "shared session RSS",
+        ),
+        (
+            (
+                "jobs/transport-init.template.json",
+                "pilot-jobs/transport-init.template.json",
+            ),
+            "environment.HF_HUB_OFFLINE",
+            "0",
+            "shared offline policy",
+        ),
+        (
+            (
+                "jobs/pilot-budget-status.template.json",
+                "pilot-jobs/pilot-budget-status.template.json",
+            ),
+            "environment.TRANSFORMERS_OFFLINE",
+            "0",
+            "shared offline policy",
+        ),
+        (
+            ("session.template.json", "pilot-session.template.json"),
+            "limits.storage.root_bytes.A",
+            400 * GIB,
+            "shared root disk ceiling",
+        ),
+    ],
+)
+def test_consistent_full_and_pilot_tampering_is_rejected(
+    tmp_path, files, field, value, reason
+):
+    package = tmp_path / "package"
+    shutil.copytree(PACKAGE, package)
+    manifest = json.loads((package / "package-sha256.json").read_text())
+    for name in files:
+        path = package / name
+        data = json.loads(path.read_text())
+        target = data
+        parts = field.split(".")
+        for part in parts[:-1]:
+            target = target[part]
+        target[parts[-1]] = value
+        path.write_text(json.dumps(data, indent=2) + "\n")
+        manifest[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (package / "package-sha256.json").write_text(json.dumps(manifest))
+    with pytest.raises(AssertionError, match=reason):
+        _assert_shared_safety(package)

@@ -11,7 +11,7 @@ fixtures, never real dataset payloads.
 
 `pytest -q tests/test_lab86_package.py tests/test_corpus_acquisition.py
  tests/test_preparation_commands.py tests/test_preparation_tokenizer_dispatch.py`:
-**119 passed in 43.38s**.
+**131 passed in 43.00s**.
 Repository Ruff check/format, research lint (570 records), and staged diff checks
 passed. Fetched source evidence is retained as JSON text with original byte SHA256,
 which preserves upstream text while conforming to the research record format.
@@ -39,8 +39,9 @@ Nine coordinated mutations (including all seven review mutants, slot-ID drift an
 lowercase slots) are rejected even after their manifest hashes are recomputed.
 Family merges now use the native JSON-array fragment slot. Pilot selection is
 independently checked against the smallest catalog shard; source-text envelopes
-are verified against their original byte digests. Host object assembly remains a documented JSON data-binding step; it is not a
-native renderer feature. The operator round-trip test was removed in review r2.
+are verified against their original byte digests. Host object assembly remains a
+documented JSON data-binding step; it is not a
+native renderer feature. The operator round-trip test was removed in response to review r2.
 
 Review 5556484694: one derivation check now binds the pilot contract to the full
 zero-model contract, non-init jobs to their full counterparts with only the three
@@ -55,3 +56,17 @@ operator binding step; no new renderer capability or framework. Timestamp wordin
 now distinguishes decoded values/offsets from Arrow units/named zones, and the
 JSONL-only acquisition test requires absence of the Parquet encoding annotation.
 These changes preserve runtime behavior and the approved four-slot pilot boundary.
+
+Review 5556635993: attempt-init's entire job and slot now derive from the already
+validated pilot transport-init, with only their explicit command/ID and 300-second,
+64-MiB initialization allowances changed. Six additional initial-job/session mutants
+cover receipt collision, RSS, offline flags, CUDA, slot profile and extra session keys.
+Shared invariant checks cover all 28 jobs and both sessions: observed RSS matches
+the 16-GiB monitor, environment profiles/flags and CUDA stay within approved policy,
+and root storage plus the 64-MiB shared evidence reserve equals the 300-GiB ceiling.
+Five paired full+pilot mutations are rejected even when both sides and manifest
+hashes are changed consistently. All old template mutations now match their
+intended assertion or native validation message. The first focused run exposed an
+expected-message mismatch for the held-out test split; matching the native
+"test is held out of training" message resolved it. Runtime/package behavior did
+not change, and no new qualification or workload was run.
