@@ -20,8 +20,9 @@ ExperimentPlans, and do not request Campaign approvals. Iterate: read the
 record, change one setting, try again. A lab record is evidence of one local
 comparison, not a release, promotion or scientific conclusion.
 
-For a new user, follow the [TinyStories lab walkthrough](docs/tinystories-microlab.md):
-prepare the three sample inputs, then use `try` and `report`. Keep advanced
+For a new user, follow [lab mode](docs/lab-mode.md) with an explicit local recipe.
+The optional [Workshop TinyStories example](docs/tinystories-microlab.md) is owned
+outside Lab. Prepare its declared inputs, then use `try` and `report`. Keep advanced
 continuation, matrices and release instructions in their own guides. Run IDs
 belong to `probe`/`explore`; sealed record IDs work across `report`/`compare` and
 `probe`/`explore` (the record's candidate checkpoint, never a newer `latest`).

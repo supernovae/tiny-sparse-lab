@@ -9,9 +9,10 @@ of this general pattern.
 
 ## Source declaration and lock
 
-Use the sample [source.yaml](../experiments/samples/tinystories-microlab/source.yaml)
-as a starting point. Change repository, exact commit revision, configuration,
-logical split mapping and text field for another standard Hub text dataset.
+Author a source declaration in your own recipe directory. The optional
+[Workshop example](tinystories-microlab.md) supplies one. Declare the repository,
+exact commit revision, configuration, logical split mapping and text field for
+your selected standard Hub text dataset.
 Keep attribution and terms explicit. No callback or repository Python loader is
 part of the interface. Unsupported formats fail rather than executing code.
 
@@ -19,8 +20,8 @@ part of the interface. Unsupported formats fail rather than executing code.
 `selection.mode: exhaustion` consumes the declared source splits to their end.
 Both have resource limits. Reaching a safety limit is not evidence of complete
 source coverage. Source revisions must be immutable; moving names such as `main`
-are rejected. The sample exact-text dedup policy processes validation first,
-removes within-split repeats and excludes training overlap. Selection and policy
+are rejected. An explicit exact-text dedup policy can process validation first,
+remove within-split repeats and exclude training overlap. Selection and policy
 are part of scientific identity, not invisible cleaning defaults.
 
 ```sh
