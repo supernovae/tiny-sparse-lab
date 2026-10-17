@@ -383,6 +383,17 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
         "research_sources/profiles.json",
         "research_sources/datasets.json",
     }
+    # Old receipts predate original-base and explicit local-card provenance.
+    if any(
+        isinstance(item, dict) and item.get("path") == "research_sources/base.yaml"
+        for item in inventory
+    ):
+        expected.add("research_sources/base.yaml")
+    expected.update(
+        card.reference
+        for card in entry.cards
+        if Path(card.reference).suffix.lower() in {".json", ".yaml", ".yml"}
+    )
     for coordinate in coordinates:
         coordinate_values = (
             coordinate.get("coordinate") if isinstance(coordinate, dict) else None
@@ -441,6 +452,17 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
             source_hashes[name] = item["sha256"]
         if name == "study.yaml":
             study_digest = item["sha256"]
+    if "research_sources/datasets.json" not in names:
+        raise ValueError("research dataset source is absent from verified inventory")
+    datasets_preview, _ = _read_json(
+        path.parent / "research_sources/datasets.json", "research dataset source"
+    )
+    selected_datasets = DatasetsFile.model_validate(datasets_preview)
+    selected_profile = selected_datasets.datasets.get(selection["data"])
+    if selected_profile is not None and selected_profile.source_declaration is not None:
+        expected.update(
+            {"source.yaml", "research_sources/" + selected_profile.source_declaration}
+        )
     if (
         names != expected
         or study_digest is None
@@ -475,7 +497,6 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
         or selection["scale"] not in recipe_scales
         or set(profiles.scales) != {"smoke", "nano", "micro", "tiny"}
         or selection["scale"] not in profiles.scales
-        or set(datasets.datasets) != {"offline", "tinystories", "fineweb_edu"}
         or selection["data"] not in datasets.datasets
     ):
         raise ValueError(

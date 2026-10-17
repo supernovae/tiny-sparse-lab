@@ -1841,6 +1841,10 @@ def _research_scaffold(args: argparse.Namespace) -> None:
     from sparselab.experiments.study import plan_study
     from sparselab.research.scaffold import scaffold_research
 
+    if args.resource_root is not None and args.lifecycle is None:
+        from sparselab.research.catalog import resource_path
+
+        args.lifecycle = str(resource_path("lifecycle.json", root=args.resource_root))
     registry, _ = _lifecycle_registry(args)
     with tempfile.TemporaryDirectory(
         prefix="sparselab-scaffold-preview-", dir=ensure_scratch_dir(args.work_dir)
@@ -1852,6 +1856,7 @@ def _research_scaffold(args: argparse.Namespace) -> None:
             data=args.data,
             backend=args.backend,
             design=args.design,
+            root=args.resource_root,
         )
         study_sha256 = plan_study(preview / "study.yaml").study_sha256
     for warning in _research_diagnostics(registry, study_sha256=study_sha256):
@@ -1863,6 +1868,7 @@ def _research_scaffold(args: argparse.Namespace) -> None:
         data=args.data,
         backend=args.backend,
         design=args.design,
+        root=args.resource_root,
     )
     print(path)
 
@@ -2161,6 +2167,7 @@ def _learn_scaffold(args: argparse.Namespace) -> None:
     path = scaffold_lesson(
         args.identifier,
         Path(args.output),
+        root=args.resource_root,
         scale=args.scale,
         data=args.data,
         backend=args.backend,
@@ -3578,31 +3585,27 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     research_scaffold.add_argument(
         "reference", help="Packaged research ID or explicit JSON fork"
     )
+    research_scaffold.add_argument(
+        "--resource-root",
+        type=Path,
+        help="Complete local authoring resource directory; defaults to packaged resources",
+    )
     research_scaffold.add_argument("--output", required=True)
     research_scaffold.add_argument(
         "--scale", choices=("smoke", "nano", "micro", "tiny"), default="micro"
     )
-    from sparselab.research.catalog import load_datasets
-
-    research_data_choices = tuple(sorted(load_datasets().datasets))
     research_scaffold.add_argument(
-        "--data", choices=research_data_choices, default="offline"
+        "--data",
+        default="offline",
+        help="Dataset profile name from the selected resource directory",
     )
     research_scaffold.add_argument(
         "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"
     )
     research_scaffold.add_argument(
         "--design",
-        choices=(
-            "default",
-            "latent-sweep",
-            "budget-sweep",
-            "iso-total",
-            "iso-active",
-            "iso-token",
-            "iso-flop",
-        ),
         default="default",
+        help="Design name from the selected native recipe",
     )
     research_scaffold.add_argument("--lifecycle")
     research_scaffold.add_argument("--evidence-root", default=".")
@@ -3756,12 +3759,19 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     learn_describe.set_defaults(handler=_learn_describe)
     learn_scaffold = learn_commands.add_parser("scaffold")
     learn_scaffold.add_argument("identifier")
+    learn_scaffold.add_argument(
+        "--resource-root",
+        type=Path,
+        help="Complete local authoring resource directory; defaults to packaged resources",
+    )
     learn_scaffold.add_argument("--output", required=True)
     learn_scaffold.add_argument(
         "--scale", choices=("smoke", "nano", "micro", "tiny"), default="smoke"
     )
     learn_scaffold.add_argument(
-        "--data", choices=("offline", "tinystories"), default="offline"
+        "--data",
+        default="offline",
+        help="Dataset profile name from the selected resource directory",
     )
     learn_scaffold.add_argument(
         "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"
