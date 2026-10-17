@@ -4,9 +4,7 @@
   "application-policy.json": "451d6f38f26a5342c8b0e833389f31981d7f4b1013be13e7b37fd752b6c3fce5",
   "attempt-contract.template.json": "d3239c4879a38f3a4b61ab497d499f6b3b2a4eb9f09c6af8d0829630ac0ef92a",
   "evidence/candidate-catalog.json": "e41ca2c6d365d13d0cd952bca070bb9653708466e186ea256c47449f255fe3a7",
-  "evidence/code-README.md": "3a3d0085618244734660b2b2ebe6183106a47ad1f88a490b52554833d6fb362a",
   "evidence/code-loader.py.txt": "0ed4cd02c865dc0b5960ec112e1144823ccb5b4edf8a27dada5bd4f44a7d507a",
-  "evidence/smollm-README.md": "e09544d7132303ae6bbc6e156e984db0305d81561615476be49eabd4be4b8bed",
   "family-clusters.template.json": "62ff313c84b6012293af3a8fa27afbfc4ff2d7c703ecd8e258e90163e0ead1b3",
   "inspection-selection.json": "f29dfa13f751662a34c168c9b2dfb202ab9ef854ab5ed7f8b60bb82292284d98",
   "jobs/admission-draft.template.json": "92dcef0363ad3881151f3cad6218a2298d877ba4e5293cba4fe69bc375b1add1",
@@ -135,5 +133,7 @@
   "token-floors.yaml": "241e20b0bb8a28f9b2bc901ff17490cd516cc7c6b869ad5856964af3a3b429b1",
   "tokenizer-sampling.yaml": "186df94b73b2a0a0c7d3829a0154268b417adff54b71afde9b985d53d13f9c88",
   "../preparation.json": "af54055489d43ec2598293d963e15f58c715ebe75ef60cfd73261a9c9f5ee1b5",
-  ".gitattributes": "c2e6707d5d07a5aac8fa0360f4770b9af0f4cd6dd6353c571a7f5c6241927d1f"
+  ".gitattributes": "c2e6707d5d07a5aac8fa0360f4770b9af0f4cd6dd6353c571a7f5c6241927d1f",
+  "evidence/smollm-README.md.txt": "e09544d7132303ae6bbc6e156e984db0305d81561615476be49eabd4be4b8bed",
+  "evidence/code-README.md.txt": "3a3d0085618244734660b2b2ebe6183106a47ad1f88a490b52554833d6fb362a"
 }
