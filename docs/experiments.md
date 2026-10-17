@@ -1,9 +1,10 @@
 # Independent experiments and controlled comparisons
 
-This guide explains the execution machinery. Copyable walkthroughs are indexed
-under [`experiments/samples/`](../experiments/samples/); identity-bound research
-campaigns and iteration notes belong under
-[`experiments/research/`](../experiments/research/). Keep downloads, prepared
+This guide explains the execution machinery. External recipe pointers are indexed
+under [`experiments/samples/`](../experiments/samples/). Keep current plans and
+identity-bound campaigns in a user-owned external recipe directory. The local
+[`experiments/research/`](../experiments/research/) tree retains historical
+references. Keep downloads, prepared
 data, run stores, checkpoints, logs, and generated reports under the external persistent root at
 `$SPARSELAB_WORK_DIR/experiments/<campaign>/`.
 Report code gaps through the [contribution workflow](../CONTRIBUTING.md#planning-and-contributions); scientific
@@ -75,11 +76,17 @@ second verified external tokenizer artifact with that selector's SHA.
 `release_set.accepted_generation_statuses` accepts Corpus Forge's verification
 labels as unordered filter classes, not a quality ranking or score.
 
+Use an explicit current plan outside the Lab checkout. Replace the path below;
+its sources, suite, tokenizer and output locations must be explicitly bound.
+`prepare` can materialize data and train tokenizers and needs its own resource
+authorization. These commands are interface examples, not an executed recipe.
+
 ```sh
-uv run --locked --extra cpu sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked --extra cpu sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked --extra cpu sparselab experiment diff experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked --extra cpu sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
+PLAN="/absolute/recipe/plan.yaml"
+uv run --locked --extra cpu sparselab experiment validate "$PLAN" --json
+uv run --locked --extra cpu sparselab experiment prepare "$PLAN" --json
+uv run --locked --extra cpu sparselab experiment diff "$PLAN" --json
+uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json
 ```
 
 `lock` re-verifies artifact digests and hardware-free runtime requirements,
@@ -115,8 +122,10 @@ phase lineage, evidence coverage, and readiness/decision views. Planned-only
 views omit `--index`. These are software and provenance reports, not automatic
 scientific findings or baseline promotion; preregistered held-out evaluations
 and human review remain separate. See the
-[four-arm CPU example](../experiments/samples/README.md#corpus-shape-and-exact-generated-fraction)
-and [retrospective limits](research/experiment-dsl-retrospectives.md).
+[historical corpus-shape example](https://github.com/supernovae/kybern-workshop/blob/df5a43aff682d14c3a3481413b80f12e7894a042/provenance/lab/experiments/samples/README.md#corpus-shape-and-exact-generated-fraction)
+and [retrospective limits](research/experiment-dsl-retrospectives.md). The archived
+example is historical evidence, not current execution authority or a current
+behavior guarantee; new reproductions require new identities and bindings.
 
 Existing `matrix_version: 1` and `study_version: 1` callers remain usable:
 their axis expansion and exact-difference checks now share the plan compiler,
