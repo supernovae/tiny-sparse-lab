@@ -1336,29 +1336,31 @@ def _build_phase_e_tasks(args: argparse.Namespace) -> None:
     if args.task == "memory-allocation":
         if args.seed != 17:
             raise ValueError("memory-allocation uses fixed provenance and seeds")
+        inputs = (
+            "tokenizer",
+            "train_jsonl",
+            "validation_jsonl",
+            "oracle_audit",
+            "provenance",
+            "cards_dir",
+        )
+        missing = [
+            "--" + name.replace("_", "-") for name in inputs if not getattr(args, name)
+        ]
+        if missing:
+            raise ValueError(
+                "memory-allocation requires explicit inputs: " + ", ".join(missing)
+            )
         from sparselab.data.allocation_tasks import build_memory_allocation
 
-        root = Path(__file__).resolve().parents[3]
         manifest = build_memory_allocation(
             Path(args.output),
-            tokenizer_path=Path(args.tokenizer)
-            if args.tokenizer
-            else root / "artifacts/tokenizer_path_domain_v1/tokenizer.json",
-            train_path=Path(args.train_jsonl)
-            if args.train_jsonl
-            else root / "data/path_domain_v1/train.jsonl",
-            validation_path=Path(args.validation_jsonl)
-            if args.validation_jsonl
-            else root / "data/path_domain_v1/development.jsonl",
-            audit_path=Path(args.oracle_audit)
-            if args.oracle_audit
-            else root / "data/path_domain_v1/oracle_audit.json",
-            provenance_path=Path(args.provenance)
-            if args.provenance
-            else root / "data/path_domain_v1/provenance.json",
-            cards_dir=Path(args.cards_dir)
-            if args.cards_dir
-            else root / "data/path_domain_v1/cards",
+            tokenizer_path=Path(args.tokenizer),
+            train_path=Path(args.train_jsonl),
+            validation_path=Path(args.validation_jsonl),
+            audit_path=Path(args.oracle_audit),
+            provenance_path=Path(args.provenance),
+            cards_dir=Path(args.cards_dir),
         )
         print(manifest)
         return
@@ -3668,12 +3670,24 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     task_build.add_argument("--output", required=True)
     task_build.add_argument("--seed", type=int, default=17)
-    task_build.add_argument("--tokenizer")
-    task_build.add_argument("--train-jsonl")
-    task_build.add_argument("--validation-jsonl")
-    task_build.add_argument("--oracle-audit")
-    task_build.add_argument("--provenance")
-    task_build.add_argument("--cards-dir")
+    task_build.add_argument(
+        "--tokenizer", help="required for memory-allocation; no packaged default"
+    )
+    task_build.add_argument(
+        "--train-jsonl", help="required for memory-allocation; no packaged default"
+    )
+    task_build.add_argument(
+        "--validation-jsonl", help="required for memory-allocation; no packaged default"
+    )
+    task_build.add_argument(
+        "--oracle-audit", help="required for memory-allocation; no packaged default"
+    )
+    task_build.add_argument(
+        "--provenance", help="required for memory-allocation; no packaged default"
+    )
+    task_build.add_argument(
+        "--cards-dir", help="required for memory-allocation; no packaged default"
+    )
     task_build.set_defaults(handler=_build_phase_e_tasks)
     research_corpus = research_commands.add_parser(
         "corpus",
