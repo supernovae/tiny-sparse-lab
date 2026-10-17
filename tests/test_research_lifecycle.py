@@ -551,10 +551,11 @@ def test_lessons_do_not_depend_on_personal_registry(
     from sparselab.research.catalog import list_lessons
     from sparselab.research.scaffold import scaffold_lesson
 
-    def refuse_registry(*args, **kwargs):
-        raise AssertionError("teaching scaffold must not load a research registry")
-
-    monkeypatch.setattr(lifecycle, "load_lifecycle", refuse_registry)
+    empty_resources = tmp_path / "empty-resources"
+    empty_resources.mkdir()
+    monkeypatch.setattr(lifecycle, "_RESOURCE", empty_resources)
+    with pytest.raises(ValueError, match="lifecycle metadata is unavailable"):
+        lifecycle.load_lifecycle()
     assert len(list_lessons()) == 11
     output = scaffold_lesson("dense", tmp_path / "lesson", scale="smoke")
     assert (output / "model.yaml").is_file()

@@ -494,6 +494,11 @@ def scaffold_research(
             "learned-engram-portability-v1 uses research portability build "
             "--experiment learned-engram-portability-v1, not research scaffold"
         )
+    if entry.recipe is None:
+        raise ValueError(
+            f"research entry {entry.id!r} has no scaffold recipe; "
+            "provide a current recipe-backed entry with --resource-root"
+        )
     if data not in _dataset_names(root=root):
         raise ValueError(
             f"unsupported dataset {data!r}; choose {', '.join(_dataset_names(root=root))}"

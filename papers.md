@@ -5,14 +5,14 @@ implements small reference mechanisms and declared experiments; it does not
 reproduce every training system or headline result below. Pick by what you want
 to learn, not a prescribed reading or execution order.
 
-## Choose a runnable question
+## Choose a question
 
-The recipe IDs below are native `research` catalog entries. They scaffold
-editable declarations; preparation, training and collection are separate explicit
-operations. The optimizer comparison uses RunConfig/ExperimentPlan instead of a
-packaged research recipe.
+The linked personal recipe guides are historical Workshop archive pointers, not
+current packaged catalog entries. New studies use the
+[external-resource authoring contract](docs/external-research-resources.md) and
+explicit seeds. The optimizer comparison uses RunConfig/ExperimentPlan.
 
-| Question and motivation | Paper connection | Native route | What remains unproven |
+| Question and motivation | Paper connection | Historical guide or current mechanism | What remains unproven |
 | --- | --- | --- | --- |
 | Can lookup capacity compensate for a narrower feed-forward network? | [Engram](https://arxiv.org/abs/2601.07372): gated n-gram lookup complements neural computation. | `engram-ffn-substitution-v1`; [guide](docs/research/engram-ffn-substitution.md) | Added tables change total parameters; small reference runs do not inherit large-model gains. |
 | Where should conditional capacity go: experts or memory? | [Engram](https://arxiv.org/abs/2601.07372) motivates allocation between lookup and routed computation. | `engram-moe-capacity-v1`; [guide](docs/research/engram-moe-capacity.md) | Selected FFN capacity is not equal measured FLOPs, runtime or total storage. |
@@ -23,19 +23,15 @@ packaged research recipe.
 
 ## Run through the lab
 
-Start with the [installation and first run](README.md#first-run). This example
-scaffolds an offline CPU study into a fresh task directory; it does not train.
-Choose a new directory if it already exists. On a provisioned accelerator, use
-the [runtime workflow](docs/runtime.md) and preserve its environment.
+Start with the [installation and first run](README.md#first-run), then prepare a
+complete current local resource closure. Replace the path and `neutral-study`
+placeholder with your own resource root and recipe-backed entry ID. This command
+only scaffolds declarations; it does not train or authorize execution.
 
 ```sh
-export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
-WORK="$SPARSELAB_WORK_DIR/experiments/lookup-versus-ffn"
-uv run --locked --extra cpu sparselab research list
-uv run --locked --extra cpu sparselab research describe engram-ffn-substitution-v1
-uv run --locked --extra cpu sparselab research scaffold engram-ffn-substitution-v1 \
-  --scale smoke --data offline --backend cpu --output "$WORK"
-uv run --locked --extra cpu sparselab study plan "$WORK/study.yaml"
+sparselab research scaffold neutral-study --resource-root /path/to/resources \
+  --scale smoke --data offline --backend cpu --output experiments/new-study
+sparselab study plan experiments/new-study/study.yaml
 ```
 
 Follow the generated README for tokenizer preparation, actual-config inspection,
@@ -64,7 +60,8 @@ retained evidence, limits and possible next tests. In particular:
 - Runtime and optimizer-state checks establish bounded execution/accounting,
   not model quality or a paper reproduction.
 
-Use `sparselab report --kind research` for declared lifecycle state,
+The packaged lifecycle registry is empty and grants no scientific clearance.
+Use an explicit current registry for declared lifecycle state,
 and `campaign status` for a local execution. Checked-in findings cannot establish
 which jobs are currently running on another machine. Scientific next questions
 live in the [research roadmap](docs/research/roadmap.md).

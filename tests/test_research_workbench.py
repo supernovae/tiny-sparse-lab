@@ -446,3 +446,15 @@ def test_semantic_retrieval_lesson_builds_verified_pack_and_runnable_workspace(
         "lesson-fork-left",
         "lesson-fork-right",
     )
+
+
+@pytest.mark.parametrize(
+    "entry_id", ["dense-lm-v1", "tinystories-dense-30m-data-rich-v1"]
+)
+def test_recipe_less_cards_refuse_scaffold_before_writing(
+    tmp_path: Path, entry_id: str
+):
+    output = tmp_path / "not-created"
+    with pytest.raises(ValueError, match="has no scaffold recipe.*--resource-root"):
+        scaffold_research(entry_id, output)
+    assert not output.exists()
