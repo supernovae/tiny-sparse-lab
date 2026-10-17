@@ -126,8 +126,13 @@ protocol with generic dispatch. Mechanism lessons live in `learn`; research
 scaffolds emit native study declarations. Keep one current public command/schema
 path; update callers together
 instead of adding executable version forks, compatibility aliases or a second
-runner. Necessary historical readers belong in private, read-only compatibility
-code. Do not reimplement hashing, checkpoint selection, accounting or workflow
+runner. Until a production release is tagged, adapt experiment plans, recipes
+and models to current Lab behavior; do not add backward compatibility or version
+adapters to preserve old execution behavior. Historical evidence may be read and
+audited without making old artifacts executable or treating historical claims
+as current guarantees. Follow the [migration and review policy](CONTRIBUTING.md#pre-production-migration-policy),
+including new experiment identities and the release-tag boundary.
+Do not reimplement hashing, checkpoint selection, accounting or workflow
 state in task scripts. Before building new training, evaluation or quantization
 machinery, check existing libraries (nanoGPT/modded-nanogpt, litgpt,
 lm-evaluation-harness, llm-compressor) and wrap them. Record a genuinely
