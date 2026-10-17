@@ -194,7 +194,7 @@ def test_memory_injection_serialization_preserves_legacy_final_config() -> None:
     config = load_config(
         Path(__file__).resolve().parents[1]
         / "configs"
-        / "context_study_dense_s17_b24k.yaml"
+        / "runtime_smoke_cpu.yaml"
     )
     explicit_final = config.model_copy(
         update={"model": config.model.model_copy(update={"memory_injection": "final"})}

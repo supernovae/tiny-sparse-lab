@@ -299,7 +299,7 @@ def test_scientific_config_identity_excludes_operational_policy() -> None:
     config = load_config(
         Path(__file__).resolve().parents[1]
         / "configs"
-        / "context_study_dense_s17_b24k.yaml"
+        / "runtime_smoke_cpu.yaml"
     )
     scientific = config.model_dump(mode="json")
     assert "resource_envelope" not in scientific
