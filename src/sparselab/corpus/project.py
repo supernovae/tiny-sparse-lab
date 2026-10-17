@@ -690,6 +690,24 @@ class TransportBudgetSpec(StrictModel):
     max_wall_seconds: int = Field(gt=0)
     max_disk_bytes: int = Field(gt=0)
 
+    max_total_body_bytes: int | None = Field(
+        default=None, strict=True, gt=0, exclude_if=lambda value: value is None
+    )
+    initial_body_bytes: int | None = Field(
+        default=None, strict=True, gt=0, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def gate_bounds(self):
+        if self.initial_body_bytes is not None and (
+            self.max_total_body_bytes is None
+            or self.initial_body_bytes >= self.max_total_body_bytes
+        ):
+            raise ValueError(
+                "initial transfer gate requires a larger cumulative total byte cap"
+            )
+        return self
+
     @field_validator("attempt_id")
     @classmethod
     def attempt_id_safe(cls, value: str) -> str:

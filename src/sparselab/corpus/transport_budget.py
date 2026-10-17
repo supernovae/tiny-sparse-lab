@@ -124,6 +124,31 @@ class TransportBudget:
             )
         ):
             raise ValueError("transport budget ledger counters are invalid")
+        charged = state["source_charged"] + state["metadata_charged"]
+        if (
+            self.spec.max_total_body_bytes is not None
+            and charged > self.spec.max_total_body_bytes
+        ):
+            raise ValueError("transport budget cumulative total exceeded")
+        if (
+            self.spec.initial_body_bytes is not None
+            and "gate_review" not in state
+            and charged > self.spec.initial_body_bytes
+        ):
+            raise ValueError("transport budget initial gate exceeded")
+        if "gate_review" in state:
+            review = state["gate_review"]
+            if (
+                self.spec.initial_body_bytes is None
+                or not isinstance(review, dict)
+                or set(review)
+                != {"receipt_sha256", "report_sha256", "approval_reference"}
+                or any(
+                    not isinstance(value, str) or not value.strip()
+                    for value in review.values()
+                )
+            ):
+                raise ValueError("transport budget gate review is invalid")
         for transfer in transfers:
             if "resources" not in transfer:
                 continue  # Historical ledgers have no inferred readings.
@@ -294,6 +319,7 @@ class TransportBudget:
         *,
         allow_verified_retry: bool = False,
     ) -> None:
+        self._check_combined(state, size)
         prior = [item for item in state["transfers"] if item["key"] == key]
         if any(
             item["status"] == "failed"
@@ -366,6 +392,7 @@ class TransportBudget:
 
     def reserve_metadata(self, amount: int) -> None:
         def update(state: dict[str, Any]) -> None:
+            self._check_combined(state, amount)
             if amount > self.spec.max_metadata_body_bytes - state["metadata_charged"]:
                 raise ValueError("transport budget metadata body allowance exhausted")
             state["metadata_charged"] += amount
@@ -391,3 +418,78 @@ class TransportBudget:
             self._validate_state(state)
 
         self._mutate(update, check_deadline=False)
+
+    def _check_combined(self, state: dict[str, Any], amount: int) -> None:
+        if type(amount) is not int or amount <= 0:
+            raise ValueError("transport reservation requires positive integer bytes")
+        charged = state["source_charged"] + state["metadata_charged"] + amount
+        if (
+            self.spec.max_total_body_bytes is not None
+            and charged > self.spec.max_total_body_bytes
+        ):
+            raise ValueError(
+                "transport budget cumulative source-plus-metadata allowance exhausted"
+            )
+        if (
+            self.spec.initial_body_bytes is not None
+            and "gate_review" not in state
+            and charged > self.spec.initial_body_bytes
+        ):
+            raise ValueError(
+                "transport initial feasibility gate requires an owner-reviewed report"
+            )
+
+    def release_gate(self, report: Path, review: Path) -> dict[str, Any]:
+        """Record separately authorized gate review; never resets any counter.
+
+        The caller must have actual owner authority. A reference in this file is
+        provenance, not a grant of permission or a bypass of any other hold.
+        """
+        if any(
+            path.is_symlink() or not path.is_file() or path.stat().st_size > 1024 * 1024
+            for path in (report, review)
+        ):
+            raise ValueError("gate report and review require regular files")
+        report_bytes = report.read_bytes()
+        report_value = json.loads(report_bytes)
+        decision = json.loads(review.read_bytes())
+        if (
+            not isinstance(report_value, dict)
+            or set(report_value) != {"ledger_receipt", "findings"}
+            or not isinstance(report_value["findings"], dict)
+            or report_value["findings"].get("status") != "ready"
+        ):
+            raise ValueError(
+                "gate report requires ledger_receipt and ready feasibility findings"
+            )
+        if (
+            not isinstance(decision, dict)
+            or set(decision) != {"decision", "report_sha256", "approval_reference"}
+            or decision["decision"] != "continue"
+            or decision["report_sha256"] != hashlib.sha256(report_bytes).hexdigest()
+            or not isinstance(decision["approval_reference"], str)
+            or not decision["approval_reference"].strip()
+        ):
+            raise ValueError(
+                "gate review requires a report-bound continue decision and actual approval reference"
+            )
+
+        def update(state: dict[str, Any]) -> dict[str, Any]:
+            if self.spec.initial_body_bytes is None or "gate_review" in state:
+                raise ValueError("transport initial gate is absent or already released")
+            if state != report_value["ledger_receipt"]:
+                raise ValueError("gate report is stale or belongs to another ledger")
+            if state["source_actual"] <= 0 or any(
+                item["status"] == "started" for item in state["transfers"]
+            ):
+                raise ValueError(
+                    "gate report requires completed pilot evidence and no active transfer"
+                )
+            state["gate_review"] = {
+                "receipt_sha256": hashlib.sha256(canonical_json(state)).hexdigest(),
+                "report_sha256": decision["report_sha256"],
+                "approval_reference": decision["approval_reference"],
+            }
+            return state["gate_review"]
+
+        return self._mutate(update)

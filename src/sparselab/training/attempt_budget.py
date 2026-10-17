@@ -219,6 +219,11 @@ def validate_attempt_paths(
     }
     if "--output" in command.options:
         outputs["leaf output"] = Path(str(command.options["--output"]))
+    if command.operation == "tokenizer train":
+        from sparselab.config.loading import load_tokenizer_config
+
+        tokenizer_config = load_tokenizer_config(Path(command.args[2]))
+        outputs["tokenizer output tree"] = tokenizer_config.output_dir
     if command.operation == "train" and "--runs-dir" in command.options:
         outputs["training runs tree"] = Path(str(command.options["--runs-dir"]))
     inputs = {
@@ -258,6 +263,7 @@ def validate_attempt_paths(
         "--tokenizer-config",
         "--checkpoint",
         "--config",
+        "--base-run-config",
     }
     for option in input_options & command.options.keys():
         inputs[f"leaf {option}"] = Path(str(command.options[option]))
@@ -1396,6 +1402,30 @@ class AttemptBudget:
                 raise AttemptBudgetError(
                     "admission inspection input differs from contract"
                 )
+        if classified.operation == "tokenizer train":
+            from sparselab.config.loading import load_tokenizer_config
+            from sparselab.corpus.export import verify_release_export
+
+            tokenizer_config = load_tokenizer_config(Path(classified.args[2]))
+            destination = tokenizer_config.output_dir
+            if tokenizer_config.sampling is None:
+                raise AttemptBudgetError(
+                    "tokenizer preparation requires declared bounded TRAIN sampling"
+                )
+            if (
+                not destination.is_absolute()
+                or destination.is_symlink()
+                or destination.resolve() == resolved_root
+                or not destination.resolve().is_relative_to(resolved_root)
+            ):
+                raise AttemptBudgetError(
+                    "tokenizer output is outside the attempt root or linked"
+                )
+            if destination.exists():
+                raise AttemptBudgetError(
+                    "tokenizer preparation requires a new output directory"
+                )
+            verify_release_export(tokenizer_config.dataset)
         preparation_kind = {
             "corpus split-inventory": "pre_freeze_project",
             "corpus freeze-splits": "pre_freeze_project",
@@ -1419,6 +1449,8 @@ class AttemptBudget:
             ):
                 raise AttemptBudgetError("acquisition project differs from contract")
         accepted_operations = {
+            "tokenizer train",
+            "corpus export",
             "corpus measure-tokens",
             "corpus materialize-mixture",
             "corpus verify-mixture",
@@ -1437,7 +1469,13 @@ class AttemptBudget:
             if accepted is None:
                 raise AttemptBudgetError("exact release has not been accepted")
             review = json.loads(accepted[0].read_text(encoding="utf-8"))
-            if classified.operation == "corpus measure-tokens":
+            if (
+                classified.operation == "tokenizer train"
+                and tokenizer_config.dataset.corpus_release_path.resolve()
+                != Path(review["release_path"]).resolve()
+            ):
+                raise AttemptBudgetError("tokenizer release differs from acceptance")
+            if classified.operation in {"corpus measure-tokens", "corpus export"}:
                 from sparselab.corpus.cli import _release_path
 
                 measured = _release_path(classified.args[2], resolved_root)

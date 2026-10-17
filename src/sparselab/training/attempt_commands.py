@@ -54,6 +54,7 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
         set(),
         "preparation",
     ),
+    "tokenizer train": (1, set(), set(), "preparation"),
     "corpus budget-init": (1, set(), set(), "preparation"),
     "corpus budget-status": (1, set(), set(), "inspection"),
     "corpus alias-snapshot": (1, {"--source-id", "--snapshot"}, set(), "preparation"),
@@ -135,6 +136,12 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
     ),
     "corpus materialize-mixture": (1, {"--output"}, {"--json"}, "preparation"),
     "corpus verify-mixture": (1, {"--output"}, {"--json"}, "inspection"),
+    "corpus export": (
+        1,
+        {"--view", "--base-run-config", "--vocab-size", "--min-frequency"},
+        set(),
+        "preparation",
+    ),
     "corpus verify-export": (1, set(), set(), "inspection"),
     "data prepared-inputs publish": (
         1,
@@ -241,6 +248,7 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
 }
 
 _REQUIRED: dict[str, set[str]] = {
+    "corpus export": {"--view", "--base-run-config", "--vocab-size"},
     "corpus render-declaration": {"--template", "--values-json", "--output"},
     "corpus alias-snapshot": {"--source-id", "--snapshot"},
     "corpus admission-draft": {"--template", "--policy-document", "--output"},

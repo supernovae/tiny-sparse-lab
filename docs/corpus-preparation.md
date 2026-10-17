@@ -253,8 +253,9 @@ sampling:
 
 This is an **unexecuted fragment**: source IDs must cover the actual frozen
 release exactly, and the export must already specify vocabulary 32768. Run the
-existing `tokenizer train CONFIG` command. Adding this leaf to the supervised
-preparation plan is a separate integration prerequisite. The existing ByteLevel BPE trainer is used once, with no tokenizer normalizer.
+existing `tokenizer train CONFIG` command. The native preparation dispatcher supports this leaf with declared sampling,
+authenticated export, a new output inside the attempt root, and any required
+release acceptance binding. The existing ByteLevel BPE trainer is used once, with no tokenizer normalizer.
 
 Selection visits eligible documents in immutable release order, restricted to
 the authenticated LM TRAIN lineage. It takes whole UTF-8 documents without
@@ -281,3 +282,30 @@ The 512 MiB cap bounds selected fit bytes, not process RSS. The existing trainer
 and release verifier may use more memory; the 16 GiB operational target still
 requires runtime observation and the feasibility gate. This does not authorize
 fitting on a real corpus or running a model workload.
+
+
+## Initial transfer feasibility gate
+
+A new transport budget may specify `initial_body_bytes` below
+`max_total_body_bytes`. Both caps combine source and metadata **reservations**;
+failed/interrupted transfers and retries retain their full conservative charge.
+For the unexecuted fresh EXP1 plan these are 4 GiB and 100 GiB, respectively.
+Separate source/metadata caps, retry limits, disk checks and the original wall
+deadline still apply. Omitted fields preserve existing ledger bindings.
+
+Before a reservation crosses the initial cap, acquisition refuses and retains
+all completed snapshots and failure evidence. Save `corpus budget-status PROJECT`
+as the `ledger_receipt` member of a report with explicit `findings`. Findings must
+report `status: ready` to continue; blocked findings refuse. A separately
+reviewed JSON decision contains exactly `decision: continue`, the exact report
+`report_sha256`, and an actual nonempty `approval_reference`. With real owner
+authorization, use `corpus budget-release-gate PROJECT --report REPORT --review
+REVIEW`. This action is intentionally excluded from automatic attempt dispatch.
+The ledger receipt must match exactly and no transfer may be active. The action
+records review provenance once and changes no spent counter, deadline, source
+scope or other hold. Approval text in a file never creates authority.
+
+See the [unexecuted EXP1 plan](../experiments/research/exp1-preparation/README.md)
+for the full native phase sequence and remaining source/runtime bindings. A
+feasibility gate is not a new transfer allocation; never initialize a replacement
+ledger to evade a cap or change the full source scope after starting.
