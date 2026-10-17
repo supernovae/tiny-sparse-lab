@@ -344,9 +344,11 @@ preparation. A retry consumes another full reservation from the same total.
 Approval text or stop evidence in a file never creates authority or bypasses
 another hold. Never reconcile a live transfer.
 
-See the [unexecuted EXP1 plan](../experiments/research/exp1-preparation/README.md)
-for the full native phase sequence and remaining source/runtime bindings. A
-feasibility gate is not a new transfer allocation; never initialize a replacement
+Concrete preparation recipes belong in user-owned directories or repositories.
+The EXP1 declarations moved to Workshop; the [disposition record](exp1-retirement.json)
+binds their original bytes to the destination commit. Lab supplies the native
+commands described here; Workshop and an internal runner are not prerequisites.
+A feasibility gate is not a new transfer allocation; never initialize a replacement
 ledger to evade a cap or change the full source scope after starting.
 
 Historical fixed evaluation selection/slice commands still require their three

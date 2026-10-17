@@ -1,12 +1,18 @@
 # Portable experiment migration acceptance
 
-Completion means an independently authored Workshop experiment exercises the
-generic public lab path on real data, produces valid paired comparison evidence,
-and replaces its legacy active path with references and tests updated. Synthetic
-smoke success, copied declarations and a preparation-only PR are partial evidence.
-Computation stays in native Python components, connections in the typed native
-plan, execution in CampaignEngine/Controller. No dataset-specific engine or
-custom driver may bypass missing contracts.
+The ownership boundary is declarative user recipes plus reusable Lab functions.
+Recipes may live in any repository or local directory; Workshop is one recipe
+collection, not a required service. Workshop experiment folders contain DSL,
+configuration, docs/cards and artifact references, without Python launchers or
+per-experiment Python tests. Lab owns generators, parsers, planning, execution
+and generic Python tests with neutral fixtures. Internal runner coordination is
+not part of the public reproduction contract.
+
+Migration acceptance uses verified relocation, resolved dependencies and native
+metadata-only dry-run validation outside both checkouts. It does not require or
+authorize acquisition, training, hardware qualification or scientific claims.
+Remove replaced personal science from the current Lab tree; Git history retains
+provenance. Do not keep duplicate active copies under a historical label.
 
 ## Stage 1: local snapshot preparation
 
@@ -28,7 +34,7 @@ custom driver may bypass missing contracts.
 - [ ] Real pinned Hub delivery and decoder-resource qualification under a separate
   authorization. Loopback wiring is not TinyStories portability evidence.
 
-## Remaining completion gates
+## Capability and evidence follow-up (distinct from retirement acceptance)
 
 - [ ] Portable acquisition: inventoried native source-lock references, bound
   output/cache locations, separately admitted network/download/storage budgets,
@@ -47,15 +53,19 @@ custom driver may bypass missing contracts.
 - [ ] Independently authored, committed Workshop real-data proof at frozen lab,
   runtime, recipe, source, tokenizer and prepared-data pins. Retain measurements,
   paired results, evaluation/panels and replay without duplicate attempts.
-- [ ] Replacement map for every legacy active sample, route, documentation link
-  and test. Update references and retire replaced active material only after
-  replacement proof passes; preserve historical artifacts, hashes and readers.
+- [ ] Complete the replacement map for every personal sample, route, catalog,
+  documentation link and test. EXP1 is the first scoped retirement; its
+  [file disposition and guarantee map](exp1-retirement.json) records the relocated
+  bytes and retained generic test coverage. KML and other studies remain pending.
 - [ ] Explicit disposition of hosted/GPU samples: their own qualified replacement
   or a documented distinct retained scope. CPU evidence is not accelerator proof.
 
 The snapshot-consumption and bounded-acquisition foundations do not complete
 these real-data and full-workflow gates.
-Legacy paths/tests remain until their replacement is proven. A preparation recipe
+Retirement does not wait for real workloads: verify byte disposition and native
+dry-run behavior, and preserve generic guarantees with neutral tests. The unchecked
+items above mix capability gaps and unexecuted evidence; confirm existing native
+functions before implementing anything new. A preparation recipe
 revision identifies its committed inputs and admission. A later workflow recipe
 revision pins the produced artifact identities. Replaying preparation must use
 its original recipe revision and admission; workflow edits do not retroactively
