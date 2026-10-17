@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from corpus_fixtures import neutral_corpus
 
 from sparselab.corpus.acquisition import acquire
 from sparselab.corpus.pipeline import _records_for_file, _split, build
@@ -118,10 +119,10 @@ def test_normalized_duplicates_preserve_distinct_raw_origins() -> None:
     assert composed["document_id"] != decomposed["document_id"]
 
 
-def test_prospective_hf_rows_keep_provenance_and_exclude_private_material() -> None:
-    source = load_project(
-        Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
-    ).sources[0]
+def test_prospective_hf_rows_keep_provenance_and_exclude_private_material(
+    tmp_path: Path,
+) -> None:
+    source = neutral_corpus(tmp_path).sources[0]
     safe = {
         "text": "A public tutorial explains operating system scheduling and reliable "
         "deployments with concrete examples across several paragraphs. " * 2,
@@ -171,15 +172,13 @@ def test_prospective_hf_rows_keep_provenance_and_exclude_private_material() -> N
     ]
 
 
-def test_scholarly_abstracts_and_full_papers_keep_distinct_kinds_and_corpus_ids() -> (
-    None
-):
-    project = load_project(
-        Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
-    )
+def test_scholarly_abstracts_and_full_papers_keep_distinct_kinds_and_corpus_ids(
+    tmp_path: Path,
+) -> None:
+    project = neutral_corpus(tmp_path)
     for source_id, upstream, expected_kind in (
-        ("pes2o_v2_train", "s2ag/train", "abstract"),
-        ("pes2o_v2_fulltext", "s2orc/train", "paper"),
+        ("pes2o_fixture_abstract", "s2ag/train", "abstract"),
+        ("pes2o_fixture_paper", "s2orc/train", "paper"),
     ):
         source = next(item for item in project.sources if item.id == source_id)
         raw = b"".join(
@@ -214,11 +213,9 @@ def test_scholarly_abstracts_and_full_papers_keep_distinct_kinds_and_corpus_ids(
         assert [item["reason"] for item in rejected] == ["unreviewed_academic_origin"]
 
 
-def test_wikimedia_rows_keep_page_revision_not_jsonl_envelope() -> None:
-    project = load_project(
-        Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
-    )
-    source = next(item for item in project.sources if item.id == "wikibooks_20260901")
+def test_wikimedia_rows_keep_page_revision_not_jsonl_envelope(tmp_path: Path) -> None:
+    project = neutral_corpus(tmp_path)
+    source = next(item for item in project.sources if item.id == "wiki_fixture")
     raw = json.dumps(
         {
             "text": "Compiler construction begins with tokens and grammar definitions.",
