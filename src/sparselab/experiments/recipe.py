@@ -27,6 +27,7 @@ from sparselab.config.recipe_paths import (
 )
 from sparselab.declaration_context import RecipeContext, canonical_reference, safe_path
 from sparselab.documents import parse_document
+from sparselab.experiments.artifact_paths import artifact_path
 from sparselab.experiments.compiler import (
     apply_patch,
     compare_configs,
@@ -304,8 +305,11 @@ def inspect_recipe(path: Path, *, max_runs: int = 1000) -> dict[str, Any]:
                 }
             )
         else:
-            # Explicit paths remain recipe-root relative, never cwd fallback.
-            path = safe_path(context.root, artifact.path)
+            # Match native plan-relative resolution; portable previews additionally
+            # require canonical relative paths and refuse symlinked ancestors.
+            canonical_reference(artifact.path)
+            path = artifact_path(artifact.path, source)
+            safe_path(context.root, path.relative_to(context.root).as_posix())
             requirements.append(
                 {
                     "kind": "checkpoint",

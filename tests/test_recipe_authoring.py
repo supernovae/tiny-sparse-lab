@@ -202,7 +202,18 @@ def test_derivative_checkpoint_missing_then_unverified_and_relocated(
         next(x for x in result["requirements"] if x["kind"] == "checkpoint")["status"]
         == "unavailable"
     )
-    checkpoint = source.parent / "base/checkpoints/step-10"
+    # A recipe-root decoy must not count as the native plan-relative payload.
+    decoy = source.parent / "base/checkpoints/step-10"
+    decoy.mkdir(parents=True)
+    assert (
+        next(
+            x
+            for x in inspect_recipe(source)["requirements"]
+            if x["kind"] == "checkpoint"
+        )["status"]
+        == "unavailable"
+    )
+    checkpoint = source.parent / "plans/base/checkpoints/step-10"
     checkpoint.mkdir(parents=True)
     (checkpoint / "not-a-real-model.bin").write_bytes(b"not loaded")
     assert (
@@ -213,12 +224,21 @@ def test_derivative_checkpoint_missing_then_unverified_and_relocated(
         )["status"]
         == "unverified"
     )
+    from sparselab.experiments.artifacts import _safe_path
+
+    expected = _safe_path("base/checkpoints/step-10", source.parent / "plans/plan.yaml")
+    assert next(
+        x for x in inspect_recipe(source)["requirements"] if x["kind"] == "checkpoint"
+    )["path"] == str(expected)
     relocated = tmp_path / "relocated"
     shutil.move(source.parent, relocated)
     monkeypatch.chdir(tmp_path)
     moved = inspect_recipe(relocated / source.name)
     assert moved["recipe_sha256"] == result["recipe_sha256"]
     assert moved["executable"] is False
+    assert next(x for x in moved["requirements"] if x["kind"] == "checkpoint")[
+        "path"
+    ] == str(_safe_path("base/checkpoints/step-10", relocated / "plans/plan.yaml"))
 
 
 @pytest.mark.parametrize(
@@ -296,7 +316,6 @@ def test_derivative_cli_is_metadata_only(tmp_path):
 
 def test_native_phase_projection_is_unchanged(tmp_path):
     from sparselab.experiments.lock import _phases
-    from sparselab.experiments.phase_graph import validate_phase_graph
     from sparselab.experiments.plan import ExperimentPlan
 
     source = derivative(tmp_path / "source")
@@ -304,8 +323,14 @@ def test_native_phase_projection_is_unchanged(tmp_path):
         read_document(source.parent / "plans/plan.yaml")
     )
     assert [p.model_dump() for p in _phases(plan)] == [
-        {key: value for key, value in p.model_dump().items() if key != "set"}
-        for p in validate_phase_graph(plan)
+        {
+            "id": "derivative",
+            "transition": "extend_budget",
+            "checkpoint": "base",
+            "parent": None,
+            "selector": None,
+            "at_step": None,
+        }
     ]
 
 
@@ -329,3 +354,229 @@ def test_noncheckpoint_artifacts_and_phase_comparisons_refuse(tmp_path):
     update_member(source, "plans/plan.yaml", json.dumps(raw))
     with pytest.raises(ValueError, match="phase comparisons"):
         inspect_recipe(source)
+
+
+@pytest.mark.parametrize(
+    "profile,option",
+    [
+        ("preparation", "artifacts"),
+        ("preparation", "campaign"),
+        ("matrix", "campaign"),
+        ("workflow", "campaign"),
+    ],
+)
+def test_create_rejects_ignored_or_uninventoried_options(tmp_path, profile, option):
+    factory = {
+        "preparation": preparation_fixture,
+        "matrix": write_recipe,
+        "workflow": write_workflow,
+    }[profile]
+    built = factory(tmp_path / "source")
+    source = built[0] if isinstance(built, tuple) else built
+    descriptor = read_document(source)
+    options = {
+        option: tmp_path / "absent.json" if option == "artifacts" else "absent.json"
+    }
+    if profile == "workflow":
+        identities = tmp_path / "identities.json"
+        identities.write_text(json.dumps(descriptor["artifacts"]))
+        options["artifacts"] = identities
+    match = {
+        "preparation": "belong in its native campaign",
+        "matrix": "has no campaign",
+        "workflow": "must be an inventoried",
+    }[profile]
+    with pytest.raises(ValueError, match=match):
+        create_recipe(
+            source.parent,
+            tmp_path / "output",
+            profile=profile,
+            recipe_id="neutral",
+            entrypoint=descriptor["entrypoint"],
+            files=[f"{m['role']}:{m['path']}" for m in descriptor["files"]],
+            **options,
+        )
+    assert not (tmp_path / "output").exists()
+
+
+def test_descriptor_size_boundary_refuses_before_publication(tmp_path, monkeypatch):
+    from sparselab.experiments import recipe_authoring
+
+    source = write_recipe(tmp_path / "source")
+    descriptor = read_document(source)
+    args = {
+        "profile": "matrix",
+        "recipe_id": "neutral",
+        "entrypoint": descriptor["entrypoint"],
+        "files": [f"{m['role']}:{m['path']}" for m in descriptor["files"]],
+    }
+    create_recipe(source.parent, tmp_path / "first", **args)
+    size = (tmp_path / "first/recipe.json").stat().st_size
+    monkeypatch.setattr(recipe_authoring, "MAX_DOCUMENT_BYTES", size)
+    create_recipe(source.parent, tmp_path / "exact", **args)
+    monkeypatch.setattr(recipe_authoring, "MAX_DOCUMENT_BYTES", size - 1)
+    with pytest.raises(ValueError, match="descriptor exceeds"):
+        create_recipe(source.parent, tmp_path / "over", **args)
+    assert not (tmp_path / "over").exists()
+
+
+@pytest.mark.parametrize(
+    "damage,match",
+    [
+        ("best-step", "cannot also pin"),
+        ("planned-checkpoint", "pinned external"),
+        ("promote-no-state", "pinned checkpoint weights"),
+        ("external-selector", "already a pinned generation"),
+        ("external-step", "already a pinned generation"),
+        ("fresh-selector", "cannot select a parent"),
+        ("fresh-step", "cannot select a parent"),
+    ],
+)
+def test_phase_guard_refusals_match_native(tmp_path, damage, match):
+    from sparselab.experiments.lock import _phases
+    from sparselab.experiments.plan import ExperimentPlan
+
+    source = derivative(tmp_path / "source")
+    raw = read_document(source.parent / "plans/plan.yaml")
+    phase = raw["phases"][0]
+    if damage == "best-step":
+        raw["phases"] = [
+            {"id": "base"},
+            {
+                "id": "child",
+                "transition": "resume",
+                "parent": "base",
+                "selector": "best_validation",
+                "at_step": 1,
+            },
+        ]
+    elif damage == "planned-checkpoint":
+        raw["artifacts"]["base"] = {
+            "kind": "checkpoint",
+            "version": 1,
+            "producer": "native",
+            "identifier": "future",
+            "from_phase": "producer",
+            "selector": "terminal",
+        }
+        raw["phases"].insert(0, {"id": "producer"})
+    elif damage == "promote-no-state":
+        phase["transition"] = "promote"
+        del raw["artifacts"]["base"]["state"]
+    elif damage.startswith("external"):
+        phase["selector" if damage.endswith("selector") else "at_step"] = (
+            "best_validation" if damage.endswith("selector") else 1
+        )
+    else:
+        raw["phases"] = [
+            {
+                "id": "fresh",
+                "selector"
+                if damage.endswith("selector")
+                else "at_step": "best_validation" if damage.endswith("selector") else 1,
+            }
+        ]
+    update_member(source, "plans/plan.yaml", json.dumps(raw))
+    with pytest.raises(ValueError, match=match):
+        inspect_recipe(source)
+    with pytest.raises(ValueError, match=match):
+        _phases(ExperimentPlan.model_validate(raw))
+
+
+@pytest.mark.parametrize(
+    "path", ["../checkpoint", "/tmp/checkpoint", "linked/checkpoint"]
+)
+def test_checkpoint_preview_refuses_unsafe_paths(tmp_path, path):
+    source = derivative(tmp_path / "source")
+    (source.parent / "plans/linked").symlink_to(tmp_path, target_is_directory=True)
+    raw = read_document(source.parent / "plans/plan.yaml")
+    raw["artifacts"]["base"]["path"] = path
+    update_member(source, "plans/plan.yaml", json.dumps(raw))
+    with pytest.raises(ValueError, match="unsafe or ambiguous|symlink"):
+        inspect_recipe(source)
+
+
+def test_phase_set_reaches_native_config_validation(tmp_path):
+    from pydantic import ValidationError
+
+    source = derivative(tmp_path / "source")
+    raw = read_document(source.parent / "plans/plan.yaml")
+    raw["phases"][0]["set"] = {"training.max_steps": "invalid"}
+    update_member(source, "plans/plan.yaml", json.dumps(raw))
+    with pytest.raises(ValidationError) as error:
+        inspect_recipe(source)
+    assert any(e["loc"] == ("training", "max_steps") for e in error.value.errors())
+
+
+def test_parent_checkpoint_is_planned_consumption_not_retraining(tmp_path):
+    source = derivative(
+        tmp_path / "source",
+        phases=[
+            {"id": "producer"},
+            {
+                "id": "child",
+                "transition": "resume",
+                "parent": "producer",
+                "selector": "terminal",
+                "at_step": 1,
+            },
+        ],
+        artifacts={
+            "future": {
+                "kind": "checkpoint",
+                "version": 1,
+                "producer": "native",
+                "identifier": "future",
+                "from_phase": "producer",
+                "selector": "terminal",
+            }
+        },
+    )
+    result = inspect_recipe(source)
+    assert [p["consumption"] for p in result["phases"]] == [
+        "fresh_training",
+        "produced_checkpoint",
+    ]
+    requirement = next(x for x in result["requirements"] if x["kind"] == "checkpoint")
+    assert requirement == {
+        "kind": "checkpoint",
+        "name": "future",
+        "status": "planned",
+        "from_phase": "producer",
+        "selector": "terminal",
+        "expected_sha256": None,
+    }
+
+
+def test_native_artifact_path_verification_preserves_refusals(tmp_path):
+    from sparselab.experiments.artifact_paths import artifact_path
+    from sparselab.experiments.artifacts import _safe_path
+
+    source = tmp_path / "plans/plan.yaml"
+    source.parent.mkdir()
+    target = source.parent / "checkpoint"
+    assert artifact_path("checkpoint", source) == target
+    with pytest.raises(ValueError, match="missing artifact"):
+        _safe_path("checkpoint", source)
+    target.mkdir()
+    assert _safe_path(str(target), source) == target
+    with pytest.raises(ValueError, match="parent traversal"):
+        _safe_path("../checkpoint", source)
+    (target / "link").symlink_to(source)
+    with pytest.raises(ValueError, match="symlinked artifact member"):
+        _safe_path("checkpoint", source)
+    (target / "link").unlink()
+    (source.parent / "linked").symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        _safe_path("linked", source)
+
+
+def test_native_phase_checkpoint_requires_checkpoint_kind(tmp_path):
+    from sparselab.experiments.lock import _phases
+    from sparselab.experiments.plan import ExperimentPlan
+
+    source = derivative(tmp_path / "source")
+    raw = read_document(source.parent / "plans/plan.yaml")
+    raw["artifacts"]["base"]["kind"] = "tokenizer"
+    with pytest.raises(ValueError, match="pinned external"):
+        _phases(ExperimentPlan.model_validate(raw))

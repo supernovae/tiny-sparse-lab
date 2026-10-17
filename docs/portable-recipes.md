@@ -281,8 +281,9 @@ or add an internal runner dependency.
 
 Matrix inspection also validates the native phase graph for checkpoint-only
 artifact declarations. An external checkpoint artifact must declare its immutable
-identity, full SHA256, state (`full` or `weights`) and a canonical recipe-root
-relative path. A derivative phase names it through `checkpoint`, with the native
+identity, full SHA256, state (`full` or `weights`) and a canonical path relative to the entrypoint plan's directory.
+Portable inspection refuses absolute paths and symlinks; native execution also
+accepts absolute artifact paths. A derivative phase names it through `checkpoint`, with the native
 `resume`, `extend_budget` or `promote` transition. Alternatively, a phase may name
 an earlier producer through `parent` with its deterministic selector. The shared
 native graph validator rejects cycles, missing checkpoint names and incompatible
