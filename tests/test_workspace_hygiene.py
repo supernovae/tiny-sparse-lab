@@ -63,22 +63,16 @@ def test_workspace_is_git_ignored() -> None:
     assert result.returncode == 0
 
 
-def test_registered_historical_documents_keep_their_byte_identities() -> None:
-    """Old command examples can be frozen evidence; supersede, never rewrite."""
-    import hashlib
+def test_resource_retirement_records_originals_and_destination() -> None:
     import json
 
-    registry = json.loads(
-        (REPO / "src/sparselab/research/resources/lifecycle.json").read_text()
-    )
-    checked = []
-    for evidence in registry["evidence"]:
-        artifact = evidence.get("artifact", {})
-        relative = artifact.get("relative_path", "")
-        if evidence["kind"] != "document" or not relative.startswith("docs/"):
-            continue
-        payload = (REPO / relative).read_bytes()
-        assert len(payload) == artifact["size_bytes"], relative
-        assert hashlib.sha256(payload).hexdigest() == artifact["sha256"], relative
-        checked.append(relative)
-    assert checked
+    record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
+    assert len(record["files"]) == 17
+    assert len({row["source"] for row in record["files"]}) == 17
+    for row in record["files"]:
+        assert row["destination"] == "provenance/lab/" + row["source"]
+        assert len(row["sha256"]) == 64
+        assert row["size_bytes"] > 0
+        if not row["source"].endswith("/lifecycle.json"):
+            assert not (REPO / row["source"]).exists()
+    assert record["lifecycle_supplement"] == "provenance/lab-lifecycle-supplement.json"

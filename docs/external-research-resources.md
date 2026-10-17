@@ -32,8 +32,8 @@ root it must be inside that root, and its recipe remains relative to the entry's
 parent as in the existing local-entry contract. IDs resolve under `catalog/`,
 with recipe paths relative to the resource root.
 
-External recipes must declare a `seed` axis using the existing matrix option
-format. No implicit matched seed selection is injected into an external recipe.
+Every current recipe must declare a `seed` axis using the existing matrix option
+format. No implicit matched seed selection is injected, with or without a resource root.
 Scale profiles retain their current four-scale schema and native overlay behavior,
 including scale-dependent optimizer defaults; `base_set` can explicitly override
 those defaults. Backend selection remains independent. This interface adds no
@@ -53,8 +53,34 @@ are teaching examples, not portable experiment execution declarations. Model
 lessons preserve their source lesson/base/profiles/datasets in their input
 inventory. This option does not convert a lesson into a new generic protocol.
 
-Without `--resource-root`, existing packaged defaults remain available during
-migration. Unrelated command help does not require the research dataset catalog.
+The personal packaged recipes and their catalog entries have been retired together.
+Use an explicit current resource closure; unknown retired IDs refuse. Packaged
+mechanism lessons and auxiliary base/profile/dataset resources remain during their
+separate migration. Unrelated command help does not require the dataset catalog.
+
+The default packaged lifecycle registry is empty: no findings, baselines,
+promotions, or prior-evidence warnings are selected. This is a new current default,
+not a reset of an experiment registry or runner state. Empty-registry validity is
+structural validation, never scientific clearance. Explicit `--lifecycle PATH`
+selection remains strict; missing or invalid files refuse. An external resource
+root still requires its own `lifecycle.json` unless overridden. `--evidence-root`
+defaults to the working directory and controls relative evidence references.
+
+Three personal no-recipe catalog cards remain pending separate consumer/protocol
+retirement: `dense-lm-v1`, `learned-engram-portability-v1`, and
+`tinystories-dense-30m-data-rich-v1`. They appear unassessed in the default research
+view; they are not generic examples or current guarantees. The eleven `learn`
+lessons are independent mechanism tutorials (nine model lessons and two artifact
+walkthroughs); they do not require the personal lifecycle registry.
+
+The [retirement inventory](research-resource-retirement.json) records original
+hashes and landed Workshop destinations. The archived populated registry is
+historical evidence only. The [preservation supplement][supplement] records five
+references absent from the pinned tracked trees; they were not recovered.
+Reproduction through current interfaces belongs in the Workshop backlog as new
+experiments with new identities. Preserved recipes alone are not runnable ports.
+
+[supplement]: https://github.com/supernovae/kybern-workshop/blob/1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab-lifecycle-supplement.json
 
 ## Migration boundaries
 

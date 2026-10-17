@@ -1,0 +1,127 @@
+{
+  "workshop_commit": "1aa84218a95fabafc96f2cc7d667c0c969eb8d5e",
+  "lab_commit": "29fa0cbf02cb8727db41e6265f2d965cecef3589",
+  "files": [
+    {
+      "source": "src/sparselab/research/resources/recipes/engram-ffn-substitution-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/engram-ffn-substitution-v1.json",
+      "git_blob": "9335009a14b3919ec2c07b0eddfbf8a4228e1592",
+      "size_bytes": 24084,
+      "sha256": "46fe3348ec939e2452457d935df449ad324d7eab077ee2c0906ac2e5a81cc99a"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/engram-ffn-substitution-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/engram-ffn-substitution-v1.json",
+      "git_blob": "851f9a00b753f284f9ef2f7dfca738de0c64de34",
+      "size_bytes": 4367,
+      "sha256": "c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/engram-mla-compression-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/engram-mla-compression-v1.json",
+      "git_blob": "8d9dce00085ee443324a19de6fb06fc208094d12",
+      "size_bytes": 46661,
+      "sha256": "8993000cf47c217a39db49065a4a2d1bb858fe71118a6b59ee88ae9b7a51f806"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/engram-mla-compression-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/engram-mla-compression-v1.json",
+      "git_blob": "eeaa30b964b4ba40efb93165c911ad4c419fb934",
+      "size_bytes": 4765,
+      "sha256": "25ff4128a42d90936ce461b1a1217c28d427becf65514961c7ff3199418d9f0e"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/engram-moe-capacity-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/engram-moe-capacity-v1.json",
+      "git_blob": "d62430700f7b18abbb3a528716e240c2d3167815",
+      "size_bytes": 25632,
+      "sha256": "b224dd764ac4946be83271745fed66a81944ced01a286479894157b4d24ff960"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/engram-moe-capacity-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/engram-moe-capacity-v1.json",
+      "git_blob": "33bfeca2c981f3d5786d6e578239ebfd5b1d916e",
+      "size_bytes": 4803,
+      "sha256": "f52ece6c6aef296429b119573f249c5381a16e0db7a341bac75cef7c5f45fdd2"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/engram-placement-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/engram-placement-v1.json",
+      "git_blob": "e38716f22319f1734e0d0aa554d09ab70febd8f3",
+      "size_bytes": 13867,
+      "sha256": "c1628deec93b8c906856a7016300305ea6bb60bc200c36fc2d1883941f4d435e"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/engram-placement-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/engram-placement-v1.json",
+      "git_blob": "29f5ee03c36b3adbf2b5a40a7acc7bdaaaee9a89",
+      "size_bytes": 4408,
+      "sha256": "a3b2c3cfc41d1f6d76d1b69147572c7ddc2a218b312bcfeef0f6bdac5f998e36"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/engram-portability-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/engram-portability-v1.json",
+      "git_blob": "ea5a4f967da494e2ade79c8fa5b8ab88c84da25c",
+      "size_bytes": 9131,
+      "sha256": "b3787fc607e6d75c242c2bc5167b8858535d73d557d1230b37155e5910863019"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/engram-portability-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/engram-portability-v1.json",
+      "git_blob": "0bd8bafd1d50d63c8be917ab261c68b44320b899",
+      "size_bytes": 7942,
+      "sha256": "90df9ba8eb38216dd9c7fc980870149116eacb924802204f069c253910cfd1bf"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/engram-sparse-budget-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/engram-sparse-budget-v1.json",
+      "git_blob": "fce99557ab7db5cd4ffa9a2038a9f034d93e4bd1",
+      "size_bytes": 46675,
+      "sha256": "044a9a2cac9b752b67d6ea1abfa10778f9779a0b957aa780301881b26eb5e0f0"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/engram-sparse-budget-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/engram-sparse-budget-v1.json",
+      "git_blob": "2e6eeb82d8ab9a2074879377f7156290b78f22d7",
+      "size_bytes": 4476,
+      "sha256": "710aeecdda9313ea43fadf98de2ea2c000ac8a9e8ce7858940c5b4064128c292"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/lexical-memory-heavy-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/lexical-memory-heavy-v1.json",
+      "git_blob": "72650086f8f886762b2b79758d52615360b2047e",
+      "size_bytes": 15203,
+      "sha256": "f518ef0cce2ceebdd793bbdc69a438d3d7e3c1471cca8b389fbd5f74c0e81660"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/lexical-memory-heavy-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/lexical-memory-heavy-v1.json",
+      "git_blob": "0abddde816e925a69581c0ae4d445ad939e37018",
+      "size_bytes": 4568,
+      "sha256": "52dc839a8be570148cb263633354b085b80be915c21e0b04261c3004de9af02d"
+    },
+    {
+      "source": "src/sparselab/research/resources/recipes/memory-allocation-curve-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/recipes/memory-allocation-curve-v1.json",
+      "git_blob": "afb29e218c2acbd265cb07d9e50c774d9c76928f",
+      "size_bytes": 408774,
+      "sha256": "07bfefdd051d2bdb8eaf40e3963527a24410865ceb554eeb5e5a8f49a520500e"
+    },
+    {
+      "source": "src/sparselab/research/resources/catalog/memory-allocation-curve-v1.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/catalog/memory-allocation-curve-v1.json",
+      "git_blob": "d0b54fb4f29c733a8bb94987081fbcb089d475c2",
+      "size_bytes": 6253,
+      "sha256": "a53622a1899ec79e9dcf03c958a45e0d832cdb2fe732ffa03b3789683648dc14"
+    },
+    {
+      "source": "src/sparselab/research/resources/lifecycle.json",
+      "destination": "provenance/lab/src/sparselab/research/resources/lifecycle.json",
+      "git_blob": "82a536fd284114d50e392ba1debc3bbe12a19057",
+      "size_bytes": 74681,
+      "sha256": "e23734fa46739ba87e0d1ee5f258e43646f41a8360e991273350dc419a80346e"
+    }
+  ],
+  "scope": "Historical originals preserved in Workshop; replacement default registry is empty. No runtime or reproduction claim.",
+  "lifecycle_supplement": "provenance/lab-lifecycle-supplement.json"
+}

@@ -3479,7 +3479,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     study_plan = study_commands.add_parser("plan")
     study_plan.add_argument("path", help="Architecture study YAML")
     study_plan.add_argument("--max-runs", type=int, default=1000)
-    study_plan.add_argument("--lifecycle")
+    study_plan.add_argument(
+        "--lifecycle",
+        help="Explicit registry JSON; default is an empty current registry",
+    )
     study_plan.add_argument("--evidence-root", default=".")
     study_plan.set_defaults(handler=_study_plan)
     study_submit = study_commands.add_parser("submit")
@@ -3494,7 +3497,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--store",
         help="Defaults to selected persistent root/experiments/<study-name>/runs",
     )
-    study_submit.add_argument("--lifecycle")
+    study_submit.add_argument(
+        "--lifecycle",
+        help="Explicit registry JSON; default is an empty current registry",
+    )
     study_submit.add_argument("--evidence-root", default=".")
     study_submit.set_defaults(handler=_study_submit)
     study_recover = study_commands.add_parser(
@@ -3607,12 +3613,18 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         default="default",
         help="Design name from the selected native recipe",
     )
-    research_scaffold.add_argument("--lifecycle")
+    research_scaffold.add_argument(
+        "--lifecycle",
+        help="Explicit registry JSON; otherwise resource-root lifecycle.json or empty packaged registry",
+    )
     research_scaffold.add_argument("--evidence-root", default=".")
     research_scaffold.set_defaults(handler=_research_scaffold)
 
     def lifecycle_arguments(command: argparse.ArgumentParser) -> None:
-        command.add_argument("--lifecycle")
+        command.add_argument(
+            "--lifecycle",
+            help="Explicit registry JSON; default is an empty current registry",
+        )
         command.add_argument("--evidence-root", default=".")
         command.add_argument("--json", action="store_true")
 
@@ -3895,7 +3907,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
-    dashboard.add_argument("--lifecycle")
+    dashboard.add_argument(
+        "--lifecycle",
+        help="Explicit registry JSON; default is an empty current registry",
+    )
     dashboard.add_argument("--evidence-root", default=".")
     dashboard.add_argument(
         "--surface-dir", help="Optional read-only Surface Review overlay"
