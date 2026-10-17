@@ -36,7 +36,7 @@ def test_legacy_serialization_unchanged():
 
 
 @pytest.mark.parametrize("kind", ["preparation", "workflow"])
-@pytest.mark.parametrize("damage", ["descriptor", "inventory", "binding", "mode"])
+@pytest.mark.parametrize("damage", ["descriptor", "inventory", "binding"])
 def test_content_context_refresh_refuses_before_dispatch(
     tmp_path, monkeypatch, kind, damage
 ):
@@ -54,6 +54,7 @@ def test_content_context_refresh_refuses_before_dispatch(
     provenance = context.refresh()
     assert provenance["status"] == "CONTENT_BOUND"
     assert provenance["source_commit"] is None
+    assert_content_inventory(provenance, source, admission)
     assert all(row["status"] == "CONTENT_BOUND" for row in provenance["declarations"])
     engine = context.engine()
     monkeypatch.setattr(
@@ -78,25 +79,6 @@ def test_content_context_refresh_refuses_before_dispatch(
         raw["unexpected"] = "change"
         bindings.write_text(json.dumps(raw))
         message = "extra_forbidden"
-    else:
-        # Switching modes invalidates existing receipt context even if closure
-        # bytes agree; use the engine's ordinary identity guard before dispatch.
-        prior = {
-            "stages": [
-                {
-                    "id": "fixture",
-                    "receipt": {},
-                    "stage_input_sha256": "a",
-                    "declaration_provenance": {
-                        **provenance,
-                        f"{kind}_context": {"different": "mode"},
-                    },
-                }
-            ]
-        }
-        with pytest.raises(ValueError, match="CONTEXT_CHANGED"):
-            engine._assert_declaration_identity(prior, provenance)
-        return
     with pytest.raises(ValueError, match=message):
         engine.apply()
     assert not engine.store.root.exists()
@@ -113,9 +95,62 @@ def test_plain_directory_preparation_completes_and_replays(tmp_path, monkeypatch
     for row in result["stages"]:
         assert row["declaration_provenance"]["status"] == "CONTENT_BOUND"
         assert row["declaration_provenance"]["source_commit"] is None
+        assert_content_inventory(row["declaration_provenance"], source, admission)
     monkeypatch.setattr(
         engine, "dispatch", lambda *a, **k: pytest.fail("replayed adapter")
     )
     assert all(
         row["state"] == "COMPLETE" for row in engine.apply(resume=True)["stages"]
     )
+
+
+def assert_content_inventory(provenance, source, admission):
+    names = [
+        source.name,
+        *(member["path"] for member in json.loads(source.read_text())["files"]),
+    ]
+    expected = {
+        name: hashlib.sha256((source.parent / name).read_bytes()).hexdigest()
+        for name in names
+    }
+    declarations = provenance["declarations"]
+    assert len(declarations) == len(expected)
+    assert {row["path"]: row["sha256"] for row in declarations} == expected
+    assert expected[source.name] == admission.reviewed_descriptor_sha256
+
+
+@pytest.mark.parametrize("initial_content", [False, True])
+def test_real_source_mode_switch_refuses_resume(tmp_path, initial_content):
+    source, bindings, work, committed = setup(tmp_path)
+    content = content_admission(committed, source)
+    first, second = (content, committed) if initial_content else (committed, content)
+    initial = PreparationExecution(source, bindings, work, first).engine().apply()
+    assert all(row["state"] == "COMPLETE" for row in initial["stages"])
+    engine = PreparationExecution(source, bindings, work, second).engine()
+    with pytest.raises(
+        ValueError, match="PREPARATION_CONTEXT_CHANGED: receipt context differs"
+    ):
+        engine.apply(resume=True)
+
+
+def test_content_reread_refuses_racing_member_bytes(tmp_path, monkeypatch):
+    from sparselab.experiments import recipe_admission
+
+    source, bindings, work, committed = setup(tmp_path)
+    admission = content_admission(committed, source)
+    context = PreparationExecution(source, bindings, work, admission)
+    member = source.parent / json.loads(source.read_text())["files"][0]["path"]
+    original = recipe_admission._metadata_bytes
+
+    def changed_on_provenance_reread(path):
+        data = original(path)
+        return data + b" " if path == member else data
+
+    monkeypatch.setattr(
+        recipe_admission, "_metadata_bytes", changed_on_provenance_reread
+    )
+    with pytest.raises(
+        ValueError, match="CONTENT_CONTEXT_CHANGED: declaration bytes differ"
+    ):
+        context.refresh()
+    assert not work.exists()

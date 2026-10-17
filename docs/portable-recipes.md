@@ -162,7 +162,9 @@ These commands use the existing ModelConfig, optimizer union, RunConfig and
 TokenizerTrainConfig schemas. They reject unknown fields and malformed YAML/JSON,
 including duplicate keys. A valid individual section does not prove its compatibility
 with other sections, artifact availability, hardware capacity or scientific readiness.
-They do not allocate a model, train, download or evaluate anything.
+They do not allocate a model, train, download or evaluate anything. Unlike
+`sparselab inspect CONFIG`, which inspects a full run configuration through its
+runtime-aware path, `config validate` only checks the selected native schema.
 
 For an existing inventoried matrix, preparation or workflow descriptor:
 
