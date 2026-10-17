@@ -893,6 +893,7 @@ def test_reviewed_98_1_1_split_and_fresh_strata_are_identity_bound(
     output = tmp_path / "splits.yaml"
     result = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
     receipt = split_freeze.verify_split_bundle(output)
+    assert result["split_weights"] == declaration["split_weights"]
     assert receipt["split_weights"] == declaration["split_weights"]
     assert receipt["cluster_sha256"] == sha256_file(clusters)
     assert set(receipt["family_counts"]) == {"real_english", "synthetic", "code"}
@@ -921,6 +922,7 @@ def test_reviewed_98_1_1_split_and_fresh_strata_are_identity_bound(
         None,
         {},
         {"train": 98, "validation": 1},
+        {"train": 98, "validation": 1, "test": 1, "extra": 1},
         {"train": 98, "validation": 1, "test": 0},
         {"train": 98, "validation": 1, "test": True},
         {"train": 98, "validation": 1, "test": 1.0},
@@ -952,3 +954,43 @@ def test_small_inventory_does_not_silently_round_away_one_percent_holdouts(
         split_freeze.freeze_splits(
             project, tmp_path, inventory, clusters, tmp_path / "splits.yaml"
         )
+
+
+@pytest.mark.parametrize(
+    "stratum",
+    ["", "Real_English", "1code", "code/x", "a" * 65, 5, None, "code stratum"],
+)
+def test_invalid_reviewed_stratum_refuses_before_publication(
+    tmp_path, monkeypatch, stratum
+):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    declaration = json.loads(clusters.read_text())
+    declaration["source_strata"]["books"] = stratum
+    clusters.write_bytes(canonical_json(declaration))
+    output = tmp_path / "splits.yaml"
+    with pytest.raises(ValueError, match="invalid reviewed family-cluster declaration"):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    assert not output.exists()
+
+
+def test_reviewed_stratum_accepts_exact_64_character_boundary(tmp_path, monkeypatch):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    declaration = json.loads(clusters.read_text())
+    stratum = "a" * 64
+    declaration["source_strata"]["books"] = stratum
+    clusters.write_bytes(canonical_json(declaration))
+    output = tmp_path / "splits.yaml"
+    result = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    assert stratum in result["family_counts"]
+    assert stratum in split_freeze.verify_split_bundle(output)["family_counts"]
+
+
+def test_exact_10000_split_weight_sum_reaches_family_count_check(tmp_path, monkeypatch):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    declaration = json.loads(clusters.read_text())
+    declaration["split_weights"] = {"train": 9998, "validation": 1, "test": 1}
+    clusters.write_bytes(canonical_json(declaration))
+    output = tmp_path / "splits.yaml"
+    with pytest.raises(ValueError, match="too few eligible families"):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    assert not output.exists()

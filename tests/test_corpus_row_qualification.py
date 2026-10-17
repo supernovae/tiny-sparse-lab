@@ -73,6 +73,7 @@ def test_code_provenance_and_repository_grouping_preserve_attribution():
         "path": row["path"],
         "license_label": "mit",
         "language": "Python",
+        "license_expression": "MIT",
     }
 
 
@@ -101,15 +102,15 @@ def test_absent_qualification_preserves_existing_source_serialization(tmp_path):
     assert "qualification" not in source_declaration_payload(source)["acquisition"]
 
 
-def declared_fixture(tmp_path):
+def declared_fixture(tmp_path, *, policy=None, rows=None):
     manifest, source, snapshot, raw, _ = _fixture(tmp_path)
     source["canonical_uri"] = "https://huggingface.co/datasets/fixture/synthetic"
-    source["acquisition"]["qualification"] = {
+    source["acquisition"]["qualification"] = policy or {
         "profile": "synthetic_text",
         "family_fields": ["seed"],
         "synthetic_provenance_fields": ["seed"],
     }
-    rows = [
+    rows = rows or [
         {
             "text": "Generated explanatory fixture text with enough words for native parsing. "
             * 3,
@@ -165,7 +166,15 @@ def test_declared_rows_cold_verify_parse_and_group_with_original_envelope(tmp_pa
     )
     assert len(docs) == 1
     doc = docs[0][0]
+    expected = provenance(
+        json.loads(raw.splitlines()[0]), model.acquisition.qualification
+    )
     assert doc["metadata"]["qualification_profile"] == "synthetic_text"
+    assert doc["metadata"]["qualification_family_hint"] == expected["family_hint"]
+    assert (
+        doc["metadata"]["synthetic_provenance_sha256"]
+        == expected["synthetic_provenance_sha256"]
+    )
     metadata = _verified_hf_metadata(
         raw, file, snapshot["retrieval"], source["revision"], original_rows=True
     )
@@ -200,8 +209,9 @@ def test_code_policy_cannot_split_repository_or_omit_required_screen(change):
         RowQualification.model_validate({**payload, **change})
 
 
+@pytest.mark.parametrize("profile", ["synthetic", "nested_web"])
 def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, profile
 ):
     from types import SimpleNamespace
 
@@ -210,7 +220,30 @@ def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
 
     root = tmp_path / "work"
     snapshot_root = root / "corpora" / "declared-fixture" / "snapshots"
-    manifest, source, snapshot, _ = declared_fixture(snapshot_root)
+    overrides = {}
+    if profile == "nested_web":
+        overrides = {
+            "policy": {
+                "profile": "web_text",
+                "family_fields": ["metadata.url"],
+                "language_field": "metadata.language",
+                "allowed_languages": ["en"],
+            },
+            "rows": [
+                {
+                    "text": "Nested English fixture with enough content. " * 3,
+                    "metadata": {
+                        "url": "https://example.org/article",
+                        "language": "en",
+                    },
+                },
+                {
+                    "text": "Missing nested provenance fixture. " * 3,
+                    "metadata": {"language": "en"},
+                },
+            ],
+        }
+    manifest, source, snapshot, _ = declared_fixture(snapshot_root, **overrides)
     model = SourceDeclaration.model_validate(source)
     snapshot_dir = snapshot_root / model.id / snapshot["snapshot_sha256"]
     (snapshot_dir / "manifest.json").write_text(json.dumps(snapshot))
@@ -242,9 +275,345 @@ def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
     output = root / "draft.json"
     report = draft_admission_manifest(project, root, template, policy, output)
     assert report["counts"] == {"qualify": 1, "exclude": 0, "quarantine": 1}
+    assert json.loads(output.read_text())["sources"][0]["records"][0]["issues"] == []
     verify_record_admission(
         json.loads(output.read_text()),
         {model.id: source},
         {model.id: snapshot},
         snapshot_root,
     )
+
+
+@pytest.mark.parametrize("uri", ["project_gutenberg_filtered", "wikimedia_filtered"])
+def test_legacy_sources_refuse_declared_policy_override(tmp_path, uri):
+    from sparselab.corpus.rights import _admission_profile
+
+    _, source, _, _, _ = _fixture(tmp_path)
+    source["canonical_uri"] = "https://huggingface.co/datasets/common-pile/" + uri
+    source["acquisition"]["qualification"] = {
+        "profile": "web_text",
+        "family_fields": ["id"],
+    }
+    with pytest.raises(ValueError, match="legacy HF row policies"):
+        SourceDeclaration.model_validate(source)
+    with pytest.raises(ValueError, match="legacy HF row policies"):
+        _admission_profile(source)
+
+
+def test_fineweb_nested_dictionary_fields_group_url_across_dumps():
+    policy = RowQualification(
+        profile="web_text",
+        family_fields=("metadata.url",),
+        language_field="metadata.language",
+        allowed_languages=("en",),
+    )
+    row = {
+        "text": "English source text",
+        "metadata": {
+            "url": "https://example.org/article",
+            "language": "en",
+            "dump": "first",
+        },
+    }
+    assert exceptions(row, policy, "text") == (None, ())
+    assert family_hint(row, policy) == family_hint(
+        {**row, "metadata": {**row["metadata"], "dump": "second"}}, policy
+    )
+    assert (
+        exceptions(
+            {**row, "metadata": {**row["metadata"], "language": "fr"}}, policy, "text"
+        )[0]
+        == "record outside declared language policy"
+    )
+    for metadata in ([], "not a dictionary", {"metadata.url": row["metadata"]["url"]}):
+        assert (
+            exceptions({**row, "metadata": metadata}, policy, "text")[0]
+            == "missing or invalid declared family/synthetic provenance"
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "",
+        "a" * 129,
+        "_sparselab_source",
+        "metadata._sparselab_source",
+        "metadata..url",
+        ".url",
+        "metadata.",
+        " url ",
+    ],
+)
+def test_qualification_field_path_guards(field):
+    with pytest.raises(ValueError, match="bounded original row field"):
+        RowQualification(profile="web_text", family_fields=(field,))
+
+
+@pytest.mark.parametrize(
+    "payload,reason",
+    [
+        ({"profile": "web_text", "family_fields": ["id", "id"]}, "duplicate"),
+        (
+            {
+                "profile": "web_text",
+                "family_fields": ["id"],
+                "language_field": "language",
+                "allowed_languages": [" "],
+            },
+            "language field",
+        ),
+        (
+            {"profile": "synthetic_text", "family_fields": ["id"]},
+            "original provenance fields",
+        ),
+        (
+            {
+                "profile": "web_text",
+                "family_fields": ["id"],
+                "license_field": "license",
+            },
+            "code-only",
+        ),
+        (
+            {
+                "profile": "web_text",
+                "family_fields": ["id"],
+                "synthetic_provenance_fields": ["seed"],
+            },
+            "synthetic provenance fields",
+        ),
+    ],
+)
+def test_profile_policy_guards(payload, reason):
+    with pytest.raises(ValueError, match=reason):
+        RowQualification.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"license_field": None},
+        {"repository_field": None},
+        {"path_field": None},
+        {"license_labels": {}},
+        {"license_labels": {" ": "MIT"}},
+    ],
+)
+def test_code_policy_requires_complete_mapping(change):
+    with pytest.raises(ValueError, match="code qualification requires"):
+        RowQualification.model_validate(
+            {**code_policy().model_dump(mode="json"), **change}
+        )
+
+
+def test_declared_policy_requires_pinned_shards(tmp_path):
+    _, source, _, _ = declared_fixture(tmp_path)
+    source["acquisition"].pop("bounded_shards")
+    source["acquisition"]["include"] = ["*.jsonl"]
+    with pytest.raises(ValueError, match="requires pinned bounded shards"):
+        SourceDeclaration.model_validate(source)
+
+
+@pytest.mark.parametrize("value", [None, "", "  ", [], {}])
+def test_empty_family_values_are_not_provenance(value):
+    policy = RowQualification(profile="web_text", family_fields=("id",))
+    with pytest.raises(ValueError, match="missing declared family provenance"):
+        family_hint({"id": value}, policy)
+
+
+def test_synthetic_all_provenance_fields_are_required_and_bound():
+    policy = RowQualification(
+        profile="synthetic_text",
+        family_fields=("seed_id",),
+        synthetic_provenance_fields=("seed_id", "generator"),
+    )
+    row = {"text": "Generated fixture text", "seed_id": 7}
+    assert (
+        exceptions(row, policy, "text")[0]
+        == "missing or invalid declared family/synthetic provenance"
+    )
+    first = provenance({**row, "generator": "one"}, policy)
+    second = provenance({**row, "generator": "two"}, policy)
+    assert first["synthetic_provenance_fields"] == ["seed_id", "generator"]
+    assert first["synthetic_provenance_sha256"] != second["synthetic_provenance_sha256"]
+
+
+@pytest.mark.parametrize(
+    "change,reason",
+    [
+        ({"code": ""}, "empty or nontext"),
+        ({"code": "  "}, "empty or nontext"),
+        ({"code": 7}, "empty or nontext"),
+        (
+            {"code": "-----BEGIN RSA PRIVATE KEY-----"},
+            "private identifier or credential",
+        ),
+        ({"license": ["mit"]}, "missing or incompatible"),
+        ({"repo_name": 42}, "missing code repository"),
+        ({"repo_name": "  "}, "provenance"),
+        ({"path": 7}, "missing code repository or path"),
+        ({"path": ""}, "unsafe code path"),
+        ({"path": "/etc/a.py"}, "unsafe code path"),
+        ({"path": "src\\a.py"}, "unsafe code path"),
+        ({"path": "src/./a.py"}, "unsafe code path"),
+        ({"path": "Vendor/a.py"}, "vendor or generated"),
+        ({"path": "node_modules/a.py"}, "vendor or generated"),
+        ({"path": "build/a.py"}, "vendor or generated"),
+    ],
+)
+def test_code_screen_guards(change, reason):
+    conflict, _ = exceptions({**code_row(), **change}, code_policy(), "code")
+    assert conflict is not None and reason in conflict
+
+
+def test_code_license_mapping_review_flag_and_repository_case():
+    policy = code_policy()
+    row = {
+        **code_row(),
+        "license": "apache-2.0",
+        "code": "# SPDX-License-Identifier: Apache-2.0\nprint(1)",
+    }
+    assert exceptions(row, policy, "code") == (None, ())
+    assert (
+        "conflicting"
+        in exceptions(
+            {**row, "code": "# SPDX-License-Identifier: MIT\nprint(1)"}, policy, "code"
+        )[0]
+    )
+    assert exceptions(
+        {**code_row(), "code": "# Copyright Example\nprint(1)"}, policy, "code"
+    ) == (None, ("code_notice_review",))
+    assert family_hint(code_row(), policy) == family_hint(
+        {**code_row(), "repo_name": "Fixture/Example"}, policy
+    )
+    assert provenance(row, policy)["attribution"]["license_expression"] == "Apache-2.0"
+
+
+def test_code_attribution_and_unresolved_metadata_are_retained(tmp_path):
+    row = {
+        **code_row(),
+        "text": "# Code fixture with enough retained content\ndef value():\n    return 42\n",
+    }
+    policy = code_policy().model_dump(mode="json")
+    manifest, source, snapshot, raw = declared_fixture(
+        tmp_path,
+        policy=policy,
+        rows=[
+            row,
+            {"text": "Unresolved fixture row with enough retained content. " * 3},
+        ],
+    )
+    model = SourceDeclaration.model_validate(source)
+    admitted = _verify(manifest, source, snapshot, tmp_path)
+    file = snapshot["files"][0]
+    rights = admitted[model.id, file["path"]]
+    docs = _records_for_file(
+        raw,
+        file["path"],
+        model,
+        snapshot["snapshot_sha256"],
+        file_rights=rights["rights"],
+        record_admission=rights,
+    )
+    metadata = docs[0][0]["metadata"]
+    assert metadata["qualification_family_hint"] == family_hint(
+        row, model.acquisition.qualification
+    )
+    for key, value in provenance(row, model.acquisition.qualification)[
+        "attribution"
+    ].items():
+        assert metadata["qualification_" + key] == value
+    from sparselab.corpus.rights import resolve_file_rights
+
+    inventory_docs = _records_for_file(
+        raw,
+        file["path"],
+        model,
+        snapshot["snapshot_sha256"],
+        file_rights=resolve_file_rights(model.rights, file["path"], raw),
+    )
+    assert inventory_docs[1][0]["metadata"]["qualification_status"] == "unresolved"
+
+
+def test_write_split_inventory_uses_verified_original_declared_rows(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from sparselab.corpus.split_inventory import write_split_inventory
+
+    _, source, snapshot, raw = declared_fixture(tmp_path)
+    model = SourceDeclaration.model_validate(source)
+    folder = tmp_path / model.id / snapshot["snapshot_sha256"]
+    (folder / "manifest.json").write_text(json.dumps(snapshot))
+    monkeypatch.setattr(
+        "sparselab.corpus.split_inventory.verify_acquisition",
+        lambda *_: {
+            "sources": {
+                model.id: {
+                    "snapshot_path": str(folder),
+                    "snapshot_sha256": snapshot["snapshot_sha256"],
+                }
+            }
+        },
+    )
+    project = SimpleNamespace(
+        config=SimpleNamespace(id="declared-inventory-fixture"),
+        sources=(model,),
+        release=SimpleNamespace(normalizer="normalizer-nfc-markdown-v1"),
+    )
+    output = tmp_path / "inventory.jsonl"
+    write_split_inventory(project, tmp_path, output)
+    rows = [json.loads(line) for line in output.read_text().splitlines()]
+    original = json.loads(raw.splitlines()[0])
+    assert rows[0]["family_hint"] == family_hint(
+        original, model.acquisition.qualification
+    )
+    assert rows[1]["family_hint"].startswith("unresolved-family:")
+
+
+@pytest.mark.parametrize("change", ["id", "provenance"])
+def test_legacy_row_identity_clauses_remain_required(tmp_path, change):
+    manifest, source, snapshot, raw, _ = _fixture(tmp_path)
+    rows = [json.loads(line) for line in raw.splitlines()]
+    if change == "id":
+        rows[0]["id"] = "different-from-envelope"
+    else:
+        rows[0]["metadata"]["provenance"] = "not-a-shard-row"
+    original = {
+        key: value for key, value in rows[0].items() if key != "_sparselab_source"
+    }
+    digest = hashlib.sha256(canonical_json(original)).hexdigest()
+    rows[0]["_sparselab_source"]["source_row_sha256"] = digest
+    manifest["sources"][0]["records"][0]["source_row_sha256"] = digest
+    snapshot["retrieval"]["shards"][0]["selected_rows"][0]["source_row_sha256"] = digest
+    payload = b"".join(canonical_json(row) + b"\n" for row in rows)
+    digest = hashlib.sha256(payload).hexdigest()
+    snapshot["files"][0].update(sha256=digest, size=len(payload))
+    manifest["sources"][0]["sample_sha256"] = digest
+    (
+        tmp_path
+        / source["id"]
+        / snapshot["snapshot_sha256"]
+        / "files"
+        / snapshot["files"][0]["path"]
+    ).write_bytes(payload)
+    with pytest.raises(ValueError, match="row provenance mismatch"):
+        _verify(manifest, source, snapshot, tmp_path)
+
+
+def test_nested_path_bounds_and_code_paths_are_explicit():
+    RowQualification(profile="web_text", family_fields=("a" * 128,))
+    for path in (".".join(["a"] * 9), ".".join(["a" * 104] * 5)):
+        with pytest.raises(ValueError, match="bounded original row field"):
+            RowQualification(profile="web_text", family_fields=(path,))
+    policy = code_policy().model_dump(mode="json")
+    for key in ("language_field", "license_field", "repository_field", "path_field"):
+        policy[key] = "metadata." + policy[key]
+    policy["family_fields"] = ["metadata.repo_name"]
+    policy = RowQualification.model_validate(policy)
+    row = code_row()
+    nested = {"code": row.pop("code"), "metadata": row}
+    assert exceptions(nested, policy, "code") == (None, ())
+    assert provenance(nested, policy)["attribution"]["license_expression"] == "MIT"
