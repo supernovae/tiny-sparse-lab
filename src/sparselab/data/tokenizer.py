@@ -158,6 +158,34 @@ def _verify_tokenizer_manifest(
         raise ValueError(
             "corpus tokenizer verification requires frozen export configuration"
         )
+    contract = manifest.get("training_contract", {})
+    if "sampling" in contract:
+        if dataset is None:
+            raise ValueError(
+                "sampled tokenizer verification requires its frozen dataset"
+            )
+        config = TokenizerTrainConfig(
+            schema_version=1,
+            vocab_size=vocab_size,
+            min_frequency=contract["min_frequency"],
+            max_documents=contract["max_documents"],
+            output_dir=path.parent,
+            dataset=dataset,
+            sampling=contract["sampling"],
+        )
+        from sparselab.data.tokenizer_sampling import audit, documents
+
+        stats = {}
+        for _ in documents(config, stats):
+            pass
+        if (
+            stats["sampling"] != contract.get("sampling_result")
+            or stats["digest"] != contract.get("content_digest_sha256")
+            or stats["bytes"] != contract.get("selected_input_bytes_utf8")
+        ):
+            raise ValueError("tokenizer TRAIN byte-selection identity mismatch")
+        if audit(config, load_tokenizer(path)) != manifest.get("sampling_audit"):
+            raise ValueError("tokenizer disjoint TRAIN audit mismatch")
     return manifest
 
 
@@ -257,6 +285,11 @@ def _bounded_documents(
     whole_documents: bool = False,
 ):
     """Replay the same train prefix without retaining corpus strings in memory."""
+    if config.sampling is not None:
+        from sparselab.data.tokenizer_sampling import documents
+
+        yield from documents(config, stats)
+        return
     selected = acquired = byte_count = 0
     digest = hashlib.sha256()
     documents = iter(iter_documents(config.dataset, "train"))
@@ -334,7 +367,11 @@ def train_tokenizer(
     json_path = output / "tokenizer.json"
     manifest_path = output / "tokenizer_manifest.json"
 
-    input_byte_budget = config.dataset.train_max_tokens
+    input_byte_budget = (
+        config.sampling.max_fit_bytes
+        if config.sampling is not None
+        else config.dataset.train_max_tokens
+    )
     corpus_export = (
         verify_release_export(
             config.dataset,
@@ -397,6 +434,14 @@ def train_tokenizer(
         "content_digest_sha256": stats["digest"],
         "source_manifest_sha256": source_manifest_sha256,
         **({"corpus_export": corpus_export} if corpus_export is not None else {}),
+        **(
+            {
+                "sampling": config.sampling.model_dump(mode="json"),
+                "sampling_result": stats["sampling"],
+            }
+            if config.sampling is not None
+            else {}
+        ),
     }
     if json_path.exists() or manifest_path.exists():
         if json_path.is_file() and manifest_path.is_file():
@@ -406,6 +451,14 @@ def train_tokenizer(
             ) == training_contract and hashlib.sha256(
                 json_path.read_bytes()
             ).hexdigest() == manifest.get("sha256"):
+                if config.sampling is not None:
+                    _verify_tokenizer_manifest(
+                        json_path,
+                        source=config.dataset.source,
+                        revision=config.dataset.revision,
+                        vocab_size=config.vocab_size,
+                        dataset=config.dataset,
+                    )
                 return json_path
         raise FileExistsError(
             f"tokenizer output at {output} has different or unverifiable training provenance; "
@@ -460,6 +513,21 @@ def train_tokenizer(
         )
     if [tokenizer.token_to_id(token) for token in SPECIAL_TOKENS] != [0, 1, 2, 3]:
         raise RuntimeError("tokenizer special token IDs are not the required 0..3")
+    sampling_audit = None
+    if config.sampling is not None:
+        from sparselab.data.tokenizer_sampling import audit
+
+        sampling_audit = audit(config, tokenizer)
+        if any(
+            group["unknown_tokens"] or group["roundtrip_failures"]
+            for group in sampling_audit["strata"].values()
+        ) or any(
+            not probe["roundtrip"] or probe["unknown_tokens"]
+            for probe in sampling_audit["fixed_probes"].values()
+        ):
+            raise ValueError(
+                "tokenizer audit found unknown tokens or failed exact roundtrip"
+            )
     with progress_phase(
         "tokenizer_artifact_serialization",
         completed_work=0,
@@ -508,6 +576,11 @@ def train_tokenizer(
             {
                 "sha256": content_sha256,
                 "training_contract": training_contract,
+                **(
+                    {"sampling_audit": sampling_audit}
+                    if sampling_audit is not None
+                    else {}
+                ),
                 "license": config.dataset.license
                 if config.dataset.source
                 in {"local_chat", "local_text", "local_stories", "snapshot"}
