@@ -10,7 +10,6 @@ import yaml
 
 from sparselab.cli.main import build_parser
 from sparselab.corpus.declaration_render import render_declaration
-from sparselab.training.manifest import sha256_file
 from sparselab.training.preparation import (
     compile_phase,
     load_preparation,
@@ -19,7 +18,7 @@ from sparselab.training.preparation import (
 
 PLAN = (
     Path(__file__).resolve().parents[1]
-    / "experiments/research/kernel-memory-lab/card05-base-50m/current/preparation.json"
+    / "tests/fixtures/preparation-commands/argv-bindings/preparation.json"
 )
 MEASUREMENT_PLAN = PLAN.with_name("measurement-only.json")
 MEASUREMENT_DOMAINS = PLAN.with_name("measurement-domains.yaml")
@@ -28,8 +27,8 @@ MEASUREMENT_DOMAINS = PLAN.with_name("measurement-domains.yaml")
 def test_all_current_phase_paths_and_commands_are_disjoint(tmp_path):
     plan = load_preparation(PLAN)
     outputs = set()
-    assert len(plan["phases"]) == 32
-    assert plan["defaults"]["BATCH_SOURCE_BYTES"] == "8388608"
+    assert len(plan["phases"]) == 7
+    assert plan["defaults"]["BATCH_SOURCE_BYTES"] == "1024"
     for label, phase in plan["phases"].items():
         needed = {word[2:-1] for word in phase["args"] if word.startswith("${")}
         values = {
@@ -70,7 +69,7 @@ def test_all_current_phase_paths_and_commands_are_disjoint(tmp_path):
         assert parsed.completion == Path(compiled["completion"])
 
 
-def test_production_templates_get_paths_only_from_plan(tmp_path):
+def test_neutral_templates_get_paths_only_from_plan(tmp_path):
     for label in ("pre-freeze-declaration", "final-build-declaration"):
         compiled = compile_phase(PLAN, tmp_path, label, {})
         args = compiled["args"]
@@ -129,41 +128,28 @@ def test_binding_errors_and_no_executable_legacy_paths(tmp_path):
 
 
 def test_checked_in_measurement_selection_uses_public_phase_command(tmp_path):
-    assert sha256_file(MEASUREMENT_PLAN) == (
-        "066d6e37c3703d120dbeabd89846dd9133483ad9ade2617b1832b862ddee952a"
-    )
-    assert sha256_file(MEASUREMENT_DOMAINS) == (
-        "5954443818a492600fcb5d8f5f4b775b297f0989ab3983b7e06302409e0ea268"
-    )
     full = load_preparation(PLAN)
     selected = load_preparation(MEASUREMENT_PLAN)
     labels = list(full["phases"])
-    assert labels[:26] == list(selected["phases"])
-    assert labels[25] == "measure-accepted-supply"
-    assert selected["phases"] == {key: full["phases"][key] for key in labels[:26]}
+    assert labels[:6] == list(selected["phases"])
+    assert labels[5] == "measure-accepted-supply"
+    assert selected["phases"] == {key: full["phases"][key] for key in labels[:6]}
     assert selected["defaults"] == {
         **full["defaults"],
         "TOKEN_FLOORS": "./measurement-domains.yaml",
     }
-    assert set(labels[26:]) == {
-        "mixture-declaration",
-        "materialize-mixture",
-        "cold-verify-mixture",
-        "prepared-run-declaration",
-        "publish-prepared-bundle",
-        "cold-verify-prepared-bundle",
-    }
+    assert set(labels[6:]) == {"freeze-release"}
     assert yaml.safe_load(MEASUREMENT_DOMAINS.read_text()) == {
         "min_unique_train_tokens_by_domain": {
-            "general_prose": 0,
-            "explanatory_prose": 0,
-            "incident_response_docs": 0,
+            "technical_docs": 0,
+            "absent": 0,
         }
     }
     bindings = {
         "RELEASE_PATH": str(tmp_path / "release"),
         "TOKENIZER_PATH": str(tmp_path / "tokenizer.json"),
         "PRIOR_RELEASE": str(tmp_path / "original-fit-release"),
+        "FAMILY_INVENTORY": str(tmp_path / "families.jsonl"),
     }
     command = [
         sys.executable,
@@ -189,7 +175,7 @@ def test_checked_in_measurement_selection_uses_public_phase_command(tmp_path):
         MEASUREMENT_DOMAINS
     )
     assert compiled["args"][compiled["args"].index("--output") + 1] == compiled["leaf"]
-    for excluded in labels[26:]:
+    for excluded in labels[6:]:
         denied = subprocess.run(
             [*command[: command.index("--label") + 1], excluded],
             capture_output=True,

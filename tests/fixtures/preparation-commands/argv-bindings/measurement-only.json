@@ -1,0 +1,104 @@
+{
+  "format": "sparselab-preparation-v1",
+  "defaults": {
+    "ACQUISITION_PROJECT": "./project.yaml",
+    "TOKEN_FLOORS": "./measurement-domains.yaml",
+    "BATCH_SOURCE_BYTES": "1024"
+  },
+  "phases": {
+    "verify-snapshots": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${ACQUISITION_PROJECT}",
+        "--offline"
+      ]
+    },
+    "source-declaration": {
+      "leaf": "source.yaml",
+      "template": "source.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@source-declaration"
+      ]
+    },
+    "split-declaration": {
+      "leaf": "splits.yaml",
+      "template": "splits.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@split-declaration"
+      ]
+    },
+    "pre-freeze-declaration": {
+      "leaf": "pre-freeze.yaml",
+      "template": "project.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@pre-freeze-declaration"
+      ],
+      "template_bindings": {
+        "SOURCE_FILE": "@source-declaration",
+        "SPLITS_FILE": "@split-declaration"
+      }
+    },
+    "final-build-declaration": {
+      "leaf": "build.yaml",
+      "template": "project.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@final-build-declaration"
+      ],
+      "template_bindings": {
+        "SOURCE_FILE": "@source-declaration",
+        "SPLITS_FILE": "@split-declaration"
+      }
+    },
+    "measure-accepted-supply": {
+      "leaf": "unique-train.json",
+      "args": [
+        "corpus",
+        "measure-tokens",
+        "${RELEASE_PATH}",
+        "--tokenizer",
+        "${TOKENIZER_PATH}",
+        "--tokenizer-origin-release",
+        "${PRIOR_RELEASE}",
+        "--family-inventory",
+        "${FAMILY_INVENTORY}",
+        "--policy",
+        "${TOKEN_FLOORS}",
+        "--output",
+        "@measure-accepted-supply",
+        "--batch-source-bytes",
+        "${BATCH_SOURCE_BYTES}",
+        "--json"
+      ]
+    }
+  }
+}

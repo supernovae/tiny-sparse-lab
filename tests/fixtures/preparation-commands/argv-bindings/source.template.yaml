@@ -1,0 +1,10 @@
+schema_version: 1
+id: fixture-local
+kind: local_files
+canonical_uri: fixture.txt
+revision: fixture-v1
+license: MIT
+redistribution: redistributable
+domains: [technical_docs]
+document_kinds: [prose]
+source_family: neutral
