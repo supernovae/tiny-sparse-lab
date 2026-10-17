@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 
+from tokenizers import Tokenizer
+
 from sparselab.config.models import TokenizerTrainConfig
 from sparselab.corpus.mixture import _rows, _source_rights
 from sparselab.training.manifest import canonical_json
@@ -75,11 +77,11 @@ def documents(
         acquired += 1
         if row["content_sha256"] in seen_content:
             continue
-        seen_content.add(row["content_sha256"])
         text = row["text"]
         encoded = text.encode("utf-8")
         if not encoded or used[stratum] + len(encoded) > caps[stratum]:
             continue
+        seen_content.add(row["content_sha256"])
         used[stratum] += len(encoded)
         counts[stratum] += 1
         digest.update(encoded + b"\0")
@@ -115,6 +117,10 @@ def documents(
 
 
 def audit(config: TokenizerTrainConfig, tokenizer) -> dict:
+    # Audit ordinary text, including literal special-token spellings, without
+    # mutating the fitted artifact or its production encoding behavior.
+    tokenizer = Tokenizer.from_str(tokenizer.to_str())
+    tokenizer.encode_special_tokens = True
     spec = config.sampling
     assert spec is not None
     selected: set[str] = set()
@@ -182,6 +188,7 @@ def audit(config: TokenizerTrainConfig, tokenizer) -> dict:
     return {
         "split": "train",
         "disjoint_from_fit": True,
+        "special_tokens_as_text": True,
         "requested_documents_per_stratum": spec.audit_documents_per_stratum,
         "max_bytes": spec.max_audit_bytes,
         "selected_bytes": total_bytes,

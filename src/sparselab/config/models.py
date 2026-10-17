@@ -659,8 +659,7 @@ class TokenizerSampling(StrictModel):
     @model_validator(mode="after")
     def strata(self):
         if (
-            not self.source_strata
-            or not self.byte_weights
+            not self.byte_weights
             or set(self.source_strata.values()) != set(self.byte_weights)
             or any(
                 not value.strip() for value in (*self.source_strata, *self.byte_weights)

@@ -225,3 +225,300 @@ def test_sampling_from_cold_production_template_release(tmp_path):
     )
     assert verified["training_contract"]["corpus_export"]["release_id"] == release.name
     assert verified["sampling_audit"]["disjoint_from_fit"]
+
+
+def write_rows(config, rows):
+    release = config.dataset.corpus_release_path
+    (release / "documents.jsonl").write_bytes(
+        b"".join(canonical_json(row) + b"\n" for row in rows)
+    )
+    (release / "lm/train.lineage.jsonl").write_bytes(
+        b"".join(
+            canonical_json({"record_id": row["document_id"]}) + b"\n"
+            for row in rows
+            if row["split"] == "train"
+        )
+    )
+
+
+def small(config, **changes):
+    return config.model_copy(
+        update={
+            "sampling": config.sampling.model_copy(
+                update={"max_fit_bytes": 10, **changes}
+            )
+        }
+    )
+
+
+def test_literal_special_token_text_publishes_and_cold_replays(tmp_path, monkeypatch):
+    config, rows = fixture(tmp_path, monkeypatch)
+    config = small(config)
+    rows[1]["text"] = "see <unk> and <eos>"
+    rows[1]["content_sha256"] = hashlib.sha256(rows[1]["text"].encode()).hexdigest()
+    write_rows(config, rows)
+    path = engine.train_tokenizer(config)
+    manifest = engine.verify_tokenizer_artifact(
+        path,
+        source="local_text",
+        revision=config.dataset.revision,
+        vocab_size=260,
+        dataset=config.dataset,
+    )
+    assert manifest["sampling_audit"]["special_tokens_as_text"]
+    assert manifest["sampling_audit"]["strata"]["real"]["unknown_tokens"] == 0
+    assert manifest["sampling_audit"]["strata"]["real"]["roundtrip_failures"] == 0
+    tokenizer = engine.load_tokenizer(path)
+    assert not tokenizer.encode_special_tokens
+    assert tokenizer.token_to_id("<unk>") in tokenizer.encode("see <unk>").ids
+    assert engine.train_tokenizer(config) == path
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"source_strata": {}, "byte_weights": {}},
+        {"byte_weights": {}},
+        {"source_strata": {}},
+        {"source_strata": {"real": "different"}},
+        {"source_strata": {" ": "real"}},
+        {"source_strata": {"real": " "}, "byte_weights": {" ": 1}},
+        {"byte_weights": {"real": 10001}},
+        {"byte_weights": {"real": 0}},
+        {"audit_documents_per_stratum": 10001},
+        {"max_audit_bytes": 512 * 1024 * 1024 + 1},
+    ],
+)
+def test_sampling_declaration_guards_are_independent(change):
+    payload = {
+        "source_strata": {"real": "real"},
+        "byte_weights": {"real": 1},
+        "max_fit_bytes": 10,
+    }
+    with pytest.raises(ValueError):
+        TokenizerSampling.model_validate({**payload, **change})
+    TokenizerSampling.model_validate({**payload, "byte_weights": {"real": 10000}})
+
+
+@pytest.mark.parametrize("change", ["source", "release", "export", "budget"])
+def test_sampling_requires_authenticated_compatible_dataset(
+    tmp_path, monkeypatch, change
+):
+    config, _ = fixture(tmp_path, monkeypatch)
+    updates = {
+        "source": {"source": "synthetic"},
+        "release": {"corpus_release_path": None},
+        "export": {"corpus_export_path": None},
+        "budget": {"train_max_tokens": 99},
+    }[change]
+    # Check the tokenizer guard directly as well as public validation: the
+    # dataset's earlier cross-field guards otherwise shadow missing bindings.
+    dataset = config.dataset.model_copy(update=updates)
+    with pytest.raises(ValueError, match="stratified sampling requires"):
+        config.model_copy(update={"dataset": dataset}).authenticated_sampling()
+    with pytest.raises(ValueError):
+        TokenizerTrainConfig.model_validate(
+            {**config.model_dump(mode="python"), "dataset": dataset}
+        )
+
+
+@pytest.mark.parametrize(
+    "change", ["extra", "missing", "restricted", "row_rights", "domains"]
+)
+def test_sampling_refuses_source_or_document_policy_mismatch(
+    tmp_path, monkeypatch, change
+):
+    config, rows = fixture(tmp_path, monkeypatch)
+    if change in {"extra", "missing"}:
+        mapping = dict(config.sampling.source_strata)
+        if change == "extra":
+            mapping["extra"] = "real"
+        else:
+            mapping.pop("real")
+        config = config.model_copy(
+            update={
+                "sampling": config.sampling.model_copy(
+                    update={"source_strata": mapping}
+                )
+            }
+        )
+    elif change == "restricted":
+        path = config.dataset.corpus_release_path / "sources.json"
+        sources = json.loads(path.read_text())
+        sources[0]["explicit_training_restriction"] = "training forbidden"
+        path.write_text(json.dumps(sources))
+    else:
+        rows[0]["rights"] = (
+            {"training_eligibility": "review_required"}
+            if change == "row_rights"
+            else rows[0]["rights"]
+        )
+        if change == "domains":
+            rows[0]["domains"] = ["different"]
+        write_rows(config, rows)
+    with pytest.raises(
+        ValueError, match="source strata|rights path|ineligible TRAIN|document domains"
+    ):
+        engine.train_tokenizer(config)
+    assert not config.output_dir.exists()
+
+
+def test_scan_limit_and_whole_document_empty_stratum(tmp_path, monkeypatch):
+    config, rows = fixture(tmp_path, monkeypatch)
+    first = [rows[index] for index in (0, 4, 8)]
+    remaining = [row for row in rows if row not in first]
+    write_rows(config, first + remaining)
+    limited = config.model_copy(update={"max_documents": 3})
+    stats = {}
+    assert list(documents(limited, stats)) == [row["text"] for row in first]
+    assert stats["acquired"] == 3
+    with pytest.raises(ValueError, match="no fitting TRAIN document"):
+        engine.train_tokenizer(small(config, max_fit_bytes=1))
+    assert not config.output_dir.exists()
+
+
+def test_fit_and_audit_never_repeat_content(tmp_path, monkeypatch):
+    from sparselab.data.tokenizer_sampling import audit
+
+    config, rows = fixture(tmp_path, monkeypatch)
+    duplicate = {**rows[1], "document_id": "duplicate-real"}
+    write_rows(config, [*rows[:-1], duplicate, rows[-1]])
+    stats = {}
+    assert len(list(documents(config, stats))) == 12
+    config = small(config, audit_documents_per_stratum=10)
+    path = engine.train_tokenizer(config)
+    report = audit(config, engine.load_tokenizer(path))
+    assert report["strata"]["real"]["documents"] == 3
+    assert report["strata"]["real"]["document_shortfall"] == 7
+
+
+def test_audit_shared_byte_cap_and_quota_rounding(tmp_path, monkeypatch):
+    from sparselab.data.tokenizer_sampling import quotas
+
+    config, _ = fixture(tmp_path, monkeypatch)
+    equal = small(config, byte_weights={"real": 1, "synthetic": 1, "code": 1})
+    assert quotas(equal) == {"real": 3, "synthetic": 3, "code": 4}
+    uneven = small(config, byte_weights={"real": 1, "synthetic": 2, "code": 3})
+    assert quotas(uneven) == {"real": 2, "synthetic": 3, "code": 5}
+    config = small(config, max_audit_bytes=3)
+    path = engine.train_tokenizer(config)
+    report = json.loads(path.with_name("tokenizer_manifest.json").read_text())[
+        "sampling_audit"
+    ]
+    assert report["selected_bytes"] == 3
+    assert report["selected_bytes"] <= report["max_bytes"]
+    assert not report["complete"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "sampling_result",
+        "content_digest_sha256",
+        "selected_input_bytes_utf8",
+        "reuse_audit",
+    ],
+)
+def test_selection_contract_and_reuse_tampering_refuse(tmp_path, monkeypatch, field):
+    config, _ = fixture(tmp_path, monkeypatch)
+    config = small(config)
+    path = engine.train_tokenizer(config)
+    manifest_path = path.with_name("tokenizer_manifest.json")
+    value = json.loads(manifest_path.read_text())
+    if field == "reuse_audit":
+        value["sampling_audit"]["selected_bytes"] += 1
+    elif field == "sampling_result":
+        value["training_contract"][field]["unfilled_bytes"]["real"] += 1
+    elif field == "content_digest_sha256":
+        value["training_contract"][field] = "0" * 64
+    else:
+        value["training_contract"][field] += 1
+    manifest_path.write_text(json.dumps(value))
+    with pytest.raises(
+        ValueError,
+        match="audit mismatch"
+        if field == "reuse_audit"
+        else "byte-selection identity mismatch",
+    ):
+        if field == "reuse_audit":
+            engine.train_tokenizer(config)
+        else:
+            engine.verify_tokenizer_artifact(
+                path,
+                source="local_text",
+                revision=config.dataset.revision,
+                vocab_size=260,
+                dataset=config.dataset,
+            )
+
+
+@pytest.mark.parametrize(
+    "mode", ["stratum_unknown", "stratum_roundtrip", "probe_unknown", "probe_roundtrip"]
+)
+def test_audit_failure_counters_prevent_publication(tmp_path, monkeypatch, mode):
+    from types import SimpleNamespace
+
+    from sparselab.data import tokenizer_sampling as sampling
+
+    config, _ = fixture(tmp_path, monkeypatch)
+    config = small(config)
+    captured = {}
+    original_audit = sampling.audit
+
+    class BrokenAuditTokenizer:
+        def __init__(self):
+            self.values = {}
+
+        def token_to_id(self, _token):
+            return 0
+
+        def encode(self, text):
+            key = len(self.values) + 10
+            target = (
+                text.startswith("abcdef")
+                if mode.startswith("stratum")
+                else text.startswith("some_identifier42")
+            )
+            self.values[key] = (text, target)
+            return SimpleNamespace(
+                ids=[0, key] if target and mode.endswith("unknown") else [key]
+            )
+
+        def decode(self, ids, *, skip_special_tokens):
+            assert not skip_special_tokens
+            text, target = self.values[ids[-1]]
+            return text[:-1] if target and mode.endswith("roundtrip") else text
+
+    monkeypatch.setattr(
+        sampling,
+        "Tokenizer",
+        SimpleNamespace(from_str=lambda _: BrokenAuditTokenizer()),
+    )
+
+    def capture(*args):
+        report = original_audit(*args)
+        captured.update(report)
+        return report
+
+    monkeypatch.setattr(sampling, "audit", capture)
+    with pytest.raises(
+        ValueError, match="audit found unknown tokens or failed exact roundtrip"
+    ):
+        engine.train_tokenizer(config)
+    assert not config.output_dir.exists()
+    if mode.startswith("stratum"):
+        result = captured["strata"]["real"]
+        assert result["unknown_tokens"] == (1 if mode.endswith("unknown") else 0)
+        assert result["roundtrip_failures"] == (1 if mode.endswith("roundtrip") else 0)
+        assert all(
+            probe["roundtrip"] and probe["unknown_tokens"] == 0
+            for probe in captured["fixed_probes"].values()
+        )
+    else:
+        result = captured["fixed_probes"]["identifier"]
+        assert result["unknown_tokens"] == (1 if mode.endswith("unknown") else 0)
+        assert result["roundtrip"] == (not mode.endswith("roundtrip"))
+        assert all(
+            group["roundtrip_failures"] == group["unknown_tokens"] == 0
+            for group in captured["strata"].values()
+        )
