@@ -66,6 +66,34 @@ decision about model quality requires an explicit human receipt. Read the
 [recovery and lineage operating protocol](docs/research/lifecycle-recovery.md)
 before changing paths or archiving rights-bound corpus content.
 
+## Pre-production migration policy
+
+Until a production release is tagged, adapt experiment plans, recipes and models
+to current supported Lab behavior. Do not change Lab to preserve old execution
+behavior or add backward compatibility or version adapters for legacy recipes.
+A production tag permits reassessing this policy; it does not automatically
+authorize legacy adapters.
+
+Preserve historical evidence bytes and identities unchanged. Keep historical
+claims in Workshop, labeled as historical rather than guarantees of current Lab
+behavior. Read-only interpretation, hash verification and audits of that evidence
+are allowed; they do not make old artifacts executable or establish current
+compatibility.
+
+Track reproduction and regeneration in the backlog against current interfaces.
+Any later reproduction or regeneration is a new experiment with a new identity;
+retain the original result and its limitations. This policy grants no execution,
+recovery, acquisition or training authority.
+
+During PR review, check that a migration adapts declarations to current behavior,
+preserves archived evidence and separates historical claims from current
+validation. Reject changes whose purpose is restoring old execution behavior
+through compatibility code. Record current-interface gaps separately from a
+proposed reproduction. The [canonical migration plan][migration-plan] tracks the
+coordinated work and execution gates.
+
+[migration-plan]: https://app.notion.com/p/3f83b68cca2281f59998c5b285816910
+
 ## Architecture experiments
 
 The [research contribution workflow](docs/research/contributing.md) explains validated local catalog/recipe forks, declared controls and variations, train-only data boundaries, retained negative outcomes, and evidence identities. Do not commit downloaded corpora, prepared arrays, run directories, or checkpoints; a static report bundle is small evidence, not a replacement for its stated limitations.
