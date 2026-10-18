@@ -1,7 +1,8 @@
 """Read-only hash comparison with a common sequential OS-cache pre-read.
 
 Run with uv run --locked --no-sync --with blake3 --with xxhash python
-benchmarks/cold_content_verification.py --output /external/new-result.json
+benchmarks/cold_content_verification.py --prepared-root /external/prepared \
+  --fixture-root /external/fixtures --output /external/new-result.json
 The pre-read does not drop caches or imply physical-disk cold I/O. It makes
 all timed cases start after the same sequential file read policy instead.
 """
@@ -25,12 +26,6 @@ from pathlib import Path
 from sparselab.host_capacity import hardware_observation, sha_work_plan
 
 MIB = 1024 * 1024
-REAL_ARRAY = Path(
-    "/srv/sparselab/state/corpora/devmind-v5/exports/"
-    "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/"
-    "lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/"
-    "prepared/15986e13517461f0/train.npy"
-)
 FIXTURE_BYTES = 64 * MIB
 CASES = (
     "sha_1",
@@ -131,7 +126,9 @@ def worker(path: Path, case: str, threads: int) -> dict:
     }
 
 
-def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
+def benchmark(
+    output: Path, root: Path, repetitions: int, timeout: int, prepared_root: Path
+) -> dict:
     checkout = Path(__file__).resolve().parent.parent
     output = output.absolute()
     root = root.absolute()
@@ -143,8 +140,14 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
         raise ValueError(
             "at least three repetitions and positive per-sample timeout required"
         )
-    if not REAL_ARRAY.is_file():
-        raise FileNotFoundError(REAL_ARRAY)
+    train_array = prepared_root.absolute() / "train.npy"
+    if not train_array.is_file():
+        raise FileNotFoundError(train_array)
+    manifest_path = train_array.parent / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    expected_train_sha256 = manifest["train"]["sha256"]
+    if manifest["train"]["size_bytes"] != train_array.stat().st_size:
+        raise ValueError("prepared manifest train size differs from array")
     root.mkdir(parents=True, exist_ok=True)
     storage = os.statvfs(root)
     if (
@@ -157,11 +160,6 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
         fixture(fixture_path)
     elif fixture_path.stat().st_size != FIXTURE_BYTES:
         raise ValueError("existing fixture has unexpected size")
-    manifest_path = REAL_ARRAY.parent / "manifest.json"
-    manifest = json.loads(manifest_path.read_text())
-    expected_train_sha256 = manifest["train"]["sha256"]
-    if manifest["train"]["size_bytes"] != REAL_ARRAY.stat().st_size:
-        raise ValueError("MODEL0 manifest train size differs from array")
     # Bounded by the existing host planner; an operator may cap this below host capacity.
     plan = sha_work_plan(operator_cap=4)
     hardware = hardware_observation()
@@ -178,7 +176,7 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
         "timing_boundary": "hash only, after pre-read; process startup excluded; peak RSS includes fresh subprocess pre-read and hashing",
         "fixture_recipe": "64 MiB: bytes(range(256)) repeated, fsync, chmod 0444; existing fixture must match digest across repetitions",
     }
-    inputs = {"fixture": fixture_path, "model0_train": REAL_ARRAY}
+    inputs = {"fixture": fixture_path, "prepared_train": train_array}
     fixture_hasher = hashlib.sha256()
     block = bytes(range(256)) * (MIB // 256)
     for _ in range(FIXTURE_BYTES // MIB):
@@ -186,7 +184,7 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
     expected_fixture_sha256 = fixture_hasher.hexdigest()
     expected_sha256 = {
         "fixture": expected_fixture_sha256,
-        "model0_train": expected_train_sha256,
+        "prepared_train": expected_train_sha256,
     }
     baselines = {name: fingerprint(path) for name, path in inputs.items()}
     rows: list[dict] = []
@@ -271,7 +269,7 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
         if digests["blake3_1"] != digests["blake3_bounded"]:
             raise RuntimeError(f"BLAKE3 thread variants disagree: {name}")
     return {
-        "format": "cold-content-verification-v1",
+        "format": "cold-content-verification-v2",
         "metadata": metadata,
         "inputs": {
             name: {"path": str(path), "fingerprint": baselines[name]}
@@ -279,8 +277,8 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
         },
         "expected_sha256": {
             "fixture_recipe": expected_fixture_sha256,
-            "model0_train_manifest": expected_train_sha256,
-            "model0_manifest_path": str(manifest_path),
+            "prepared_train_manifest": expected_train_sha256,
+            "prepared_manifest_path": str(manifest_path),
         },
         "repetitions": repetitions,
         "samples": rows,
@@ -291,11 +289,16 @@ def benchmark(output: Path, root: Path, repetitions: int, timeout: int) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path, help="new external JSON result path")
     parser.add_argument(
         "--fixture-root",
         type=Path,
-        default=Path("/srv/sparselab/state/experiments/pre-model1-native-iteration"),
+        help="explicit external directory for the deterministic benchmark fixture",
+    )
+    parser.add_argument(
+        "--prepared-root",
+        type=Path,
+        help="prepared train.npy and manifest.json directory",
     )
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--sample", type=Path, help=argparse.SUPPRESS)
@@ -312,11 +315,15 @@ def main() -> None:
         if args.case is None or args.threads < 1:
             parser.error("sample needs --case and positive --threads")
         print(json.dumps(worker(args.sample, args.case, args.threads)))
-    elif args.output is None:
-        parser.error("--output is required")
+    elif args.output is None or args.fixture_root is None or args.prepared_root is None:
+        parser.error("--output, --fixture-root and --prepared-root are required")
     else:
         result = benchmark(
-            args.output, args.fixture_root, args.repetitions, args.timeout
+            args.output,
+            args.fixture_root,
+            args.repetitions,
+            args.timeout,
+            args.prepared_root,
         )
         with args.output.open("x") as stream:
             json.dump(result, stream, indent=2)
