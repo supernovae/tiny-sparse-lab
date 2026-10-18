@@ -1,5 +1,13 @@
 # Context-family retirement audit
 
+Follow-up: [the retirement record](context-retirement.json) retires 30 context
+assets and redirects the guide. Four shared context inputs remain for the
+memory-injection historical-identity reader. The pinned audit below records the
+pre-retirement state; its original identities and ledger observations are unchanged.
+Fresh basename/relative-path scanning found that the retained memory matrix uses
+`base_config: context_study_dense_s17_b24k.yaml` and its study reads three context
+cards. This shared closure prevents retiring all 34 context assets in isolation.
+
 This is a disposition/coverage audit, not an asset retirement. Lab input pin:
 `7e306a96bcc617468d2a06493dab4562bff6beb0`. Landed Workshop preservation pin:
 `0f1bbaec53540c7d2b6ed23d7306d352ad83a7c4`.
