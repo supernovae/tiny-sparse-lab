@@ -24,7 +24,9 @@ mismatches or unverifiable candidate source refuse before output creation.
 The emitted `identity_acceptance` records the expectation bytes hash, candidate
 commit and native package source hash/algorithm. Every file in `source_identity()`'s
 inventory must be clean and committed at that candidate commit; the recorded
-`verifier_file_status` covers this entire inventory. Dirty files, untracked package
+`candidate_package_status` covers this entire inventory. The commit belongs to whichever repository contains the loaded package; it is
+not automatically an upstream Lab commit. Compare `candidate_package_sha256`
+across checkouts. Dirty files, untracked package
 copies, and wheels under unrelated enclosing repositories refuse. The native
 inventory excludes its self-referential lifecycle record and non-inventoried file
 types. This is source-byte provenance, not attestation of dependencies, interpreter,

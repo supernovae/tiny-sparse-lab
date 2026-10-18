@@ -2,7 +2,10 @@
 
 import hashlib
 import json
+import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -26,9 +29,7 @@ def acceptance(tmp_path):
     }
     path = tmp_path / "expected.json"
     path.write_text(json.dumps(expected))
-    commit = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[1], text=True
-    ).strip()
+    commit = "a" * 40
     args = [
         "study",
         "report",
@@ -51,11 +52,58 @@ def invoke(args):
     parsed.handler(parsed)
 
 
+@pytest.fixture
+def committed_package(tmp_path):
+    repo = tmp_path / "package-repo"
+    package = repo / "src" / "sparselab"
+    shutil.copytree(
+        Path(identity_acceptance.__file__).resolve().parents[1],
+        package,
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "Commit package fixture",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+    ).strip()
+    return repo, package, commit
+
+
+def invoke_copy(args, committed_package, cwd):
+    repo, _package, commit = committed_package
+    args = list(args)
+    args[args.index("--candidate-commit") + 1] = commit
+    env = dict(os.environ, PYTHONPATH=str(repo / "src"))
+    return subprocess.run(
+        [sys.executable, "-m", "sparselab", *args],
+        cwd=cwd,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
 @pytest.mark.parametrize("mode", ["legacy_default_fields", "current"])
 def test_public_identity_acceptance_records_candidate_without_payloads(
-    acceptance, monkeypatch, capsys, mode
+    acceptance, committed_package, mode
 ):
-    tmp, _root, path, expected, args, commit = acceptance
+    tmp, _root, path, expected, args, _commit = acceptance
+    _repo, _package, commit = committed_package
     if mode == "current":
         root = write_report_inputs(tmp / "current", historical=False)
         receipt = json.loads((root / "receipt.json").read_text())
@@ -69,19 +117,11 @@ def test_public_identity_acceptance_records_candidate_without_payloads(
         args[2:4] = [str(root / "study.yaml"), str(root / "receipt.json")]
         args[args.index("--evidence") + 1] = str(root / "collected-report.json")
     package = source_identity()
-    original = identity_acceptance.git_provenance
-
-    def provenance(paths):
-        package_root = Path(identity_acceptance.__file__).resolve().parents[1]
-        assert set(paths) == {package_root / name for name, _ in package["files"]}
-        return original(paths)
-
-    monkeypatch.setattr(identity_acceptance, "git_provenance", provenance)
     unrelated = tmp / "unrelated"
     unrelated.mkdir()
-    monkeypatch.chdir(unrelated)
-    invoke(args)
-    bundle = Path(capsys.readouterr().out.strip())
+    result = invoke_copy(args, committed_package, unrelated)
+    assert result.returncode == 0, result.stderr
+    bundle = Path(result.stdout.strip())
     report = json.loads((bundle / "report.json").read_text())
     checked = report["identity_acceptance"]
     assert checked["verified"] is True
@@ -92,7 +132,7 @@ def test_public_identity_acceptance_records_candidate_without_payloads(
     assert (
         checked["expectations_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     )
-    assert checked["verifier_file_status"] == "CLEAN_AND_COMMITTED"
+    assert checked["candidate_package_status"] == "CLEAN_AND_COMMITTED"
     assert not (tmp / "runs").exists()
     assert not (tmp / "workers").exists()
 
@@ -111,7 +151,9 @@ def test_public_identity_acceptance_records_candidate_without_payloads(
         "format",
     ],
 )
-def test_public_identity_acceptance_refuses_drift_before_output(acceptance, mutation):
+def test_public_identity_acceptance_refuses_drift_before_output(
+    acceptance, mutation, monkeypatch
+):
     tmp, _root, path, expected, args, _commit = acceptance
     if mutation == "matrix":
         expected["matrix_sha256"] = "0" * 64
@@ -130,9 +172,23 @@ def test_public_identity_acceptance_refuses_drift_before_output(acceptance, muta
     elif mutation == "format":
         expected["format"] = "sparselab-study-identity-expectations-v2"
     elif mutation == "candidate":
+        monkeypatch.setattr(
+            identity_acceptance,
+            "git_provenance",
+            lambda paths: {
+                "status": "CLEAN_AND_COMMITTED",
+                "source_commit": _commit,
+                "declarations": [
+                    {"sha256": digest}
+                    for _, digest in sorted(source_identity()["files"])
+                ],
+            },
+        )
         args[-1] = "0" * 40
     path.write_text(json.dumps(expected))
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="candidate commit" if mutation == "candidate" else None
+    ):
         invoke(args)
     assert not (tmp / "out").exists()
 
@@ -195,3 +251,64 @@ def test_expectation_digest_uses_the_bytes_parsed(acceptance, monkeypatch):
     parsed, digest = identity_acceptance.read_expectations(path)
     assert parsed.model_dump() == expected
     assert digest == hashlib.sha256(data).hexdigest()
+
+
+@pytest.mark.parametrize("kind", ["dirty", "untracked-file", "untracked-package"])
+def test_real_package_changes_refuse_without_output(
+    acceptance, committed_package, kind
+):
+    tmp, _root, _path, _expected, args, _commit = acceptance
+    repo, package, commit = committed_package
+    if kind == "dirty":
+        path = package / "experiments" / "reporting.py"
+        path.write_text(path.read_text() + "\n# Dirty fixture verifier\n")
+    elif kind == "untracked-file":
+        (package / "extra.py").write_text("# Untracked fixture module\n")
+    else:
+        subprocess.run(["git", "rm", "-rq", "--cached", "src"], cwd=repo, check=True)
+        (repo / "anchor.txt").write_text("Unrelated repository\n")
+        subprocess.run(["git", "add", "anchor.txt"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "commit",
+                "-qm",
+                "Keep only unrelated anchor",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+    result = invoke_copy(args, (repo, package, commit), tmp)
+    assert result.returncode != 0
+    assert "candidate package must be CLEAN_AND_COMMITTED" in result.stderr
+    assert not (tmp / "out").exists()
+
+
+def test_inventory_provenance_hash_mismatch_refuses_without_output(
+    acceptance, monkeypatch
+):
+    tmp, _root, _path, _expected, args, commit = acceptance
+    inventory = sorted(source_identity()["files"])
+
+    def provenance(paths):
+        package_root = Path(identity_acceptance.__file__).resolve().parents[1]
+        assert tuple(paths) == tuple(package_root / name for name, _ in inventory)
+        declarations = [{"sha256": digest} for _, digest in inventory]
+        declarations[0]["sha256"] = "0" * 64
+        return {
+            "status": "CLEAN_AND_COMMITTED",
+            "source_commit": commit,
+            "declarations": declarations,
+        }
+
+    monkeypatch.setattr(identity_acceptance, "git_provenance", provenance)
+    with pytest.raises(ValueError, match="changed during source verification"):
+        invoke(args)
+    assert not (tmp / "out").exists()

@@ -61,7 +61,7 @@ def accept_identity(
         "candidate_commit": provenance["source_commit"],
         "candidate_package_sha256": package["sha256"],
         "candidate_package_algorithm": package["algorithm"],
-        "verifier_file_status": provenance["status"],
+        "candidate_package_status": provenance["status"],
         "scope": "Fixed metadata identities only; no payload or scientific qualification. "
         "Package inventory bytes match the candidate commit; this does not attest "
         "dependencies, interpreter, in-memory modifications or installed-runtime equivalence.",
