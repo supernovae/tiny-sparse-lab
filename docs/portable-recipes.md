@@ -69,7 +69,7 @@ Neither payload hashes nor runtime probes are calculated.
 
 The native matrix supports axes, derived fields, and comparisons with one cell
 per arm. `--max-runs` retains the compiler's expansion limit (default 1000).
-Inline base configs, artifact/phase/input/corpus-variant/evaluation composition,
+Inline base configs, non-checkpoint artifact/input/corpus-variant/evaluation composition,
 evaluation suites, and attempt contracts are explicitly unavailable here. Use
 existing native planning for these declarations; the inspector will not silently
 omit their work or claim to have compiled a full workflow.
@@ -183,11 +183,12 @@ Preparation/workflow exports use their respective native inspect commands with
 new explicit local bindings; inventory validation alone is not a workflow plan.
 Ordinary Git can then commit/push the authored directory to a user-selected remote.
 
-Existing `research scaffold` composes native studies from its selected research
-entry and catalog profiles; `config derive` authors a typed variant. Export reuses
-an existing descriptor: it is **not** a complete general recipe generator. Native
-creation of a fully connected recipe from arbitrary new inputs, broader training
-continuation and accelerator/evaluation composition remain gaps. A missing future
+Existing `research scaffold --resource-root ROOT` composes native studies and cards
+from explicit current inputs; `config derive` authors a typed variant. Export reuses
+an existing descriptor. `recipe create` below authors an inventory from explicitly
+selected native declarations, without requiring a descriptor first. Automatic
+scientific design, broader execution profiles and accelerator/evaluation composition
+remain outside that command. A missing future
 checkpoint or tokenizer digest must remain missing, never a fabricated placeholder
 claimed as verified. Use existing native artifact verification after real outputs
 exist. Full reproducibility of a model recipe cannot be inferred from schema dry run.
@@ -217,3 +218,100 @@ ceilings still apply. Content mode does not permit the Git-only recovery-publica
 mutation exception. Execution outputs still require an explicit root outside Git.
 This makes the currently supported native CPU preparation/workflow contracts usable
 without a recipe Git checkout; it does not expand their supported operations.
+
+## Create an inventory from authored native declarations
+
+Start with your current native plan/campaign and RunConfig/tokenizer declarations.
+Use `config derive` for an existing RunConfig variant or `research scaffold
+--resource-root ROOT` to generate a native study and its selected capability cards.
+Lab owns these authoring functions; the resulting DSL/config/cards belong in your
+experiment repository. No organization-specific checkout or Python launcher is needed.
+
+For a matrix plan whose native `base_run` names `configs/run.json` relative to the
+recipe root, explicitly select the metadata to publish:
+
+```sh
+sparselab experiment recipe create /my/authored-inputs --profile matrix \
+  --id new-study --entrypoint plans/plan.yaml \
+  --file experiment_plan:plans/plan.yaml --file run_config:configs/run.json \
+  --file metadata:notes.json --artifacts /my/expected-input-identities.json \
+  --output /my/new-recipe
+sparselab experiment recipe inspect /my/new-recipe/recipe.json --json
+```
+
+`expected-input-identities.json` uses the existing matrix artifact mapping (native
+input field to declared SHA256). Supply actual known identities; never invent
+future hashes. Inspection still labels payloads unavailable or unverified.
+Creation is inventory validation, not a claim that the plan's operations or
+payloads have been verified. The second command performs native planning.
+
+The same command supports the existing `preparation` and `workflow` profiles:
+
+| Profile | Entrypoint role | Other roles/options | Next native operation |
+| --- | --- | --- | --- |
+| matrix | `experiment_plan` | `run_config`, `metadata`; `--artifacts` native field-to-digest mapping | `recipe inspect RECIPE --json` |
+| preparation | `campaign` | `run_config`, `tokenizer_config`, `metadata`, `source_lock`; artifact connections live in the campaign | `recipe preparation inspect RECIPE --bindings LOCAL.json --json` |
+| workflow | `experiment_plan` | `run_config`, `metadata`; `--artifacts` existing tokenizer/prepared-data identity mapping; optional `--campaign` inventoried metadata path | `recipe workflow inspect RECIPE --bindings LOCAL.json --json` |
+
+Each `--file ROLE:PATH` selects a bounded YAML/JSON mapping under the supplied
+root. No directory scan, arbitrary file inclusion or secret discovery occurs.
+Do not select credentials. Creation hashes the actual selected bytes and emits
+`recipe.json` using the existing profile schema. The destination must be new and
+its parent must exist. Unsafe paths, symlinks, duplicate members, malformed
+metadata and invalid roles refuse before output. Publication writes the descriptor
+last; an interrupted partial directory is retained and cannot be overwritten.
+
+You can move the directory and inspect from an unrelated cwd. Preparation and
+workflow local bindings stay separate from the portable inventory; bind actual
+external inputs and output locations explicitly. After independent inspection,
+ordinary Git can commit the directory to your own repository. Git publication is
+not performed by Lab. Follow [preparation execution](preparation-recipes.md) or
+[workflow execution](workflow-recipes.md) for the existing admission, apply,
+approval, resume and report commands. Do not use matrix preview as an execution
+admission.
+
+For generated inputs, preserve the existing ordering: native preparation produces
+and verifies outputs, then `experiment bind-inputs` binds verified tokenizer and
+prepared-data identities; workflow resolve/publish verifies and locks those
+inputs before execution. A future checkpoint uses the native `from_phase` and
+selector declaration with no invented path/digest. This does not reset accounting
+or add an internal runner dependency.
+
+## Derivative declaration dry run
+
+Matrix inspection also validates the native phase graph for checkpoint-only
+artifact declarations. An external checkpoint artifact must declare its immutable
+identity, full SHA256, state (`full` or `weights`) and a canonical path relative to the entrypoint plan's directory.
+Portable inspection refuses absolute paths and symlinks; native execution also
+accepts absolute artifact paths. A derivative phase names it through `checkpoint`, with the native
+`resume`, `extend_budget` or `promote` transition. Alternatively, a phase may name
+an earlier producer through `parent` with its deterministic selector. The shared
+native graph validator rejects cycles, missing checkpoint names and incompatible
+state declarations (resume/extend require full state).
+
+The result distinguishes `supplied_checkpoint`, `produced_checkpoint` and
+`fresh_training`. Missing supplied paths report `unavailable`; existing paths
+report `unverified`, even if bytes are present. Planned outputs have no claimed
+SHA256. Inspection never opens checkpoint payloads, allocates models, writes
+receipts or probes runtime. It validates each requested phase patch against the
+native RunConfig schema; it does **not** resolve inherited parent settings,
+checkpoint/config/tokenizer compatibility, budgets or evaluation results.
+Phase comparisons and path-changing patches refuse rather than being omitted.
+Actual native lock/execution retains all checkpoint and provenance verification.
+A declared derivative is not retraining evidence or an executed evaluation.
+
+## Issue #158 acceptance map and remaining limits
+
+| Acceptance | Native path and evidence | Remaining boundary |
+| --- | --- | --- |
+| Generate shareable declarations/cards | external-resource `research scaffold`, `config derive`, `recipe create`; neutral creation/relocation tests | Caller chooses scientific declarations and actual identities; no automatic design or publication |
+| Arbitrary repository/cwd and plain directories | recipe inventory contexts, explicit bindings, Git/content admission; relocation and unrelated-cwd tests | Supported execution profiles retain their CPU/resource/operation limits |
+| Native operation/artifact connectivity | preparation/workflow inspect; shared phase graph in matrix inspect | Matrix/phase preview is not a resolved workflow lock |
+| Generated artifact ordering | native preparation, bind-inputs, workflow resolve/publish and execution receipts | Missing real outputs remain missing; no future digest generation |
+| Derivative immutable-base declaration | checkpoint-only phase dry run, native graph refusal tests | Inherited configs/context, checkpoint compatibility, resolved budget and executed evaluation require actual inputs and native lock/execution |
+| Ownership | all implementation/generic tests in Lab; only DSL/config/cards/docs in experiment repositories | No per-experiment Python validator/launcher required |
+
+These checks establish the documented bounded authoring/dry-run path, not full
+340M readiness or every workflow profile. Accelerator execution, broader composed
+evaluation and complete derivative runtime qualification are not established by
+metadata tests. This acceptance report does not close #158 by itself.
