@@ -23,6 +23,16 @@ checks cover relocation, selection between current and historical identities,
 rejection of either mismatched receipt digest, and refusal to erase a nondefault
 training setting. No personal study declarations/cards were copied into tests.
 The original personal-study identity assertion remains unchanged and still runs.
+An offline integrity test checks all twelve retained rows against local sizes,
+SHA256 and Git blobs; it does not fetch Workshop or substitute for external
+preservation verification. A focused neutral test also preserves the existing
+refusal to omit an allocation manifest from a historical identity.
+
+If fixed vectors fail, first identify the changed input. An intentional edit to
+`configs/runtime_smoke_cpu.yaml` or the `chat-alias-recall-v1` card may justify
+reviewed vector regeneration. An additive `RunConfig` default that changes old
+receipt identities is instead a historical-normalization regression: preserve the
+existing verification guarantee, rather than updating expected hashes to hide it.
 
 ## Remaining design boundary
 
@@ -31,7 +41,13 @@ Copying them into a test fixture directory would retain the personal study under
 another path; the neutral vectors alone do not prove the original personal study's
 identity. Neither approach is claimed as full retirement here. The existing
 historical reader remains untouched; no execution adapter or compatibility path
-is added. Full retirement requires a separately accepted ownership design for
+is added. This reader verifies already-collected receipts; it does not execute
+historical workflows. The native report expectation follow-on in Lab #185 keeps
+that same read-only boundary. These tests preserve today's verification guarantee,
+not a new permanent compatibility promise. Any future retirement of this reader
+requires an explicit replacement-guarantee mapping and coordinated coverage;
+retiring personal input files alone is not permission to drop the verification.
+Full retirement requires a separately accepted ownership design for
 that exact historical-reader input set and assertion. The five remaining evidence
 files are preserved, but retiring them alone would not resolve this input closure.
 
