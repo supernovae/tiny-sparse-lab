@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import unicodedata
 from pathlib import Path
 
-from sparselab.config.loading import load_config, load_tokenizer_config
+import numpy as np
+import pytest
+from allocation_fixtures import write_allocation_fixture
+
+from sparselab.config.loading import load_config
 from sparselab.data.allocation_tasks import build_memory_allocation
 from sparselab.data.packing import prepare_data
-from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
-from sparselab.evaluation.capabilities import compare_results, load_capability_card
+from sparselab.data.tokenizer import load_tokenizer
+from sparselab.evaluation.capabilities import (
+    _passes,
+    compare_results,
+    load_capability_card,
+)
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
 from sparselab.research.catalog import load_recipe, load_research
@@ -219,21 +229,8 @@ def test_allocation_regimes_remain_distinct_and_flops_are_estimated() -> None:
     assert any(name.startswith("allocation-curve-") for name in charts)
 
 
-def test_allocation_builder_binds_published_development_audit(tmp_path: Path) -> None:
-    root = ROOT
-    corpus = root / "data" / "path_domain_v1"
-    tokenizer_config = load_tokenizer_config(
-        root / "configs/path_domain_tokenizer_cpu.yaml"
-    )
-    tokenizer_config = tokenizer_config.model_copy(
-        update={
-            "output_dir": tmp_path / "path-domain-tokenizer",
-            "dataset": tokenizer_config.dataset.model_copy(
-                update={"cache_dir": tmp_path / "path-domain-tokenizer-cache"}
-            ),
-        }
-    )
-    tokenizer_path = train_tokenizer(tokenizer_config)
+def test_allocation_builder_binds_neutral_audit_and_accounting(tmp_path: Path) -> None:
+    corpus, tokenizer_path = write_allocation_fixture(tmp_path / "inputs")
     bundle = tmp_path / "allocation"
     manifest_path = build_memory_allocation(
         bundle,
@@ -246,7 +243,30 @@ def test_allocation_builder_binds_published_development_audit(tmp_path: Path) ->
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
+    for key, filename in (
+        ("train_jsonl_sha256", "train.jsonl"),
+        ("validation_jsonl_sha256", "development.jsonl"),
+        ("oracle_audit_sha256", "oracle_audit.json"),
+        ("provenance_sha256", "provenance.json"),
+    ):
+        assert (
+            manifest["corpus"][key]
+            == hashlib.sha256((corpus / filename).read_bytes()).hexdigest()
+        )
     assert len(manifest["profiles"]) == 25
+    for profile in manifest["profiles"].values():
+        for split in ("train", "validation"):
+            count = profile[f"{split}_supervised_targets"]
+            owners = profile[f"{split}_owner_targets"]
+            assert count == sum(owners.values())
+            assert owners["0"] == int(count * profile["neural_profile_fraction"] + 0.5)
+            residual = [owners[str(owner)] for owner in (1, 2, 3)]
+            assert max(residual) - min(residual) <= 1
+            assert (
+                profile[f"{split}_semantic_query_positions"]
+                == owners["2"] + owners["3"]
+            )
+
     development = manifest["profiles"]["iso-total/n50"]
     assert development["train_supervised_targets"] == sum(
         development["train_owner_targets"].values()
@@ -270,8 +290,17 @@ def test_allocation_builder_binds_published_development_audit(tmp_path: Path) ->
     ):
         card = load_capability_card(bundle / "cards" / card_name)
         assert all(case.semantic_query is not None for case in card.cases)
+        original = json.loads((corpus / "cards" / card_name).read_text())
+        assert [case.expected for case in card.cases] == [
+            case["expected"] for case in original["cases"]
+        ]
+        assert card.scorer == "literal_full_answer_exact_v1"
+        expected = card.cases[0].expected
+        assert _passes(card, "  " + expected + "\n", expected)
+        assert not _passes(card, expected.casefold(), expected)
+        assert not _passes(card, unicodedata.normalize("NFD", expected), expected)
 
-    base = load_config(root / "configs/runtime_smoke_cpu.yaml")
+    base = load_config(ROOT / "configs/runtime_smoke_cpu.yaml")
     configured = base.model_copy(
         update={
             "tokenizer": base.tokenizer.model_copy(update={"path": tokenizer_path}),
@@ -279,10 +308,10 @@ def test_allocation_builder_binds_published_development_audit(tmp_path: Path) ->
             "dataset": base.dataset.model_copy(
                 update={
                     "cache_dir": tmp_path / "cache",
-                    "train_max_documents": tokenizer_config.dataset.train_max_documents,
-                    "validation_max_documents": tokenizer_config.dataset.validation_max_documents,
-                    "train_max_tokens": tokenizer_config.dataset.train_max_tokens,
-                    "validation_max_tokens": tokenizer_config.dataset.validation_max_tokens,
+                    "train_max_documents": 24,
+                    "validation_max_documents": 8,
+                    "train_max_tokens": 16_384,
+                    "validation_max_tokens": 4_096,
                     "source": "local_chat",
                     "train_path": corpus / "train.jsonl",
                     "validation_path": corpus / "development.jsonl",
@@ -299,6 +328,23 @@ def test_allocation_builder_binds_published_development_audit(tmp_path: Path) ->
     assert prepared.train_semantic_queries.ndim == 2
     assert prepared.train_semantic_queries.shape[0] == len(prepared.train)
     assert prepared.validation_semantic_queries.shape[0] == len(prepared.validation)
+    profile_manifest = json.loads(
+        (
+            bundle / "iso-total/n50-owners-neural-lexical-semantic-hybrid.json"
+        ).read_text()
+    )
+    for split in ("train", "validation"):
+        descriptors = profile_manifest["splits"][split]
+        owners = np.load(
+            bundle / "iso-total" / descriptors["owner"]["path"], allow_pickle=False
+        )
+        mask = np.load(
+            bundle / "iso-total" / descriptors["semantic_mask"]["path"],
+            allow_pickle=False,
+        )
+        assert not mask[-1]
+        assert np.array_equal(mask[:-1], np.isin(owners[1:], (2, 3)))
+        assert int(mask.sum()) == development[f"{split}_semantic_query_positions"]
 
 
 def test_allocation_comparison_preserves_profile_name_not_local_path() -> None:
@@ -339,3 +385,47 @@ def test_allocation_comparison_preserves_profile_name_not_local_path() -> None:
         "variant": "n75-owners.json",
     }
     assert "/private" not in str(compared["differences"])
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("answer", "source answer differs"),
+        ("prompt", "source prompt differs"),
+        ("provenance", "provenance does not match"),
+        ("development_provenance", "provenance does not match"),
+        ("card", "maps to 0 audited records"),
+    ],
+)
+def test_neutral_allocation_refuses_mismatched_provenance(tmp_path, mutation, message):
+    corpus, tokenizer_path = write_allocation_fixture(tmp_path / "inputs")
+    if mutation in {"answer", "prompt"}:
+        path = corpus / "oracle_audit.json"
+        payload = json.loads(path.read_text())
+        if mutation == "answer":
+            payload["records"][0]["rendered_assistant_label"] = "wrong.txt"
+        else:
+            payload["records"][0]["semantic_key"]["path"] = "unmentioned/file.txt"
+    elif mutation in {"provenance", "development_provenance"}:
+        path = corpus / "provenance.json"
+        payload = json.loads(path.read_text())
+        split = "development" if mutation == "development_provenance" else "training"
+        payload["splits"][split]["path"] = "different.jsonl"
+    else:
+        path = corpus / "cards/path-domain-development-v1.json"
+        payload = json.loads(path.read_text())
+        payload["cases"][0]["expected"] = "wrong.txt"
+    path.write_text(json.dumps(payload))
+    output = tmp_path / "refused"
+    with pytest.raises(ValueError, match=message):
+        build_memory_allocation(
+            output,
+            tokenizer_path=tokenizer_path,
+            train_path=corpus / "train.jsonl",
+            validation_path=corpus / "development.jsonl",
+            audit_path=corpus / "oracle_audit.json",
+            provenance_path=corpus / "provenance.json",
+            cards_dir=corpus / "cards",
+        )
+    assert not output.exists()
+    assert not list(tmp_path.glob(".refused.allocation-*"))
