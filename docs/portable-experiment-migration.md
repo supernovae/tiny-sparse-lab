@@ -55,7 +55,17 @@ migrated declarations from outside both repositories. They do not establish a
 qualified installed runtime, artifact availability, accelerator support or quality.
 No missing scientific decisions or hashes are invented to make an inventory pass.
 
-## Retirement status and remaining work
+## Historical retirement reconciliation and current scope
+
+The inventory below records the earlier migration scope at the pins above.
+The owner's 2026-10-18 three-family direction supersedes heritage porting and
+personal per-candidate acceptance obligations: Workshop retains basic CPU,
+TinyStories and current DevMind. Other families, including KML, are retired from
+the active showcase; fresh rerun ideas belong in the coordinated backlog with
+new identities and current frameworks. Remaining Lab files are historical
+inventory, not active project assignments or prerequisites for the three families.
+Generic neutral tests, existing operational controls and runtime holds remain.
+
 
 - EXP1/LAB86, the native TinyStories microlab and data-rich 30M declarations,
   selected packaged recipes, DevMind personal corpus declarations and report
@@ -89,14 +99,16 @@ No missing scientific decisions or hashes are invented to make an inventory pass
   Workshop. The [memory retirement](memory-retirement.md) now removes the four
   shared context inputs and eight memory-injection assets against merged Workshop
   preservation and reviewed fixed personal expectations. Native exact-candidate
-  acceptance replaces the personal assertion; neutral Lab tests retain generic
-  regressions. The record distinguishes per-candidate acceptance from perpetual
-  coverage and keeps original historical identities unchanged.
+  acceptance replaced the personal assertion at that time; this obligation is
+  historical and superseded by the three-family scope. Neutral Lab tests retain
+  generic regressions; original audit JSON and evidence remain unchanged.
   [Path-domain allocation coverage](path-allocation-boundary.md) now uses generated
   neutral inputs and a fixed byte tokenizer. Its eighteen personal assets remain:
   `src/sparselab/data/allocation_tasks.py` still mixes fixed task metadata, split
-  sizes, budgets and assignment choices into Python. Explicit declaration design
-  and native personal-input acceptance are required before their retirement.
+  sizes, budgets and assignment choices into Python. The earlier plan required explicit declaration design and native personal-input
+  acceptance; that personal compatibility obligation is superseded. Any separate
+  Lab retirement still needs a dependency check and retained neutral coverage,
+  not a fresh acceptance of the old experiment.
   Neutral runtime examples remain in Lab. These are separate retirement slices.
 - The dense-lm and learned-portability catalog entries and their specialized
   consumers still need classification. Explicit allocation inputs alone do not

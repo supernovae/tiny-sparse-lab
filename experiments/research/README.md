@@ -1,17 +1,20 @@
 # Research experiments
 
-Personal research projects now have discovery homes in the
-[Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog/README.md):
-[Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/experiments/kernel-memory-lab),
+The [historical Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog/README.md)
+and [Kernel Memory Lab records](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/experiments/kernel-memory-lab)
+are immutable references. KML was retired from the active showcase on 2026-10-18;
+fresh rerun ideas belong to the coordinated backlog with new identities and
+current frameworks, not a pending qualification requirement for the old project.
+
+The current Workshop showcase is basic synthetic CPU,
 [DevMind — DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind),
 and [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab).
-KML has active research intent with preserved evidence awaiting current-runtime
-qualification. DevMind 340M Base is authored/proposed, not trained or
-execution-ready; it is distinct from historical DevMind v0–v5. The TinyStories
-recipe has metadata validation but remains unexecuted, including its useful-story
-proposal. Historical smoke results do not establish current story quality.
+DevMind is authored/proposed, not trained or execution-ready; historical DevMind
+v0–v5 remain context only. The TinyStories recipe has metadata validation but
+remains unexecuted, including its useful-story proposal. Historical smoke results
+do not establish current story quality.
 
-This directory still retains [KML declarations](kernel-memory-lab/README.md) and
+This directory still retains historical [KML declarations](kernel-memory-lab/README.md) and
 [historical records](history/README.md) pending their dependency-preserving
 retirement. The [history path map](history/path-map.json) resolves original
 locations without rewriting evidence. These retained copies are not the home for
