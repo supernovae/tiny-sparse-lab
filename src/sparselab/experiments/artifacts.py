@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from sparselab.experiments.artifact_paths import artifact_path
 from sparselab.training.manifest import canonical_json, sha256_file
 from sparselab.verification_proofs import (
     ProofStore,
@@ -27,11 +28,7 @@ if TYPE_CHECKING:
 
 
 def _safe_path(reference: str, source: Path) -> Path:
-    declared = Path(reference)
-    if ".." in declared.parts:
-        raise ValueError("artifact path cannot contain parent traversal")
-    target = declared if declared.is_absolute() else source.absolute().parent / declared
-    target = target.absolute()
+    target = artifact_path(reference, source)
     if not target.exists():
         raise ValueError(f"missing artifact: {target}")
     for component in (target, *target.parents):
