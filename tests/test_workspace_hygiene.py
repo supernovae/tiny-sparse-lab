@@ -167,6 +167,9 @@ def test_context_retirement_preserves_shared_identity_inputs() -> None:
         assert not (REPO / row["source"]).exists()
     for row in retained:
         data = (REPO / row["source"]).read_bytes()
+        assert (
+            hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest() == row["git_blob"]
+        )
         assert hashlib.sha256(data).hexdigest() == row["sha256"]
         assert len(data) == row["size_bytes"]
     assert (

@@ -628,7 +628,8 @@
   "consumer_closure": {
     "method": "Fresh full-path, basename and relative-path scan of tracked files; manual study/matrix and frozen-ledger inspection.",
     "retained_executable_metadata_reader": "memory_injection_v1.study.yaml -> memory_injection_v1.matrix.yaml -> context_study_dense_s17_b24k.yaml, plus its three context cards. The historical identity assertion and all these input bytes are unchanged.",
-    "frozen_references": "Acceptance and memory-injection ledgers/receipts retain original context paths and hashes; they remain immutable evidence, resolved via the destination map rather than rewriting historical inputs.",
-    "guide_anchor": "execution-results--2026-09-22 preserved at the existing Lab navigation path."
+    "frozen_references": "Frozen acceptance records and data/memory_injection_v1/input_ledger.json, plus memory-injection artifact ledgers/receipts, retain original context paths and hashes. The memory ledger names retired context_study_tokenizer.yaml, train.jsonl and validation.jsonl; resolve those preserved inputs through this Workshop disposition map rather than rewriting historical inputs. Missing tokenizer/prepared payloads remain unavailable.",
+    "guide_anchor": "execution-results--2026-09-22 preserved at the existing Lab navigation path.",
+    "retained_base_config_paths": "The retained configs/context_study_dense_s17_b24k.yaml is an exact historical-identity input, not a runnable local recipe. Its train_path and validation_path now point to retired Lab files; resolve their preserved bytes through the Workshop destinations in this record. Its tokenizer and prepared-data paths were already absent from both audited tracked trees and remain explicitly unavailable, not supplied by relocation."
   }
 }

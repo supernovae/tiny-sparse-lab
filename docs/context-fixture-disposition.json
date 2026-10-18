@@ -67,6 +67,6 @@
   ],
   "retirement_followup": {
     "record": "docs/context-retirement.json",
-    "scope": "30 context assets retired; four shared inputs remain for the exact memory-injection historical-identity reader. Original mapping below records the earlier fixture migration."
+    "scope": "30 context assets retired; four shared inputs remain for the exact memory-injection historical-identity reader. Original mapping above records the earlier fixture migration. For current Lab presence only, docs/context-retirement.json supersedes those earlier disposition rows; the original rows remain unchanged."
   }
 }

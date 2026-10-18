@@ -337,12 +337,16 @@ without rewriting scientific artifacts, retain the original locations and record
 the limitation.
 
 Some older instructional documents are themselves registered, byte-hashed
-research evidence: [context study](context-engram-study.md),
-[domain corpus study](path-domain-corpus.md), and
+research evidence: [domain corpus study](path-domain-corpus.md) and
 [portable adapter notes](portable-engram.md). Their original commands remain
 historical records. Apply the workspace convention above to new execution rather
 than copying their old root-level output paths. Updating those bytes would
 invalidate the evidence; no registry hash is changed by this hygiene work.
+
+The original context-study guide bytes are preserved in
+[Workshop at `b74dff53259343aafd336cd00e3480246d70133b`](https://github.com/supernovae/kybern-workshop/blob/b74dff53259343aafd336cd00e3480246d70133b/provenance/lab/docs/context-engram-study.md).
+The [Lab context-study page](context-engram-study.md) is navigation only; its
+original byte-hashed guide is mapped by [the retirement record](context-retirement.json).
 
 The [dense-lm-v1 migration audit](dense-lm-v1-workspace-audit.md) records the actual
 consolidation, preserved history, verification results, and remaining unrelated
