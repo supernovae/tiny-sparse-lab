@@ -64,5 +64,9 @@
       "manifest": "provenance/lab-stage2-manifest.json",
       "disposition": "retained_personal_evidence_pending_coherent_retirement"
     }
-  ]
+  ],
+  "retirement_followup": {
+    "record": "docs/context-retirement.json",
+    "scope": "30 context assets retired; four shared inputs remain for the exact memory-injection historical-identity reader. Original mapping below records the earlier fixture migration."
+  }
 }

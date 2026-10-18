@@ -85,12 +85,12 @@ def test_retained_historical_evidence_keeps_exact_bytes() -> None:
     record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
     rows = record["retained_in_lab"]
     paths = {row["relative_path"] for row in rows}
-    assert len(rows) == len(paths) == 72
+    assert len(rows) == len(paths) == 71
     assert {
-        "docs/context-engram-study.md",
         "docs/portable-engram.md",
         "docs/research/learned-engram-portability.md",
     } <= paths
+    assert "docs/context-engram-study.md" not in paths
     assert "docs/path-domain-corpus.md" not in paths
     for row in rows:
         content = (REPO / row["relative_path"]).read_bytes()
@@ -142,3 +142,46 @@ def test_devmind_v2_retirement_keeps_neutral_corpus_coverage() -> None:
         text = (REPO / f"tests/test_corpus_{name}.py").read_text()
         assert "corpora/devmind-v2" not in text
         assert "neutral_corpus(" in text
+
+
+def test_context_retirement_preserves_shared_identity_inputs() -> None:
+    import hashlib
+    import json
+
+    record = json.loads((REPO / "docs/context-retirement.json").read_text())
+    audit = json.loads((REPO / "docs/context-retirement-audit.json").read_text())
+    removed = record["files"]
+    retained = record["retained_shared_inputs"]
+    expected = {
+        row["source"]: row for row in audit["files"] if row["family"] == "context"
+    }
+    assert len(removed) == 30
+    assert len(retained) == 4
+    assert {row["source"] for row in removed + retained} == set(expected)
+    for row in removed + retained:
+        original = expected[row["source"]]
+        assert row["sha256"] == original["sha256"]
+        assert row["size_bytes"] == original["size_bytes"]
+        assert row["destination"] == "provenance/lab/" + row["source"]
+    for row in removed:
+        assert not (REPO / row["source"]).exists()
+    for row in retained:
+        data = (REPO / row["source"]).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == row["sha256"]
+        assert len(data) == row["size_bytes"]
+    assert (
+        record["original_ledger"]["dependencies"]
+        == audit["context_ledger_dependencies"]
+    )
+    assert len(record["original_ledger"]["dependencies"]) == 39
+    guide = record["guide"]
+    assert guide["sha256"] == audit["frozen_guide"]["sha256"]
+    resource = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
+    assert resource["context_guide_moved_to_workshop"]["sha256"] == guide["sha256"]
+    historical = record["retained_historical_reference"]
+    data = (REPO / historical["path"]).read_bytes()
+    assert hashlib.sha256(data).hexdigest() == historical["sha256"]
+    assert len(data) == historical["size_bytes"]
+    navigation = (REPO / guide["source"]).read_text()
+    assert record["destination_commit"] in navigation
+    assert "## Execution results — 2026-09-22" in navigation

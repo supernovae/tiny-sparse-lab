@@ -534,11 +534,6 @@
       "size_bytes": 355
     },
     {
-      "relative_path": "docs/context-engram-study.md",
-      "sha256": "1511ed7ea65d14d82c25c31d64606f68791682ba7ca22fa778d77c0aac992733",
-      "size_bytes": 20363
-    },
-    {
       "relative_path": "docs/portable-engram.md",
       "sha256": "b121d78ad3db4e15d94371f0e252985b1a9253aeacfdea0a68277b38b2210747",
       "size_bytes": 5957
@@ -617,5 +612,13 @@
         "size_bytes": 12070
       }
     ]
+  },
+  "context_guide_moved_to_workshop": {
+    "relative_path": "docs/context-engram-study.md",
+    "sha256": "1511ed7ea65d14d82c25c31d64606f68791682ba7ca22fa778d77c0aac992733",
+    "size_bytes": 20363,
+    "destination": "provenance/lab/docs/context-engram-study.md",
+    "destination_commit": "b74dff53259343aafd336cd00e3480246d70133b",
+    "disposition_record": "docs/context-retirement.json"
   }
 }

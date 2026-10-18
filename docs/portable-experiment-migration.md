@@ -83,15 +83,16 @@ No missing scientific decisions or hashes are invented to make an inventory pass
   before retiring declarations, fixed-slice dependencies or historical lint pins.
 - The landed [context-family audit](context-retirement-audit.md) and
   [exact disposition map](context-retirement-audit.json) cover 60 files: Context
-  Engram (34), memory injection (8) and path domain (18). Remaining work is the
-  coordinated 34-file context retirement, including its frozen guide, original
-  ledger and integrity references. Memory injection still depends on historical
-  study-identity coverage in `tests/test_study_reporting.py`; path domain still
-  depends on allocation coverage in `tests/test_allocation_research.py` and
+  Engram (34), memory injection (8) and path domain (18). The
+  [context retirement record](context-retirement.json) removes 30 context assets
+  and redirects the frozen guide, preserving original ledger/result bytes in
+  Workshop. Four context inputs remain: one base config and three cards required
+  by the retained memory-injection matrix/study and historical-identity test.
+  Next preserve that exact reader input closure before retiring these four inputs
+  and the eight memory-injection assets; do not change historical digests.
+  Path domain still requires neutral replacement for allocation-test coverage and
   classification of scientific constants in `src/sparselab/data/allocation_tasks.py`.
-  Keep those two families separate from context retirement. The existing
-  [context-fixture record](context-fixture-disposition.json) still retains the
-  scientific files; neutral runtime examples must remain.
+  Neutral runtime examples remain in Lab. These are separate retirement slices.
 - The dense-lm and learned-portability catalog entries and their specialized
   consumers still need classification. Explicit allocation inputs alone do not
   externalize all scientific policy.
