@@ -13,7 +13,7 @@ import os
 import sqlite3
 import time
 import urllib.request
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, urljoin, urlsplit
@@ -181,7 +181,7 @@ class DatasetTransport(TransportBudget):
                 )
             with self.path.open("xb"):
                 pass
-            with sqlite3.connect(self.path) as db:
+            with closing(sqlite3.connect(self.path)) as db, db:
                 db.execute("PRAGMA synchronous=FULL")
                 db.execute(
                     "CREATE TABLE state (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL)"
