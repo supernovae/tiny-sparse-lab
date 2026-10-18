@@ -1,5 +1,10 @@
 # Context-family retirement audit
 
+Current follow-on: [memory retirement](memory-retirement.md) completes the four
+shared context inputs and eight memory-injection active copies after reviewed
+Workshop ownership/native acceptance. The audit JSON and dated findings below
+remain the original evidence; use the follow-on map for current file presence.
+
 Follow-up: [the retirement record](context-retirement.json) retires 30 context
 assets and redirects the guide. Four shared context inputs remain for the
 memory-injection historical-identity reader. The pinned audit below records the

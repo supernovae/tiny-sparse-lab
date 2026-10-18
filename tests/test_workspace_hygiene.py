@@ -144,7 +144,7 @@ def test_devmind_v2_retirement_keeps_neutral_corpus_coverage() -> None:
         assert "neutral_corpus(" in text
 
 
-def test_context_retirement_preserves_shared_identity_inputs() -> None:
+def test_context_retirement_preserves_shared_input_history() -> None:
     import hashlib
     import json
 
@@ -165,13 +165,13 @@ def test_context_retirement_preserves_shared_identity_inputs() -> None:
         assert row["destination"] == "provenance/lab/" + row["source"]
     for row in removed:
         assert not (REPO / row["source"]).exists()
+    followup = json.loads((REPO / "docs/memory-retirement.json").read_text())
+    retired = {row["source"]: row for row in followup["files"]}
     for row in retained:
-        data = (REPO / row["source"]).read_bytes()
-        assert (
-            hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest() == row["git_blob"]
-        )
-        assert hashlib.sha256(data).hexdigest() == row["sha256"]
-        assert len(data) == row["size_bytes"]
+        mapped = retired[row["source"]]
+        for key in ("sha256", "size_bytes", "git_blob", "destination"):
+            assert mapped[key] == row[key]
+        assert not (REPO / row["source"]).exists()
     assert (
         record["original_ledger"]["dependencies"]
         == audit["context_ledger_dependencies"]

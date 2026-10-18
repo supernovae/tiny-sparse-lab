@@ -15,11 +15,12 @@ runtime qualification. Existing links to this section remain valid.
 
 ## Preservation and remaining dependencies
 
-Thirty of the audited 34 context assets are retired from active Lab locations.
-One base configuration and three cards stay unchanged because the retained
-memory-injection study's historical-identity reader requires them. That reader
-and its pinned digests are preserved; this is not a second supported study recipe.
-The other memory-injection and path-domain assets remain outside this slice.
+The earlier retirement removed 30 of the audited 34 context assets. The
+[memory retirement](memory-retirement.md) now removes the remaining base config
+and three cards together with the memory-injection assets. Their original bytes
+remain in pinned Workshop preservation; fixed personal identity acceptance lives
+there, while Lab retains the generic read-only reader and neutral regressions.
+Path-domain assets remain outside this slice.
 
 The original 39-entry ledger is preserved byte-for-byte in Workshop. Its 32
 present inputs matched both pinned trees before retirement; seven tokenizer and
