@@ -1,0 +1,48 @@
+{
+  "browser": "151.0.7922.173",
+  "cadence_seconds": 2,
+  "samples_50ms": 321,
+  "all_nodes_connected": true,
+  "scroll_values": [
+    700
+  ],
+  "x_ranges_preserved": true,
+  "hidden_series_preserved": true,
+  "selected_points_preserved": true,
+  "point_counts": [
+    10,
+    11,
+    12,
+    13
+  ],
+  "final_plots": [
+    {
+      "x": [
+        3,
+        8
+      ],
+      "y": [
+        102,
+        109
+      ],
+      "hidden": "legendonly",
+      "selected": [
+        2,
+        3
+      ],
+      "count": 13
+    },
+    {
+      "x": [
+        0.2710280373831775,
+        13.728971962616823
+      ],
+      "y": [
+        1.7190476190476192,
+        2.980952380952381
+      ],
+      "count": 13
+    }
+  ],
+  "browser_errors": []
+}

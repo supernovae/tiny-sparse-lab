@@ -18,7 +18,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from sparselab.dashboard import lab_pages
+from sparselab.dashboard import lab_pages, training_charts
 from sparselab.dashboard.queries import DashboardSnapshot, RunRecord, runs, snapshot
 from sparselab.dashboard.research import learn_page, research_page
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
@@ -427,17 +427,15 @@ def training(
     selected_names = st.multiselect(
         "Metrics", names, default=names, key="training_metrics"
     )
-    filtered = [point for point in points if point["name"] in selected_names]
-    if filtered:
-        figure = px.line(
-            filtered, x=axis, y="value", color="run_id", facet_row="name", markers=True
-        ).update_yaxes(matches=None)
-        figure.update_layout(height=max(350, 220 * len(selected_names)))
-        st.plotly_chart(figure, width="stretch")
     for name in selected_names:
+        subset = [point for point in points if point["name"] == name]
+        if not subset:
+            continue
+        st.subheader(name.replace("/", " / ").replace("_", " "))
+        training_charts.render(subset, name, axis, str(root))
         spec = metric_spec(name)
         if spec is not None:
-            with st.expander(f"What is {name}?"):
+            with st.expander(f"More about {name}"):
                 st.markdown(metric_help(spec.help_slug))
 
 
