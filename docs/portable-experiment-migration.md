@@ -34,44 +34,62 @@ provenance. Do not keep duplicate active copies under a historical label.
 - [ ] Real pinned Hub delivery and decoder-resource qualification under a separate
   authorization. Loopback wiring is not TinyStories portability evidence.
 
-## Capability and evidence follow-up (distinct from retirement acceptance)
+## Current acceptance reconciliation (2026-10-18)
 
-- [ ] Portable acquisition: inventoried native source-lock references, bound
-  output/cache locations, separately admitted network/download/storage budgets,
-  native journal/cancellation/resume evidence. Keep retained document limits
-  distinct from Hub cache traffic.
-- [ ] Authenticated snapshot-backed CPU execution using the prepared identities.
-- [ ] Bounded authored multi-cell Campaign connections, paired baseline/variant
-  execution, declared interventions and invariants, explicit approvals and
-  comparability/refusal outcomes. Completed runs alone are insufficient.
-- [ ] Continuation: pinned parent generation/full-state requirements, cumulative
-  budgets, scheduler/optimizer semantics and preserved parent lineage.
-- [ ] Inventoried descriptive heldout suites and generation panels, retaining
-  evaluation/checkpoint/prompt/decoder identities and failed/missing outcomes.
-- [ ] Public final evidence collection/reporting after evaluation and panels;
-  distinguish verified coverage, scientific comparability and quality claims.
-- [ ] Independently authored, committed Workshop real-data proof at frozen lab,
-  runtime, recipe, source, tokenizer and prepared-data pins. Retain measurements,
-  paired results, evaluation/panels and replay without duplicate attempts.
-- [ ] Complete the replacement map for every personal sample, route, catalog,
-  documentation link and test. Historical EXP1, now Workshop project DevMind
-  (recipe DevMind 340M Base), is the first scoped retirement; its
-  [file disposition and guarantee map](exp1-retirement.json) records the relocated
-  bytes and retained generic test coverage. KML and other studies remain pending.
-- [ ] Explicit disposition of hosted/GPU samples: their own qualified replacement
-  or a documented distinct retained scope. CPU evidence is not accelerator proof.
+Reconciled against Lab `7e306a96bcc617468d2a06493dab4562bff6beb0`, Workshop
+`0f1bbaec53540c7d2b6ed23d7306d352ad83a7c4`, and Harness
+`b1c2efbd256eceeebdef7cf42b34165d01b8ccb6`. Lab PR172–180 are merged. An
+unchecked real-data result is not automatically a missing native function.
 
-The snapshot-consumption and bounded-acquisition foundations do not complete
-these real-data and full-workflow gates.
-Retirement does not wait for real workloads: verify byte disposition and native
-dry-run behavior, and preserve generic guarantees with neutral tests. The unchecked
-items above mix capability gaps and unexecuted evidence; confirm existing native
-functions before implementing anything new. A preparation recipe
-revision identifies its committed inputs and admission. A later workflow recipe
-revision pins the produced artifact identities. Replaying preparation must use
-its original recipe revision and admission; workflow edits do not retroactively
-change preparation provenance. Fresh preparation records the selected lab source
-identity.
+| Boundary | Shipped native path | Remaining acceptance |
+| --- | --- | --- |
+| Author and relocate | Section validation, config derive, explicit recipe create/export; separate bindings and Git/content admission | Validate each migrated declaration at current pins; unsupported profiles must refuse visibly |
+| Preparation | Snapshot consumption, bounded acquisition contracts, native journal/receipts and apply/resume | Real external acquisition and decoder-resource qualification require separate approval; loopback tests are not dataset proof |
+| Prepared CPU workflow | Native inspect/resolve/publish, explicit admission/approval, apply/resume/report; tiny synthetic and snapshot-pair coverage | Concrete generated inputs, supported runtime and recipe acceptance; broader continuation/evaluation composition remains limited |
+| Derivative declarations | Checkpoint-only native phase graph preview distinguishes supplied, produced and fresh training | Inherited config, payload/tokenizer compatibility, resolved budgets and executed evaluation are not established by preview |
+| Evidence/reporting | Native checkpoint-bound collection and verified publication reports | Actual paired results, final evaluations and generation panels are unexecuted evidence gates, not authority to launch |
+| Internal supervision | Explicit policy binding and same-owner generated-file handoff in Harness PR22/23 | No slot argv/environment amendment; fresh admission for real use; native accounting remains Lab’s responsibility |
+
+[Current non-executing checks](portable-current-acceptance.md) exercise actual
+migrated declarations from outside both repositories. They do not establish a
+qualified installed runtime, artifact availability, accelerator support or quality.
+No missing scientific decisions or hashes are invented to make an inventory pass.
+
+## Retirement status and remaining work
+
+- EXP1/LAB86, the native TinyStories microlab and data-rich 30M declarations,
+  selected packaged recipes, DevMind personal corpus declarations and report
+  bundles have preservation/disposition records and merged retirement changes.
+  Keep exact manifests rather than treating archive membership as blanket
+  deletion permission.
+- Generic corpus tests now use neutral fixtures; generic preparation argv tests
+  cover all 17 native command shapes and cross-phase/nested/directory bindings.
+  Context metadata tests use neutral fixtures. These changes preserve engine
+  coverage but do not retire every remaining personal family.
+- KML still has 224 current-tree files and specialized consumers. Map its remaining
+  reusable guarantees (rights, collision/lineage, accounting, replay and refusal)
+  before retiring declarations, fixed-slice dependencies or historical lint pins.
+- Context/memory/path-domain configs, data and study artifacts need one coherent
+  dependency/disposition audit. The existing context-fixture record explicitly
+  leaves scientific files retained; neutral runtime examples must remain.
+- The dense-lm and learned-portability catalog entries and their specialized
+  consumers still need classification. Explicit allocation inputs alone do not
+  externalize all scientific policy.
+- Workshop still has per-experiment Python and an internal operator adapter.
+  Native capability candidates are not proof that every helper assertion can be
+  removed. Map each guarantee to neutral Lab or internal Harness coverage; do not
+  move bespoke experiment Python wholesale into either repository.
+- Reconcile active guides, catalogs and authoring routes after each verified
+  retirement, while preserving frozen evidence/readers and documented missing
+  references. Complete the file-by-file map and native dry-run evidence before
+  claiming Lab #157 closed. Lab #158 remains bounded and partial.
+
+Retirement does not wait for model workloads. Verify original bytes and dependency
+closure first, then validate current declarations without executing science.
+New reproductions use current interfaces and new identities; do not implement
+compatibility adapters to recreate historical execution. Preparation revisions
+retain their own admitted identities; later workflow declarations bind actual
+verified outputs without rewriting preparation provenance or resetting allowances.
 
 ## Real-data admission
 
