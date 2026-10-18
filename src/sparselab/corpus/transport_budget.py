@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -233,7 +234,7 @@ class TransportBudget:
                 pass
         except FileExistsError as error:
             raise ValueError("transport budget ledger already exists") from error
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db, db:
             db.execute("PRAGMA synchronous=FULL")
             db.execute(
                 "CREATE TABLE state (id INTEGER PRIMARY KEY CHECK (id=1), body TEXT NOT NULL)"
@@ -255,7 +256,7 @@ class TransportBudget:
 
     def _read(self) -> dict[str, Any]:
         try:
-            with sqlite3.connect(self.path) as db:
+            with closing(sqlite3.connect(self.path)) as db, db:
                 row = db.execute("SELECT body FROM state WHERE id=1").fetchone()
             if row is None:
                 raise ValueError("transport budget ledger is incomplete")
@@ -268,7 +269,10 @@ class TransportBudget:
             raise ValueError("transport budget ledger is invalid") from error
 
     def _mutate(self, update: Any, *, check_deadline: bool = True) -> Any:
-        with sqlite3.connect(self.path, timeout=30, isolation_level=None) as db:
+        with (
+            closing(sqlite3.connect(self.path, timeout=30, isolation_level=None)) as db,
+            db,
+        ):
             db.execute("PRAGMA synchronous=FULL")
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT body FROM state WHERE id=1").fetchone()
