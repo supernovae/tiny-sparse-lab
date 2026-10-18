@@ -15,4 +15,4 @@ port or a successful new experiment. Adapt future declarations to current Lab
 interfaces and use new experiment identities. No workload is authorized here.
 
 [archive]: https://github.com/supernovae/kybern-workshop/tree/a47389204a30da1bbfec5e0de4418b3e3e72d4f2/provenance/lab/corpora/devmind-v1
-[project]: https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind-pretrain-v1
+[project]: https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/experiments/devmind-pretrain-v1

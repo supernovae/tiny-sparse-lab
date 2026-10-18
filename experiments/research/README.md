@@ -1,8 +1,8 @@
 # Research experiments
 
 Personal research projects now have discovery homes in the
-[Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/main/catalog/README.md):
-[Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/main/experiments/kernel-memory-lab),
+[Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog/README.md):
+[Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/experiments/kernel-memory-lab),
 [DevMind — DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind),
 and [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab).
 KML has active research intent with preserved evidence awaiting current-runtime
