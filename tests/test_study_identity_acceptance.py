@@ -7,17 +7,11 @@ from pathlib import Path
 
 import pytest
 from report_fixtures import write_report_inputs
+from study_identity_vectors import CONFIGS, MATRIX, STUDY
 
 from sparselab.cli.main import build_parser
 from sparselab.experiments import identity_acceptance
 from sparselab.training.manifest import source_identity
-
-MATRIX = "e1e4b9eae75254117f0d1c2b7ec7a8deaf075f1d196d467d1eeb2fcc31359bfc"
-STUDY = "ec13286d47d1d4f770940f415f7caa90f01bb560b6a781d12d7f578c799b51dc"
-CONFIGS = [
-    "0a2c6cff8756684c12f1ce2743eb392e40a161ce64caa14dbd039aeaa56a4787",
-    "7299f564f23a6493afe3bcc2ec187d731028ea7aa1fdc45ff5a6331dfe140df8",
-]
 
 
 @pytest.fixture
