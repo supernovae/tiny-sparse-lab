@@ -43,12 +43,14 @@ sparselab experiment recipe create "$INPUT" --profile preparation \
 Synthetic recipe fingerprint:
 `bb075a8e08db14b78990a28ae14a76a7489ee868d57a35073d86a922acf7dbe0`.
 The current preparation bindings have `artifacts` and exact `config_paths`, not
-an obsolete `preparation_bindings_version` field. At the pinned Workshop input,
-`examples/synthetic-cpu/README.md` still instructs users to include that field;
-current Lab rejects it with “obsolete preparation bindings; regenerate locations
-for the current authored recipe”. Workshop PR35 corrects that active example,
-while retaining the historical pins and measured results. The correction is
-metadata guidance, not runtime qualification or a compatibility adapter.
+an obsolete `preparation_bindings_version` field. Workshop's
+`examples/synthetic-cpu/README.md` preserves the historical Lab `b155cdcc` procedure,
+which requires that field. Current Lab rejects it, as well as
+`preparation_admission_version` and `workflow_admission_version`; current workflow
+admission also requires explicit `limits`. Workshop PR35 labels that guide as
+historical and directs current non-executing use to `docs/native-workflow.md`.
+The historical procedure and measured results remain intact. This is a scope
+clarification, not runtime qualification or a compatibility adapter.
 
 The CLI argv compiler takes a
 literal JSON object for `--bindings-json`; an initial filename invocation failed
@@ -88,9 +90,15 @@ story evidence remain separately gated. No broader issue is closed by this recor
 ## Documentation follow-up recheck — 2026-10-18
 
 Using the same source CLI and installed interpreter, creation with the exact
-arguments above and inspection with the corrected Workshop README bindings both
+arguments above and inspection with the versionless bindings temporarily shown
+in Workshop README head `97618a4e6703785e28ba700343f89b02a4a41acc` both
 returned exit 0. Generated and committed synthetic descriptors had the fingerprint
 recorded above and `executable: false`. Adding only the obsolete version field
 returned exit 1 with the recorded refusal. All four copied members were byte
 identical, and inspection created no bound work directory. The same 55 bounded
 authoring tests passed again in 2.25 seconds. No preparation or model work ran.
+
+That binding-only check did not validate the README's pinned historical procedure
+or later admissions. The subsequent review identified that removing its required
+historical field made the guide inconsistent. PR35 restores the historical
+procedure; current metadata examples remain in `docs/native-workflow.md`.
