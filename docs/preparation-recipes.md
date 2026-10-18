@@ -67,9 +67,11 @@ The informational `execution` annotation does not authorize anything.
 Inventory integrity is not trusted authorship. Acquisition, preparation, lock
 publication, provenance verification, model runtime acceptance and execution
 admission remain distinct operations. The explicit preparation route below uses
-CampaignEngine for a bounded local CPU subset. Prepared-input workflow execution,
-model dispatch, evaluation closure and run-evidence linkage remain unavailable in
-these portable profiles; their existing admission gates are unchanged.
+CampaignEngine for a bounded local CPU subset. Preparation inspection itself never
+dispatches model work. The separate [prepared-input workflow](workflow-recipes.md)
+now supports its documented CPU execution/evaluation/report subset with explicit
+admission; broader composition remains unavailable. Neither inspection nor lock
+publication grants that execution context.
 
 ## Proof and change-impact map
 
