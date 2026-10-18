@@ -59,22 +59,43 @@ No missing scientific decisions or hashes are invented to make an inventory pass
 
 - EXP1/LAB86, the native TinyStories microlab and data-rich 30M declarations,
   selected packaged recipes, DevMind personal corpus declarations and report
-  bundles have preservation/disposition records and merged retirement changes.
+  bundles have preservation/disposition records and merged retirement changes:
+  [EXP1](exp1-retirement.json), [TinyStories](tinystories-retirement.json),
+  [DevMind v0](devmind-v0-retirement.json), [v1/v3/v4](devmind-v1-v3-v4-retirement.json),
+  [v2](devmind-v2-retirement.json), [v5](devmind-v5-retirement.json),
+  [reports](report-retirement.json), [research resources](research-resource-retirement.json),
+  [historical guides](historical-guide-retirement.json), and
+  [packaged samples](sample-disposition.json).
   Keep exact manifests rather than treating archive membership as blanket
   deletion permission.
 - Generic corpus tests now use neutral fixtures; generic preparation argv tests
   cover all 17 native command shapes and cross-phase/nested/directory bindings.
   Context metadata tests use neutral fixtures. These changes preserve engine
   coverage but do not retire every remaining personal family.
-- KML still has 224 current-tree files and specialized consumers. Map its remaining
+- KML still has 224 tracked files under `experiments/research/kernel-memory-lab/`
+  (`git ls-files experiments/research/kernel-memory-lab | wc -l` at the Lab pin
+  above). This count excludes `src/sparselab/evaluation/kml_card03_items.py`,
+  the six `tests/test_kml_*.py` modules, historical records under
+  `experiments/research/history/kernel-memory-lab/`,
+  `experiments/research/history/path-map.json`,
+  and historical lint pins in `src/sparselab/research/lint.py`. Map its remaining
   reusable guarantees (rights, collision/lineage, accounting, replay and refusal)
   before retiring declarations, fixed-slice dependencies or historical lint pins.
 - Context/memory/path-domain configs, data and study artifacts need one coherent
-  dependency/disposition audit. The existing context-fixture record explicitly
+  dependency/disposition audit. The existing
+  [context-fixture record](context-fixture-disposition.json) explicitly
   leaves scientific files retained; neutral runtime examples must remain.
 - The dense-lm and learned-portability catalog entries and their specialized
   consumers still need classification. Explicit allocation inputs alone do not
   externalize all scientific policy.
+- Hosted/GPU sample disposition remains open, including
+  `configs/first_model_20m_cuda.yaml`, `configs/runtime_smoke_rocm.yaml`,
+  `configs/runtime_smoke_rocm_bf16.yaml`, `configs/scale_dense_160m_cuda.yaml`
+  and `configs/scale_dense_1b_cuda.yaml`. Classify each as a retained generic
+  runtime example with explicit scope or a personal scientific declaration to
+  preserve in Workshop before removal. Any claimed replacement needs its own
+  qualification; CPU evidence is not accelerator proof. No qualification or
+  execution of these files is part of this reconciliation.
 - Workshop still has per-experiment Python and an internal operator adapter.
   Native capability candidates are not proof that every helper assertion can be
   removed. Map each guarantee to neutral Lab or internal Harness coverage; do not

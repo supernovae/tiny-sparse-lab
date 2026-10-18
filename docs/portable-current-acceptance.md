@@ -28,10 +28,29 @@ checkouts, and every command ran from an unrelated directory.
 | DevMind pack with missing generated inputs | Same compiler, `--label pack` | Expected nonzero: missing RESOURCE_ENVELOPE and RUN_CONFIG |
 | Actual microlab advanced plan | Matrix inventory creation then `recipe inspect` | Creation succeeds; preview refuses evaluation_suite explicitly |
 
+For the synthetic creation above, `INPUT` is an absolute copy of Workshop's
+`examples/synthetic-cpu` at the input pin, and `DEST` is a new absolute directory
+whose parent exists. The exact recipe arguments are:
+
+```sh
+sparselab experiment recipe create "$INPUT" --profile preparation \
+  --id workshop-synthetic-cpu-preparation --entrypoint preparation-campaign.json \
+  --file campaign:preparation-campaign.json --file run_config:run.json \
+  --file tokenizer_config:tokenizer-config.json --file metadata:monitor.json \
+  --output "$DEST"
+```
+
 Synthetic recipe fingerprint:
 `bb075a8e08db14b78990a28ae14a76a7489ee868d57a35073d86a922acf7dbe0`.
 The current preparation bindings have `artifacts` and exact `config_paths`, not
-an obsolete `preparation_bindings_version` field. The CLI argv compiler takes a
+an obsolete `preparation_bindings_version` field. At the pinned Workshop input,
+`examples/synthetic-cpu/README.md` still instructs users to include that field;
+current Lab rejects it with “obsolete preparation bindings; regenerate locations
+for the current authored recipe”. Workshop PR35 corrects that active example,
+while retaining the historical pins and measured results. The correction is
+metadata guidance, not runtime qualification or a compatibility adapter.
+
+The CLI argv compiler takes a
 literal JSON object for `--bindings-json`; an initial filename invocation failed
 parsing and was retained before the corrected invocation passed.
 
@@ -65,3 +84,13 @@ neutral tests, never with a Workshop launcher or historical compatibility adapte
 
 Scientific decisions, acquisition, runtime qualification, model work and useful
 story evidence remain separately gated. No broader issue is closed by this record.
+
+## Documentation follow-up recheck — 2026-10-18
+
+Using the same source CLI and installed interpreter, creation with the exact
+arguments above and inspection with the corrected Workshop README bindings both
+returned exit 0. Generated and committed synthetic descriptors had the fingerprint
+recorded above and `executable: false`. Adding only the obsolete version field
+returned exit 1 with the recorded refusal. All four copied members were byte
+identical, and inspection created no bound work directory. The same 55 bounded
+authoring tests passed again in 2.25 seconds. No preparation or model work ran.
