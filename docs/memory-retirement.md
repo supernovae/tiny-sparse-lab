@@ -31,7 +31,9 @@ The personal test is removed only with this explicit transfer of its guarantee.
 No personal declarations/cards are hidden in neutral fixtures. The historical
 reader is unchanged; removing active files does not remove verification behavior.
 Future reader/mode removal still requires a separately reviewed replacement map
-and coordinated coverage. Future accepted candidates need explicit acceptance
+and coordinated coverage. Changes to historical identity normalization or default-field handling require
+rerunning the Workshop native acceptance against the exact candidate before merge.
+Future accepted candidates need explicit acceptance
 against the unchanged personal expectations; this change adds no network CI,
 scheduler, silent skip or permanent compatibility promise.
 
