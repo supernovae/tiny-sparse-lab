@@ -86,14 +86,12 @@ No missing scientific decisions or hashes are invented to make an inventory pass
   Engram (34), memory injection (8) and path domain (18). The
   [context retirement record](context-retirement.json) removes 30 context assets
   and redirects the frozen guide, preserving original ledger/result bytes in
-  Workshop. Four context inputs remain: one base config and three cards required
-  by the retained memory-injection matrix/study and historical-identity test.
-  The [memory identity prerequisite](memory-identity-closure.md) verifies its
-  seven-file exact input closure and adds neutral fixed-digest coverage without
-  replacing the original historical assertion. These four inputs and the eight
-  memory-injection assets remain unchanged pending an accepted historical-reader
-  input ownership design; do not disguise personal study inputs as test fixtures
-  or change their historical digests.
+  Workshop. The [memory retirement](memory-retirement.md) now removes the four
+  shared context inputs and eight memory-injection assets against merged Workshop
+  preservation and reviewed fixed personal expectations. Native exact-candidate
+  acceptance replaces the personal assertion; neutral Lab tests retain generic
+  regressions. The record distinguishes per-candidate acceptance from perpetual
+  coverage and keeps original historical identities unchanged.
   Path domain still requires neutral replacement for allocation-test coverage and
   classification of scientific constants in `src/sparselab/data/allocation_tasks.py`.
   Neutral runtime examples remain in Lab. These are separate retirement slices.

@@ -22,13 +22,10 @@ from sparselab.data.tokenizer import SPECIAL_TOKENS
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
 from sparselab.experiments.reporting import (
-    _historical_study_identity,
-    _identity_for_receipt,
     build_study_report,
     load_report_bundle,
     write_study_report,
 )
-from sparselab.experiments.study import plan_study
 from sparselab.research.catalog import FactorialDesign
 from sparselab.training.manifest import canonical_json
 from sparselab.workers.controller import Controller
@@ -330,24 +327,6 @@ def test_factorial_design_metadata_has_strict_version_and_distinct_axes() -> Non
     }
     with pytest.raises(ValidationError, match="distinct axes"):
         FactorialDesign.model_validate(malformed)
-
-
-def test_historical_default_fields_preserve_collected_study_identity() -> None:
-    study = plan_study(
-        Path(__file__).resolve().parents[1] / "configs/memory_injection_v1.study.yaml"
-    )
-    matrix_sha256, study_sha256, config_digests = _historical_study_identity(study)
-
-    assert matrix_sha256 == (
-        "77582b627384f5fcf998721393868e0e35cf004693f5ec3bca91109908277a0b"
-    )
-    assert study_sha256 == (
-        "eb7b57eb358bf243657ce6f929e5bc2c028f4f10cddac33add495d1ff11d03e5"
-    )
-    assert _identity_for_receipt(
-        study,
-        {"study_sha256": study_sha256, "matrix_sha256": matrix_sha256},
-    ) == (study_sha256, matrix_sha256, config_digests, "legacy_default_fields")
 
 
 @pytest.fixture

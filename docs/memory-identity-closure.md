@@ -1,5 +1,11 @@
 # Memory-injection historical identity: retirement prerequisite
 
+Current follow-on: [memory retirement](memory-retirement.md) transfers the exact
+personal assertion to reviewed Workshop fixed expectations/native acceptance and
+retires the twelve active copies. The original JSON inventory is unchanged. The
+sections below describe the prerequisite state before that ownership decision;
+they are not the current file-presence status.
+
 At Lab `2a0342de653b766f87b2297e12c4fb9f741bfb6d`, all eight memory-injection
 assets and four shared context inputs remain unchanged. The
 [exact closure record](memory-identity-closure.json) verifies each against landed

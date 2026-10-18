@@ -69,19 +69,23 @@ def test_neutral_historical_receipt_cannot_erase_nondefault_training_semantics(
         )
 
 
-def test_memory_identity_closure_matches_retained_local_bytes() -> None:
+def test_retirement_preserves_identity_closure_mapping() -> None:
     root = Path(__file__).resolve().parents[1]
-    record = json.loads((root / "docs/memory-identity-closure.json").read_text())
+    record = json.loads((root / "docs/memory-retirement.json").read_text())
+    original_bytes = (root / record["prior_closure"]["path"]).read_bytes()
+    assert (
+        hashlib.sha256(original_bytes).hexdigest() == record["prior_closure"]["sha256"]
+    )
+    original = {row["source"]: row for row in json.loads(original_bytes)["files"]}
     rows = record["files"]
     assert len(rows) == len({row["source"] for row in rows}) == 12
+    assert {row["source"] for row in rows} == set(original)
     assert sum(row["needed_by_historical_identity_reader"] for row in rows) == 7
     for row in rows:
-        data = (root / row["source"]).read_bytes()
-        assert len(data) == row["size_bytes"], row["source"]
-        assert hashlib.sha256(data).hexdigest() == row["sha256"], row["source"]
-        assert (
-            hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest() == row["git_blob"]
-        ), row["source"]
+        assert row["disposition"] == "removed_active_copy"
+        assert {**row, "disposition": "retained_unchanged"} == original[row["source"]]
+        assert not (root / row["source"]).exists()
+    assert record["destination_commit"] == "acf5f61fe4b80f31ba4b2e1db4f37a0f25b0f426"
 
 
 def test_historical_identity_cannot_omit_allocation_manifest(tmp_path: Path) -> None:
