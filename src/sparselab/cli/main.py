@@ -2196,6 +2196,19 @@ def _learn_probe(args: argparse.Namespace) -> None:
 def _study_report(args: argparse.Namespace) -> None:
     from sparselab.experiments.reporting import build_study_report, write_study_report
 
+    if bool(args.identity_expectations) != bool(args.candidate_commit):
+        raise ValueError(
+            "identity expectations and candidate commit are required together"
+        )
+    expectations = None
+    if args.identity_expectations:
+        from sparselab.experiments.identity_acceptance import (
+            accept_identity,
+            read_expectations,
+        )
+
+        expectations = read_expectations(Path(args.identity_expectations))
+
     report = build_study_report(
         Path(args.path),
         Path(args.receipt),
@@ -2206,6 +2219,10 @@ def _study_report(args: argparse.Namespace) -> None:
             Path(args.portability_evidence) if args.portability_evidence else None
         ),
     )
+    if expectations is not None:
+        report["identity_acceptance"] = accept_identity(
+            report, expectations, args.candidate_commit
+        )
     print(write_study_report(report, Path(args.output)))
 
 
@@ -3547,6 +3564,14 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     study_report.add_argument("--research")
     study_report.add_argument("--runs-dir")
     study_report.add_argument("--portability-evidence")
+    study_report.add_argument(
+        "--identity-expectations",
+        help="Fixed metadata identity assertions; no execution",
+    )
+    study_report.add_argument(
+        "--candidate-commit",
+        help="Exact verifier checkout commit, required with expectations",
+    )
     study_report.set_defaults(handler=_study_report)
 
     reference = commands.add_parser(
