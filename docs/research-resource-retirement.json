@@ -494,26 +494,6 @@
       "size_bytes": 57057
     },
     {
-      "relative_path": "artifacts/research-reports/3f6deec6c11b70750f92219e23fb37c017922017c4730b775b245f27be82c3f0/manifest.json",
-      "sha256": "dbd7e98f5b294ef49fc43c3b766cf35bf6f6e8cf569b087f7a9d35b46a1428ad",
-      "size_bytes": 2227
-    },
-    {
-      "relative_path": "artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/manifest.json",
-      "sha256": "2764e49d0ad3419158bfdf34c62b56ae2611012ee42899bdf3ade7993cb887ec",
-      "size_bytes": 9777
-    },
-    {
-      "relative_path": "artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json",
-      "sha256": "516578fc96d455be60357c177420f92b5582610475e5b611aad979878e2642f4",
-      "size_bytes": 7161
-    },
-    {
-      "relative_path": "artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/manifest.json",
-      "sha256": "647068bdfebd5d48eec29cc113fd944463abc1c4471dd37faf719364b82ea73d",
-      "size_bytes": 7161
-    },
-    {
       "relative_path": "configs/chat_recall_dense_cpu.yaml",
       "sha256": "daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d",
       "size_bytes": 1322
@@ -569,11 +549,6 @@
       "size_bytes": 18630
     },
     {
-      "relative_path": "docs/research/sample-report.md",
-      "sha256": "846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626",
-      "size_bytes": 12070
-    },
-    {
       "relative_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/evidence.json",
       "sha256": "c928b823b6c899a2092c8ccda84af22e30f5dcb0641ba9dace6822793218ff14",
       "size_bytes": 12316
@@ -611,5 +586,36 @@
       "sha256": "8fd43c8d9866ce65813cbbebfabcb0c941fa18fbb273fa9fd4fe5dbfbf551071",
       "size_bytes": 214036
     }
-  ]
+  ],
+  "report_evidence_moved_to_workshop": {
+    "disposition_manifest": "docs/report-retirement.json",
+    "workshop_commit": "a47389204a30da1bbfec5e0de4418b3e3e72d4f2",
+    "previous_local_integrity_rows": [
+      {
+        "relative_path": "artifacts/research-reports/3f6deec6c11b70750f92219e23fb37c017922017c4730b775b245f27be82c3f0/manifest.json",
+        "sha256": "dbd7e98f5b294ef49fc43c3b766cf35bf6f6e8cf569b087f7a9d35b46a1428ad",
+        "size_bytes": 2227
+      },
+      {
+        "relative_path": "artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/manifest.json",
+        "sha256": "2764e49d0ad3419158bfdf34c62b56ae2611012ee42899bdf3ade7993cb887ec",
+        "size_bytes": 9777
+      },
+      {
+        "relative_path": "artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json",
+        "sha256": "516578fc96d455be60357c177420f92b5582610475e5b611aad979878e2642f4",
+        "size_bytes": 7161
+      },
+      {
+        "relative_path": "artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/manifest.json",
+        "sha256": "647068bdfebd5d48eec29cc113fd944463abc1c4471dd37faf719364b82ea73d",
+        "size_bytes": 7161
+      },
+      {
+        "relative_path": "docs/research/sample-report.md",
+        "sha256": "846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626",
+        "size_bytes": 12070
+      }
+    ]
+  }
 }
