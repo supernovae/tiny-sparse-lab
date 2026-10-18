@@ -1,5 +1,6 @@
 """Offline neutral metadata acceptance through the public report command."""
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -8,6 +9,8 @@ import pytest
 from report_fixtures import write_report_inputs
 
 from sparselab.cli.main import build_parser
+from sparselab.experiments import identity_acceptance
+from sparselab.training.manifest import source_identity
 
 MATRIX = "e1e4b9eae75254117f0d1c2b7ec7a8deaf075f1d196d467d1eeb2fcc31359bfc"
 STUDY = "ec13286d47d1d4f770940f415f7caa90f01bb560b6a781d12d7f578c799b51dc"
@@ -54,10 +57,32 @@ def invoke(args):
     parsed.handler(parsed)
 
 
+@pytest.mark.parametrize("mode", ["legacy_default_fields", "current"])
 def test_public_identity_acceptance_records_candidate_without_payloads(
-    acceptance, monkeypatch, capsys
+    acceptance, monkeypatch, capsys, mode
 ):
-    tmp, _root, _path, expected, args, commit = acceptance
+    tmp, _root, path, expected, args, commit = acceptance
+    if mode == "current":
+        root = write_report_inputs(tmp / "current", historical=False)
+        receipt = json.loads((root / "receipt.json").read_text())
+        expected.update(
+            matrix_sha256=receipt["matrix_sha256"],
+            study_sha256=receipt["study_sha256"],
+            config_identity_mode="current",
+            config_sha256=[row["config_sha256"] for row in receipt["runs"]],
+        )
+        path.write_text(json.dumps(expected))
+        args[2:4] = [str(root / "study.yaml"), str(root / "receipt.json")]
+        args[args.index("--evidence") + 1] = str(root / "collected-report.json")
+    package = source_identity()
+    original = identity_acceptance.git_provenance
+
+    def provenance(paths):
+        package_root = Path(identity_acceptance.__file__).resolve().parents[1]
+        assert set(paths) == {package_root / name for name, _ in package["files"]}
+        return original(paths)
+
+    monkeypatch.setattr(identity_acceptance, "git_provenance", provenance)
     unrelated = tmp / "unrelated"
     unrelated.mkdir()
     monkeypatch.chdir(unrelated)
@@ -68,14 +93,29 @@ def test_public_identity_acceptance_records_candidate_without_payloads(
     assert checked["verified"] is True
     assert checked["expected"] == expected
     assert checked["candidate_commit"] == commit
-    assert len(checked["candidate_package_sha256"]) == 64
+    assert checked["candidate_package_sha256"] == package["sha256"]
+    assert checked["candidate_package_algorithm"] == "package-path-sha256-v2"
+    assert (
+        checked["expectations_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    )
+    assert checked["verifier_file_status"] == "CLEAN_AND_COMMITTED"
     assert not (tmp / "runs").exists()
     assert not (tmp / "workers").exists()
 
 
 @pytest.mark.parametrize(
     "mutation",
-    ["matrix", "study", "mode", "order", "missing", "invalid", "extra", "candidate"],
+    [
+        "matrix",
+        "study",
+        "mode",
+        "order",
+        "missing",
+        "invalid",
+        "extra",
+        "candidate",
+        "format",
+    ],
 )
 def test_public_identity_acceptance_refuses_drift_before_output(acceptance, mutation):
     tmp, _root, path, expected, args, _commit = acceptance
@@ -93,6 +133,8 @@ def test_public_identity_acceptance_refuses_drift_before_output(acceptance, muta
         expected["config_sha256"] = ["invalid"]
     elif mutation == "extra":
         expected["approve"] = True
+    elif mutation == "format":
+        expected["format"] = "sparselab-study-identity-expectations-v2"
     elif mutation == "candidate":
         args[-1] = "0" * 40
     path.write_text(json.dumps(expected))
@@ -102,10 +144,60 @@ def test_public_identity_acceptance_refuses_drift_before_output(acceptance, muta
 
 
 @pytest.mark.parametrize("flag", ["--candidate-commit", "--identity-expectations"])
-def test_public_identity_acceptance_requires_paired_flags(acceptance, flag):
+def test_public_identity_acceptance_requires_paired_flags(
+    acceptance, flag, monkeypatch
+):
     tmp, _root, _path, _expected, args, _commit = acceptance
+    monkeypatch.setattr(
+        "sparselab.experiments.reporting.build_study_report",
+        lambda *a, **k: pytest.fail("report built before flag validation"),
+    )
     position = args.index(flag)
     del args[position : position + 2]
     with pytest.raises(ValueError, match="required together"):
         invoke(args)
     assert not (tmp / "out").exists()
+
+
+@pytest.mark.parametrize(
+    "status", ["DIRTY_DECLARATION", "UNTRACKED_DECLARATION", "UNKNOWN"]
+)
+def test_candidate_package_provenance_refuses_before_output(
+    acceptance, monkeypatch, status
+):
+    tmp, _root, _path, _expected, args, commit = acceptance
+    monkeypatch.setattr(
+        identity_acceptance,
+        "git_provenance",
+        lambda paths: {"source_commit": commit, "status": status, "declarations": []},
+    )
+    with pytest.raises(ValueError, match="CLEAN_AND_COMMITTED"):
+        invoke(args)
+    assert not (tmp / "out").exists()
+
+
+def test_invalid_expectations_refuse_before_report_work(acceptance, monkeypatch):
+    tmp, _root, path, _expected, args, _commit = acceptance
+    path.write_text('{"format":"future"}')
+    monkeypatch.setattr(
+        "sparselab.experiments.reporting.build_study_report",
+        lambda *a, **k: pytest.fail("report built before expectation validation"),
+    )
+    with pytest.raises(ValueError):
+        invoke(args)
+    assert not (tmp / "out").exists()
+
+
+def test_expectation_digest_uses_the_bytes_parsed(acceptance, monkeypatch):
+    _tmp, _root, path, expected, _args, _commit = acceptance
+    data = path.read_bytes()
+    original = identity_acceptance.parse_document
+
+    def parse(text, *, source):
+        path.write_text('{"changed":true}')
+        return original(text, source=source)
+
+    monkeypatch.setattr(identity_acceptance, "parse_document", parse)
+    parsed, digest = identity_acceptance.read_expectations(path)
+    assert parsed.model_dump() == expected
+    assert digest == hashlib.sha256(data).hexdigest()

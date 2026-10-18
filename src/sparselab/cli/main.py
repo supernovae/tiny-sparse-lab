@@ -2196,6 +2196,19 @@ def _learn_probe(args: argparse.Namespace) -> None:
 def _study_report(args: argparse.Namespace) -> None:
     from sparselab.experiments.reporting import build_study_report, write_study_report
 
+    if bool(args.identity_expectations) != bool(args.candidate_commit):
+        raise ValueError(
+            "identity expectations and candidate commit are required together"
+        )
+    expectations = None
+    if args.identity_expectations:
+        from sparselab.experiments.identity_acceptance import (
+            accept_identity,
+            read_expectations,
+        )
+
+        expectations = read_expectations(Path(args.identity_expectations))
+
     report = build_study_report(
         Path(args.path),
         Path(args.receipt),
@@ -2206,15 +2219,9 @@ def _study_report(args: argparse.Namespace) -> None:
             Path(args.portability_evidence) if args.portability_evidence else None
         ),
     )
-    if bool(args.identity_expectations) != bool(args.candidate_commit):
-        raise ValueError(
-            "identity expectations and candidate commit are required together"
-        )
-    if args.identity_expectations:
-        from sparselab.experiments.identity_acceptance import accept_identity
-
+    if expectations is not None:
         report["identity_acceptance"] = accept_identity(
-            report, Path(args.identity_expectations), args.candidate_commit
+            report, expectations, args.candidate_commit
         )
     print(write_study_report(report, Path(args.output)))
 

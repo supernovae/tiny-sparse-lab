@@ -15,18 +15,28 @@ The JSON/YAML expectation record has exactly `format` (value
 `config_sha256` (one SHA256 per run, at most 1000). These are fixed authored
 expectations, not values to regenerate from the candidate under test.
 
-Native report verification still checks the study, receipt and collected evidence
-first, including all run identities. The optional check compares its verified
-identities and receipt-selection mode against the declaration. A mismatch or
-invalid record refuses before report output creation. Both flags are required
-together. No historical dispatch, model loading or new identity algorithm exists.
+Both flags are required together and the expectation bytes are read, parsed and
+hashed once before native report verification. The report still verifies study,
+receipt and collected evidence, including all run identities; acceptance then
+compares the verified identities and receipt-selection mode. Invalid expectations,
+mismatches or unverifiable candidate source refuse before output creation.
 
-The emitted report includes `identity_acceptance`, the expectation record and its
-file hash, the actual verifier checkout commit, and the native package source
-hash/algorithm. The supplied commit must match the verifier's checkout. A wheel
-without Git provenance cannot claim checkout-bound acceptance. The package hash
-identifies actual source bytes; the commit alone is not proof of a clean package
-or installed-runtime equivalence. `verifier_file_status` describes only that file.
+The emitted `identity_acceptance` records the expectation bytes hash, candidate
+commit and native package source hash/algorithm. Every file in `source_identity()`'s
+inventory must be clean and committed at that candidate commit; the recorded
+`verifier_file_status` covers this entire inventory. Dirty files, untracked package
+copies, and wheels under unrelated enclosing repositories refuse. The native
+inventory excludes its self-referential lifecycle record and non-inventoried file
+types. This is source-byte provenance, not attestation of dependencies, interpreter,
+in-memory modifications or installed-runtime equivalence. Use a stable checkout
+without concurrent source edits during verification.
+
+This migration check asserts identities of already-collected receipts using the
+existing reader; it does not execute historical workflows or add an identity
+algorithm. `legacy_default_fields` preserves the current read-only verification
+guarantee, without promising indefinite support. Retiring the in-Lab personal
+assertion does not itself retire that mode or reader. Any later removal requires
+an explicit reviewed replacement-guarantee mapping and coordinated coverage.
 
 Lab CI uses neutral local fixtures offline. It does not fetch external collections
 or silently skip personal acceptance. An external collection must explicitly run
