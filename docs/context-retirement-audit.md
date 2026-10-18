@@ -1,5 +1,10 @@
 # Context-family retirement audit
 
+Later follow-up: [memory retirement](memory-retirement.md) records removal of the
+four temporarily retained shared inputs; [the allocation boundary](path-allocation-boundary.md)
+records neutral fixture coverage and remaining path-domain policy. The dated audit
+rows and JSON below remain historical evidence, not current work requirements.
+
 Current follow-on: [memory retirement](memory-retirement.md) completes the four
 shared context inputs and eight memory-injection active copies after reviewed
 Workshop ownership/native acceptance. The audit JSON and dated findings below

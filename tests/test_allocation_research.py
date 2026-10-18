@@ -393,6 +393,7 @@ def test_allocation_comparison_preserves_profile_name_not_local_path() -> None:
         ("answer", "source answer differs"),
         ("prompt", "source prompt differs"),
         ("provenance", "provenance does not match"),
+        ("development_provenance", "provenance does not match"),
         ("card", "maps to 0 audited records"),
     ],
 )
@@ -405,10 +406,11 @@ def test_neutral_allocation_refuses_mismatched_provenance(tmp_path, mutation, me
             payload["records"][0]["rendered_assistant_label"] = "wrong.txt"
         else:
             payload["records"][0]["semantic_key"]["path"] = "unmentioned/file.txt"
-    elif mutation == "provenance":
+    elif mutation in {"provenance", "development_provenance"}:
         path = corpus / "provenance.json"
         payload = json.loads(path.read_text())
-        payload["splits"]["training"]["path"] = "different.jsonl"
+        split = "development" if mutation == "development_provenance" else "training"
+        payload["splits"][split]["path"] = "different.jsonl"
     else:
         path = corpus / "cards/path-domain-development-v1.json"
         payload = json.loads(path.read_text())
