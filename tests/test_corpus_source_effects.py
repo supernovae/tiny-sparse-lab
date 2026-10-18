@@ -31,7 +31,7 @@ def _project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[Path, Path, Path]:
     recipe = tmp_path / "recipe"
-    source_ids = ("gutenberg", "pagerduty", "scoutflo", "wikimedia")
+    source_ids = ("cached_alpha", "cached_beta", "cached_gamma", "new_source")
     for source_id in source_ids:
         _write(
             recipe / "sources" / f"{source_id}.yaml",
@@ -124,7 +124,7 @@ def _project(
             {
                 "source_id": source_id,
                 "declaration_sha256": declaration_sha256(source),
-                "effect": "acquire" if source_id == "wikimedia" else "reuse_only",
+                "effect": "acquire" if source_id == "new_source" else "reuse_only",
                 **(
                     {
                         "origin_project_id": "approved-origin",
@@ -132,7 +132,7 @@ def _project(
                             "snapshot_sha256"
                         ],
                     }
-                    if source_id != "wikimedia"
+                    if source_id != "new_source"
                     else {}
                 ),
             }
@@ -224,11 +224,11 @@ def test_public_cli_verified_reuse_empty_warm_and_cold_readback(
 
     def wiki_only(source, staging, _cache, _offline, transport):
         observed.append(source.id)
-        assert source.id == "wikimedia" and transport is not None
+        assert source.id == "new_source" and transport is not None
         body = b'{"text":"Wikimedia fixture"}\n'
-        target = staging / "files/wikimedia.jsonl"
+        target = staging / "files/new_source.jsonl"
         target.write_bytes(body)
-        transfer = transport.reserve_transfer(source.id, "wikimedia.jsonl", len(body))
+        transfer = transport.reserve_transfer(source.id, "new_source.jsonl", len(body))
         transport.charge_transfer_actual(transfer, len(body))
         transport.finish_transfer(transfer, success=True)
         return [
@@ -237,7 +237,7 @@ def test_public_cli_verified_reuse_empty_warm_and_cold_readback(
                 "size": len(body),
                 "sha256": hashlib.sha256(body).hexdigest(),
             }
-        ], {"fixture": "wikimedia-only"}
+        ], {"fixture": "new_source-only"}
 
     monkeypatch.setattr(acquisition, "_acquire_hf", wiki_only)
     observed_stores = []
@@ -253,20 +253,23 @@ def test_public_cli_verified_reuse_empty_warm_and_cold_readback(
     first = _cli(monkeypatch, root, recipe)
     assert observed_stores and any(store.misses for store in observed_stores)
     first_recorded = any(store.recorded for store in observed_stores)
-    assert observed == ["wikimedia"] and not attempted
+    assert observed == ["new_source"] and not attempted
     assert {
         key: value["reuse_origin"]["project_id"]
         for key, value in first["sources"].items()
         if "reuse_origin" in value
-    } == {key: "approved-origin" for key in ("gutenberg", "pagerduty", "scoutflo")}
+    } == {
+        key: "approved-origin"
+        for key in ("cached_alpha", "cached_beta", "cached_gamma")
+    }
     assert {row["key"].split(":", 1)[0] for row in budget.receipt()["transfers"]} == {
-        "wikimedia"
+        "new_source"
     }
     assert budget.receipt()["metadata_actual"] == 0
     assert _cli(monkeypatch, root, recipe, "--offline") == first
     observed_stores.clear()
     warm = _cli(monkeypatch, root, recipe)
-    assert warm == first and observed == ["wikimedia"] and not attempted
+    assert warm == first and observed == ["new_source"] and not attempted
     assert observed_stores and all(
         store.root == root and store.misses + store.hits > 0
         for store in observed_stores
@@ -354,18 +357,24 @@ def test_preflight_fails_before_any_transport(
         assert state["transfers"] == [] and state["metadata_actual"] == 0
 
 
-def test_kml_declaration_permits_only_pinned_wikimedia_acquisition() -> None:
-    recipe = Path(
-        "experiments/research/kernel-memory-lab/card05-base-50m/current/project-acquire.yaml"
-    )
+def test_declaration_permits_only_pinned_new_source_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, recipe = _project(tmp_path, monkeypatch)
     project = load_project(recipe)
     effects = {item.source_id: item.effect for item in project.config.source_effects}
     assert effects == {
-        "kml_scale_pagerduty": "reuse_only",
-        "kml_scale_project_gutenberg": "reuse_only",
-        "kml_scale_scoutflo": "reuse_only",
-        "kml_scale_wikimedia": "acquire",
+        "cached_alpha": "reuse_only",
+        "cached_beta": "reuse_only",
+        "cached_gamma": "reuse_only",
+        "new_source": "acquire",
     }
+    # Field round-trip only; test_preflight_fails_before_any_transport[declaration] guards bad-pin refusal.
+    pins = {source.id: declaration_sha256(source) for source in project.sources}
+    assert all(
+        effect.declaration_sha256 == pins[effect.source_id]
+        for effect in project.config.source_effects
+    )
 
 
 def test_stale_proof_reverified_and_bad_copy_rejected(
@@ -433,9 +442,9 @@ def test_acquisition_lock_rejects_changed_origin_binding(
     )
 
     def wiki_only(source, staging, _cache, _offline, _budget):
-        assert source.id == "wikimedia"
+        assert source.id == "new_source"
         body = b'{"text":"fixture"}\n'
-        file = staging / "files/wikimedia.jsonl"
+        file = staging / "files/new_source.jsonl"
         file.write_bytes(body)
         return [
             {
@@ -443,13 +452,13 @@ def test_acquisition_lock_rejects_changed_origin_binding(
                 "size": len(body),
                 "sha256": hashlib.sha256(body).hexdigest(),
             }
-        ], {"fixture": "wikimedia-only"}
+        ], {"fixture": "new_source-only"}
 
     monkeypatch.setattr(acquisition, "_acquire_hf", wiki_only)
     _tripwire(monkeypatch)
     lock = _cli(monkeypatch, root, recipe)
     selected = root / "corpora/candidate/acquisition.json"
-    lock["sources"]["gutenberg"]["reuse_origin"]["project_id"] = "substituted"
+    lock["sources"]["cached_alpha"]["reuse_origin"]["project_id"] = "substituted"
     selected.write_text(json.dumps(lock), encoding="utf-8")
     with pytest.raises(ValueError, match="retained origin binding mismatch"):
         _cli(monkeypatch, root, recipe, "--offline")
@@ -476,10 +485,10 @@ def test_origin_mutation_during_only_permitted_transport_prevents_lock(
     )
 
     def wiki_only(source, staging, _cache, _offline, _budget):
-        assert source.id == "wikimedia"
+        assert source.id == "new_source"
         next((origin / "files").iterdir()).write_bytes(b"changed during transfer")
         body = b'{"text":"fixture"}\n'
-        file = staging / "files/wikimedia.jsonl"
+        file = staging / "files/new_source.jsonl"
         file.write_bytes(body)
         return [
             {
@@ -487,7 +496,7 @@ def test_origin_mutation_during_only_permitted_transport_prevents_lock(
                 "size": len(body),
                 "sha256": hashlib.sha256(body).hexdigest(),
             }
-        ], {"fixture": "wikimedia-only"}
+        ], {"fixture": "new_source-only"}
 
     monkeypatch.setattr(acquisition, "_acquire_hf", wiki_only)
     _tripwire(monkeypatch)

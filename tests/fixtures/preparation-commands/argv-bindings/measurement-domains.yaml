@@ -1,0 +1,3 @@
+min_unique_train_tokens_by_domain:
+  technical_docs: 0
+  absent: 0
