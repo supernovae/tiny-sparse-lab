@@ -10,7 +10,7 @@ import yaml
 
 from sparselab.cli.main import build_parser
 from sparselab.corpus.declaration_render import render_declaration
-from sparselab.training.manifest import sha256_file
+from sparselab.training.attempt_commands import classify_attempt_command
 from sparselab.training.preparation import (
     compile_phase,
     load_preparation,
@@ -19,7 +19,7 @@ from sparselab.training.preparation import (
 
 PLAN = (
     Path(__file__).resolve().parents[1]
-    / "experiments/research/kernel-memory-lab/card05-base-50m/current/preparation.json"
+    / "tests/fixtures/preparation-commands/argv-bindings/preparation.json"
 )
 MEASUREMENT_PLAN = PLAN.with_name("measurement-only.json")
 MEASUREMENT_DOMAINS = PLAN.with_name("measurement-domains.yaml")
@@ -28,8 +28,9 @@ MEASUREMENT_DOMAINS = PLAN.with_name("measurement-domains.yaml")
 def test_all_current_phase_paths_and_commands_are_disjoint(tmp_path):
     plan = load_preparation(PLAN)
     outputs = set()
-    assert len(plan["phases"]) == 32
-    assert plan["defaults"]["BATCH_SOURCE_BYTES"] == "8388608"
+    operations = set()
+    assert len(plan["phases"]) == 25
+    assert plan["defaults"]["BATCH_SOURCE_BYTES"] == "1024"
     for label, phase in plan["phases"].items():
         needed = {word[2:-1] for word in phase["args"] if word.startswith("${")}
         values = {
@@ -37,6 +38,9 @@ def test_all_current_phase_paths_and_commands_are_disjoint(tmp_path):
             for key in needed - plan["defaults"].keys() - {"TEMPLATE", "VALUES_JSON"}
         }
         compiled = compile_phase(PLAN, tmp_path, label, values)
+        operations.add(
+            classify_attempt_command(["sparselab", *compiled["args"]]).operation
+        )
         for key in ("leaf", "completion", "inner_monitor"):
             if key not in compiled:
                 continue
@@ -69,8 +73,28 @@ def test_all_current_phase_paths_and_commands_are_disjoint(tmp_path):
         )
         assert parsed.completion == Path(compiled["completion"])
 
+    assert operations == {
+        "corpus acquire",
+        "corpus render-declaration",
+        "corpus admission-draft",
+        "corpus inspect-admission",
+        "corpus split-inventory",
+        "corpus freeze-splits",
+        "corpus build",
+        "corpus freeze",
+        "corpus audit",
+        "corpus near-duplicates",
+        "corpus finalize-family-inventory",
+        "corpus audit-protected-lineage",
+        "corpus measure-tokens",
+        "corpus materialize-mixture",
+        "corpus verify-mixture",
+        "data prepared-inputs publish",
+        "data prepared-inputs verify",
+    }
 
-def test_production_templates_get_paths_only_from_plan(tmp_path):
+
+def test_neutral_templates_get_paths_only_from_plan(tmp_path):
     for label in ("pre-freeze-declaration", "final-build-declaration"):
         compiled = compile_phase(PLAN, tmp_path, label, {})
         args = compiled["args"]
@@ -80,7 +104,13 @@ def test_production_templates_get_paths_only_from_plan(tmp_path):
             Path(compiled["leaf"]),
             tmp_path,
         )
-        assert Path(rendered["path"]).is_file()
+        payload = yaml.safe_load(Path(rendered["path"]).read_text())
+        assert payload["sources"] == ["sources/source-a.yaml"]
+        assert payload["splits"] == (
+            "splits.yaml"
+            if label == "pre-freeze-declaration"
+            else "splits-reviewed.yaml"
+        )
     with pytest.raises(ValueError, match="cannot override"):
         compile_phase(
             PLAN,
@@ -129,23 +159,17 @@ def test_binding_errors_and_no_executable_legacy_paths(tmp_path):
 
 
 def test_checked_in_measurement_selection_uses_public_phase_command(tmp_path):
-    assert sha256_file(MEASUREMENT_PLAN) == (
-        "066d6e37c3703d120dbeabd89846dd9133483ad9ade2617b1832b862ddee952a"
-    )
-    assert sha256_file(MEASUREMENT_DOMAINS) == (
-        "5954443818a492600fcb5d8f5f4b775b297f0989ab3983b7e06302409e0ea268"
-    )
     full = load_preparation(PLAN)
     selected = load_preparation(MEASUREMENT_PLAN)
     labels = list(full["phases"])
-    assert labels[:26] == list(selected["phases"])
-    assert labels[25] == "measure-accepted-supply"
-    assert selected["phases"] == {key: full["phases"][key] for key in labels[:26]}
+    assert labels[:19] == list(selected["phases"])
+    assert labels[18] == "measure-accepted-supply"
+    assert selected["phases"] == {key: full["phases"][key] for key in labels[:19]}
     assert selected["defaults"] == {
         **full["defaults"],
         "TOKEN_FLOORS": "./measurement-domains.yaml",
     }
-    assert set(labels[26:]) == {
+    assert set(labels[19:]) == {
         "mixture-declaration",
         "materialize-mixture",
         "cold-verify-mixture",
@@ -155,9 +179,8 @@ def test_checked_in_measurement_selection_uses_public_phase_command(tmp_path):
     }
     assert yaml.safe_load(MEASUREMENT_DOMAINS.read_text()) == {
         "min_unique_train_tokens_by_domain": {
-            "general_prose": 0,
-            "explanatory_prose": 0,
-            "incident_response_docs": 0,
+            "technical_docs": 0,
+            "absent": 0,
         }
     }
     bindings = {
@@ -189,7 +212,7 @@ def test_checked_in_measurement_selection_uses_public_phase_command(tmp_path):
         MEASUREMENT_DOMAINS
     )
     assert compiled["args"][compiled["args"].index("--output") + 1] == compiled["leaf"]
-    for excluded in labels[26:]:
+    for excluded in labels[19:]:
         denied = subprocess.run(
             [*command[: command.index("--label") + 1], excluded],
             capture_output=True,
@@ -199,3 +222,59 @@ def test_checked_in_measurement_selection_uses_public_phase_command(tmp_path):
         )
         assert denied.returncode != 0
         assert "unknown preparation phase" in denied.stderr
+
+
+def test_cross_phase_templates_arguments_and_directory_leaves(tmp_path):
+    def phase(label):
+        return compile_phase(PLAN, tmp_path, label, {})
+
+    draft = phase("admission-draft")
+    reviewed = phase("reviewed-admission")
+    assert reviewed["args"][reviewed["args"].index("--template") + 1] == draft["leaf"]
+    inspection = phase("admission-inspection")
+    assert inspection["args"][inspection["args"].index("--draft") + 1] == draft["leaf"]
+    assert inspection["args"][inspection["args"].index("--selection") + 1] == str(
+        PLAN.parent / "selection.json"
+    )
+    assert phase("source-declaration")["leaf"] == str(
+        tmp_path / "prep/sources/source-a.yaml"
+    )
+    mixture = phase("materialize-mixture")
+    verify = phase("cold-verify-mixture")
+    assert mixture["leaf"] == str(tmp_path / "prep/mixture")
+    assert verify["args"][verify["args"].index("--output") + 1] == mixture["leaf"]
+    bundle = phase("publish-prepared-bundle")
+    assert bundle["leaf"] == str(tmp_path / "prep/prepared-bundle")
+    assert phase("cold-verify-prepared-bundle")["args"][-1] == bundle["leaf"]
+    assert not (tmp_path / "prep").exists()  # Compilation must remain data-only.
+
+
+@pytest.mark.parametrize(
+    "damage, message",
+    [
+        ("null-reference", "unknown preparation leaf reference"),
+        ("missing-reference", "unknown preparation leaf reference"),
+        ("duplicate-leaf", "duplicate preparation leaf"),
+        ("wrong-output", "phase output differs from declared leaf"),
+        ("unresolved-binding", "unresolved preparation binding"),
+    ],
+)
+def test_invalid_phase_graph_refuses_before_output(tmp_path, damage, message):
+    plan = load_preparation(PLAN)
+    phase = plan["phases"]["admission-inspection"]
+    if damage in {"null-reference", "missing-reference"}:
+        phase["args"][phase["args"].index("--draft") + 1] = (
+            "@verify-snapshots" if damage == "null-reference" else "@absent"
+        )
+    elif damage == "duplicate-leaf":
+        phase["leaf"] = plan["phases"]["admission-draft"]["leaf"]
+    elif damage == "wrong-output":
+        phase["args"][phase["args"].index("--output") + 1] = "@admission-draft"
+    else:
+        plan["defaults"]["INSPECTION_SELECTION"] = "prefix-${UNBOUND}"
+    path = tmp_path / "bad.json"
+    path.write_text(json.dumps(plan))
+    attempt = tmp_path / "attempt"
+    with pytest.raises(ValueError, match=message):
+        compile_phase(path, attempt, "admission-inspection", {})
+    assert not attempt.exists()

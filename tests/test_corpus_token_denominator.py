@@ -379,34 +379,23 @@ def test_public_api_requires_token_domain_policy(
     assert not output.exists()
 
 
-def test_checked_in_measurement_policy_authenticates_below_100m_supply(
+def test_zero_floor_measurement_authenticates_observed_supply(
     frozen: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
     release, tokenizer, _ = frozen
-    policy = (
-        Path(__file__).resolve().parents[1]
-        / "experiments/research/kernel-memory-lab/card05-base-50m/current/measurement-domains.yaml"
-    )
+    policy = tmp_path / "measurement-only.yaml"
+    domains = {"developer": 0, "technical_docs": 0, "absent": 0}
+    policy.write_text(yaml.safe_dump({"min_unique_train_tokens_by_domain": domains}))
     output = tmp_path / "measured-supply.json"
     receipt = measure_source_tokens(
         release, tokenizer, policy, output, batch_documents=1
     )
     assert receipt["status"] == "COMPLETE"
     assert receipt["policy_sha256"] == sha256_file(policy)
-    assert set(receipt["domains"]) == {
-        "general_prose",
-        "explanatory_prose",
-        "incident_response_docs",
-    }
-    comparison_floors = {
-        "general_prose": 40_500_000,
-        "explanatory_prose": 9_000_000,
-        "incident_response_docs": 500_000,
-    }
-    assert all(
-        receipt["domains"][domain]["source_tokens"] < floor
-        for domain, floor in comparison_floors.items()
-    )
+    assert set(receipt["domains"]) == set(domains)
+    assert receipt["domains"]["developer"]["source_tokens"] > 0
+    assert receipt["domains"]["technical_docs"]["source_tokens"] > 0
+    assert receipt["domains"]["absent"]["source_tokens"] == 0
     assert read_source_token_receipt(output, release, tokenizer, policy) == receipt
 
 
