@@ -36,6 +36,7 @@ def test_connections_close_after_success_and_failure(tmp_path, monkeypatch, kind
         ledger.initialize()
 
     def assert_closed():
+        assert connections, "no ledger connection was tracked"
         for connection in connections:
             with pytest.raises(sqlite3.ProgrammingError, match="closed"):
                 connection.execute("SELECT 1")
