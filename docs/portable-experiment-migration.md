@@ -81,10 +81,17 @@ No missing scientific decisions or hashes are invented to make an inventory pass
   and historical lint pins in `src/sparselab/research/lint.py`. Map its remaining
   reusable guarantees (rights, collision/lineage, accounting, replay and refusal)
   before retiring declarations, fixed-slice dependencies or historical lint pins.
-- Context/memory/path-domain configs, data and study artifacts need one coherent
-  dependency/disposition audit. The existing
-  [context-fixture record](context-fixture-disposition.json) explicitly
-  leaves scientific files retained; neutral runtime examples must remain.
+- The landed [context-family audit](context-retirement-audit.md) and
+  [exact disposition map](context-retirement-audit.json) cover 60 files: Context
+  Engram (34), memory injection (8) and path domain (18). Remaining work is the
+  coordinated 34-file context retirement, including its frozen guide, original
+  ledger and integrity references. Memory injection still depends on historical
+  study-identity coverage in `tests/test_study_reporting.py`; path domain still
+  depends on allocation coverage in `tests/test_allocation_research.py` and
+  classification of scientific constants in `src/sparselab/data/allocation_tasks.py`.
+  Keep those two families separate from context retirement. The existing
+  [context-fixture record](context-fixture-disposition.json) still retains the
+  scientific files; neutral runtime examples must remain.
 - The dense-lm and learned-portability catalog entries and their specialized
   consumers still need classification. Explicit allocation inputs alone do not
   externalize all scientific policy.

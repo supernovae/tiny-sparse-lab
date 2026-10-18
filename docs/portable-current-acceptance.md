@@ -3,9 +3,12 @@
 Checked 2026-10-18 against Lab `7e306a96bcc617468d2a06493dab4562bff6beb0` and
 Workshop inputs `0f1bbaec53540c7d2b6ed23d7306d352ad83a7c4`. This record reconciles
 Lab #158's current bounded authoring/inspection path, not full issue completion.
-The public Workshop update and unchanged-input ownership audit are proposed in
-[Workshop PR35](https://github.com/supernovae/kybern-workshop/pull/35); that PR is
-not a prerequisite for these existing native capabilities.
+The public Workshop update and unchanged-input ownership audit merged in
+[Workshop PR35](https://github.com/supernovae/kybern-workshop/pull/35) at
+`b74dff53259343aafd336cd00e3480246d70133b`, from reviewed head
+`2cc1965555c9a4363de49eda396c63c605f38172`. References to PR35 below describe
+that merged state; the original input pin above remains unchanged. That update
+is not a prerequisite for these existing native capabilities.
 
 ## Environment and effects
 
