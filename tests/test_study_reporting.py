@@ -11,6 +11,7 @@ from typing import cast
 import pytest
 import yaml
 from pydantic import ValidationError
+from report_fixtures import write_report_inputs
 from tokenizers import Tokenizer
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.models import BPE
@@ -29,15 +30,14 @@ from sparselab.experiments.reporting import (
 )
 from sparselab.experiments.study import plan_study
 from sparselab.research.catalog import FactorialDesign
-from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.training.manifest import canonical_json
 from sparselab.workers.controller import Controller
 
-_HISTORICAL_REPORT_INPUTS = (
-    Path(__file__).resolve().parents[1]
-    / "artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/inputs"
-)
 
-_HISTORICAL_STUDY = _HISTORICAL_REPORT_INPUTS / "research-scaffold" / "study.yaml"
+@pytest.fixture(params=[False, True], ids=["current", "historical-defaults"])
+def report_inputs(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
+    return write_report_inputs(tmp_path / "inputs", historical=request.param)
+
 
 _FACTORIAL_DESIGN = {
     "format": "sparselab-factorial-design",
@@ -350,16 +350,17 @@ def test_historical_default_fields_preserve_collected_study_identity() -> None:
     ) == (study_sha256, matrix_sha256, config_digests, "legacy_default_fields")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def historical_report_bundle(
-    tmp_path_factory: pytest.TempPathFactory,
+    tmp_path: Path,
+    report_inputs: Path,
 ) -> tuple[dict[str, object], Path, Path]:
     report = build_study_report(
-        _HISTORICAL_STUDY,
-        _HISTORICAL_REPORT_INPUTS / "receipt.json",
-        _HISTORICAL_REPORT_INPUTS / "collected-report.json",
+        report_inputs / "study.yaml",
+        report_inputs / "receipt.json",
+        report_inputs / "collected-report.json",
     )
-    output = tmp_path_factory.mktemp("historical-report") / "bundles"
+    output = (tmp_path / "report-output") / "bundles"
     bundle = write_study_report(report, output)
     return report, output, bundle
 
@@ -370,41 +371,42 @@ def test_historical_report_bundle_replays_and_validates(
     report, output, bundle = historical_report_bundle
     inputs = report["inputs"]
     assert isinstance(inputs, dict)
-    assert inputs["config_identity_mode"] == "legacy_default_fields"
+    assert inputs["config_identity_mode"] in {"current", "legacy_default_fields"}
     assert inputs["verification_scope"] == "checksummed_report_only"
-    assert len(report["runs"]) == 18
-    assert len(report["comparisons"]) == 21
+    assert len(report["runs"]) == 2
+    assert len(report["comparisons"]) == 1
+    comparison = report["comparisons"][0]
+    assert comparison["validation_loss"]["delta_variant_minus_baseline"] == -0.25
+    assert comparison["capabilities"]["chat-alias-recall-v1"]["score_delta"] == 0.0
     assert write_study_report(report, output) == bundle
 
     loaded = load_report_bundle(bundle)
     assert loaded["report"]["inputs"] == inputs
-    assert len(loaded["report"]["runs"]) == 18
+    assert len(loaded["report"]["runs"]) == 2
 
 
 def test_collected_report_rejects_stale_digest_after_evidence_tampering(
     tmp_path: Path,
+    report_inputs: Path,
 ) -> None:
-    evidence = json.loads(
-        (_HISTORICAL_REPORT_INPUTS / "collected-report.json").read_text()
-    )
+    evidence = json.loads((report_inputs / "collected-report.json").read_text())
     evidence["runs"][0]["run_id"] = "tampered-run"
     evidence_path = tmp_path / "tampered-report.json"
     evidence_path.write_bytes(canonical_json(evidence) + b"\n")
 
     with pytest.raises(ValueError, match="collected report hash mismatch"):
         build_study_report(
-            _HISTORICAL_STUDY,
-            _HISTORICAL_REPORT_INPUTS / "receipt.json",
+            report_inputs / "study.yaml",
+            report_inputs / "receipt.json",
             evidence_path,
         )
 
 
 def test_collected_report_rechecks_resigned_capability_response(
     tmp_path: Path,
+    report_inputs: Path,
 ) -> None:
-    evidence = json.loads(
-        (_HISTORICAL_REPORT_INPUTS / "collected-report.json").read_text()
-    )
+    evidence = json.loads((report_inputs / "collected-report.json").read_text())
     capability = next(iter(evidence["runs"][0]["capabilities"].values()))
     result = capability["result"]
     case = result["results"][0]
@@ -416,8 +418,8 @@ def test_collected_report_rechecks_resigned_capability_response(
 
     with pytest.raises(ValueError, match="capability scorer result was tampered"):
         build_study_report(
-            _HISTORICAL_STUDY,
-            _HISTORICAL_REPORT_INPUTS / "receipt.json",
+            report_inputs / "study.yaml",
+            report_inputs / "receipt.json",
             evidence_path,
         )
 
@@ -440,82 +442,10 @@ def test_single_arm_collected_report_builds_and_validates(
     tmp_path: Path,
 ) -> None:
     """A complete endpoint without a matched pair remains a valid report."""
-    source = _HISTORICAL_REPORT_INPUTS
-    config_source = (
-        source
-        / "research-scaffold"
-        / "configs"
-        / "2ab451f1cf4999368e3a8d1775b0de07d7b33cc09ba014cfc99fd8926aa57832.yaml"
-    )
-    config_path = tmp_path / "base.yaml"
-    shutil.copyfile(config_source, config_path)
-    matrix_path = tmp_path / "matrix.yaml"
-    matrix_path.write_text(
-        "\n".join(
-            [
-                "matrix_version: 1",
-                f"base_config: {config_path}",
-                "axes:",
-                "  seed:",
-                "    - label: s17",
-                "      set: {seed: 17}",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    study_path = tmp_path / "study.yaml"
-    study_path.write_text(
-        """\
-study_version: 1
-name: single-arm-report
-matrix: matrix.yaml
-cards:
-  - chat-alias-retention-v1
-  - chat-alias-recall-v1
-  - chat-context-override-v1
-comparisons: []
-""",
-        encoding="utf-8",
-    )
-    study = plan_study(study_path)
-    assert len(study.expanded) == 1
-    assert study.pairs == ()
-
-    receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
-    evidence = json.loads(
-        (source / "collected-report.json").read_text(encoding="utf-8")
-    )
-    planned_digest = config_sha256(study.expanded[0].config.model_dump(mode="json"))
-    selected_receipt = receipt["runs"][0]
-    selected_evidence = evidence["runs"][0]
-    selected_receipt["config_sha256"] = planned_digest
-    selected_evidence["config_sha256"] = planned_digest
-    planned_config = study.expanded[0].config.model_dump(mode="json")
-    selected_evidence["identity"]["config"] = planned_config
-    for capability in selected_evidence["capabilities"].values():
-        capability["result"]["identity"]["config"] = planned_config
-    selected_receipt["coordinate"] = {"seed": "s17"}
-    selected_evidence["coordinate"] = {"seed": "s17"}
-    receipt["runs"] = [selected_receipt]
-    receipt["study_sha256"] = study.study_sha256
-    receipt["matrix_sha256"] = study.matrix_sha256
-    receipt_path = tmp_path / "receipt.json"
-    receipt_path.write_bytes(canonical_json(receipt) + b"\n")
-
-    evidence["runs"] = [selected_evidence]
-    evidence["comparisons"] = []
-    evidence["summary"] = []
-    evidence["study_sha256"] = study.study_sha256
-    evidence["matrix_sha256"] = study.matrix_sha256
-    evidence["receipt_sha256"] = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
-    evidence["report_sha256"] = hashlib.sha256(
-        canonical_json(
-            {key: value for key, value in evidence.items() if key != "report_sha256"}
-        )
-    ).hexdigest()
-    evidence_path = tmp_path / "collected-report.json"
-    evidence_path.write_bytes(canonical_json(evidence) + b"\n")
+    source = write_report_inputs(tmp_path / "single", single=True)
+    study_path = source / "study.yaml"
+    receipt_path = source / "receipt.json"
+    evidence_path = source / "collected-report.json"
 
     report = build_study_report(study_path, receipt_path, evidence_path)
     bundle = write_study_report(report, tmp_path / "bundles")

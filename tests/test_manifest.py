@@ -103,22 +103,17 @@ def test_legacy_final_memory_injection_preserves_hashes_and_embedding_binds() ->
             "2843e32cd3b64ec6049a20881ada0512e561b9fa4c1b05dcc8910dde01390c4f",
             "abee11a5910dcd65942047b98a65b1c600125c7142fae5099c80771d9eebc949",
         ),
-        "context_study_dense_s17_b24k.yaml": (
-            "93db49867e51f63089c903ae02d913bc28ab3d8b9e9ae6d30305c0abb9d8ce9f",
-            "32569ae52919b99b04ddb4882dd4c74536998a058a418db48e9c6e4bd8dcfaba",
-        ),
-        "context_study_engram_s17_b24k.yaml": (
-            "0573c402becc5129e8c7185d5c8be0afb8612b10333e311f505a947c3f8d8181",
-            "9da4c0a2159a703bd0ddcdcc9d6f53b414833793d3ab2a039f47e70f719e9af2",
-        ),
     }
     for filename, digests in expected.items():
         config = load_config(root / "configs" / filename).model_dump(mode="json")
         assert (config_sha256(config), architecture_sha256(config)) == digests
 
-    legacy = load_config(
-        root / "configs" / "context_study_engram_s17_b24k.yaml"
-    ).model_dump(mode="json")
+    legacy = load_config(root / "configs" / "runtime_smoke_cpu.yaml").model_dump(
+        mode="json"
+    )
+    legacy["model"].update(
+        memory="ngram", memory_table_size=31, memory_ngram_size=2, memory_dim=8
+    )
     explicit_final = {
         **legacy,
         "model": {**legacy["model"], "memory_injection": "final"},

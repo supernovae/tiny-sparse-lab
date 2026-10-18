@@ -85,9 +85,8 @@ def test_retained_historical_evidence_keeps_exact_bytes() -> None:
     record = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
     rows = record["retained_in_lab"]
     paths = {row["relative_path"] for row in rows}
-    assert len(rows) == len(paths) == 77
+    assert len(rows) == len(paths) == 72
     assert {
-        "docs/research/sample-report.md",
         "docs/context-engram-study.md",
         "docs/portable-engram.md",
         "docs/research/learned-engram-portability.md",
@@ -124,3 +123,22 @@ def test_active_research_guides_use_external_resource_authoring() -> None:
         assert "1aa84218a95fabafc96f2cc7d667c0c969eb8d5e/provenance/lab/" in text
         assert "new experiment identity" in text
         assert "research scaffold " not in text
+
+
+def test_devmind_v2_retirement_keeps_neutral_corpus_coverage() -> None:
+    import json
+
+    record = json.loads((REPO / "docs/devmind-v2-retirement.json").read_text())
+    rows = record["files"]
+    assert len(rows) == len({row["source"] for row in rows}) == 23
+    for row in rows:
+        assert row["source"].startswith("corpora/devmind-v2/")
+        assert row["destination"] == "provenance/lab/" + row["source"]
+        assert len(row["sha256"]) == 64
+        assert row["size_bytes"] > 0
+        assert not (REPO / row["source"]).exists()
+    assert (REPO / "corpora/devmind-sample-v0/corpus.yaml").is_file()
+    for name in ("large_build", "pipeline", "rights_header", "structure_cleaning"):
+        text = (REPO / f"tests/test_corpus_{name}.py").read_text()
+        assert "corpora/devmind-v2" not in text
+        assert "neutral_corpus(" in text
