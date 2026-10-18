@@ -147,6 +147,8 @@ def test_public_identity_acceptance_records_candidate_without_payloads(
         "order",
         "missing",
         "invalid",
+        "invalid-matrix",
+        "invalid-study",
         "extra",
         "candidate",
         "format",
@@ -168,6 +170,10 @@ def test_public_identity_acceptance_refuses_drift_before_output(
         del expected["study_sha256"]
     elif mutation == "invalid":
         expected["config_sha256"] = ["invalid"]
+    elif mutation == "invalid-matrix":
+        expected["matrix_sha256"] = "invalid"
+    elif mutation == "invalid-study":
+        expected["study_sha256"] = "invalid"
     elif mutation == "extra":
         expected["approve"] = True
     elif mutation == "format":
@@ -186,7 +192,14 @@ def test_public_identity_acceptance_refuses_drift_before_output(
         },
     )
     path.write_text(json.dumps(expected))
-    schema_cases = {"missing", "invalid", "extra", "format"}
+    schema_cases = {
+        "missing",
+        "invalid",
+        "invalid-matrix",
+        "invalid-study",
+        "extra",
+        "format",
+    }
     if mutation in schema_cases:
         monkeypatch.setattr(
             "sparselab.experiments.reporting.build_study_report",
@@ -197,6 +210,8 @@ def test_public_identity_acceptance_refuses_drift_before_output(
         field = {
             "missing": "study_sha256",
             "invalid": "config_sha256",
+            "invalid-matrix": "matrix_sha256",
+            "invalid-study": "study_sha256",
             "extra": "approve",
             "format": "format",
         }[mutation]

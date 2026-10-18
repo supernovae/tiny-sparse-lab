@@ -28,11 +28,11 @@ inventory must be clean and committed at that candidate commit; the recorded
 whichever repository contains the loaded package; it is not automatically an
 upstream Lab commit. Compare `candidate_package_sha256` across checkouts. Dirty
 files, untracked package copies, and wheels under unrelated enclosing repositories
-refuse. The native
-inventory excludes its self-referential lifecycle record and non-inventoried file
-types. This is source-byte provenance, not attestation of dependencies, interpreter,
-in-memory modifications or installed-runtime equivalence. Use a stable checkout
-without concurrent source edits during verification.
+refuse. The native inventory excludes its self-referential lifecycle record and
+non-inventoried file types. This is source-byte provenance, not attestation of
+dependencies, interpreter, in-memory modifications or installed-runtime
+equivalence. Use a stable checkout without concurrent source edits during
+verification.
 
 This migration check asserts identities of already-collected receipts using the
 existing reader; it does not execute historical workflows or add an identity
