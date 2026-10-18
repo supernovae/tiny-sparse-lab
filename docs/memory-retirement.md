@@ -11,8 +11,7 @@ retirement records remain unchanged historical inventories.
 ## Replacement guarantees
 
 The removed personal test asserted the original matrix/study hashes and historical
-receipt selection by planning seven original input files. Its personal input
-ownership now resides in Workshop. The
+receipt selection by planning seven original input files. Its personal inputs remain in immutable Workshop history. The
 [fixed expectations and native acceptance procedure](https://github.com/supernovae/kybern-workshop/tree/acf5f61fe4b80f31ba4b2e1db4f37a0f25b0f426/acceptance/memory-injection-identity)
 retain those original hashes, the selection mode and all nine ordered config
 identities. Lab owns the existing native reader and verification command.
@@ -30,12 +29,12 @@ in the retirement PR evidence. An old candidate pass is not a new candidate pass
 The personal test is removed only with this explicit transfer of its guarantee.
 No personal declarations/cards are hidden in neutral fixtures. The historical
 reader is unchanged; removing active files does not remove verification behavior.
-Future reader/mode removal still requires a separately reviewed replacement map
-and coordinated coverage. Changes to historical identity normalization or default-field handling require
-rerunning the Workshop native acceptance against the exact candidate before merge.
-Future accepted candidates need explicit acceptance
-against the unchanged personal expectations; this change adds no network CI,
-scheduler, silent skip or permanent compatibility promise.
+The owner's later three-family Workshop scope retires the personal memory-study
+collection and its per-candidate acceptance obligation. The pinned acceptance
+above is historical evidence, not a gate for future Lab changes. Generic reader,
+normalization, provenance and refusal regressions remain required in Lab; this
+documentation change does not remove that behavior or rewrite historical audits.
+Any future engine change still needs focused neutral tests and ordinary review.
 
 ## Evidence and scope limits
 

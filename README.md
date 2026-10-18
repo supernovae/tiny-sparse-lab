@@ -22,26 +22,18 @@ Campaign for an ordinary local experiment.
 
 ## Experiments and research projects
 
-[Kybern Workshop](https://github.com/supernovae/kybern-workshop) owns personal
-experiment definitions and their preserved evidence; Lab provides the reusable
-interfaces. Browse its [portfolio](https://github.com/supernovae/kybern-workshop/blob/main/catalog/README.md)
-for project identities, original records and current prerequisites.
+[Kybern Workshop](https://github.com/supernovae/kybern-workshop) showcases three
+families using Lab's reusable interfaces:
 
-- [DevMind — DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind):
-  authored preparation and proposed science; not trained or execution-ready.
-  Historical DevMind v0–v5 remain separate portfolio entries.
-- [Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/main/experiments/kernel-memory-lab):
-  active research intent with preserved evidence; current-runtime validation and
-  verified artifact bindings remain prerequisites.
-- [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab):
-  declarative teaching recipe with metadata checks; the recipe and useful-story
-  validation remain unexecuted. Earlier small smoke results have their own pins
-  and limits.
+- [Basic synthetic CPU](https://github.com/supernovae/kybern-workshop/tree/main/examples/synthetic-cpu): historical measured workflow and current native metadata entrypoint; no new runtime qualification implied.
+- [TinyStories](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab): teaching declarations; useful-story acceptance still requires actual retained model evidence.
+- [DevMind](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind): current preparation declarations and proposed science; not a trained model.
 
-Historical outcomes are not current Lab guarantees. Portfolio activity does not
-mean a job is running or a model is available. Neutral teaching examples and
-generic fixtures remain in Lab; use the native commands below with your own
-current declarations.
+Other personal experiments are retired from Workshop's current tree. Their
+[historical catalog](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog) remains available at its original commit.
+Fresh research belongs in the coordinated backlog with new identities and current
+frameworks. Old outcomes are not current Lab guarantees or compatibility duties.
+Neutral teaching examples and generic regression coverage remain in Lab.
 
 ## First run
 
