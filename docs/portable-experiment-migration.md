@@ -88,8 +88,12 @@ No missing scientific decisions or hashes are invented to make an inventory pass
   and redirects the frozen guide, preserving original ledger/result bytes in
   Workshop. Four context inputs remain: one base config and three cards required
   by the retained memory-injection matrix/study and historical-identity test.
-  Next preserve that exact reader input closure before retiring these four inputs
-  and the eight memory-injection assets; do not change historical digests.
+  The [memory identity prerequisite](memory-identity-closure.md) verifies its
+  seven-file exact input closure and adds neutral fixed-digest coverage without
+  replacing the original historical assertion. These four inputs and the eight
+  memory-injection assets remain unchanged pending an accepted historical-reader
+  input ownership design; do not disguise personal study inputs as test fixtures
+  or change their historical digests.
   Path domain still requires neutral replacement for allocation-test coverage and
   classification of scientific constants in `src/sparselab/data/allocation_tasks.py`.
   Neutral runtime examples remain in Lab. These are separate retirement slices.
