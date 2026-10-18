@@ -5,17 +5,15 @@ import json
 from pathlib import Path
 
 import pytest
+from report_fixtures import write_report_inputs
 
 from sparselab.experiments.reporting import build_study_report, write_study_report
 from sparselab.training.manifest import canonical_json
 
-_REPORT_INPUTS = (
-    Path(__file__).resolve().parents[1]
-    / "artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/inputs"
-)
-_STUDY = _REPORT_INPUTS / "research-scaffold" / "study.yaml"
-_RECEIPT = _REPORT_INPUTS / "receipt.json"
-_COLLECTED = _REPORT_INPUTS / "collected-report.json"
+
+@pytest.fixture
+def report_inputs(tmp_path: Path) -> Path:
+    return write_report_inputs(tmp_path / "inputs")
 
 
 def _signed_evidence() -> tuple[dict[str, object], bytes]:
@@ -58,14 +56,15 @@ def _write_evidence(path: Path) -> tuple[dict[str, object], bytes]:
 
 def test_report_retains_only_verified_portability_evidence_metadata(
     tmp_path: Path,
+    report_inputs: Path,
 ) -> None:
     evidence_path = tmp_path / "portability-evidence.json"
     expected, _ = _write_evidence(evidence_path)
 
     report = build_study_report(
-        _STUDY,
-        _RECEIPT,
-        _COLLECTED,
+        report_inputs / "study.yaml",
+        report_inputs / "receipt.json",
+        (report_inputs / "collected-report.json"),
         portability_evidence_path=evidence_path,
     )
 
@@ -91,7 +90,7 @@ def test_report_retains_only_verified_portability_evidence_metadata(
 
 @pytest.mark.parametrize("kind", ["hash", "schema"])
 def test_report_rejects_tampered_portability_evidence(
-    tmp_path: Path, kind: str
+    tmp_path: Path, kind: str, report_inputs: Path
 ) -> None:
     evidence_path = tmp_path / "portability-evidence.json"
     payload, _ = _write_evidence(evidence_path)
@@ -110,22 +109,23 @@ def test_report_rejects_tampered_portability_evidence(
 
     with pytest.raises(ValueError, match=expected):
         build_study_report(
-            _STUDY,
-            _RECEIPT,
-            _COLLECTED,
+            report_inputs / "study.yaml",
+            report_inputs / "receipt.json",
+            (report_inputs / "collected-report.json"),
             portability_evidence_path=evidence_path,
         )
 
 
 def test_report_bundle_includes_original_portability_evidence_bytes(
     tmp_path: Path,
+    report_inputs: Path,
 ) -> None:
     evidence_path = tmp_path / "portability-evidence.json"
     _, content = _write_evidence(evidence_path)
     report = build_study_report(
-        _STUDY,
-        _RECEIPT,
-        _COLLECTED,
+        report_inputs / "study.yaml",
+        report_inputs / "receipt.json",
+        (report_inputs / "collected-report.json"),
         portability_evidence_path=evidence_path,
     )
 
@@ -134,8 +134,14 @@ def test_report_bundle_includes_original_portability_evidence_bytes(
     assert (bundle / "inputs" / "portability-evidence.json").read_bytes() == content
 
 
-def test_omitted_portability_evidence_preserves_legacy_report_shape() -> None:
-    report = build_study_report(_STUDY, _RECEIPT, _COLLECTED)
+def test_omitted_portability_evidence_preserves_legacy_report_shape(
+    report_inputs: Path,
+) -> None:
+    report = build_study_report(
+        report_inputs / "study.yaml",
+        report_inputs / "receipt.json",
+        (report_inputs / "collected-report.json"),
+    )
 
     inputs = report["inputs"]
     bundle_inputs = report["_bundle_inputs"]
@@ -144,6 +150,8 @@ def test_omitted_portability_evidence_preserves_legacy_report_shape() -> None:
     assert "portability_evidence" not in inputs
     assert "portability_evidence" not in bundle_inputs
     assert (
-        json.loads(_COLLECTED.read_text())["report_sha256"]
+        json.loads((report_inputs / "collected-report.json").read_text())[
+            "report_sha256"
+        ]
         == inputs["collected_report_sha256"]
     )

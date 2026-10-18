@@ -280,67 +280,72 @@ def test_baseline_mutation_during_command_fails_completion(tmp_path: Path) -> No
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
+@pytest.mark.parametrize("child_seconds", [0.1, 0.3])
 def test_final_receipts_cannot_cross_cap_and_still_claim_complete(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, child_seconds: float
 ) -> None:
-    def run(
-        name: str, cap: int
-    ) -> tuple[monitor.MonitorCompletion, list[dict[str, object]], int]:
-        base = tmp_path / name
-        base.mkdir()
-        root = base / "root"
-        root.mkdir()
-        baseline_path = base / "baseline.json"
-        baseline = monitor.capture_workspace_baseline(root, baseline_path)
-        policy_path = base / "policy.yaml"
-        policy = _policy(
-            policy_path,
-            max_added_workspace_bytes=cap,
-            max_added_workspace_inodes=100,
-            max_wall_seconds=3,
-            interval_seconds=0.02,
-        )
-        result = monitor.monitor_command(
-            [sys.executable, "-c", "import time; time.sleep(0.1)"],
-            policy,
-            workspace=root,
-            log_dir=root / "logs",
-            policy_path=policy_path,
-            baseline_path=baseline_path,
-        )
-        events = [
-            json.loads(line)
-            for line in (root / "logs" / "events.jsonl").read_text().splitlines()
-        ]
-        actual = monitor.sample_workspace_tree(root)[0] - baseline.apparent_bytes
-        return result, events, actual
+    root = tmp_path / "root"
+    root.mkdir()
+    baseline_path = tmp_path / "baseline.json"
+    baseline = monitor.capture_workspace_baseline(root, baseline_path)
+    policy_path = tmp_path / "policy.yaml"
+    cap = 100000
+    policy = _policy(
+        policy_path,
+        max_added_workspace_bytes=cap,
+        max_added_workspace_inodes=100,
+        max_wall_seconds=3,
+        interval_seconds=0.02,
+    )
+    native_projection = monitor._final_storage_projection
+    prefinal_bytes = []
 
-    probe, probe_events, probe_actual = run("probe", 100000)
-    live_peak = max(
-        row["added_workspace_bytes"]
-        for row in probe_events
-        if row["kind"] == "sample" and row["added_workspace_bytes"] is not None
+    def leave_one_byte_before_final_receipts(result, *args):
+        # Sampling cadence and telemetry length differ between command runs.
+        # Place this run one byte below its fixed cap at the real finalization
+        # boundary; the native projection must account for both final receipts.
+        assert result.status == "COMPLETE"
+        assert result.violations == []
+        current = monitor.sample_workspace_tree(root)[0] - baseline.apparent_bytes
+        assert current < cap - 1
+        (root / "finalization-fixture-padding").write_bytes(b"x" * (cap - 1 - current))
+        prefinal_bytes.append(
+            monitor.sample_workspace_tree(root)[0] - baseline.apparent_bytes
+        )
+        assert prefinal_bytes == [cap - 1]
+        return native_projection(result, *args)
+
+    monkeypatch.setattr(
+        monitor, "_final_storage_projection", leave_one_byte_before_final_receipts
     )
-    assert probe.status == "COMPLETE"
-    assert probe.final_added_workspace_bytes == probe_actual
-    assert probe_actual > live_peak + 100
-    cap = live_peak + (probe_actual - live_peak) // 2
-    stopped, events, actual = run("bounded", cap)
-    assert all(
-        row["added_workspace_bytes"] <= cap
-        for row in events
-        if row["kind"] == "sample" and row["added_workspace_bytes"] is not None
+    stopped = monitor.monitor_command(
+        [sys.executable, "-c", f"import time; time.sleep({child_seconds})"],
+        policy,
+        workspace=root,
+        log_dir=root / "logs",
+        policy_path=policy_path,
+        baseline_path=baseline_path,
     )
+    events = [
+        json.loads(line)
+        for line in (root / "logs" / "events.jsonl").read_text().splitlines()
+    ]
+    samples = [row for row in events if row["kind"] == "sample"]
+    assert samples
+    assert all(row["added_workspace_bytes"] <= cap for row in samples)
+    assert prefinal_bytes == [cap - 1]
+    actual = monitor.sample_workspace_tree(root)[0] - baseline.apparent_bytes
     assert stopped.status == "VIOLATED"
     assert "max_added_workspace_bytes" in stopped.violations
     assert stopped.final_added_workspace_bytes == actual
     assert actual > cap
     assert (
-        json.loads(
-            (tmp_path / "bounded" / "root" / "logs" / "completion.json").read_text()
-        )["status"]
+        json.loads((root / "logs" / "completion.json").read_text())["status"]
         == "VIOLATED"
     )
+    owned = json.loads((root / "logs" / "owned-completion.json").read_text())
+    assert owned["living_descendants"] == 0
+    assert owned["returncode"] == stopped.returncode == 0
 
 
 def test_missing_or_wrong_sensor_fails_before_launch(
