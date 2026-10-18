@@ -32,24 +32,11 @@ def export_recipe(source: Path, destination: Path) -> dict:
         model = PortableRecipe
     descriptor = model.model_validate(document)
     context = snapshot_inventory(source, raw, descriptor.files)
-    for component in (destination, *destination.parents):
-        if component.is_symlink():
-            raise ValueError(f"symlinked export destination: {component}")
-    if not destination.parent.is_dir():
-        raise ValueError("export destination parent must already exist")
-    destination.mkdir()  # Never merge into an existing directory.
-    for name, data in context.documents.items():
-        target = destination / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("xb") as stream:
-            stream.write(data)
-    output = destination / source.name
-    with output.open("xb") as stream:
-        stream.write(raw)
+    publish_inventory(destination, source.name, raw, context.documents)
     return {
         "format": "sparselab-recipe-export-v1",
         "source": str(source),
-        "output": str(output),
+        "output": str(destination / source.name),
         "files": len(context.documents) + 1,
         "executable": False,
         "limitations": [
@@ -57,6 +44,26 @@ def export_recipe(source: Path, destination: Path) -> dict:
             "external artifacts, bindings, admissions and execution receipts are not exported unless explicitly inventoried as metadata",
         ],
     }
+
+
+def publish_inventory(
+    destination: Path, descriptor_name: str, raw: bytes, documents
+) -> None:
+    """Publish bounded validated metadata exclusively, with descriptor last."""
+    for component in (destination, *destination.parents):
+        if component.is_symlink():
+            raise ValueError(f"symlinked export destination: {component}")
+    if not destination.parent.is_dir():
+        raise ValueError("export destination parent must already exist")
+    destination.mkdir()  # Never merge into an existing directory.
+    for name, data in documents.items():
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as stream:
+            stream.write(data)
+    output = destination / descriptor_name
+    with output.open("xb") as stream:
+        stream.write(raw)
 
 
 def handle(args):
