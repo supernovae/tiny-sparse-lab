@@ -160,7 +160,7 @@ def test_memory_injection_diagnostics_and_inspection() -> None:
     assert inspect_model(plain_model)["memory_injection"] == "none"
     assert inspection_report(plain)["memory_injection"] == "none"
 
-    enabled = load_config(Path("configs/context_study_dense_s17_b24k.yaml"))
+    enabled = load_config(Path("configs/runtime_smoke_cpu.yaml"))
     enabled = enabled.model_copy(
         update={
             "model": enabled.model.model_copy(

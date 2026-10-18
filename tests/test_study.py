@@ -6,10 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from context_fixtures import write_composition_fixture
 from tokenizers import Tokenizer
 
-from sparselab.config.loading import load_tokenizer_config
-from sparselab.data.tokenizer import train_tokenizer
 from sparselab.evaluation.capabilities import load_capability_card
 from sparselab.experiments.study import (
     ArchitectureStudy,
@@ -243,13 +242,54 @@ def test_validation_loss_requires_matched_run_identity(tmp_path: Path) -> None:
     assert "delta_variant_minus_baseline" not in validation
 
 
-def test_memory_injection_campaign_plan_and_composition_card(tmp_path: Path) -> None:
-    study = plan_study(ROOT / "configs/memory_injection_v1.study.yaml")
+def test_neutral_memory_placement_plan_and_composition_card(tmp_path: Path) -> None:
+    memory = {
+        "model.memory": "ngram",
+        "model.memory_table_size": 31,
+        "model.memory_ngram_size": 2,
+        "model.memory_dim": 8,
+    }
+    path = _write_study(
+        tmp_path,
+        [
+            {"label": "none", "set": {}},
+            {"label": "final", "set": {**memory, "model.memory_injection": "final"}},
+            {
+                "label": "embedding",
+                "set": {**memory, "model.memory_injection": "embedding"},
+            },
+        ],
+        [
+            {
+                "id": f"{variant}-minus-none",
+                "vary": "memory",
+                "baseline": {"architecture": "none"},
+                "variant": {"architecture": variant},
+            }
+            for variant in ("final", "embedding")
+        ]
+        + [
+            {
+                "id": "embedding-minus-final",
+                "vary": "custom",
+                "vary_fields": ["model.memory_injection"],
+                "baseline": {"architecture": "final"},
+                "variant": {"architecture": "embedding"},
+            }
+        ],
+    )
+    matrix_path = tmp_path / "matrix.yaml"
+    matrix = yaml.safe_load(matrix_path.read_text())
+    matrix["axes"]["seed"] = [
+        {"label": f"s{seed}", "set": {"seed": seed}} for seed in (7, 11, 13)
+    ]
+    matrix_path.write_text(yaml.safe_dump(matrix, sort_keys=False))
+    study = plan_study(path)
 
     assert len(study.expanded) == 9
     assert len(study.pairs) == 9
     assert [item.coordinate["seed"] for item in study.expanded] == [
-        seed for seed in ("s17", "s41", "s73") for _ in ("none", "final", "embedding")
+        seed for seed in ("s7", "s11", "s13") for _ in ("none", "final", "embedding")
     ]
     placement_pairs = [
         pair
@@ -263,9 +303,8 @@ def test_memory_injection_campaign_plan_and_composition_card(tmp_path: Path) -> 
         variant = study.expanded[pair.variant_index].config
         assert parameter_inventory(baseline) == parameter_inventory(variant)
 
-    card = load_capability_card(
-        ROOT / "data/memory_injection_v1/context_two_hop_v1.card.json"
-    )
+    card_path, tokenizer = write_composition_fixture(tmp_path)
+    card = load_capability_card(card_path)
     assert [case.identifier for case in card.cases] == [
         f"two-hop-{pair}{side}" for pair in range(1, 5) for side in ("a", "b")
     ]
@@ -296,25 +335,12 @@ def test_memory_injection_campaign_plan_and_composition_card(tmp_path: Path) -> 
         assert graph[graph[left_start.group(1)]] == left.expected
         assert graph[right_start.group(1)] != right.expected
         assert graph[graph[right_start.group(1)]] == right.expected
-    tokenizer_config = load_tokenizer_config(
-        ROOT / "configs/context_study_tokenizer.yaml"
-    )
-    tokenizer_config = tokenizer_config.model_copy(
-        update={
-            "output_dir": tmp_path / "context-study-tokenizer",
-            "dataset": tokenizer_config.dataset.model_copy(
-                update={"cache_dir": tmp_path / "context-study-tokenizer-cache"}
-            ),
-        }
-    )
-    tokenizer_path = train_tokenizer(tokenizer_config)
-    tokenizer = Tokenizer.from_file(str(tokenizer_path))
     lengths = [
         len(tokenizer.encode(case.prompt, add_special_tokens=False).ids)
         for case in card.cases
     ]
-    assert lengths == [71, 71, 81, 82, 101, 103, 89, 86]
-    assert max(lengths) + card.generation["max_new_tokens"] <= 128
+    assert lengths == [26] * 8
+    assert max(lengths) + card.generation["max_new_tokens"] <= 40
 
 
 @pytest.mark.parametrize("external", [False, True])
