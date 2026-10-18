@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from report_fixtures import write_report_inputs
 from study_identity_vectors import CONFIGS, MATRIX, STUDY
 
@@ -172,24 +173,42 @@ def test_public_identity_acceptance_refuses_drift_before_output(
     elif mutation == "format":
         expected["format"] = "sparselab-study-identity-expectations-v2"
     elif mutation == "candidate":
-        monkeypatch.setattr(
-            identity_acceptance,
-            "git_provenance",
-            lambda paths: {
-                "status": "CLEAN_AND_COMMITTED",
-                "source_commit": _commit,
-                "declarations": [
-                    {"sha256": digest}
-                    for _, digest in sorted(source_identity()["files"])
-                ],
-            },
-        )
         args[-1] = "0" * 40
+    monkeypatch.setattr(
+        identity_acceptance,
+        "git_provenance",
+        lambda paths: {
+            "status": "CLEAN_AND_COMMITTED",
+            "source_commit": _commit,
+            "declarations": [
+                {"sha256": digest} for _, digest in sorted(source_identity()["files"])
+            ],
+        },
+    )
     path.write_text(json.dumps(expected))
-    with pytest.raises(
-        ValueError, match="candidate commit" if mutation == "candidate" else None
-    ):
-        invoke(args)
+    schema_cases = {"missing", "invalid", "extra", "format"}
+    if mutation in schema_cases:
+        monkeypatch.setattr(
+            "sparselab.experiments.reporting.build_study_report",
+            lambda *a, **k: pytest.fail("report built before expectation validation"),
+        )
+        with pytest.raises(ValidationError) as error:
+            invoke(args)
+        field = {
+            "missing": "study_sha256",
+            "invalid": "config_sha256",
+            "extra": "approve",
+            "format": "format",
+        }[mutation]
+        assert error.value.errors()[0]["loc"][0] == field
+    else:
+        message = (
+            "candidate commit does not match"
+            if mutation == "candidate"
+            else "study identity expectations differ from verified report"
+        )
+        with pytest.raises(ValueError, match=message):
+            invoke(args)
     assert not (tmp / "out").exists()
 
 
