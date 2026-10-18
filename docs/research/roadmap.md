@@ -131,13 +131,14 @@ The intended walkthrough makes the feature path explicit:
 
 Current source boundaries: `SemanticQueryBatch` in `src/sparselab/engram/semantic.py` accepts pre-encoded vectors; `SemanticRetriever` verifies and retrieves from pack assets; `SemanticMemoryAdapter` applies the retrieved values. `src/sparselab/data/toy_worlds.py` encodes canonical structured keys for deterministic synthetic controls. These are useful interfaces and test fixtures, not a macro-model compiler. See [the current runtime contract](semantic-memory.md) for exact limits and testable behavior.
 
-## Current research: Kernel Memory Lab
+## Historical research: Kernel Memory Lab
 
-[Kernel Memory Lab](../../experiments/research/kernel-memory-lab/README.md) is the
-current project. Consult its [status](../../experiments/research/kernel-memory-lab/STATUS.md)
-and [bootstrap](../../experiments/research/kernel-memory-lab/BOOTSTRAP.md) for
-accepted cards, stopped attempts and exact scope; the earlier statement that all
-thirteen cards were unstarted is obsolete. Production experiments remain paused
-during the offline interface cleanup. Historical allocations and archived models
-do not authorize a new run. Native Campaign state and verified receipts remain
-the execution record.
+[Kernel Memory Lab](../../experiments/research/kernel-memory-lab/README.md) was
+retired from the active showcase on 2026-10-18. Its retained
+[status](../../experiments/research/kernel-memory-lab/STATUS.md) and
+[bootstrap](../../experiments/research/kernel-memory-lab/BOOTSTRAP.md) describe
+historical cards, stopped attempts and scope, not a current release assignment.
+Fresh rerun ideas belong to the coordinated backlog with new identities and
+current frameworks. The old project is not awaiting qualification as an active
+showcase. Historical allocations and archived models authorize no new run;
+existing native receipts, accounting and runtime holds remain unchanged.

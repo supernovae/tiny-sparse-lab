@@ -29,16 +29,15 @@ If you are unsure what to run next, start with the [experiment learning cycle](e
 The [research roadmap](roadmap.md) tracks capability evidence and open scientific
 questions. Use [`experiments/samples/`](../../experiments/samples/) for neutral
 teaching material. Personal project definitions and evidence are discoverable in
-the [Workshop portfolio](https://github.com/supernovae/kybern-workshop/blob/main/catalog/README.md),
-including [DevMind 340M Base](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind),
-[Kernel Memory Lab](https://github.com/supernovae/kybern-workshop/tree/main/experiments/kernel-memory-lab)
-and [TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab).
-DevMind is proposed and not execution-ready; KML's preserved evidence awaits
-current-runtime qualification; the TinyStories recipe is metadata-validated and
-unexecuted. Active research intent and historical results do not establish
-current execution readiness or model quality. Author new campaigns outside Lab
-using the current resource contract above. The [retained research index](../../experiments/research/README.md)
-explains remaining local records and their preservation status.
+[Workshop](https://github.com/supernovae/kybern-workshop), whose current showcase
+is basic synthetic CPU, TinyStories and DevMind. Other personal collections,
+including Kernel Memory Lab, are retired from its current tree; the
+[historical catalog](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog) preserves original context.
+New research belongs in the coordinated backlog with new identities and current
+frameworks. Historical results do not establish current readiness or model
+quality. Author new campaigns using the resource contract above. The
+[retained research index](../../experiments/research/README.md) describes remaining
+local records; this documentation change does not remove engine behavior.
 Mutable output belongs in the
 external persistent root (`$SPARSELAB_WORK_DIR/experiments/`, or the XDG/home default);
 declarations and compact verified evidence belong in Git. Report missing code through the

@@ -111,10 +111,12 @@ Read `README.md`, relevant nearby guidance, `ROADMAP.md` for feature direction, 
 `docs/research/` for scientific work. Inspect Git state/history before editing;
 preserve other work and use an isolated checkout when experiments have pinned
 another checkout. Distinguish code, fixtures, experiments and evidence.
-Kernel Memory Lab *release* work also requires its
-[bootstrap](experiments/research/kernel-memory-lab/BOOTSTRAP.md), current status
-and selected scope; its historical allocations grant no runtime or spending
-authority for new release work.
+Kernel Memory Lab was retired from the active showcase on 2026-10-18. Its
+[bootstrap](experiments/research/kernel-memory-lab/BOOTSTRAP.md) and retained status
+are historical context, not a current release assignment. Fresh rerun ideas belong
+to the coordinated backlog with new identities, current frameworks and separately
+authorized scope. Historical allocations grant no runtime or spending authority;
+this retirement does not release existing runtime holds or reset accounting.
 
 ## 2. Use the native, current public path
 

@@ -45,5 +45,7 @@ Lab CI uses neutral local fixtures offline. It does not fetch external collectio
 or silently skip personal acceptance. An external collection must explicitly run
 this command against each candidate it intends to accept and retain the report.
 Passing once at an old pin is preservation evidence, not ongoing regression
-coverage. Do not remove an existing personal historical assertion until the
-replacement guarantee mapping and candidate acceptance have passed review.
+coverage. Workshop has retired its personal memory-study collection under the owner's
+three-family scope; that collection no longer imposes a per-candidate merge gate.
+Its fixed expectations remain historical evidence. Neutral Lab regressions and
+ordinary review continue to protect the generic interface.
