@@ -92,8 +92,11 @@ No missing scientific decisions or hashes are invented to make an inventory pass
   acceptance replaces the personal assertion; neutral Lab tests retain generic
   regressions. The record distinguishes per-candidate acceptance from perpetual
   coverage and keeps original historical identities unchanged.
-  Path domain still requires neutral replacement for allocation-test coverage and
-  classification of scientific constants in `src/sparselab/data/allocation_tasks.py`.
+  [Path-domain allocation coverage](path-allocation-boundary.md) now uses generated
+  neutral inputs and a fixed byte tokenizer. Its eighteen personal assets remain:
+  `src/sparselab/data/allocation_tasks.py` still mixes fixed task metadata, split
+  sizes, budgets and assignment choices into Python. Explicit declaration design
+  and native personal-input acceptance are required before their retirement.
   Neutral runtime examples remain in Lab. These are separate retirement slices.
 - The dense-lm and learned-portability catalog entries and their specialized
   consumers still need classification. Explicit allocation inputs alone do not
