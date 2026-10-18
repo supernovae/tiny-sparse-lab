@@ -82,3 +82,10 @@ def test_component_identity_survives_appended_and_unchanged_data():
     assert len(json.loads(json.loads(updated.json))["data"][0]["x"]) == 4
     assert "nats/target" in app.markdown[0].value
     assert "no canonical description or unit" in app.markdown[1].value
+
+
+def test_series_colors_match_when_a_metric_is_missing_for_one_run():
+    both = figure(points(), "train/loss", "step", ["run-a", "run-b"])
+    only_b = figure(points()[:3], "train/loss", "step", ["run-a", "run-b"])
+    assert only_b.data[0].uid == both.data[1].uid == "run-b"
+    assert only_b.data[0].line.color == both.data[1].line.color

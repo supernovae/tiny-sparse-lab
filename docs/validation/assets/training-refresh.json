@@ -1,7 +1,7 @@
 {
   "browser": "151.0.7922.173",
   "cadence_seconds": 2,
-  "samples_50ms": 321,
+  "samples_50ms": 325,
   "all_nodes_connected": true,
   "scroll_values": [
     700

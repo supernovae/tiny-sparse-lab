@@ -24,11 +24,17 @@ AXES = {
 }
 
 
-def figure(points: list[dict[str, object]], name: str, axis: str) -> go.Figure:
+def figure(
+    points: list[dict[str, object]],
+    name: str,
+    axis: str,
+    selected_ids: list[str] | None = None,
+) -> go.Figure:
     spec = metric_spec(name)
     run_ids = sorted({str(point["run_id"]) for point in points})
+    color_order = sorted(selected_ids or run_ids)
     chart = go.Figure()
-    for index, run_id in enumerate(run_ids):
+    for run_id in run_ids:
         rows = [point for point in points if point["run_id"] == run_id]
         chart.add_trace(
             go.Scatter(
@@ -37,7 +43,11 @@ def figure(points: list[dict[str, object]], name: str, axis: str) -> go.Figure:
                 name="<br>".join(escape(part) for part in wrap(run_id, width=28)),
                 uid=run_id,
                 mode="lines+markers",
-                line={"color": list(SERIES.values())[index % len(SERIES)]},
+                line={
+                    "color": list(SERIES.values())[
+                        color_order.index(run_id) % len(SERIES)
+                    ]
+                },
                 connectgaps=False,
             )
         )
@@ -71,8 +81,14 @@ def _component():
     )
 
 
-def render(points: list[dict[str, object]], name: str, axis: str, context: str) -> None:
-    chart = figure(points, name, axis)
+def render(
+    points: list[dict[str, object]],
+    name: str,
+    axis: str,
+    context: str,
+    selected_ids: list[str] | None = None,
+) -> None:
+    chart = figure(points, name, axis, selected_ids)
     _component()(
         key=f"training-chart:{context}:{name}",
         data=chart.to_json(remove_uids=False),

@@ -21,6 +21,7 @@ preserve zoom, and series UIDs preserve visibility and point selection. Changing
 axis or the available run set intentionally resets chart interaction state.
 Resize observers disconnect on cleanup, and removed plots are purged.
 
+Series colors remain consistent across charts even when a run lacks one metric.
 Values, recorded x coordinates, missing values and canonical metric units are
 unchanged. Each metric has readable axis labels, a wrapping horizontal legend,
 a registry-derived explanation directly below it and an optional detailed guide.
@@ -33,7 +34,7 @@ runs and two metrics. The retained optional browser regression starts its own
 loopback server and SQLite fixture. It checks unchanged cycles, appends three
 points per series, then checks unchanged cycles again.
 
-- **321 samples at 50 ms:** both original chart nodes and SVG frames remained
+- **325 samples at 50 ms:** both original chart nodes and SVG frames remained
   attached; scroll stayed at 700; x zoom stayed `[3, 8]`.
 - Hidden second series and selected point indices `[2, 3]` survived all samples.
   Final y zoom remained `[102, 109]`; data increased from 10 to 13 points.

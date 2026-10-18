@@ -432,7 +432,7 @@ def training(
         if not subset:
             continue
         st.subheader(name.replace("/", " / ").replace("_", " "))
-        training_charts.render(subset, name, axis, str(root))
+        training_charts.render(subset, name, axis, str(root), selected_ids)
         spec = metric_spec(name)
         if spec is not None:
             with st.expander(f"More about {name}"):
