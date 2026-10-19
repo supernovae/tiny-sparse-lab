@@ -103,3 +103,51 @@ def test_training_triage_panel_rejects_forged_and_symlinked_artifacts(
     (reports / ("1" * 64 + ".json")).symlink_to(tmp_path / "outside")
     app._triage_panel(tmp_path, ["run"])
     assert "UNKNOWN" in messages[-1] and "invalid" in messages[-1]
+
+
+@pytest.mark.parametrize("assigned", [False, True])
+def test_imported_manifest_is_explicitly_pending_until_collection(tmp_path, assigned):
+    import hashlib
+    import json
+
+    from sparselab.training.manifest import canonical_json
+    from sparselab.workers.artifacts import _restore_crash_projection
+
+    source = ExperimentStore(tmp_path / "worker")
+    source.create_run("child", {"name": "child"}, {}, parent_run_id="parent")
+    payload = {
+        "worker_id": "worker",
+        "parent_run_id": "parent",
+        "continuation_kind": "resume",
+        "checkpoint_sha256": "c" * 64,
+    }
+    digest = hashlib.sha256(canonical_json(payload)).hexdigest()
+    source.register_manifest("child", digest, payload)
+    target = ExperimentStore(tmp_path / "controller")
+    target.import_records(source.export_records()["records"])
+    if assigned:
+        with target._connect() as con:
+            con.execute(
+                "INSERT INTO experiments VALUES('experiment','{}','RUNNING','now')"
+            )
+            con.execute(
+                "INSERT INTO attempts(attempt_id,experiment_id,run_id,worker_id,status) "
+                "VALUES('attempt','experiment','child','worker','RUNNING')"
+            )
+    before = snapshot(tmp_path / "controller").manifests["child"]
+    pending = "pending artifact collection"
+    assert before["collection_status"] == pending
+    assert before["worker_id"] == ("worker" if assigned else pending)
+    assert before["parent_run_id"] == "parent"
+    assert before["continuation_kind"] == pending
+    assert before["checkpoint_sha256"] == pending
+    # Rendering remains read-only; the stored unresolved marker is unchanged.
+    with target._connect() as con:
+        assert set(
+            json.loads(con.execute("SELECT json FROM manifests").fetchone()[0])
+        ) == {"manifest_reference"}
+    _restore_crash_projection(
+        target, SimpleNamespace(run_id="child", state="COMPLETE"), (payload, [])
+    )
+    after = snapshot(tmp_path / "controller").manifests["child"]
+    assert after == {"digest": digest, **payload}

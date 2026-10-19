@@ -273,3 +273,27 @@ No worker shares optimizer state or exchanges gradients/expert tokens with anoth
 - [Captured dashboard curves](../artifacts/acceptance/workers_training_2026_09_23.svg) contain actual browser WebGL pixels and SVG overlays, not regenerated series. Standard screenshot capture and runtime-table rasterization stalled, including independent browser attempts. The real Runtime view was additionally exercised through Streamlit's app harness: all three CPU/worker/precision/optimizer rows were correct and the database data version was unchanged.
 
 These synthetic workloads establish orchestration and state-transition behavior, not model quality. Worker labels do not establish AMD/Intel hardware execution. No actual SSH target, CUDA/HIP kernel, ROCm/XPU acceptance, or overlapping real three-host result is claimed.
+
+### Manifest replication
+
+Worker metrics envelopes remain bounded to 64 KiB. A run manifest is retained in
+full in the worker store and native `manifest.json`; its outbox record carries a
+`manifest_reference` with the canonical payload SHA-256 and byte length. The
+manifest file's enclosing hash and newline are not part of that payload length.
+
+Controllers retain the reference until native artifact collection verifies the
+complete manifest, dispatch identity, input inventory and checkpoints. Successful
+publication resolves the reference to the full manifest without emitting another
+outbox record. Relay collection also checks that each reference has its matching
+immutable manifest artifact. Standalone store consolidation verifies the source
+manifest against the reference before copying its projection. Cleanup refuses an
+unresolved reference so continuation ancestry cannot silently disappear.
+
+Historical inline manifest records remain readable. This transport change does
+not alter manifest bytes, experiment identities or checkpoint verification.
+
+While a manifest reference awaits artifact collection, the controller dashboard
+labels unresolved worker/continuation/checkpoint fields as **pending artifact
+collection**. It retains the parent run and worker assignment from the controller
+store when available. Collection replaces this presentation with the verified full
+manifest; an unresolved reference never establishes that a run has no parent.

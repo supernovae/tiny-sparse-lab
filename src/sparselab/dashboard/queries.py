@@ -176,10 +176,26 @@ def snapshot(root: Path) -> DashboardSnapshot:
         manifest_rows = _rows(
             connection, "manifests", ("run_id", "digest", "json"), "run_id"
         )
+        assignments = {
+            str(row["run_id"]): row["worker_id"]
+            for row in _rows(connection, "attempts", ("run_id", "worker_id"), "run_id")
+        }
     manifests = {
         str(row["run_id"]): {"digest": row["digest"], **_object(row["json"])}
         for row in manifest_rows
     }
+    for record in records:
+        manifest = manifests.get(record.run_id, {})
+        if "manifest_reference" in manifest:
+            # Presentation only: never mistake unresolved lineage for a fresh run.
+            pending = "pending artifact collection"
+            manifest.update(
+                collection_status=pending,
+                worker_id=assignments.get(record.run_id) or pending,
+                parent_run_id=record.parent_run_id or pending,
+                continuation_kind=pending,
+                checkpoint_sha256=pending,
+            )
     records = tuple(
         replace(
             record,

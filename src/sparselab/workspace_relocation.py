@@ -11,7 +11,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from sparselab.training.metrics import ExperimentStore
+from sparselab.training.metrics import ExperimentStore, _strict_json_loads
 
 
 def consolidate_standalone_stores(sources: list[Path], destination: Path) -> None:
@@ -88,6 +88,8 @@ def consolidate_standalone_stores(sources: list[Path], destination: Path) -> Non
     store = ExperimentStore(destination)
     for source, snapshot, records in snapshots:
         store.import_records(records)
+        for run_id, digest, encoded in snapshot["manifests"]:
+            store.materialize_manifest(run_id, digest, _strict_json_loads(encoded))
         with store._connect() as connection:
             for row in snapshot["runs"]:
                 pointer = (

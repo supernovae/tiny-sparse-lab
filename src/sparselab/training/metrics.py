@@ -47,6 +47,40 @@ def _strict_json_loads(value: str | bytes) -> object:
     return parsed
 
 
+def manifest_reference(digest: str, payload: object) -> dict[str, object]:
+    """Bind the complete canonical manifest without embedding it in the outbox."""
+    encoded = _canonical_json(payload).encode("utf-8")
+    if hashlib.sha256(encoded).hexdigest() != digest:
+        raise ValueError("manifest digest differs from payload")
+    return {
+        "relative_path": "manifest.json",
+        "sha256": digest,
+        "size_bytes": len(encoded),
+    }
+
+
+def _validate_manifest_reference(value: Mapping[str, object]) -> None:
+    if (
+        set(value) != {"relative_path", "sha256", "size_bytes"}
+        or value["relative_path"] != "manifest.json"
+        or not isinstance(value["sha256"], str)
+        or len(value["sha256"]) != 64
+        or any(char not in "0123456789abcdef" for char in value["sha256"])
+        or type(value["size_bytes"]) is not int
+        or value["size_bytes"] <= 0
+    ):
+        raise ValueError("malformed manifest reference")
+
+
+def manifest_projection_matches(
+    projected: object, digest: str, payload: object
+) -> bool:
+    """Accept full historical projections or an exact current artifact reference."""
+    return projected == payload or projected == {
+        "manifest_reference": manifest_reference(digest, payload)
+    }
+
+
 def _envelope_digest(envelope: Mapping[str, object]) -> str:
     body = {key: value for key, value in envelope.items() if key != "sha256"}
     return hashlib.sha256(_canonical_json(body).encode("utf-8")).hexdigest()
@@ -557,13 +591,39 @@ class ExperimentStore:
         encoded = _canonical_json(payload)
         self._write(
             run_id,
-            "manifest",
-            {"digest": digest, "payload": json.loads(encoded)},
+            "manifest_reference",
+            manifest_reference(digest, payload),
             lambda con: con.execute(
                 "INSERT INTO manifests(run_id,digest,json) VALUES(?,?,?)",
                 (run_id, digest, encoded),
             ),
         )
+
+    def materialize_manifest(self, run_id: str, digest: str, payload: object) -> None:
+        """Resolve an imported reference only from matching complete native evidence.
+
+        Callers must first verify their artifact/source provenance. This records no
+        new outbox event and cannot rewrite an unrelated or conflicting manifest.
+        """
+        reference = manifest_reference(digest, payload)
+        encoded = _canonical_json(payload)
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT digest,json FROM manifests WHERE run_id=?", (run_id,)
+            ).fetchone()
+            if row is None or row[0] != digest:
+                raise ValueError(
+                    "manifest projection is absent or has a different digest"
+                )
+            projected = _strict_json_loads(row[1])
+            if projected == payload:
+                return
+            if projected != {"manifest_reference": reference}:
+                raise ValueError("manifest reference differs from verified payload")
+            con.execute(
+                "UPDATE manifests SET json=? WHERE run_id=? AND digest=?",
+                (encoded, run_id, digest),
+            )
 
     def record_checkpoint(self, run_id: str, record: object) -> None:
         source = record if isinstance(record, Mapping) else vars(record)
@@ -1011,6 +1071,21 @@ class ExperimentStore:
                     payload["started_at"],
                     payload["finished_at"],
                     _canonical_json(payload["payload"]),
+                ),
+            )
+        elif kind == "manifest_reference":
+            _validate_manifest_reference(payload)
+            existing = con.execute(
+                "SELECT digest FROM manifests WHERE run_id=?", (run_id,)
+            ).fetchone()
+            if existing is not None and existing[0] != payload["sha256"]:
+                raise ValueError("conflicting manifest reference")
+            con.execute(
+                "INSERT OR IGNORE INTO manifests(run_id,digest,json) VALUES(?,?,?)",
+                (
+                    run_id,
+                    payload["sha256"],
+                    _canonical_json({"manifest_reference": payload}),
                 ),
             )
         elif kind == "manifest":

@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from sparselab.training.checkpoints import CheckpointManager
+from sparselab.training.manifest import canonical_json
 from sparselab.training.metrics import ExperimentStore
 from sparselab.workspace_cleanup import (
     apply_cleanup,
@@ -145,7 +146,7 @@ def test_registered_checkpoint_is_never_proposed(tmp_path: Path) -> None:
 
     workspace, _ = _workspace(tmp_path)
     store = ExperimentStore(workspace / "runs")
-    digest = "a" * 64
+    digest = hashlib.sha256(canonical_json({"run_id": "tiny"})).hexdigest()
     store.register_manifest("tiny", digest, {"run_id": "tiny"})
     run = workspace / "runs" / "tiny"
     manager = CheckpointManager(run, manifest_sha256=digest)
@@ -161,7 +162,11 @@ def test_registered_checkpoint_is_never_proposed(tmp_path: Path) -> None:
         "child", {"dataset": {"cache_dir": str(workspace / "cache")}}, {}, "tiny"
     )
     store.register_manifest(
-        "child", "b" * 64, {"checkpoint_sha256": records[0].manifest_sha256}
+        "child",
+        hashlib.sha256(
+            canonical_json({"checkpoint_sha256": records[0].manifest_sha256})
+        ).hexdigest(),
+        {"checkpoint_sha256": records[0].manifest_sha256},
     )
     store.finish_run("child", "completed")
     assert plan_cleanup(workspace, max_extra_periodic=0)["candidates"] == []
@@ -241,3 +246,19 @@ def test_cli_keeps_persistent_root_separate_from_all_temporary_factories(
     assert root.is_dir() and (root / "scratch").is_dir()
     assert not (tmp_path / "overridden").exists()
     assert not list(platform_temp.iterdir())
+
+
+def test_cleanup_refuses_unresolved_manifest_lineage(tmp_path):
+    source = ExperimentStore(tmp_path / "source")
+    source.create_run("tiny", {}, {})
+    payload = {"checkpoint_sha256": "a" * 64}
+    digest = hashlib.sha256(canonical_json(payload)).hexdigest()
+    source.register_manifest("tiny", digest, payload)
+    source.finish_run("tiny", "completed")
+    workspace = tmp_path / "campaign"
+    target = ExperimentStore(workspace / "runs")
+    target.import_records(source.export_records()["records"])
+    with pytest.raises(ValueError, match="unresolved manifest reference for tiny"):
+        plan_cleanup(workspace)
+    target.materialize_manifest("tiny", digest, payload)
+    assert plan_cleanup(workspace)["candidates"] == []
