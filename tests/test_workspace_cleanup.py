@@ -258,7 +258,7 @@ def test_cleanup_refuses_unresolved_manifest_lineage(tmp_path):
     workspace = tmp_path / "campaign"
     target = ExperimentStore(workspace / "runs")
     target.import_records(source.export_records()["records"])
-    with pytest.raises(ValueError, match="unresolved manifest reference"):
+    with pytest.raises(ValueError, match="unresolved manifest reference for tiny"):
         plan_cleanup(workspace)
     target.materialize_manifest("tiny", digest, payload)
     assert plan_cleanup(workspace)["candidates"] == []

@@ -305,7 +305,11 @@ def test_manifest_reference_preserves_complete_payload_and_bounded_transport(
     _restore_crash_projection(
         target, SimpleNamespace(run_id="run", state="COMPLETE"), (payload, [])
     )
-    target.materialize_manifest("run", digest, payload)
+    with target._connect() as con:
+        assert (
+            json.loads(con.execute("SELECT json FROM manifests").fetchone()[0])
+            == payload
+        )
     target.import_records(batch)
     with target._connect() as con:
         assert con.execute("SELECT digest,json FROM manifests").fetchone() == (
@@ -327,13 +331,20 @@ def test_manifest_reference_rejects_malformed_and_mismatched_evidence(tmp_path):
     assert source.export_records()["next_sequence"] == 1
     source.register_manifest("run", digest, payload)
     records = source.export_records()["records"]
-    for index, field in enumerate(("relative_path", "sha256", "size_bytes")):
+    invalid = [
+        ("relative_path", "../manifest.json"),
+        ("sha256", "bad"),
+        ("sha256", None),
+        ("sha256", "A" * 64),
+        ("sha256", "g" * 64),
+        ("size_bytes", True),
+        ("size_bytes", 0),
+        ("size_bytes", -1),
+        ("extra", "not permitted"),
+    ]
+    for index, (field, value) in enumerate(invalid):
         bad = json.loads(json.dumps(records))
-        bad[-1]["payload"][field] = {
-            "relative_path": "../manifest.json",
-            "sha256": "bad",
-            "size_bytes": True,
-        }[field]
+        bad[-1]["payload"][field] = value
         bad[-1]["sha256"] = _envelope_digest(bad[-1])
         target = ExperimentStore(tmp_path / f"bad-{index}")
         with pytest.raises(ValueError, match="malformed manifest"):
@@ -368,3 +379,30 @@ def test_historical_inline_manifest_remains_readable(tmp_path):
             json.loads(con.execute("SELECT json FROM manifests").fetchone()[0])
             == payload
         )
+
+
+def test_manifest_reference_conflict_and_inline_digest_mismatch(tmp_path):
+    from sparselab.training.metrics import _canonical_json
+
+    source = ExperimentStore(tmp_path / "source")
+    _run(source)
+    payload = {"run_id": "run"}
+    digest = hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
+    source.register_manifest("run", digest, payload)
+    records = source.export_records()["records"]
+    target = ExperimentStore(tmp_path / "target")
+    target.import_records(records)
+    conflict = json.loads(json.dumps(records[-1]))
+    conflict["sequence"] += 1
+    conflict["payload"]["sha256"] = "0" * 64
+    conflict["sha256"] = _envelope_digest(conflict)
+    with pytest.raises(ValueError, match="conflicting manifest reference"):
+        target.import_records([conflict])
+    with target._connect() as con:
+        con.execute(
+            "UPDATE manifests SET digest=?,json=?", ("0" * 64, _canonical_json(payload))
+        )
+    with pytest.raises(ValueError, match="different digest"):
+        target.materialize_manifest("run", digest, payload)
+    with pytest.raises(ValueError, match="absent"):
+        target.materialize_manifest("missing", digest, payload)

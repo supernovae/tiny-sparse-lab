@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import tempfile
@@ -10,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sparselab.training.manifest import ArtifactIdentity, read_manifest
+from sparselab.training.manifest import ArtifactIdentity, canonical_json, read_manifest
 from sparselab.training.metrics import _strict_json_loads
 from sparselab.workers.relay import RelayStore, read_attempt_key
 from sparselab.workers.relay_models import RelayBinding, RelayProfile
@@ -137,8 +138,13 @@ def import_commit_records(
                         "relay outbox prefix has a gap or origin substitution"
                     )
                 if record.get("kind") == "manifest_reference":
-                    from sparselab.training.metrics import manifest_reference
+                    from sparselab.training.metrics import (
+                        _validate_manifest_reference,
+                        manifest_reference,
+                    )
 
+                    payload = record["payload"]
+                    _validate_manifest_reference(payload)
                     prefix = (
                         "run/"
                         if record["run_id"] == descriptor.run_id
@@ -153,8 +159,10 @@ def import_commit_records(
                     if not manifest_path.exists():
                         relay.get_verified(member, manifest_path)
                     manifest = read_manifest(manifest_path)
-                    payload = record["payload"]
-                    if payload != manifest_reference(payload["sha256"], manifest):
+                    artifact_digest = hashlib.sha256(
+                        canonical_json(manifest)
+                    ).hexdigest()
+                    if payload != manifest_reference(artifact_digest, manifest):
                         raise ValueError(
                             "relay manifest reference differs from its artifact"
                         )

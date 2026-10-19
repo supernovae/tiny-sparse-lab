@@ -274,7 +274,6 @@ No worker shares optimizer state or exchanges gradients/expert tokens with anoth
 
 These synthetic workloads establish orchestration and state-transition behavior, not model quality. Worker labels do not establish AMD/Intel hardware execution. No actual SSH target, CUDA/HIP kernel, ROCm/XPU acceptance, or overlapping real three-host result is claimed.
 
-
 ### Manifest replication
 
 Worker metrics envelopes remain bounded to 64 KiB. A run manifest is retained in
@@ -292,3 +291,9 @@ unresolved reference so continuation ancestry cannot silently disappear.
 
 Historical inline manifest records remain readable. This transport change does
 not alter manifest bytes, experiment identities or checkpoint verification.
+
+While a manifest reference awaits artifact collection, the controller dashboard
+labels unresolved worker/continuation/checkpoint fields as **pending artifact
+collection**. It retains the parent run and worker assignment from the controller
+store when available. Collection replaces this presentation with the verified full
+manifest; an unresolved reference never establishes that a run has no parent.
