@@ -1,14 +1,12 @@
 # External prepared-input workflow locks
 
-This bounded LAB-73/LAB-74 PR B slice connects an inventoried external recipe to
+This profile connects an inventoried external recipe to
 native artifact verification and lock publication. It starts **after native
 preparation has produced a tokenizer and prepared-data artifact**. The metadata
 operations do not run a preparation graph or submit training; explicit CPU
 execution is described below. `portable_workflow_version: 1` is a separate profile from the unchanged `portable_recipe_version: 1` matrix preview.
 
-The [CPU investigation](portable-cpu-investigation.md) records the earlier
-partial LAB-73/74 verification. The execution and CLI sections below describe
-the current bounded contract.
+The execution and CLI sections below describe the supported contract.
 
 Use three explicit operations:
 
@@ -459,10 +457,8 @@ continuations, generation panels and accelerators remain outside this profile.
 | Native snapshot → report | Planned/evidence output, identical replay, no-clobber, corrupt-index and unpaired-input refusal |
 | Help → optional imports | Fresh-process fences for every new subcommand |
 
-These tests address the admission coverage correction in
-[PR127 review 5512227409](https://github.com/supernovae/tiny-sparse-lab/pull/127#pullrequestreview-5512227409).
-They preserve the existing guards rather than changing runtime contracts, legacy
-seed acceptance or historical hashes. Normal safe/fast/lab-loop CI remains the
+These tests cover admission guards while preserving runtime contracts, native
+seed acceptance and historical hashes. Normal safe/fast/lab-loop CI remains the
 broader compatibility gate; no full measured training is added to CLI tests.
 
 ## Current workflow and evidence contract

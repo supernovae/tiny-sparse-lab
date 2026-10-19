@@ -85,7 +85,7 @@ publication grants that execution context.
 | Compatibility | Existing recipe v1 and campaign digest goldens, seed coercion, native iteration and verifier-authority regressions, normal safe/fast/tiny CPU lab-loop CI |
 
 These are bounded software contracts, not actual TinyStories portability or GPU
-qualification. Full LAB-73/LAB-74 acceptance remains partial.
+qualification.
 
 ## Guard coverage after review
 
@@ -197,9 +197,8 @@ The profiled lifecycle tests are marked slow and explicitly included in the exis
 `lab-loop` CI job; metadata and refusal checks remain in `fast`. No new workflow or
 manual workload gate is introduced.
 
-Validation is tiny synthetic wiring only. Actual pinned CPU/GPU TinyStories
-portability proof, broader local datasets, model admission, evaluation closure,
-publication CLI wiring and the remaining LAB-73/LAB-74 milestone work remain open.
+These tiny synthetic checks validate the wiring. They do not establish
+portability for real datasets, accelerator execution or model quality.
 
 ## Verified local dataset snapshots
 
@@ -308,8 +307,8 @@ unchanged. No model execution capability is added.
 Tests in `test_portable_snapshot_preparation.py` exercise the real native
 snapshot/tokenizer/packing/verifier and public CLI. Snapshot fixture construction
 substitutes only Hub metadata/transport with local rows; it is not real-data
-acquisition evidence. The [migration checklist](portable-experiment-migration.md)
-tracks the remaining work through replacement proof and retirement.
+acquisition evidence. See [portable experiment ownership](portable-experiment-migration.md)
+for where recipes and Lab code belong.
 
 The verifier-authority regression boundary is covered by
 `test_snapshot_warm_reuse.py`, `test_snapshot_authority.py`,
@@ -428,10 +427,9 @@ This is fixture wiring and compatibility evidence. Real TinyStories acquisition
 needs its own immutable inventory, network/cache/storage admission and decoder
 resource qualification. Its first whole train+validation files require roughly
 259 MB of transfer/cache capacity; the full inventory is roughly 1 GB. The prior
-256 MiB snapshot-work allowance is not a download budget. Full migration,
-independent Workshop proof, paired training/comparison, continuation, evaluation,
-GPU qualification and legacy retirement remain separately gated in the
-[migration acceptance map](portable-experiment-migration.md).
+256 MiB snapshot-work allowance is not a download budget. Paired
+training/comparison, continuation, evaluation and GPU qualification require
+their own verification and are not established by these tests.
 
 ### Acquisition boundary tests
 
