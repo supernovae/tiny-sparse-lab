@@ -457,10 +457,8 @@ continuations, generation panels and accelerators remain outside this profile.
 | Native snapshot → report | Planned/evidence output, identical replay, no-clobber, corrupt-index and unpaired-input refusal |
 | Help → optional imports | Fresh-process fences for every new subcommand |
 
-These tests address the admission coverage correction in
-[PR127 review 5512227409](https://github.com/supernovae/tiny-sparse-lab/pull/127#pullrequestreview-5512227409).
-They preserve the existing guards rather than changing runtime contracts, legacy
-seed acceptance or historical hashes. Normal safe/fast/lab-loop CI remains the
+These tests cover admission guards while preserving runtime contracts, native
+seed acceptance and historical hashes. Normal safe/fast/lab-loop CI remains the
 broader compatibility gate; no full measured training is added to CLI tests.
 
 ## Current workflow and evidence contract

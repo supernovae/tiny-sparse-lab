@@ -8,7 +8,7 @@ directory or a Git repository of your choice.
 [Kybern Workshop](https://github.com/supernovae/kybern-workshop) contains the
 project's active examples and experiments. It is optional: installed Lab can
 inspect recipes from other repositories without Workshop or an internal runner.
-Preparation and prepared-input workflow profiles support their documented
+Preparation, prepared-input workflows and Lab mode support their documented
 execution paths; the matrix profile provides metadata previews.
 
 ## What belongs in a recipe
