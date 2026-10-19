@@ -207,7 +207,7 @@ def test_timeout_cleans_detached_owned_descendant(tmp_path: Path) -> None:
             ):
                 if path.is_file():
                     diagnostics[str(path)] = path.read_text(errors="replace")
-        assert process.returncode == 0, diagnostics  # API returns the VIOLATED receipt.
+        assert process.returncode == 0, json.dumps(diagnostics, indent=2)
         receipt = monitor.MonitorCompletion.model_validate_json(
             (options["log_dir"] / "completion.json").read_bytes()
         )
