@@ -53,11 +53,26 @@ _PACKET = (
     / "experiments/research/kernel-memory-lab/card05-base-50m/current"
 )
 _PLAN = _PACKET / "preparation.json"
+_PHASES = json.loads(_PLAN.read_text())["phases"]
 _PHASE_MAP = {
-    label: item["leaf"]
-    for label, item in json.loads(_PLAN.read_text())["phases"].items()
-    if item.get("leaf")
+    label: item["leaf"] for label, item in _PHASES.items() if item.get("leaf")
 }
+
+
+# Each of the 32 native phases has its own 45-second subprocess bound. The
+# shared attempt also includes refusal probes and binding commands. Its total
+# covers all command bounds plus 120 seconds for local declaration/receipt work
+# between commands; it is not an unrelated ten-minute speed test.
+_PHASE_TIMEOUT_SECONDS = 45
+_REFUSAL_PROBES = 4
+_BIND_CALLS = 3
+_BIND_TIMEOUT_SECONDS = 20
+_LOCAL_METADATA_ALLOWANCE_SECONDS = 120
+_ATTEMPT_WALL_SECONDS = (
+    (len(_PHASES) + _REFUSAL_PROBES) * _PHASE_TIMEOUT_SECONDS
+    + _BIND_CALLS * _BIND_TIMEOUT_SECONDS
+    + _LOCAL_METADATA_ALLOWANCE_SECONDS
+)
 
 
 def _fixture_template(recipe: Path, filename: str, **substitutions: object) -> Path:
@@ -752,7 +767,7 @@ def _phase(
         command,
         capture_output=True,
         text=True,
-        timeout=45,
+        timeout=_PHASE_TIMEOUT_SECONDS,
         check=False,
         env=paths["env"],
     )
@@ -790,7 +805,7 @@ def _run(
         ),
         capture_output=True,
         text=True,
-        timeout=45,
+        timeout=_PHASE_TIMEOUT_SECONDS,
         check=False,
         env=paths["env"],
     )
@@ -849,7 +864,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
         "max_tree_rss_bytes": 4 * 1024**3,
         "max_added_workspace_bytes": 512 * 1024**2,
         "max_added_workspace_inodes": 5000,
-        "max_wall_seconds": 600,
+        "max_wall_seconds": _ATTEMPT_WALL_SECONDS,
     }
     _write_yaml(whole, policy)
     _write_yaml(prep, policy)
@@ -861,7 +876,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
     template = _fixture_template(
         acquisition.parent,
         "attempt-contract.template.json",
-        max_wall_seconds=600,
+        max_wall_seconds=_ATTEMPT_WALL_SECONDS,
         content_identity_sha256=identity,
         monitor_policy_sha256=sha256_file(whole),
         preparation_monitor_policy_sha256=sha256_file(prep),
@@ -1004,7 +1019,21 @@ def test_actual_admission_draft_collision_stops_before_leaf_and_reservation(
 @pytest.mark.skipif(os.name != "posix", reason="owned-process fixture requires POSIX")
 def test_offline_preparation_sequence_through_native_supervision(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Observe the real public calls, so a new phase/probe cannot silently exceed
+    # the aggregate allowance even if this machine happens to execute it quickly.
+    native_run = subprocess.run
+    command_bounds = []
+
+    def record_bound(argv, *args, **kwargs):
+        if "attempt" in argv:
+            operation = argv[argv.index("attempt") + 1]
+            if operation in {"run-phase", "run", "bind-artifact"}:
+                command_bounds.append((operation, kwargs["timeout"]))
+        return native_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", record_bound)
     root = tmp_path / "work"
     root.mkdir()
     prior_release, prior_family, strata = _prior(root)
@@ -1535,6 +1564,16 @@ def test_offline_preparation_sequence_through_native_supervision(
     assert status["charged_updates"] == 0
     assert all(row["actual_updates"] == 0 for row in status["reservations"])
     assert status["resolved_artifacts"][-1]["kind"] == "release_acceptance"
+    from collections import Counter
+
+    assert Counter(operation for operation, _ in command_bounds) == {
+        "run-phase": len(_PHASES),
+        "run": _REFUSAL_PROBES,
+        "bind-artifact": _BIND_CALLS,
+    }
+    assert sum(seconds for _, seconds in command_bounds) <= (
+        _ATTEMPT_WALL_SECONDS - _LOCAL_METADATA_ALLOWANCE_SECONDS
+    )
 
 
 def test_freeze_rejects_missing_admission_and_mismatched_normalizer_or_inventory(
