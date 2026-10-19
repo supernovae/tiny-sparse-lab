@@ -360,3 +360,34 @@ change is required before using fresh strata there.
 Tokenizer dispatch cold-verifies the export before reserving an attempt; the
 trainer verifies it again. This adds a full verification pass that must be
 included in the pilot's observed I/O and wall-time costs.
+
+## Preview acquired JSONL without copying a corpus
+
+`corpus preview DECLARATION --input-root INPUTS --output NEW_DIRECTORY`
+reads explicitly pinned snapshot manifests and acquired JSONL in place. The JSON
+`sparselab-corpus-preview-v1` declaration specifies a seed, source/snapshot IDs,
+relative manifest/data paths with exact SHA256 and byte lengths, aggregate read
+and record limits, sample/excerpt/output bounds and wall seconds. See the
+[Workshop preview recipe](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind/preparation/lab86)
+for a concrete declaration.
+
+Selection keeps the lowest seeded SHA256 ranks per source and records physical
+line, original row index/hash and clipped text. It checks each acquired row's
+self-contained provenance envelope and both whole-file hashes in one pass;
+blank lines count toward bytes but not rows. Manifest bytes are hashed without
+loading the manifest's row array. Snapshot identities are supplied by the reviewed
+binding: this preview does not reconstruct acquisition metadata or substitute for
+native cold acquisition verification or admission review. Its receipt explicitly
+states that narrower verification scope and never grants admission.
+
+The read counter includes declaration, manifests and data; preflight rejects pins
+that cannot fit one pass. Every data read is charged, records are bounded, and
+only the requested excerpts survive processing. Output is exclusive and includes
+`started.json` plus either `report.json` or `failure.json`; abrupt termination may
+leave only the started receipt. Keep supervisor exit/cleanup evidence too. Output
+bytes include all three files with space reserved for a failure receipt. Wall
+checks are cooperative between reads; use a supervisor for process cleanup,
+measured RSS and retained logs. Network isolation is also a supervisor property;
+the preview itself performs no network operation. No files are copied, and an
+existing output directory refuses. Current admission inspection limits are
+unchanged: a preview is evidence for review, not an admission inspection receipt.

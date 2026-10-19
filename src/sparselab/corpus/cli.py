@@ -36,6 +36,18 @@ def _handle(args: argparse.Namespace) -> None:
         if command in {"acquire", "build", "freeze", "export"}
         else {}
     )
+    if command == "preview":
+        from sparselab.corpus.preview import preview
+
+        print(
+            json.dumps(
+                preview(
+                    Path(args.declaration), Path(args.input_root), Path(args.output)
+                ),
+                sort_keys=True,
+            )
+        )
+        return
     if command == "tokenizer-bakeoff":
         from sparselab.corpus.tokenizer_bakeoff import bakeoff
 
@@ -329,6 +341,13 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "corpus", help="Acquire, derive, freeze and inspect corpus releases"
     )
     sub = corpus.add_subparsers(dest="corpus_command", required=True)
+    command = sub.add_parser(
+        "preview", help="Preview pinned JSONL bytes without admission or copies"
+    )
+    command.add_argument("declaration")
+    command.add_argument("--input-root", required=True)
+    command.add_argument("--output", required=True)
+    command.set_defaults(handler=_handle)
     for name in ("acquire", "build"):
         command = sub.add_parser(name)
         command.add_argument("project")
