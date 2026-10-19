@@ -121,6 +121,78 @@ const server=spawn(python,['-m','streamlit','run','src/sparselab/dashboard/app.p
  await page.getByText('wall_time',{exact:true}).click();
  await page.waitForTimeout(2500);
  assert.notDeepEqual(await page.locator('.training-live-plot').first().evaluate(p=>p.layout.xaxis.range),[3,8]);
+
+ // Exercise readiness failures in an isolated browser page, with controlled time.
+ const readiness=await browser.newPage();
+ const readinessErrors=[];
+ readiness.on('pageerror',error=>readinessErrors.push(String(error)));
+ await readiness.clock.install({time:new Date('2026-01-01T00:00:00Z')});
+ await readiness.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
+ await readiness.setContent('<div id="fixture"></div>');
+ await readiness.evaluate(async source=>{
+  const {default:render}=await import('data:text/javascript;base64,'+btoa(source));
+  const add=window.addEventListener.bind(window);
+  const remove=window.removeEventListener.bind(window);
+  window.readyListeners=new Set();
+  window.addEventListener=(type,fn,...rest)=>{
+   if(type==='sparselab-plotly-ready') window.readyListeners.add(fn);
+   return add(type,fn,...rest);
+  };
+  window.removeEventListener=(type,fn,...rest)=>{
+   if(type==='sparselab-plotly-ready') window.readyListeners.delete(fn);
+   return remove(type,fn,...rest);
+  };
+  window.draws=0;
+  window.plotlyStub={
+   react:async(plot,data,layout)=>{plot.data=data;plot.layout=layout;window.draws++;},
+   Plots:{resize(){}},purge(){}
+  };
+  window.renderFixture=n=>render({parentElement:document.querySelector('#fixture'),
+   data:JSON.stringify({data:[],layout:{uirevision:'fixture',datarevision:n}})});
+  window.renderFixture(1);
+ },fs.readFileSync('src/sparselab/dashboard/training_charts.js','utf8'));
+ await readiness.clock.fastForward(14999);
+ assert.equal(await readiness.locator('[role="alert"]').count(),0);
+ assert.equal(await readiness.evaluate(()=>window.readyListeners.size),1);
+ await readiness.clock.fastForward(1);
+ await readiness.evaluate(()=>document.querySelector('.training-live-plot').pending);
+ assert.equal(await readiness.locator('[role="alert"]').count(),1);
+ assert.equal(await readiness.evaluate(()=>window.readyListeners.size),0);
+ await readiness.evaluate(async()=>{
+  window.Plotly=window.plotlyStub;
+  window.renderFixture(2);
+  await document.querySelector('.training-live-plot').pending;
+ });
+ assert.equal(await readiness.locator('[role="alert"]').count(),0);
+ assert.equal(await readiness.evaluate(()=>window.draws),1);
+ await readiness.evaluate(async()=>{
+  delete window.Plotly;
+  window.renderFixture(3);
+  await Promise.resolve();
+  window.Plotly=window.plotlyStub;
+  window.dispatchEvent(new Event('sparselab-plotly-ready'));
+  await document.querySelector('.training-live-plot').pending;
+ });
+ assert.equal(await readiness.evaluate(()=>window.readyListeners.size),0);
+ await readiness.clock.fastForward(15000);
+ assert.equal(await readiness.locator('[role="alert"]').count(),0);
+ assert.equal(await readiness.evaluate(()=>window.draws),2);
+ await readiness.evaluate(()=>{
+  delete window.Plotly;
+  const cleanup=window.renderFixture(4);
+  window.detachedPlot=document.querySelector('.training-live-plot');
+  document.querySelector('#fixture').remove();
+  cleanup();
+ });
+ await readiness.clock.fastForward(15000);
+ await readiness.evaluate(()=>window.detachedPlot.pending);
+ assert.equal(await readiness.evaluate(()=>window.readyListeners.size),0);
+ assert.equal(readinessErrors.length,0);
+ evidence.loaderTimeoutUnmount=true;
+ evidence.loaderTimeoutRecovery=true;
+ evidence.loaderReadyCleanup=true;
+ fs.writeFileSync(path.join(output,'refresh.json'),JSON.stringify(evidence,null,2));
+ await readiness.close();
  } finally {await browser.close();server.kill('SIGTERM');
  await new Promise(resolve=>(server.exitCode!==null || server.signalCode!==null) ? resolve() : server.once('exit',resolve));
  fs.rmSync(scratch,{recursive:true,force:true});}

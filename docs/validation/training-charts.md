@@ -38,19 +38,25 @@ runs and two metrics. The retained optional browser regression starts its own
 loopback server and SQLite fixture. It checks unchanged cycles, appends three
 points per series, then checks unchanged cycles again.
 
-- **336 samples at 50 ms:** both original chart nodes and SVG frames remained
+- **325 samples at 50 ms:** both original chart nodes and SVG frames remained
   attached; scroll stayed at 700; x zoom stayed `[3, 8]`.
 - Hidden second series and selected point indices `[2, 3]` survived all samples.
   Final y zoom remained `[102, 109]`; data increased from 10 to 13 points.
 - Changing the x axis reset the zoom, as intended. No browser page errors.
 - After review B1, one initial message exceeded 1 MB (the single Plotly loader).
   Across 248 subsequent refresh WebSocket messages, the largest decoded payload
-  was **11,740 bytes**. This measures message payloads, not compressed wire bytes.
+  was **12,289 bytes**. This measures message payloads, not compressed wire bytes.
   The optional test asserts one initial large message and refresh messages below
   64 KB; Python tests also bound each chart's `js_content` below 64 KB.
 - An injected one-shot `Plotly.react` rejection displayed an error, then the next
   data update succeeded and cleared it. Failed draws no longer poison the queue.
   Figure JSON is held in a JS property rather than a DOM attribute.
+- An isolated browser page exercises the exact renderer with a controlled clock
+  and a Plotly stub: no alert before 15 seconds, then a visible missing-loader
+  error at 15 seconds. A later update recovers when the loader is available.
+  Readiness listeners are removed on success and timeout; success cancels the
+  deadline, and removal during a timeout produces no unhandled error. This tests
+  readiness and teardown, separately from the real Plotly live fixture above.
 - Interaction state is seeded through Plotly's browser API; this is automated
   DOM/state continuity evidence, not a human recording or a claim about every
   possible display-frame artifact. Firefox, Safari, very large histories and
@@ -60,7 +66,8 @@ points per series, then checks unchanged cycles again.
 [Machine-readable refresh summary](assets/training-refresh.json).
 The optional browser check writes raw samples to the chosen output directory;
 only the summary is committed. CI covers Python identity/revision, serialized
-UIDs, per-chart payload size and page color wiring; the JavaScript interaction
+UIDs, per-chart payload size, page color wiring and the loader call outside the
+refresh fragment; the JavaScript interaction
 checks remain an opt-in browser test.
 
 Desktop, **1440 × 1200**:

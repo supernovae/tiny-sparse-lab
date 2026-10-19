@@ -13,9 +13,19 @@ export default function({parentElement, data}) {
         // Serialize updates: a slow draw must not race the next live snapshot.
         plot.pending = (plot.pending || Promise.resolve()).then(async () => {
             if (!window.Plotly) {
-                await new Promise(resolve => window.addEventListener(
-                    'sparselab-plotly-ready', resolve, {once: true}
-                ));
+                await new Promise((resolve, reject) => {
+                    const ready = () => {
+                        if (!window.Plotly) return;
+                        clearTimeout(timer);
+                        window.removeEventListener('sparselab-plotly-ready', ready);
+                        resolve();
+                    };
+                    const timer = setTimeout(() => {
+                        window.removeEventListener('sparselab-plotly-ready', ready);
+                        reject(new Error('Plotly loader did not become ready within 15 seconds'));
+                    }, 15_000);
+                    window.addEventListener('sparselab-plotly-ready', ready);
+                });
             }
             if (!plot.isConnected) return;
             if (plot.layout?.uirevision === figure.layout.uirevision) {
@@ -54,7 +64,7 @@ export default function({parentElement, data}) {
         observer.disconnect();
         queueMicrotask(() => {
             if (!plot.isConnected) {
-                plot.pending?.finally(() => window.Plotly.purge(plot));
+                plot.pending?.finally(() => window.Plotly?.purge(plot));
             }
         });
     };

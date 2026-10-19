@@ -175,3 +175,25 @@ def test_training_page_wires_consistent_colors_and_one_static_loader():
     )
     app.run()
     assert app.get("bidi_component")[0].proto == loader
+
+
+def test_run_page_loads_plotly_before_entering_refresh_fragment(tmp_path, monkeypatch):
+    from sparselab.dashboard import app as dashboard
+
+    (tmp_path / "experiments.sqlite3").touch()
+    calls = []
+    monkeypatch.setattr(dashboard, "render", lambda *args: calls.append(args))
+
+    def page(root):
+        from pathlib import Path
+
+        from sparselab.dashboard.app import _run_page
+
+        _run_page(Path(root), "training")
+
+    app = AppTest.from_function(page, args=(str(tmp_path),)).run()
+    assert not app.exception
+    components = app.get("bidi_component")
+    assert len(components) == 1
+    assert components[0].proto.component_name.endswith("training_plotly_loader")
+    assert calls == [(tmp_path, "training", None)]
