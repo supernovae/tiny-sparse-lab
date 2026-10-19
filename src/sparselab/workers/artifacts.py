@@ -419,11 +419,15 @@ def _verify_complete_run(
             "FROM checkpoints WHERE run_id=?",
             (receipt.run_id,),
         ).fetchall()
+    from sparselab.training.metrics import manifest_projection_matches
+
     if projected_manifest:
         if (
             len(projected_manifest) != 1
             or projected_manifest[0][0] != manifest_digest
-            or _strict_json_loads(projected_manifest[0][1]) != manifest
+            or not manifest_projection_matches(
+                _strict_json_loads(projected_manifest[0][1]), manifest_digest, manifest
+            )
         ):
             raise ValueError("replicated manifest differs from verified run artifacts")
     elif receipt.state != "UNKNOWN" and recovery_frontier is None:
@@ -470,11 +474,18 @@ def _restore_crash_projection(
     *,
     recovery: bool = False,
 ) -> None:
-    """Fill only absent metadata after a verified, dead-executor publication."""
-    if receipt.state != "UNKNOWN" and not recovery:
-        return
+    """Resolve manifest references after publication; recover absent crash metadata."""
     manifest, checkpoints = verified
     encoded = canonical_json(manifest)
+    digest = hashlib.sha256(encoded).hexdigest()
+    with records._connect() as con:
+        present = con.execute(
+            "SELECT 1 FROM manifests WHERE run_id=?", (receipt.run_id,)
+        ).fetchone()
+    if present is not None:
+        records.materialize_manifest(receipt.run_id, digest, manifest)
+    if receipt.state != "UNKNOWN" and not recovery:
+        return
     with records._connect() as con:
         con.execute(
             "INSERT OR IGNORE INTO manifests(run_id,digest,json) VALUES(?,?,?)",

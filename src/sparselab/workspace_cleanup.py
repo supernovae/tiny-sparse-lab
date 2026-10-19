@@ -151,6 +151,10 @@ def _store_rows(
         ):
             manifests[str(run_id)] = str(digest)
             value = json.loads(raw)
+            if isinstance(value, dict) and "manifest_reference" in value:
+                raise ValueError(
+                    "unresolved manifest reference; collect verified run artifacts first"
+                )
             if isinstance(value, dict) and isinstance(
                 value.get("checkpoint_sha256"), str
             ):

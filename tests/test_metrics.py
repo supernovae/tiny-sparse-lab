@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 
 import pytest
@@ -269,3 +271,100 @@ def test_runtime_progress_snapshot_replaces_latest_without_outbox_growth(
     assert ExperimentStore.get_runtime_progress_records(tmp_path, "run", limit=1) == [
         records[-1]
     ]
+
+
+@pytest.mark.parametrize("size", [16, 80_000])
+def test_manifest_reference_preserves_complete_payload_and_bounded_transport(
+    tmp_path, size
+):
+    from types import SimpleNamespace
+
+    from sparselab.training.metrics import MAX_ENVELOPE_BYTES, _canonical_json
+    from sparselab.workers.artifacts import _restore_crash_projection
+
+    source = ExperimentStore(tmp_path / "source")
+    _run(source)
+    payload = {"run_id": "run", "source_identity": {"inventory": "x" * size}}
+    encoded = _canonical_json(payload)
+    digest = hashlib.sha256(encoded.encode()).hexdigest()
+    source.register_manifest("run", digest, payload)
+    batch = source.export_records()["records"]
+    assert batch[-1]["kind"] == "manifest_reference"
+    assert len(_canonical_json(batch[-1]).encode()) < MAX_ENVELOPE_BYTES
+    assert batch[-1]["payload"]["sha256"] == digest
+    with source._connect() as con:
+        assert con.execute("SELECT json FROM manifests").fetchone()[0] == encoded
+    target = ExperimentStore(tmp_path / "target")
+    target.import_records(batch)
+    with target._connect() as con:
+        assert "manifest_reference" in json.loads(
+            con.execute("SELECT json FROM manifests").fetchone()[0]
+        )
+    with pytest.raises(ValueError, match="digest differs"):
+        target.materialize_manifest("run", digest, {**payload, "tampered": True})
+    _restore_crash_projection(
+        target, SimpleNamespace(run_id="run", state="COMPLETE"), (payload, [])
+    )
+    target.materialize_manifest("run", digest, payload)
+    target.import_records(batch)
+    with target._connect() as con:
+        assert con.execute("SELECT digest,json FROM manifests").fetchone() == (
+            digest,
+            encoded,
+        )
+    assert target.export_records()["records"] == []
+
+
+def test_manifest_reference_rejects_malformed_and_mismatched_evidence(tmp_path):
+    from sparselab.training.metrics import _canonical_json
+
+    source = ExperimentStore(tmp_path / "source")
+    _run(source)
+    payload = {"run_id": "run"}
+    digest = hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
+    with pytest.raises(ValueError, match="digest differs"):
+        source.register_manifest("run", "0" * 64, payload)
+    assert source.export_records()["next_sequence"] == 1
+    source.register_manifest("run", digest, payload)
+    records = source.export_records()["records"]
+    for index, field in enumerate(("relative_path", "sha256", "size_bytes")):
+        bad = json.loads(json.dumps(records))
+        bad[-1]["payload"][field] = {
+            "relative_path": "../manifest.json",
+            "sha256": "bad",
+            "size_bytes": True,
+        }[field]
+        bad[-1]["sha256"] = _envelope_digest(bad[-1])
+        target = ExperimentStore(tmp_path / f"bad-{index}")
+        with pytest.raises(ValueError, match="malformed manifest"):
+            target.import_records(bad)
+        with target._connect() as con:
+            assert con.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 0
+    bad = json.loads(json.dumps(records))
+    bad[-1]["payload"]["size_bytes"] += 1
+    bad[-1]["sha256"] = _envelope_digest(bad[-1])
+    target = ExperimentStore(tmp_path / "wrong-size")
+    target.import_records(bad)
+    with pytest.raises(ValueError, match="reference differs"):
+        target.materialize_manifest("run", digest, payload)
+
+
+def test_historical_inline_manifest_remains_readable(tmp_path):
+    from sparselab.training.metrics import _canonical_json
+
+    source = ExperimentStore(tmp_path / "source")
+    _run(source)
+    payload = {"run_id": "run"}
+    digest = hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
+    source.register_manifest("run", digest, payload)
+    records = source.export_records()["records"]
+    records[-1].update(kind="manifest", payload={"digest": digest, "payload": payload})
+    records[-1]["sha256"] = _envelope_digest(records[-1])
+    target = ExperimentStore(tmp_path / "target")
+    target.import_records(records)
+    target.materialize_manifest("run", digest, payload)
+    with target._connect() as con:
+        assert (
+            json.loads(con.execute("SELECT json FROM manifests").fetchone()[0])
+            == payload
+        )

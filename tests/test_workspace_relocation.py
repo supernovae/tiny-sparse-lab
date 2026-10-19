@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from sparselab.training.manifest import canonical_json
 from sparselab.training.metrics import ExperimentStore
 from sparselab.workspace_relocation import consolidate_standalone_stores
 
@@ -19,7 +20,7 @@ def _source(root: Path, seed: int, status: str = "completed") -> Path:
         config = {"seed": seed, "logging": {"root_dir": str(root)}}
         store.create_run(run_id, config, {}, parent_run_id=parent)
         manifest = {"run_id": run_id, "parent_run_id": parent, "config": config}
-        payload = json.dumps(manifest).encode()
+        payload = canonical_json(manifest)
         (run / "manifest.json").write_bytes(payload)
         store.register_manifest(run_id, hashlib.sha256(payload).hexdigest(), manifest)
         store.log_metrics(run_id, 1, 16, 0.5, {"loss": 1.25})
