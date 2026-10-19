@@ -196,7 +196,18 @@ def test_timeout_cleans_detached_owned_descendant(tmp_path: Path) -> None:
     code = f"import sys,subprocess,time; subprocess.Popen([sys.executable,'-c',{worker!r}],start_new_session=True); time.sleep(10)"
     process = child(options, code)
     try:
-        assert process.wait(timeout=6) == 0  # API returns the VIOLATED receipt.
+        _, stderr = process.communicate(timeout=6)
+        diagnostics = {"stderr": stderr.decode(errors="replace")}
+        if process.returncode:
+            for path in (
+                options["blocked_path"],
+                options["log_dir"] / "completion.json",
+                options["log_dir"] / "owned-completion.json",
+                options["log_dir"] / "command.stderr.log",
+            ):
+                if path.is_file():
+                    diagnostics[str(path)] = path.read_text(errors="replace")
+        assert process.returncode == 0, diagnostics  # API returns the VIOLATED receipt.
         receipt = monitor.MonitorCompletion.model_validate_json(
             (options["log_dir"] / "completion.json").read_bytes()
         )
