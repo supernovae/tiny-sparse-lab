@@ -1,14 +1,12 @@
 # External prepared-input workflow locks
 
-This bounded LAB-73/LAB-74 PR B slice connects an inventoried external recipe to
+This profile connects an inventoried external recipe to
 native artifact verification and lock publication. It starts **after native
 preparation has produced a tokenizer and prepared-data artifact**. The metadata
 operations do not run a preparation graph or submit training; explicit CPU
 execution is described below. `portable_workflow_version: 1` is a separate profile from the unchanged `portable_recipe_version: 1` matrix preview.
 
-The [CPU investigation](portable-cpu-investigation.md) records the earlier
-partial LAB-73/74 verification. The execution and CLI sections below describe
-the current bounded contract.
+The execution and CLI sections below describe the supported contract.
 
 Use three explicit operations:
 

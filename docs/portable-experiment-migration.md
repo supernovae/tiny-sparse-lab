@@ -7,8 +7,9 @@ directory or a Git repository of your choice.
 
 [Kybern Workshop](https://github.com/supernovae/kybern-workshop) contains the
 project's active examples and experiments. It is optional: installed Lab can
-inspect and execute supported recipes from other repositories without Workshop
-or an internal runner.
+inspect recipes from other repositories without Workshop or an internal runner.
+Preparation and prepared-input workflow profiles support their documented
+execution paths; the matrix profile provides metadata previews.
 
 ## What belongs in a recipe
 
@@ -20,7 +21,7 @@ checkpoint, tokenizer or prepared dataset; do not guess future hashes.
 Reusable parsing, planning, preparation, model execution, evaluation and report
 verification belong in Lab. Experiment repositories should use those native
 commands rather than per-experiment Python launchers, validators or test suites.
-Generic engine tests use small neutral fixtures inside Lab.
+Generic engine tests should use small neutral fixtures inside Lab.
 
 ## Author and validate
 
