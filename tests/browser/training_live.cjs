@@ -31,6 +31,12 @@ const server=spawn(python,['-m','streamlit','run','src/sparselab/dashboard/app.p
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM || '/usr/bin/chromium',headless:true,args:['--no-sandbox']});
  try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+ const wireSizes=[]; let measureWire=false; let largeFrames=0;
+ page.on('websocket', ws=>ws.on('framereceived', frame=>{
+  const bytes=Buffer.byteLength(frame.payload);
+  if(bytes>1_000_000) largeFrames++;
+  if(measureWire) wireSizes.push(bytes);
+ }));
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  for(let attempt=0;;attempt++) {
   try {await page.goto(`http://127.0.0.1:${port}/training`);break;}
@@ -59,6 +65,7 @@ const server=spawn(python,['-m','streamlit','run','src/sparselab/dashboard/app.p
   }),50);
   document.querySelector('[data-testid="stMain"]').scrollTop=700;
  });
+ measureWire=true;
  await page.waitForTimeout(4500);
  for(let step=11;step<=13;step++){
   execFileSync(python,['-c',`import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.executemany('INSERT INTO metrics VALUES(?,?,?,?,?,?)',[(r,${step},${step}*32,${step}*2,n,v) for r in ['fixture-a','fixture-b'] for n,v in [('train/loss',1.8),('performance/tokens_per_second',100+${step})]]);c.commit()`,database]);
@@ -66,8 +73,14 @@ const server=spawn(python,['-m','streamlit','run','src/sparselab/dashboard/app.p
  }
  await page.waitForTimeout(4500);
  const evidence=await page.evaluate(()=>{clearInterval(window.sampleTimer);return {samples:window.samples,plots:window.originals.map(p=>({x:p.layout.xaxis.range,y:p.layout.yaxis.range,hidden:p.data[1].visible,selected:p.data[0].selectedpoints,count:p.data[0].x.length})),scroll:document.querySelector('[data-testid="stMain"]').scrollTop}});
+ measureWire=false;
+ evidence.largeBundleFrames=largeFrames;
+ assert.equal(largeFrames,1);
+ evidence.wireFrames=wireSizes.length;
+ evidence.maxWireFrameBytes=Math.max(...wireSizes);
+ assert.ok(wireSizes.length>0 && evidence.maxWireFrameBytes<64_000);
  evidence.errors=errors;evidence.browser=await browser.version();
- fs.writeFileSync(path.join(output,'refresh.json'),JSON.stringify(evidence,null,2));
+
  await page.setViewportSize({width:1440,height:1200});
  await page.locator('.training-live-plot').first().scrollIntoViewIfNeeded();
  await page.screenshot({path:path.join(output,'desktop.png')});
@@ -75,7 +88,7 @@ const server=spawn(python,['-m','streamlit','run','src/sparselab/dashboard/app.p
  await page.waitForTimeout(2500);
  await page.locator('.training-live-plot').first().scrollIntoViewIfNeeded();
  await page.screenshot({path:path.join(output,'narrow.png')});
- console.log(JSON.stringify({browser:evidence.browser,errors,samples:evidence.samples.length,allConnected:evidence.samples.every(s=>s.connected&&s.svg),scrolls:[...new Set(evidence.samples.map(s=>s.scroll))],plots:evidence.plots}));
+ console.log(JSON.stringify({maxWireFrameBytes:evidence.maxWireFrameBytes,wireFrames:evidence.wireFrames,browser:evidence.browser,errors,samples:evidence.samples.length,allConnected:evidence.samples.every(s=>s.connected&&s.svg),scrolls:[...new Set(evidence.samples.map(s=>s.scroll))],plots:evidence.plots}));
  assert.equal(errors.length,0);
  assert.ok(evidence.samples.length>200);
  for(const sample of evidence.samples) {
@@ -87,8 +100,28 @@ const server=spawn(python,['-m','streamlit','run','src/sparselab/dashboard/app.p
  }
  assert.equal(evidence.plots[0].count,13);
  assert.deepEqual(evidence.plots[0].y,[102,109]);
+ // A rejected draw must not poison the promise chain for later data.
+ await page.evaluate(()=>{
+  const react=window.Plotly.react;
+  window.Plotly.react=function(...args) {
+   window.Plotly.react=react;
+   return Promise.reject(new Error('Synthetic one-shot draw failure'));
+  };
+ });
+ const appendThroughput=step=>execFileSync(python,['-c',
+  "import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);s=int(sys.argv[2]);c.execute('INSERT INTO metrics VALUES(?,?,?,?,?,?)',('fixture-a',s,s*32,s*2,'performance/tokens_per_second',100+s));c.commit()",
+  database,String(step)]);
+ appendThroughput(14);
+ await page.getByText('Chart update failed; waiting for the next data update.',{exact:true}).waitFor();
+ appendThroughput(15);
+ await page.waitForFunction(()=>document.querySelector('.training-live-plot').data[0].x.at(-1)===15);
+ assert.equal(await page.getByText('Chart update failed; waiting for the next data update.',{exact:true}).count(),0);
+ evidence.drawFailureRecovery=true;
+ fs.writeFileSync(path.join(output,'refresh.json'),JSON.stringify(evidence,null,2));
  await page.getByText('wall_time',{exact:true}).click();
  await page.waitForTimeout(2500);
  assert.notDeepEqual(await page.locator('.training-live-plot').first().evaluate(p=>p.layout.xaxis.range),[3,8]);
- } finally {await browser.close();server.kill('SIGTERM');}
+ } finally {await browser.close();server.kill('SIGTERM');
+ await new Promise(resolve=>(server.exitCode!==null || server.signalCode!==null) ? resolve() : server.once('exit',resolve));
+ fs.rmSync(scratch,{recursive:true,force:true});}
 })().catch(e=>{server.kill('SIGTERM');console.error(e);process.exitCode=1});

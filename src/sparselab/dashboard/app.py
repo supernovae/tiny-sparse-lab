@@ -937,6 +937,8 @@ def _run_page(root: Path, page: str, surface_dir: Path | None = None) -> None:
     if not (root / "experiments.sqlite3").is_file() and key not in st.session_state:
         st.info("No runs yet. Run `sparselab train CONFIG --run-id NAME`.")
         return
+    if page == "training":
+        training_charts.load_plotly()
     render(root, page, surface_dir)
 
 

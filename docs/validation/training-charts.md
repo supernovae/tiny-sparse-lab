@@ -1,6 +1,6 @@
 # Training chart refresh validation
 
-Issue #190, synthetic cloud-workspace validation on 2026-10-18. No connection
+Issue #190, synthetic cloud-workspace validation on 2026-10-18 and 2026-10-19. No connection
 to the owner's training host, training, checkpoint loading or data download.
 
 ## Diagnosis and change
@@ -15,6 +15,10 @@ establishes chart replacement, not a full-page reload, as the reproduced cause.
 
 The training page now uses the existing Streamlit v2 component API and the
 installed Plotly bundle, served locally without a CDN or new dependency.
+A single data-independent loader sits outside the telemetry fragment. The large
+bundle is sent once per page and its unchanged message can be cached on full
+reruns. Per-chart messages contain only the small renderer and figure data;
+periodic fragment updates never include the loader.
 Each metric has a stable component key. Unchanged figure payloads skip plotting;
 changed payloads use `Plotly.react` on the existing node. Stable UI revisions
 preserve zoom, and series UIDs preserve visibility and point selection. Changing
@@ -34,11 +38,19 @@ runs and two metrics. The retained optional browser regression starts its own
 loopback server and SQLite fixture. It checks unchanged cycles, appends three
 points per series, then checks unchanged cycles again.
 
-- **325 samples at 50 ms:** both original chart nodes and SVG frames remained
+- **336 samples at 50 ms:** both original chart nodes and SVG frames remained
   attached; scroll stayed at 700; x zoom stayed `[3, 8]`.
 - Hidden second series and selected point indices `[2, 3]` survived all samples.
   Final y zoom remained `[102, 109]`; data increased from 10 to 13 points.
 - Changing the x axis reset the zoom, as intended. No browser page errors.
+- After review B1, one initial message exceeded 1 MB (the single Plotly loader).
+  Across 248 subsequent refresh WebSocket messages, the largest decoded payload
+  was **11,740 bytes**. This measures message payloads, not compressed wire bytes.
+  The optional test asserts one initial large message and refresh messages below
+  64 KB; Python tests also bound each chart's `js_content` below 64 KB.
+- An injected one-shot `Plotly.react` rejection displayed an error, then the next
+  data update succeeded and cleared it. Failed draws no longer poison the queue.
+  Figure JSON is held in a JS property rather than a DOM attribute.
 - Interaction state is seeded through Plotly's browser API; this is automated
   DOM/state continuity evidence, not a human recording or a claim about every
   possible display-frame artifact. Firefox, Safari, very large histories and
@@ -46,8 +58,10 @@ points per series, then checks unchanged cycles again.
   this component; Plotly zoom, pan, selection and image export remain available.
 
 [Machine-readable refresh summary](assets/training-refresh.json).
-Raw 50 ms samples were retained in the task workspace at
-`/workspace/issue190-final-evidence/refresh.json`.
+The optional browser check writes raw samples to the chosen output directory;
+only the summary is committed. CI covers Python identity/revision, serialized
+UIDs, per-chart payload size and page color wiring; the JavaScript interaction
+checks remain an opt-in browser test.
 
 Desktop, **1440 × 1200**:
 
@@ -74,5 +88,5 @@ node tests/browser/training_live.cjs /tmp/training-chart-evidence
 ```
 
 `PORT` defaults to 8520. The test creates a private synthetic SQLite directory in
-`/tmp`, starts only its own server, and terminates that server on completion.
+`/tmp`, starts only its own server, and terminates that server and removes its private fixture directory on completion.
 Screenshots and the raw sample log go to the requested output directory.

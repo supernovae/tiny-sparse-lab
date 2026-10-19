@@ -32,7 +32,7 @@ def figure(
 ) -> go.Figure:
     spec = metric_spec(name)
     run_ids = sorted({str(point["run_id"]) for point in points})
-    color_order = sorted(selected_ids or run_ids)
+    color_order = sorted(set(selected_ids or ()) | set(run_ids))
     chart = go.Figure()
     for run_id in run_ids:
         rows = [point for point in points if point["run_id"] == run_id]
@@ -76,9 +76,31 @@ def _component():
     script = Path(__file__).with_name("training_charts.js").read_text()
     return st.components.v2.component(
         "training_live_chart",
-        js=get_plotlyjs() + "\n" + script,
+        js=script,
         isolate_styles=False,
     )
+
+
+@lru_cache(maxsize=1)
+def _loader():
+    return st.components.v2.component(
+        "training_plotly_loader",
+        js=get_plotlyjs()
+        + """
+export default function() {
+    window.dispatchEvent(new Event('sparselab-plotly-ready'));
+}
+""",
+    )
+
+
+def load_plotly() -> None:
+    """Load the installed bundle once outside the telemetry refresh fragment.
+
+    This element has no changing data. Its cached message can be reused across
+    full reruns; per-chart and periodic fragment messages contain no bundle.
+    """
+    _loader()(key="training-plotly-loader", height="content")
 
 
 def render(

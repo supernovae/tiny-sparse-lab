@@ -1,7 +1,7 @@
 {
   "browser": "151.0.7922.173",
   "cadence_seconds": 2,
-  "samples_50ms": 325,
+  "samples_50ms": 336,
   "all_nodes_connected": true,
   "scroll_values": [
     700
@@ -44,5 +44,9 @@
       "count": 13
     }
   ],
-  "browser_errors": []
+  "browser_errors": [],
+  "wireFrames": 248,
+  "maxWireFrameBytes": 11740,
+  "largeBundleFrames": 1,
+  "drawFailureRecovery": true
 }

@@ -7,11 +7,17 @@ export default function({parentElement, data}) {
         plot.style.width = '100%';
         parentElement.appendChild(plot);
     }
-    if (plot.dataset.spec !== data) {
-        plot.dataset.spec = data;
+    if (plot._spec !== data) {
+        plot._spec = data;
         const figure = JSON.parse(data);
         // Serialize updates: a slow draw must not race the next live snapshot.
-        plot.pending = (plot.pending || Promise.resolve()).then(() => {
+        plot.pending = (plot.pending || Promise.resolve()).then(async () => {
+            if (!window.Plotly) {
+                await new Promise(resolve => window.addEventListener(
+                    'sparselab-plotly-ready', resolve, {once: true}
+                ));
+            }
+            if (!plot.isConnected) return;
             if (plot.layout?.uirevision === figure.layout.uirevision) {
                 const previous = new Map(plot.data.map(trace => [trace.uid, trace]));
                 for (const trace of figure.data) {
@@ -24,6 +30,19 @@ export default function({parentElement, data}) {
             return window.Plotly.react(plot, figure.data, figure.layout, {
                 responsive: false, displaylogo: false, scrollZoom: false
             });
+        }).catch(error => {
+            console.error('Training chart update failed', error);
+            if (plot._spec === data) delete plot._spec;
+            let message = parentElement.querySelector('[role="alert"]');
+            if (!message) {
+                message = document.createElement('p');
+                message.setAttribute('role', 'alert');
+                parentElement.appendChild(message);
+            }
+            message.textContent = 'Chart update failed; waiting for the next data update.';
+        });
+        plot.pending.then(() => {
+            if (plot._spec === data) parentElement.querySelector('[role="alert"]')?.remove();
         });
     }
     const observer = new ResizeObserver(() => {
