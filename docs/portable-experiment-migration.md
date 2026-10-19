@@ -137,6 +137,38 @@ compatibility adapters to recreate historical execution. Preparation revisions
 retain their own admitted identities; later workflow declarations bind actual
 verified outputs without rewriting preparation provenance or resetting allowances.
 
+## Acceptance audit at current main (2026-10-19)
+
+Read-only reconciliation against Lab `f1db53f6eb493187a2620ca70a920d8250340dba`
+and Workshop `eb5fcb5ca4750712392916e85de403f17f82ab16` confirms that the
+retirement and portable-authoring work above is already merged. Neither issue
+is a request to rebuild those functions. The three-family scope remains in force;
+retired scientific recipes need no new execution-compatibility work.
+
+- **#157 remains open.** The current Lab tree still contains the 224 KML files
+  and all five hosted/GPU examples listed above. Their residual disposition and
+  retained generic coverage must be reconciled before claiming full retirement.
+  Workshop still contains twelve Python files: three in `scripts/`, two in
+  `tests/`, five in `examples/tinystories-rocm/`, and two in
+  `examples/tinystories-worker/`. Classify the generic operator adapter separately
+  from per-experiment execution/tests; presence alone is not deletion authority.
+  The merged TinyStories publication does not discharge this ownership boundary.
+- **#158 remains open.** The existing native authoring, relocation and derivative
+  preview paths are implemented. All 55 tests in `test_portable_authoring.py`
+  and `test_recipe_authoring.py` passed again against this Lab source using the
+  existing Python 3.14.4 runtime, offline, with no package installation.
+  This recheck is generic synthetic acceptance, not a new execution of the
+  migrated declarations or proof of an installed distribution. The limitations
+  in [current portable acceptance](portable-current-acceptance.md) remain.
+- Concrete DevMind recipe/generated-input readiness is a separate active work
+  item. Keep it with that writer; do not invent payload identities or treat
+  pending recipe choices as generic Lab defects. No dashboard, retained run
+  evidence, historical identity, runtime hold or approval changes in this audit.
+
+The current inventories were read from complete Git trees (neither response was
+truncated). No issue is closed by this reconciliation, and no accelerator,
+acquisition, training or scientific qualification is claimed.
+
 ## Real-data admission
 
 Before real acquisition/execution, record selected immutable source revision and

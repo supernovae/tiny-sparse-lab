@@ -39,11 +39,17 @@ def _project(
             identifier = f"{group}_{split}"
             source_path = sources / f"{identifier}.yaml"
             text_path = sources / f"{identifier}.txt"
-            words = (
+            words = [
                 f"{group}_{index:05x}_{(index * 7919 + GROUPS.index(group) * 104729) % 1048576:05x}"
                 for index in range(24000 if split == "train" else 24)
+            ]
+            # Keep the synthetic vocabulary, but use ordinary bounded text lines.
+            # Schema 3 rights inspection requires the first 30 complete lines to
+            # fit within 64 KiB; one enormous line tests refusal, not bakeoff.
+            passage = "\n".join(
+                " ".join(words[offset : offset + 64])
+                for offset in range(0, len(words), 64)
             )
-            passage = " ".join(words)
             text_path.write_text(
                 f"{group} {split}: {passage} {passage}\n"
                 if split == "train"
