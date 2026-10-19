@@ -38,6 +38,7 @@ class Source(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     source_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,127}$")
     snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    text_field: str = Field(default="text", min_length=1, max_length=128)
     manifest: Pin
     data: Pin
 
@@ -159,8 +160,10 @@ def _source(root: Path, source: Source, spec: Preview, reader: Reader):
             blanks += 1
             return
         value = json.loads(raw.decode("utf-8"))
-        if not isinstance(value, dict) or not isinstance(value.get("text"), str):
-            raise TypeError("preview row must contain text")
+        if not isinstance(value, dict) or not isinstance(
+            value.get(source.text_field), str
+        ):
+            raise TypeError(f"preview row must contain {source.text_field} as a string")
         envelope = value.pop("_sparselab_source", None)
         if not isinstance(envelope, dict):
             raise TypeError("preview row lacks acquired provenance")
@@ -183,7 +186,7 @@ def _source(root: Path, source: Source, spec: Preview, reader: Reader):
         ).hexdigest()
         key = (rank, index)
         if len(chosen) < spec.samples_per_source or key < chosen[-1][0]:
-            text = value["text"].encode("utf-8")
+            text = value[source.text_field].encode("utf-8")
             item = {
                 "source_row_index": index,
                 "source_row_sha256": digest,
@@ -201,6 +204,7 @@ def _source(root: Path, source: Source, spec: Preview, reader: Reader):
     _scan(root, source.data, reader, consume, spec.max_record_bytes)
     return {
         "source_id": source.source_id,
+        "text_field": source.text_field,
         "snapshot_sha256": source.snapshot_sha256,
         "manifest": source.manifest.model_dump(),
         "data": source.data.model_dump(),

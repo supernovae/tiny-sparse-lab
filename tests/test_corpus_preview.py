@@ -527,3 +527,51 @@ def test_success_receipt_cannot_consume_failure_reserve(tmp_path):
         run(tmp_path, declaration, root)
     assert (tmp_path / "out/failure.json").exists()
     assert not (tmp_path / "out/report.json").exists()
+
+
+@pytest.mark.parametrize("include_text", [False, True])
+def test_declared_text_field_preserves_original_row_hash(tmp_path, include_text):
+    declaration, root, spec, data = fixture(tmp_path, count=1)
+    value = {"code": "print('hello')"}
+    if include_text:
+        value["text"] = "not the selected content"
+    digest = hashlib.sha256(canonical_json(value)).hexdigest()
+    value["_sparselab_source"] = {"source_row_index": 0, "source_row_sha256": digest}
+    data.write_bytes(canonical_json(value) + b"\n")
+    spec["sources"][0]["text_field"] = "code"
+    repin(declaration, spec, data)
+    source = run(tmp_path, declaration, root)["sources"][0]
+    assert source["text_field"] == "code"
+    assert source["items"][0]["excerpt"] == "print('hello')"
+    assert source["items"][0]["source_row_sha256"] == digest
+    # Re-pinning the file does not excuse mutation of the original row envelope.
+    value["code"] = "changed code"
+    data.write_bytes(canonical_json(value) + b"\n")
+    repin(declaration, spec, data)
+    with pytest.raises(ValueError, match="provenance"):
+        preview(declaration, root, tmp_path / "changed")
+
+
+@pytest.mark.parametrize("value", [None, 17, {"nested": "content"}])
+def test_selected_text_field_must_be_string_without_fallback(tmp_path, value):
+    declaration, root, spec, data = fixture(tmp_path, count=1)
+    row = {"text": "a valid default must not be used", "code": value}
+    row["_sparselab_source"] = {
+        "source_row_index": 0,
+        "source_row_sha256": hashlib.sha256(canonical_json(row)).hexdigest(),
+    }
+    data.write_bytes(canonical_json(row) + b"\n")
+    spec["sources"][0]["text_field"] = "code"
+    repin(declaration, spec, data)
+    with pytest.raises(TypeError, match="must contain code as a string"):
+        run(tmp_path, declaration, root)
+
+
+@pytest.mark.parametrize("field", ["", None, 1, "x" * 129])
+def test_invalid_text_field_declaration_refuses(tmp_path, field):
+    declaration, root, spec, _ = fixture(tmp_path)
+    spec["sources"][0]["text_field"] = field
+    declaration.write_text(json.dumps(spec))
+    with pytest.raises(ValueError, match="text_field"):
+        run(tmp_path, declaration, root)
+    assert not (tmp_path / "out").exists()

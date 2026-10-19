@@ -371,8 +371,12 @@ and record limits, sample/excerpt/output bounds and wall seconds.
 
 Only HF-dataset acquisition envelopes with `source_row_index` and
 `source_row_sha256` are supported; Wikimedia envelopes are unsupported. Every
-row must have a top-level string `text`, including sources acquired with another
-text-field setting. One data file per snapshot is supported in a declaration:
+row must have a string in its source's declared top-level `text_field` (default
+`text`). For example, set `"text_field": "code"` on a source whose acquired rows
+contain `code`. The selector controls excerpts only: provenance hashes still cover
+the entire original row without renaming or copying fields. The receipt records
+the selector. Missing or non-string selected fields refuse; there is no fallback.
+One data file per snapshot is supported in a declaration:
 manifest and data paths must both be unique. Resolve symlinked root/ancestor
 paths first (including macOS `/tmp` and `/var` aliases).
 
