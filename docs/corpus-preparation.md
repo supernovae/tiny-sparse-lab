@@ -367,9 +367,43 @@ included in the pilot's observed I/O and wall-time costs.
 reads explicitly pinned snapshot manifests and acquired JSONL in place. The JSON
 `sparselab-corpus-preview-v1` declaration specifies a seed, source/snapshot IDs,
 relative manifest/data paths with exact SHA256 and byte lengths, aggregate read
-and record limits, sample/excerpt/output bounds and wall seconds. See the
-[Workshop preview recipe](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind/preparation/lab86)
-for a concrete declaration.
+and record limits, sample/excerpt/output bounds and wall seconds.
+
+Only HF-dataset acquisition envelopes with `source_row_index` and
+`source_row_sha256` are supported; Wikimedia envelopes are unsupported. Every
+row must have a top-level string `text`, including sources acquired with another
+text-field setting. One data file per snapshot is supported in a declaration:
+manifest and data paths must both be unique. Resolve symlinked root/ancestor
+paths first (including macOS `/tmp` and `/var` aliases).
+
+This unexecuted example shows the declaration structure. Replace the symbolic
+pins and byte sizes with verified values from your own acquired snapshot;
+placeholders deliberately fail validation:
+
+```json
+{
+  "format": "sparselab-corpus-preview-v1",
+  "seed": "preview-1",
+  "sources": [{
+    "source_id": "example",
+    "snapshot_sha256": "SNAPSHOT_SHA256",
+    "manifest": {
+      "path": "snapshots/SNAPSHOT_SHA256/manifest.json",
+      "sha256": "MANIFEST_SHA256", "bytes": 1234
+    },
+    "data": {
+      "path": "snapshots/SNAPSHOT_SHA256/files/sample.jsonl",
+      "sha256": "DATA_SHA256", "bytes": 5678
+    }
+  }],
+  "max_read_bytes": 1048576,
+  "max_record_bytes": 65536,
+  "samples_per_source": 3,
+  "max_excerpt_bytes": 256,
+  "max_output_bytes": 65536,
+  "max_wall_seconds": 60
+}
+```
 
 Selection keeps the lowest seeded SHA256 ranks per source and records physical
 line, original row index/hash and clipped text. It checks each acquired row's
@@ -385,7 +419,11 @@ that cannot fit one pass. Every data read is charged, records are bounded, and
 only the requested excerpts survive processing. Output is exclusive and includes
 `started.json` plus either `report.json` or `failure.json`; abrupt termination may
 leave only the started receipt. Keep supervisor exit/cleanup evidence too. Output
-bytes include all three files with space reserved for a failure receipt. Wall
+bytes include started plus either report or failure, with 4096 bytes reserved
+for bounded failure evidence. Failure evidence records the completed source
+count and SHA256 of their ordered ID list, and a UTF-8 byte-clipped error. A
+report that exceeds the output cap refuses after scanning; choose an output
+budget that covers the declaration, source metadata and selected excerpts. Wall
 checks are cooperative between reads; use a supervisor for process cleanup,
 measured RSS and retained logs. Network isolation is also a supervisor property;
 the preview itself performs no network operation. No files are copied, and an

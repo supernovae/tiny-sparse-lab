@@ -164,7 +164,9 @@ def _source(root: Path, source: Source, spec: Preview, reader: Reader):
         envelope = value.pop("_sparselab_source", None)
         if not isinstance(envelope, dict):
             raise TypeError("preview row lacks acquired provenance")
-        index = envelope.get("source_row_index")
+        if "source_row_index" not in envelope:
+            raise ValueError("unsupported acquisition envelope: no source_row_index")
+        index = envelope["source_row_index"]
         digest = hashlib.sha256(canonical_json(value)).hexdigest()
         if (
             type(index) is not int
@@ -293,9 +295,16 @@ def preview(declaration: Path, input_root: Path, output: Path) -> dict:
                 "status": "incomplete",
                 "read_bytes": reader.used,
                 "elapsed_seconds": time.monotonic() - started,
-                "completed_sources": [s["source_id"] for s in results],
-                "error_type": type(error).__name__,
-                "error": str(error)[:1000],
+                "completed_source_count": len(results),
+                "completed_sources_sha256": hashlib.sha256(
+                    canonical_json([s["source_id"] for s in results])
+                ).hexdigest(),
+                # Bound UTF-8 bytes, including worst-case JSON escaping (6x),
+                # so even 64 long source IDs cannot consume the 4096-byte reserve.
+                "error_type": type(error).__name__[:128],
+                "error": str(error)
+                .encode("utf-8")[:384]
+                .decode("utf-8", errors="ignore"),
             },
         )
         raise
