@@ -1,4 +1,4 @@
-# Portable recipe inspection (v1)
+# Portable recipe inspection
 
 `sparselab experiment recipe inspect RECIPE.yaml --json` inspects a directory
 outside the installed lab checkout using the existing native configuration matrix
@@ -6,10 +6,8 @@ compiler. It reads bounded, inventoried declaration bytes and prints a preview.
 It never executes the recipe or produces a resolved lock. The result explicitly
 says `status: incomplete` and `executable: false`.
 
-This is the first LAB-73 profile built on LAB-72's shared document loader, not the
-complete LAB-71 portable experiment workflow. Computation stays in native Python
-components. The adapter calls `expand_axes` and `compare_configs`; there is no
-second scheduler, DAG, component registry, or plugin loader.
+The matrix profile validates declarations and previews configuration variations.
+It does not execute training or replace a prepared-input workflow.
 
 A separate [prepared-input workflow profile](workflow-recipes.md) now connects
 explicit artifact bindings to native verification and lock publication. It does
