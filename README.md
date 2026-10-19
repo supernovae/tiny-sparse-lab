@@ -15,25 +15,24 @@
   <a href="docs/using-sparselab.md">Find a guide</a>
 </p>
 
-Tiny Sparse Lab is a workbench for small language-model experiments. Change one
-setting, train a baseline and candidate, and inspect the evidence. Native lab
-mode keeps inputs, checkpoints and results together without requiring a research
-Campaign for an ordinary local experiment.
+Tiny Sparse Lab is a workbench for small language-model experiments. Change a
+setting, train a candidate against a baseline, and inspect what actually moved—loss,
+probes, generations, and checkpoint internals—all kept together in one local record.
 
-## Experiments and research projects
+## Workshop & shared experiments
 
-[Kybern Workshop](https://github.com/supernovae/kybern-workshop) showcases three
-families using Lab's reusable interfaces:
+To keep individual experiments decoupled from the core lab engine, recipes and active
+studies live in **[Kybern Workshop](https://github.com/supernovae/kybern-workshop)**.
+Right now it hosts the experiments Kybern is running as a lab—all of which you can
+clone and run directly with SparseLab—and is growing into a public hub for storing
+and sharing community experiments:
 
-- [Basic synthetic CPU](https://github.com/supernovae/kybern-workshop/tree/main/examples/synthetic-cpu): historical measured workflow and current native metadata entrypoint; no new runtime qualification implied.
-- [TinyStories](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab): teaching declarations; useful-story acceptance still requires actual retained model evidence.
-- [DevMind](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind): current preparation declarations and proposed science; not a trained model.
+- **[Basic synthetic CPU](https://github.com/supernovae/kybern-workshop/tree/main/examples/synthetic-cpu)** — Lightweight CPU workflow for quick end-to-end smoke runs and metadata checks.
+- **[TinyStories microlab](https://github.com/supernovae/kybern-workshop/tree/main/examples/tinystories-microlab)** — Hands-on starter recipes for training and comparing tiny story models.
+- **[DevMind](https://github.com/supernovae/kybern-workshop/tree/main/experiments/devmind)** — Corpus preparation recipes and ongoing study definitions.
 
-Other personal experiments are retired from Workshop's current tree. Their
-[historical catalog](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog) remains available at its original commit.
-Fresh research belongs in the coordinated backlog with new identities and current
-frameworks. Old outcomes are not current Lab guarantees or compatibility duties.
-Neutral teaching examples and generic regression coverage remain in Lab.
+Earlier completed and archived studies remain browsable in the Workshop's
+[historical catalog](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog).
 
 ## First run
 
@@ -46,17 +45,13 @@ uv sync --locked --extra cpu --dev
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 ```
 
-Prefer containers? See [the CPU image guide](docs/containers.md) for direct CLI and
-separate web usage, with no host Python installation.
-For Apple Silicon GPU execution, use the [native MLX setup](docs/macos-mlx.md).
+Prefer containers? See the [CPU container guide](docs/containers.md) to run the CLI or
+web UI without a host Python install. On a Mac with Apple Silicon, see the
+[MLX setup guide](docs/macos-mlx.md).
 
-Use a recipe from any local directory or repository with the native Lab
-commands below. The optional **[Workshop TinyStories microlab](docs/tinystories-microlab.md)**
-provides a concrete CPU example; its recipe owns the data and training choices.
-Its workflow budget does not promise fluent stories. Source downloads and model
-work require their own explicit resource choices.
-
-Already have a RunConfig and its tokenizer? Start with
+If you want a guided walkthrough from scratch, start with the
+**[Workshop TinyStories microlab](docs/tinystories-microlab.md)**.
+If you already have a `RunConfig` and tokenizer ready, jump straight into
 **[lab mode](docs/lab-mode.md)**:
 
 ```sh
@@ -69,76 +64,55 @@ uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
 uv run --locked --extra cpu sparselab report TRY_ID
 ```
 
-Replace `BASELINE.yaml` with your config and `TRY_ID` with the printed record ID;
-choose a width different from your baseline.
-`try` prepares data as needed, trains both arms, scores the same held-out protocol
-and runs fast probes. It reuses only a verified matching completed baseline.
-Use `--config standard`, `--config no-probes` or a [validated try declaration](docs/try-config.md)
-for paired seeds, probe policy and native runtime/resource settings.
+Replace `BASELINE.yaml` with your baseline config and `TRY_ID` with the printed record ID.
+`try` prepares data if needed, trains both arms (or reuses a matching completed baseline),
+evaluates them on the same held-out split, and runs fast behavioral probes.
+Pass `--config standard`, `--config no-probes`, or a [try config file](docs/try-config.md)
+to customize paired seeds, probe tiers, or resource limits.
 
 ## The everyday lab loop
 
-| Question | Existing command | Work performed |
+| Question | Command | What it does |
 | --- | --- | --- |
-| Does this change help? | `try DELTA.yaml --vs BASELINE.yaml` | Preparation, training, scoring and fast probes. |
-| What happened? | `report TRY_ID` | Reads the sealed record. |
-| What should I check next? | `probe TRY_ID --vs BASELINE_RUN --backend cpu --config standard` | Loads checkpoints and scores probes. |
-| How do recorded results compare? | `compare TRY_ID --references` | Reads records; no download or scoring. |
-| What is inside this checkpoint? | `explore TRY_ID` | Loads the recorded candidate checkpoint and computes diagnostics on CPU. |
+| Does this change help? | `try DELTA.yaml --vs BASELINE.yaml` | Prepares data, trains baseline & candidate, scores held-out loss, and runs fast probes. |
+| What happened? | `report TRY_ID` | Summarizes the sealed experiment record and verdict. |
+| How does it behave on deeper checks? | `probe TRY_ID --vs BASELINE_RUN --backend cpu --config standard` | Runs deeper probe tiers against both checkpoints. |
+| How does this stack up against past runs? | `compare TRY_ID --references` | Compares recorded metrics across compatible runs without re-scoring. |
+| What is happening inside the weights? | `explore TRY_ID` | Computes per-token loss, attention maps, weight stats, and routing diagnostics. |
 
-Use the same **try/probe record ID** across these commands. `probe` and `explore`
-select its recorded candidate checkpoint; they also accept run IDs and checkpoint
-paths. `report` and `compare` require sealed records. See [result lookup](docs/result-lookup.md)
-for missing evidence, ambiguous IDs and backend selection. The [probe guide](docs/probe-battery.md)
-explains verdicts and optional full-tier evaluation. Missing evidence and
-`NOT_COMPARABLE` are not wins. Keep a separate untouched evaluation and repeat
-promising changes with more seeds before making quality claims.
+You can pass the same `TRY_ID` across all of these commands (`probe` and `explore`
+also accept run IDs or direct checkpoint paths). See [result lookup](docs/result-lookup.md)
+for ID resolution details, the [probe guide](docs/probe-battery.md) for probe tiers
+and verdicts, and [result reports](docs/result-reports.md) for run-level (`--kind run`)
+and research (`--kind research`) report views.
 
-In the probe example, `TRY_ID` pins the candidate, while `--vs BASELINE_RUN`
-loads that run's current `latest`. To pin both sides, use the baseline's recorded
-checkpoint path instead: `probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GENERATION
---backend cpu --config standard`. Copy the baseline run directory and generation
-from the try record; another record ID selects that record's candidate.
-
-For advanced saved-run evidence, use `report RUN_ID --kind run`; it reads verified
-checkpoint observations and saved post-train triage together. `report --kind research`
-shows declared lifecycle state and next tests. See [result reports](docs/result-reports.md)
-for their evidence boundaries and the distinct monitoring/release interfaces.
-
-`sparselab dashboard` opens the [lab dashboard](docs/dashboard.md): Home,
-Experiments, Models, Behaviors and Explorer, with detailed run telemetry below.
+Prefer a visual view? Run `sparselab dashboard` to open the [lab dashboard](docs/dashboard.md)
+and browse your experiments, models, probe behaviors, checkpoint internals, and live run telemetry:
 
 ![Lab home: latest verdict and next steps](docs/assets/dashboard-home.png)
 
 ## Bring your machine
 
-Choose the compute available to your installed framework. PyTorch is the
-reference engine; MLX is an optional, separate engine for Apple Silicon.
-These settings describe where an experiment runs. Its question and comparison
-come from the model, data, training and evaluation declarations.
+SparseLab runs on PyTorch across CPU and major GPU backends, plus an optional MLX
+engine for Apple Silicon.
 
-| Compute | Engine / backend | Lab capability and requirements |
+| Compute | Engine / backend | Notes |
 | --- | --- | --- |
-| **CPU** | PyTorch / `cpu` | CPU execution on Linux, WSL2 and macOS. |
-| **NVIDIA GPU** | PyTorch / `cuda` | Requires a compatible CUDA framework and driver installation. Dense SDPA is opt-in; [probe](docs/hosted-environments.md#boundaries-and-gates) the actual selected kernel rather than assuming FlashAttention. |
-| **AMD GPU** | PyTorch / `rocm` | Requires a compatible ROCm framework and driver installation. A native HIP sparse-attention path is also available within its documented device limits. |
-| **Intel GPU** | PyTorch / `xpu` | [Isolated Intel setup](docs/intel-xpu.md); requires compatible XPU wheels, drivers and render-device access. |
-| **Apple Silicon GPU** | PyTorch / `mps` | Uses the PyTorch Metal backend on a supported Mac. |
-| **Apple Silicon GPU, optional engine** | MLX / `metal` | FP32 dense/native block-sparse training, AdamW and block recomputation; a smaller feature set than PyTorch. |
+| **CPU** | PyTorch / `cpu` | Works out of the box on Linux, WSL2, and macOS. |
+| **NVIDIA GPU** | PyTorch / `cuda` | Requires a compatible CUDA build and driver. Dense SDPA is opt-in; see [kernel checks](docs/hosted-environments.md#boundaries-and-gates). |
+| **AMD GPU** | PyTorch / `rocm` | Requires a compatible ROCm build and driver; includes a native HIP sparse-attention path on supported devices. |
+| **Intel GPU** | PyTorch / `xpu` | See the [Intel XPU setup guide](docs/intel-xpu.md) for driver and wheel setup. |
+| **Apple Silicon GPU** | PyTorch / `mps` | Uses PyTorch's Metal backend on macOS. |
+| **Apple Silicon GPU (MLX)** | MLX / `metal` | Optional native Apple Silicon engine supporting FP32 dense and block-sparse training with AdamW. |
 
-Host OS, engine and device are separate choices. Local runtime discovery and
-warmup check whether your installed environment can execute the selected workload.
-See [runtime support](docs/runtime.md) for precision, feature restrictions and
-[recorded software checks](docs/lab-status.md) for the environments used in those
-checks. A study described as running on an AMD GPU is still a study of its
-declared model or training change.
-
-For a larger model after this lesson, [the first-model guide](docs/first-model.md)
-uses the 17.3M FineWeb-Edu configs, repeated seeds and runtime-specific setup.
+See [runtime support](docs/runtime.md) for precision and backend details, and
+[lab status](docs/lab-status.md) for tested environment configurations.
+Ready to scale past toy runs? Follow the [first-model guide](docs/first-model.md)
+to train and evaluate 17.3M-parameter models on FineWeb-Edu.
 
 ## Advanced workflows
 
-Choose these when the question needs them; they are not setup steps for `try`.
+When you move beyond single-change `try` comparisons, SparseLab includes tools for larger studies:
 
 - **Inspect saved models:** [checkpoint exploration](docs/tinytext-model-guide.md),
   [local API](docs/local-api.md), and the retained [MODEL-0](docs/model-0.md) evidence.
@@ -154,32 +128,26 @@ Choose these when the question needs them; they are not setup steps for `try`.
   [papers](papers.md), [research workbench](docs/research/README.md), and
   [experiment ledger](docs/research/experiment-ledger.md).
 
-Keep large outputs under the external work root. Explicit YAML output/cache
-paths retain their destinations; setting `SPARSELAB_WORK_DIR` does not move them.
-Keep retained data, failed runs and original evidence. Release promotion and
-paid compute require their own explicit authorization; a lab verdict grants none.
-
 ## Feature matrix
 
-Support describes the shipped lab interfaces; scientific outcomes live in the
-[experiment ledger](docs/research/experiment-ledger.md). Backend restrictions are
-listed below and in the [runtime guide](docs/runtime.md).
+For detailed backend capabilities see the [runtime guide](docs/runtime.md); for past
+experimental findings see the [experiment ledger](docs/research/experiment-ledger.md).
 
-| Feature | Available workflow | Boundary / guide |
+| Area | Capabilities | Guide & notes |
 | --- | --- | --- |
-| Tokenizer, preparation, training and generation | Native CLI and YAML RunConfig | [First story model](docs/tinystories-microlab.md); data and weights need local storage. |
-| Attention comparisons | Dense, sliding-window, block-sparse and reference MLA | [Architecture](docs/architecture.md); reference mechanisms are not full paper reproductions. |
-| Conditional capacity | Local Top-K MoE; token, byte and portable Engram | [Capability experiments](docs/capabilities.md); resident and active parameters differ. |
-| Training programs | Matrices, immutable ExperimentPlan locks and checkpoint phases | [DSL](docs/experiment-programs.md); child dispatch follows verified parent completion. |
-| Campaign orchestration | Declared dependencies, readiness, approvals and reconciliation | [Campaigns](docs/campaigns.md); independent single-device runs. |
-| Corpus provenance | Acquire, shape, freeze, export and verify source identities | [Corpus Forge sample](corpora/devmind-sample-v0/README.md); source terms remain separate. |
-| Declarative text datasets | Pin Hub sources, snapshot, resume, report coverage and propose pass budgets | [Dataset interfaces](docs/datasets.md); explicit resource limits and immutable inputs. |
-| Instruction objectives | Whole-transcript or assistant-only loss on local conversations | [Instruction training](docs/instruction-training.md); tool transcripts are inert. |
-| Evaluation and review | Held-out loss, capability cards, checkpoint-bound suites, self-blind review | [Evidence](docs/evidence.md); promotion requires review. |
-| Native diagnostics | Supplied-vector semantic probes, continuation overlap, bounded preparation benchmarks and opt-in phase observations | [CLI guide](docs/using-sparselab.md#native-diagnostic-interfaces); mechanism/descriptive/operational evidence, not quality or promotion gates. |
-| Local, SSH, and supplied hosted execution | Explicit runtime selection, staging, independent worker queues, and optional relay-backed Colab | [Hosted environments](docs/hosted-environments.md); one device per run, no provider allocation or distributed training. |
-| Dashboard | Lab home with next steps, experiments and verdicts, model catalog and Pareto frontier, behaviors (generations, recall misses, calibration), a visual model explorer, plus training telemetry and research views | [Dashboard tour](docs/dashboard.md); [research views](docs/research/dashboard.md); read-only. |
-| Local model exploration | Raw completion, transcript chat, Streamlit comparisons and a loopback API | [Model guide](docs/tinytext-model-guide.md); [nonstreaming API](docs/local-api.md); verified local run required. |
+| **End-to-end training** | Tokenizers, data preparation, training, and text generation via CLI & YAML `RunConfig` | [TinyStories microlab](docs/tinystories-microlab.md) |
+| **Attention mechanisms** | Dense, sliding-window, block-sparse, and reference MLA | [Architecture guide](docs/architecture.md) |
+| **Conditional capacity** | Local Top-K MoE; token, byte, and portable Engram memory tables | [Capability experiments](docs/capabilities.md) |
+| **Training programs** | Parameter matrices, locked `ExperimentPlan` definitions, and multi-phase training | [Experiment programs DSL](docs/experiment-programs.md) |
+| **Campaign orchestration** | Multi-run dependency graphs, readiness checks, and result reconciliation | [Campaigns guide](docs/campaigns.md) |
+| **Corpus provenance** | Acquire, filter, freeze, export, and verify raw text corpora | [Corpus Forge sample](corpora/devmind-sample-v0/README.md) |
+| **Declarative datasets** | Pin Hugging Face Hub sources, snapshot, resume, and track token budgets | [Dataset interfaces](docs/datasets.md) |
+| **Instruction tuning** | Full-transcript or assistant-only loss over local multi-turn conversations | [Instruction training](docs/instruction-training.md) |
+| **Evaluation & review** | Held-out loss, capability cards, checkpoint-bound probe suites, and blind review | [Evidence guide](docs/evidence.md) |
+| **Model diagnostics** | Semantic vector probes, continuation overlap, prep benchmarks, and checkpoint explorer | [CLI diagnostics](docs/using-sparselab.md#native-diagnostic-interfaces) |
+| **Remote & queued runs** | Local worker queues, SSH staging, and relay-backed hosted notebooks (e.g. Colab) | [Hosted environments](docs/hosted-environments.md) |
+| **Web dashboard** | Visual browser for experiments, verdicts, Pareto frontiers, model behaviors, and weights | [Dashboard tour](docs/dashboard.md) · [Research views](docs/research/dashboard.md) |
+| **Interactive playground** | Raw completion, chat transcripts, side-by-side Streamlit comparisons, and local HTTP API | [Model guide](docs/tinytext-model-guide.md) · [Local API](docs/local-api.md) |
 
 Contributions: [CONTRIBUTING.md](CONTRIBUTING.md), [feature roadmap](ROADMAP.md),
 [agent guidance](AGENTS.md). Code is [MIT licensed](LICENSE); source datasets
