@@ -360,3 +360,72 @@ change is required before using fresh strata there.
 Tokenizer dispatch cold-verifies the export before reserving an attempt; the
 trainer verifies it again. This adds a full verification pass that must be
 included in the pilot's observed I/O and wall-time costs.
+
+## Preview acquired JSONL without copying a corpus
+
+`corpus preview DECLARATION --input-root INPUTS --output NEW_DIRECTORY`
+reads explicitly pinned snapshot manifests and acquired JSONL in place. The JSON
+`sparselab-corpus-preview-v1` declaration specifies a seed, source/snapshot IDs,
+relative manifest/data paths with exact SHA256 and byte lengths, aggregate read
+and record limits, sample/excerpt/output bounds and wall seconds.
+
+Only HF-dataset acquisition envelopes with `source_row_index` and
+`source_row_sha256` are supported; Wikimedia envelopes are unsupported. Every
+row must have a top-level string `text`, including sources acquired with another
+text-field setting. One data file per snapshot is supported in a declaration:
+manifest and data paths must both be unique. Resolve symlinked root/ancestor
+paths first (including macOS `/tmp` and `/var` aliases).
+
+This unexecuted example shows the declaration structure. Replace the symbolic
+pins and byte sizes with verified values from your own acquired snapshot;
+placeholders deliberately fail validation:
+
+```json
+{
+  "format": "sparselab-corpus-preview-v1",
+  "seed": "preview-1",
+  "sources": [{
+    "source_id": "example",
+    "snapshot_sha256": "SNAPSHOT_SHA256",
+    "manifest": {
+      "path": "snapshots/SNAPSHOT_SHA256/manifest.json",
+      "sha256": "MANIFEST_SHA256", "bytes": 1234
+    },
+    "data": {
+      "path": "snapshots/SNAPSHOT_SHA256/files/sample.jsonl",
+      "sha256": "DATA_SHA256", "bytes": 5678
+    }
+  }],
+  "max_read_bytes": 1048576,
+  "max_record_bytes": 65536,
+  "samples_per_source": 3,
+  "max_excerpt_bytes": 256,
+  "max_output_bytes": 65536,
+  "max_wall_seconds": 60
+}
+```
+
+Selection keeps the lowest seeded SHA256 ranks per source and records physical
+line, original row index/hash and clipped text. It checks each acquired row's
+self-contained provenance envelope and both whole-file hashes in one pass;
+blank lines count toward bytes but not rows. Manifest bytes are hashed without
+loading the manifest's row array. Snapshot identities are supplied by the reviewed
+binding: this preview does not reconstruct acquisition metadata or substitute for
+native cold acquisition verification or admission review. Its receipt explicitly
+states that narrower verification scope and never grants admission.
+
+The read counter includes declaration, manifests and data; preflight rejects pins
+that cannot fit one pass. Every data read is charged, records are bounded, and
+only the requested excerpts survive processing. Output is exclusive and includes
+`started.json` plus either `report.json` or `failure.json`; abrupt termination may
+leave only the started receipt. Keep supervisor exit/cleanup evidence too. Output
+bytes include started plus either report or failure, with 4096 bytes reserved
+for bounded failure evidence. Failure evidence records the completed source
+count and SHA256 of their ordered ID list, and a UTF-8 byte-clipped error. A
+report that exceeds the output cap refuses after scanning; choose an output
+budget that covers the declaration, source metadata and selected excerpts. Wall
+checks are cooperative between reads; use a supervisor for process cleanup,
+measured RSS and retained logs. Network isolation is also a supervisor property;
+the preview itself performs no network operation. No files are copied, and an
+existing output directory refuses. Current admission inspection limits are
+unchanged: a preview is evidence for review, not an admission inspection receipt.

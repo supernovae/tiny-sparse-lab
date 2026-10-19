@@ -58,6 +58,7 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
     "corpus budget-init": (1, set(), set(), "preparation"),
     "corpus budget-status": (1, set(), set(), "inspection"),
     "corpus alias-snapshot": (1, {"--source-id", "--snapshot"}, set(), "preparation"),
+    "corpus preview": (1, {"--input-root", "--output"}, set(), "preparation"),
     "corpus acquire": (1, set(), {"--offline"}, "preparation"),
     "corpus admission-draft": (
         1,
@@ -250,6 +251,7 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
 _REQUIRED: dict[str, set[str]] = {
     "corpus export": {"--view", "--base-run-config", "--vocab-size"},
     "corpus render-declaration": {"--template", "--values-json", "--output"},
+    "corpus preview": {"--input-root", "--output"},
     "corpus alias-snapshot": {"--source-id", "--snapshot"},
     "corpus admission-draft": {"--template", "--policy-document", "--output"},
     "corpus inspect-admission": {
