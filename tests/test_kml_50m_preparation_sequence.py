@@ -60,6 +60,13 @@ _PHASE_MAP = {
 }
 
 
+# Each of the 32 native phases has its own 45-second subprocess bound. The
+# shared attempt also includes refusal probes and binding commands. Its total
+# must cover that sequence, not act as an unrelated ten-minute speed test.
+_PHASE_TIMEOUT_SECONDS = 45
+_ATTEMPT_WALL_SECONDS = (len(_PHASE_MAP) + 8) * _PHASE_TIMEOUT_SECONDS
+
+
 def _fixture_template(recipe: Path, filename: str, **substitutions: object) -> Path:
     """Load the operator template; substitute only explicitly named fixture data.
 
@@ -752,7 +759,7 @@ def _phase(
         command,
         capture_output=True,
         text=True,
-        timeout=45,
+        timeout=_PHASE_TIMEOUT_SECONDS,
         check=False,
         env=paths["env"],
     )
@@ -790,7 +797,7 @@ def _run(
         ),
         capture_output=True,
         text=True,
-        timeout=45,
+        timeout=_PHASE_TIMEOUT_SECONDS,
         check=False,
         env=paths["env"],
     )
@@ -849,7 +856,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
         "max_tree_rss_bytes": 4 * 1024**3,
         "max_added_workspace_bytes": 512 * 1024**2,
         "max_added_workspace_inodes": 5000,
-        "max_wall_seconds": 600,
+        "max_wall_seconds": _ATTEMPT_WALL_SECONDS,
     }
     _write_yaml(whole, policy)
     _write_yaml(prep, policy)
@@ -861,7 +868,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
     template = _fixture_template(
         acquisition.parent,
         "attempt-contract.template.json",
-        max_wall_seconds=600,
+        max_wall_seconds=_ATTEMPT_WALL_SECONDS,
         content_identity_sha256=identity,
         monitor_policy_sha256=sha256_file(whole),
         preparation_monitor_policy_sha256=sha256_file(prep),

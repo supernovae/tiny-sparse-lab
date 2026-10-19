@@ -87,7 +87,10 @@ def _fixture(
 
 def test_public_dispatch_rejects_b16_paths_before_reservation(tmp_path: Path) -> None:
     """The real CLI, ledger and both monitors exercise zero-model render work."""
-    budget, paths = _fixture(tmp_path, seconds=60, nested=True)
+    # Seven independently bounded CLI invocations share this ledger. Allow their
+    # aggregate startup/monitor time; deadline enforcement has separate tests.
+    command_timeout = 30
+    budget, paths = _fixture(tmp_path, seconds=8 * command_timeout, nested=True)
     root = paths["root"]
     assert isinstance(root, Path)
     for name in ("prep", "receipts", "logs"):
@@ -175,7 +178,7 @@ def test_public_dispatch_rejects_b16_paths_before_reservation(tmp_path: Path) ->
             command,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=command_timeout,
             env=os.environ.copy(),
             check=False,
         )
