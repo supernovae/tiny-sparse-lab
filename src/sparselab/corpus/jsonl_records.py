@@ -100,7 +100,7 @@ class ForwardRows:
 
 @contextmanager
 def forward_rows(
-    path: Path, *, max_record_bytes: int, expected_sha256: str
+    path: Path, *, max_record_bytes: int | None, expected_sha256: str
 ) -> Iterator[ForwardRows]:
     """Validate skipped/trailing rows and close the reader on every exit path."""
     with closing(records_from_path(path, max_record_bytes=max_record_bytes)) as rows:

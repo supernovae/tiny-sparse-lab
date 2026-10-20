@@ -1132,13 +1132,13 @@ def _emit_build(
         # LM-only lineages have no generated families. Source-family overlap is
         # descriptive unless that family is the declared split policy unit.
         for (family,) in connection.execute(
-            "SELECT source_family FROM documents WHERE drop_reason IS NULL "
+            "SELECT source_family FROM documents "
             "GROUP BY source_family HAVING COUNT(DISTINCT split)>1 ORDER BY source_family"
         ):
             splits = [
                 row[0]
                 for row in connection.execute(
-                    "SELECT DISTINCT split FROM documents WHERE source_family=? AND drop_reason IS NULL ORDER BY split",
+                    "SELECT DISTINCT split FROM documents WHERE source_family=? ORDER BY split",
                     (family,),
                 )
             ]

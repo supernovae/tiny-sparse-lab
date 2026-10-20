@@ -1031,7 +1031,13 @@ def _validate_rows_stored(
                 raw = b""
                 sample_rows = replay_stack.enter_context(
                     forward_rows(
-                        raw_path, max_record_bytes=8 * 1024**2, expected_sha256=raw_sha
+                        raw_path,
+                        max_record_bytes=(
+                            8 * 1024**2
+                            if prospective and "_admission_decisions" in file
+                            else None
+                        ),
+                        expected_sha256=raw_sha,
                     )
                 )
             else:

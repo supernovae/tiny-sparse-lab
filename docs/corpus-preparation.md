@@ -558,13 +558,18 @@ reads currently create new collections charged to the same 1 GiB cap; neither a
 cache nor a throughput improvement is claimed here.
 
 
+### v2 disk builds
+
 Reviewed v2 LM-only builds now use the existing disk builder when all sources are
 v2 HF/Git declarations, record admission is pinned, chat is unselected, and no
 fraction selection is requested. Other transform combinations retain native
 dispatch. Admission is verified before dispatch and its exact bytes are copied
 into the immutable build. Admitted normalization stays in the owning process;
-SQLite-backed decisions are never passed to process workers. HF rows and admitted
-Git files refuse above 8 MiB. V2 keeps its original representative ordering,
+SQLite-backed decisions are never passed to process workers. Admitted HF rows and admitted
+Git files refuse above 8 MiB. Cold JSONL replay applies that same cap only to
+files with verified record admission. Structure-only replay without admission
+retains the builder's existing row-size behavior; this change does not introduce a
+universal row cap. V2 keeps its original representative ordering,
 cross-split duplicate refusal and incompatible-rights refusal; it does not adopt
 v3 canonical-origin grouping or held-out promotion. Audits retain family overlap
 warnings and policy-unit refusals.

@@ -194,7 +194,119 @@ def test_admitted_shard_refusals_leave_no_published_shard(tmp_path, monkeypatch,
         path.write_bytes(raw.replace(b"Generated", b"Corrupted"))
     else:
         monkeypatch.setattr(large_build, "_ADMITTED_RECORD_MAX_BYTES", 32)
-    with pytest.raises(ValueError):
+    errors = {
+        "missing_decision": "record admission lacks selected source row",
+        "missing_digest": "requires verified decisions and manifest digest",
+        "changed_bytes": "admitted source shard bytes differ from acquisition",
+        "oversized_record": "JSONL record-byte cap exceeded",
+    }
+    with pytest.raises(ValueError, match=errors[fault]):
+        _prepare_file(**args)
+    assert not list((tmp_path / "prepared").rglob("receipt.json"))
+    assert not list((tmp_path / "prepared").rglob(".incomplete-*"))
+
+
+@pytest.mark.parametrize(
+    "fault,match",
+    [
+        ("bad_digest", "invalid admission manifest digest"),
+        ("wrong_kind", "requires an HF JSONL shard"),
+        ("wrong_extension", "requires an HF JSONL shard"),
+        ("file_on_hf", "file admission requires a Git source"),
+        ("rights", "file rights differ from verified policy"),
+        ("orphan_digest", "requires verified decisions and manifest digest"),
+    ],
+)
+def test_admitted_preconditions_are_distinct(tmp_path, fault, match):
+    from types import SimpleNamespace
+
+    manifest, source, snapshot, _raw, path = fixture(tmp_path, "synthetic")
+    admitted = verify_record_admission(
+        manifest, {source["id"]: source}, {source["id"]: snapshot}, tmp_path
+    )[source["id"], snapshot["files"][0]["path"]]
+    args = kwargs(tmp_path, source, snapshot, path, admitted, "a" * 64)
+    if fault == "bad_digest":
+        args["admission_sha256"] = "g" * 64
+    elif fault == "wrong_kind":
+        args["source"] = SimpleNamespace(kind="git")
+    elif fault == "wrong_extension":
+        args["file"] = {**args["file"], "path": "not-jsonl.txt"}
+    elif fault == "file_on_hf":
+        args["record_admission"] = {"rights": admitted["rights"], "decision": "qualify"}
+    elif fault == "rights":
+        args["decision"] = admitted["rights"].model_copy(
+            update={"training_eligibility": "ineligible"}
+        )
+    else:
+        args["record_admission"] = None
+    with pytest.raises(ValueError, match=match):
+        _prepare_file(**args)
+    assert not (tmp_path / "prepared").exists()
+
+
+@pytest.mark.parametrize(
+    "fault,match",
+    [
+        ("digest", "admitted source bytes differ from acquisition"),
+        ("size", "admitted file-byte cap exceeded"),
+    ],
+)
+def test_admitted_git_file_refusals(tmp_path, monkeypatch, fault, match):
+    from sparselab.corpus import large_build
+    from sparselab.corpus.project import SourceDeclaration
+
+    raw = b"# Fixture\nOrdinary fixture prose.\n"
+    path = tmp_path / "file.md"
+    path.write_bytes(raw)
+    source = SourceDeclaration.model_validate(
+        {
+            "schema_version": 2,
+            "id": "git",
+            "kind": "git",
+            "canonical_uri": "https://example.invalid/repo",
+            "revision": "a" * 40,
+            "license": "MIT",
+            "license_url": "https://example.invalid/license",
+            "rights": {
+                "training_eligibility": "eligible",
+                "redistribution_mode": "metadata_reconstruction_only",
+                "spdx_expression": "MIT",
+                "license_references": ["https://example.invalid/license"],
+            },
+            "domains": ["prose"],
+            "document_kinds": ["markdown"],
+            "source_family": "git",
+            "acquisition": {"include": ["*.md"], "max_bytes": 1024},
+        }
+    )
+    from sparselab.corpus.rights import resolve_file_rights
+
+    rights = resolve_file_rights(source.rights, "file.md", raw)
+    args = {
+        "build_id": "e" * 64,
+        "prepared_root": tmp_path / "prepared",
+        "source": source,
+        "file": {
+            "path": "file.md",
+            "size": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        },
+        "snapshot_sha": "b" * 64,
+        "source_path": path,
+        "decision": rights,
+        "record_admission": {
+            "rights": rights,
+            "decision": "qualify",
+            "license_label": "MIT",
+        },
+        "admission_sha256": "c" * 64,
+        "progress": BuildProgress(tmp_path / "progress.jsonl", "e" * 64),
+    }
+    if fault == "digest":
+        path.write_bytes(raw.replace(b"Fixture", b"Changed"))
+    else:
+        monkeypatch.setattr(large_build, "_ADMITTED_RECORD_MAX_BYTES", 16)
+    with pytest.raises(ValueError, match=match):
         _prepare_file(**args)
     assert not list((tmp_path / "prepared").rglob("receipt.json"))
     assert not list((tmp_path / "prepared").rglob(".incomplete-*"))
