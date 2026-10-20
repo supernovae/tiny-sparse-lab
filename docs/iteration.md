@@ -1,5 +1,7 @@
 # Validate an iteration with the lab
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Use SparseLab's declared inputs, native verifiers and retained evidence between
 runs. A passing check establishes its stated scope; it does not approve model
 quality or promote a child. Keep the baseline and parent generation immutable.
@@ -12,8 +14,8 @@ For a normal authorized local experiment, skip the sections below and run
 [lab mode](lab-mode.md):
 
 ```sh
-uv run --locked --extra cpu sparselab try DELTA.yaml --vs "$CONFIG"
-uv run --locked --extra cpu sparselab report TRY_ID
+sparselab try DELTA.yaml --vs "$CONFIG"
+sparselab report TRY_ID
 ```
 
 It derives the candidate, trains both arms, scores both on the same held-out
@@ -42,7 +44,7 @@ PowerShell setup:
 ```powershell
 $env:SPARSELAB_WORK_DIR = Join-Path $env:USERPROFILE '.local/share/sparselab'
 $WORK = $env:SPARSELAB_WORK_DIR
-uv run --locked --extra cpu sparselab readiness smoke --family dense --output "$WORK/experiments/session-check-001"
+sparselab readiness smoke --family dense --output "$WORK/experiments/session-check-001"
 ```
 
 In PowerShell use `$env:SPARSELAB_WORK_DIR` for the environment variable and
@@ -56,7 +58,7 @@ For a dense-model session, run the bounded CPU wiring check once into a new,
 task-owned output directory:
 
 ```sh
-uv run --locked --extra cpu sparselab readiness smoke --family dense \
+sparselab readiness smoke --family dense \
   --output "$WORK/experiments/session-check-001"
 ```
 
@@ -74,9 +76,9 @@ full-suite opt-in.
 ## Check the actual proposed configuration
 
 ```sh
-uv run --locked --extra cpu sparselab inspect "$CONFIG"
-uv run --locked --extra cpu sparselab workspace preflight "$CONFIG"
-uv run --locked --extra cpu sparselab stage "$CONFIG" --through smoke \
+sparselab inspect "$CONFIG"
+sparselab workspace preflight "$CONFIG"
+sparselab stage "$CONFIG" --through smoke \
   --output "$WORK/experiments/candidate-001-stage"
 ```
 
@@ -89,7 +91,7 @@ Provide the declared runtime profile using `--runtime-profile PROFILE` where
 appropriate. Use a new stage output for changed intent.
 
 On a provisioned vendor environment, use the documented
-`uv run --locked --no-sync sparselab ...` commands instead of synchronizing the
+`sparselab ...` commands instead of synchronizing the
 CPU extra into that environment. Follow [runtime acceptance](runtime.md).
 Neither a memory estimate nor the session smoke proves that the actual model
 fits or that its selected backend is stable.
@@ -97,12 +99,12 @@ fits or that its selected backend is stable.
 ## Let Campaign explain the next action
 
 ```sh
-uv run --locked --extra cpu sparselab campaign status "$CAMPAIGN"
-uv run --locked --extra cpu sparselab campaign next "$CAMPAIGN"
-uv run --locked --extra cpu sparselab campaign explain "$CAMPAIGN"
-uv run --locked --extra cpu sparselab campaign apply "$CAMPAIGN"
+sparselab campaign status "$CAMPAIGN"
+sparselab campaign next "$CAMPAIGN"
+sparselab campaign explain "$CAMPAIGN"
+sparselab campaign apply "$CAMPAIGN"
 # Once state exists, reconcile or continue it:
-uv run --locked --extra cpu sparselab campaign resume "$CAMPAIGN"
+sparselab campaign resume "$CAMPAIGN"
 ```
 
 Every Campaign verb above accepts `--json`: agents should consume the native
@@ -127,8 +129,8 @@ Use the finalized generation directory, not a moving `latest.json` or `best.json
 pointer, as the parent/evaluation binding:
 
 ```sh
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
-uv run --locked --extra cpu sparselab report --kind run "$RUN_ID" --runs-dir "$WORK/runs" --json
+sparselab checkpoint verify "$GENERATION" --json
+sparselab report --kind run "$RUN_ID" --runs-dir "$WORK/runs" --json
 ```
 
 These commands also have human-readable text mode: omit `--json`.
@@ -166,10 +168,10 @@ for exact support and trust limitations.
 ## Read-only iteration check
 
 ```sh
-uv run --locked --extra cpu sparselab iteration check "$DECLARATION_OR_LOCK" \
+sparselab iteration check "$DECLARATION_OR_LOCK" \
   --parent "$GENERATION" --json
 # At a new host or trust boundary:
-uv run --locked --extra cpu sparselab iteration check "$DECLARATION_OR_LOCK" \
+sparselab iteration check "$DECLARATION_OR_LOCK" \
   --parent "$GENERATION" --json --cold-verify
 ```
 For a single fresh phase, omit `--parent` to inspect its authored changes against

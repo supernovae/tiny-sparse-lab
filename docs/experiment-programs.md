@@ -1,5 +1,7 @@
 # Chain a training program
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 > For a quick local comparison, use [lab mode](lab-mode.md)
 > (`sparselab try DELTA.yaml --vs BASELINE.yaml`) instead. Training programs
 > are the release path: locked, multi-phase and reviewable.
@@ -84,8 +86,8 @@ DECLARATIONS="$PWD/sparselab-work/experiments/offline-training-chain-v1/inputs"
 mkdir -p "$WORK" "$DECLARATIONS"
 df -h "$WORK"
 df -i "$WORK"
-uv run --locked --extra cpu sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
-PREPARED=$(uv run --locked --extra cpu sparselab data prepare "$SAMPLE/run.yaml")
+sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
+PREPARED=$(sparselab data prepare "$SAMPLE/run.yaml")
 ```
 
 `WORK` selects the external experiment/controller store. `DECLARATIONS` stays
@@ -128,15 +130,15 @@ Relative external checkpoint locations are anchored to the template before
 export, so moving the authored output does not select another parent.
 
 ```sh
-uv run --locked --extra cpu sparselab experiment bind-inputs \
+sparselab experiment bind-inputs \
   "$SAMPLE/run.yaml" "$SAMPLE/offline-chain.yaml" \
   --prepared-root "$PREPARED" \
   --output "$DECLARATIONS/plan.yaml" --json
 PLAN="$DECLARATIONS/plan.yaml"
-uv run --locked --extra cpu sparselab experiment validate "$PLAN" --json
-uv run --locked --extra cpu sparselab experiment inspect "$PLAN" --json
-LOCK=$(uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json | jq -r '.lock')
-uv run --locked --extra cpu sparselab experiment explain "$LOCK" --json
+sparselab experiment validate "$PLAN" --json
+sparselab experiment inspect "$PLAN" --json
+LOCK=$(sparselab experiment lock "$PLAN" --json | jq -r '.lock')
+sparselab experiment explain "$LOCK" --json
 ```
 
 `PREPARED` is the actual directory printed by `sparselab data prepare`,
@@ -295,7 +297,7 @@ are not supported. The output parent must already exist without symlinked
 components. Neither output can be overwritten.
 
 ```sh
-uv run --locked --extra cpu sparselab experiment derive "$PLAN" \
+sparselab experiment derive "$PLAN" \
   --set 'id="offline-training-chain-v2"' \
   --set retention.keep_periodic=false \
   --output "$DECLARATIONS/plan-v2.yaml" --json
@@ -319,7 +321,7 @@ rebasing corpus, suite, capability, or prompt declarations. Then create the
 immutable runnable identity through the ordinary `experiment lock` command:
 
 ```sh
-LOCK=$(uv run --locked --extra cpu sparselab experiment lock \
+LOCK=$(sparselab experiment lock \
   "$DECLARATIONS/plan-v2.yaml" --json | jq -r '.lock')
 ```
 
@@ -334,15 +336,15 @@ The locked cells contain the effective run configs after input binding and
 phase overrides. Extract them for explicit local inspection and pilots:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment export-config "$LOCK" \
+sparselab experiment export-config "$LOCK" \
   --cell pretrain:single --output "$WORK/pretrain-effective.yaml" --json
-uv run --locked --extra cpu sparselab experiment export-config "$LOCK" \
+sparselab experiment export-config "$LOCK" \
   --cell continue:single --output "$WORK/continue-effective.yaml" --json
-uv run --locked --extra cpu sparselab inspect "$WORK/pretrain-effective.yaml" --json
-uv run --locked --extra cpu sparselab stage "$WORK/pretrain-effective.yaml" \
+sparselab inspect "$WORK/pretrain-effective.yaml" --json
+sparselab stage "$WORK/pretrain-effective.yaml" \
   --through warmup --output "$WORK/stages/pretrain"
-uv run --locked --extra cpu sparselab inspect "$WORK/continue-effective.yaml" --json
-uv run --locked --extra cpu sparselab stage "$WORK/continue-effective.yaml" \
+sparselab inspect "$WORK/continue-effective.yaml" --json
+sparselab stage "$WORK/continue-effective.yaml" \
   --through warmup --output "$WORK/stages/continue"
 ```
 
@@ -354,9 +356,9 @@ the checkpoint transition or establish model quality.
 Submit the root phase and start the controller:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain \
+sparselab experiment run "$LOCK" --phase pretrain \
   --allow-uncommitted-declaration --json
-uv run --locked --extra cpu sparselab controller run --store "$WORK/controller"
+sparselab controller run --store "$WORK/controller"
 ```
 
 The first command registers a local worker when none is specified and enqueues
@@ -364,7 +366,7 @@ the selected cell. The controller stays in the foreground. In a second terminal
 with the same `WORK` and `LOCK`, monitor the parent:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment list --store "$WORK/controller"
+sparselab experiment list --store "$WORK/controller"
 ```
 
 Wait for the parent's `status: COMPLETE` and `ingestion_status: COMPLETE`.
@@ -372,9 +374,9 @@ Then explicitly submit the dependent phase; the same running controller will
 dispatch it:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue \
+sparselab experiment run "$LOCK" --phase continue \
   --allow-uncommitted-declaration --json
-uv run --locked --extra cpu sparselab experiment list --store "$WORK/controller"
+sparselab experiment list --store "$WORK/controller"
 ```
 
 `experiment run` enqueues work; it does not wait or automatically schedule
@@ -390,10 +392,10 @@ include their axis labels in the returned cell IDs.
 After both phases complete and ingest:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment collect "$LOCK" --json > "$WORK/collection-result.json"
+sparselab experiment collect "$LOCK" --json > "$WORK/collection-result.json"
 INDEX=$(jq -r '.index_path' "$WORK/collection-result.json")
-uv run --locked --extra cpu sparselab experiment reconstruct "$LOCK" --index "$INDEX" --json
-uv run --locked --extra cpu sparselab dashboard --runs-dir "$WORK/controller"
+sparselab experiment reconstruct "$LOCK" --index "$INDEX" --json
+sparselab dashboard --runs-dir "$WORK/controller"
 ```
 
 The index retains pending, failed, interrupted and invalid cells as distinct
@@ -407,9 +409,9 @@ Use the run IDs returned by submission/list for checkpoint verification,
 held-out evaluation and generation, with `--runs-dir "$WORK/controller"`:
 
 ```sh
-uv run --locked --extra cpu sparselab eval RETURNED_RUN_ID --runs-dir "$WORK/controller"
-uv run --locked --extra cpu sparselab report --kind run RETURNED_RUN_ID --runs-dir "$WORK/controller" --json
-uv run --locked --extra cpu sparselab generate RETURNED_RUN_ID --runs-dir "$WORK/controller" \
+sparselab eval RETURNED_RUN_ID --runs-dir "$WORK/controller"
+sparselab report --kind run RETURNED_RUN_ID --runs-dir "$WORK/controller" --json
+sparselab generate RETURNED_RUN_ID --runs-dir "$WORK/controller" \
   --prompt "A path" --max-new-tokens 8
 ```
 

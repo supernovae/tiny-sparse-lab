@@ -1,5 +1,7 @@
 # Runtime policy
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Each SparseLab experiment runs in one process on one host/device. An optional controller schedules multiple whole independent experiments on local or SSH workers; it never shares their optimizer state or gradients. A run records its selected engine, backend, precision, device index, available memory readings, framework/runtime versions, and probe result in its manifest. That record describes the machine that ran it; it is not evidence that another machine has the same capability.
 
 An **engine** is the framework executing the model: PyTorch or MLX. A **backend**
@@ -58,7 +60,9 @@ The base installation has no Torch dependency. The lightweight
 `sparselab runtime env` command family is available without Torch; the rest of the CLI
 currently imports a backend framework and needs an appropriate provisioned
 environment. For CPU development, use `uv sync --locked --extra cpu --dev`
-and keep `--extra cpu` on `uv run --locked` commands. Do not sync the CPU extra
+then activate `.venv` (`. .venv/bin/activate`) and invoke `sparselab` directly.
+The extra installs dependencies; it does not select the execution backend.
+Do not sync the CPU extra
 into an accelerator environment.
 
 ## Choose an execution target
@@ -88,8 +92,7 @@ Engram memory, MLA, sliding-window attention, mixed precision, activation
 offload, and Adafactor remain explicitly unsupported on this engine.
 
 On Apple arm64, MLX is opt-in: use `uv sync --locked --dev --extra cpu --extra mlx`
-and retain both extras with `uv run --locked --extra cpu --extra mlx ...` for the
-full CLI and native MLX tests. Its eager imports currently need PyTorch even
+then activate that environment for the full CLI and native MLX tests. Its eager imports currently need PyTorch even
 when the selected execution engine is MLX. MLX itself remains a separate engine;
 the CPU extra is not a fallback for a requested Metal backend. See the
 [native macOS delivery guide](macos-mlx.md) for installation and dependency reuse.
@@ -102,14 +105,14 @@ It distinguishes four things: passive **hardware observations**, installed
 An RX 7900 XTX observed by `rocminfo` does not make a CPU Torch interpreter ROCm-ready.
 
 ```sh
-uv run --locked --extra cpu sparselab runtime env discover --json
-uv run --locked --extra cpu sparselab runtime env register cpu-py314 \
+sparselab runtime env discover --json
+sparselab runtime env register cpu-py314 \
   --python "$PWD/.venv/bin/python" --backend cpu --json
-uv run --locked --extra cpu sparselab runtime env list --json
-uv run --locked --extra cpu sparselab runtime env show cpu-py314 --json
-uv run --locked --extra cpu sparselab runtime env doctor cpu-py314 --json
-uv run --locked --extra cpu sparselab runtime env profile cpu-py314
-uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml \
+sparselab runtime env list --json
+sparselab runtime env show cpu-py314 --json
+sparselab runtime env doctor cpu-py314 --json
+sparselab runtime env profile cpu-py314
+sparselab stage configs/runtime_smoke_cpu.yaml \
   --through inspect --runtime cpu-py314 --output /absolute/disposable/stage
 ```
 
@@ -185,11 +188,11 @@ SparseLab does not install drivers or certify vendor support.
 ```sh
 # Only on a supported host with the existing driver stack:
 export SPARSELAB_RUNTIME_DIR="$HOME/.local/share/sparselab/runtimes"
-uv run --locked --extra cpu sparselab runtime env provision rocm-7900xtx \
+sparselab runtime env provision rocm-7900xtx \
   --recipe rocm-gfx1100-v1 --json
-uv run --locked --extra cpu sparselab runtime env doctor rocm-7900xtx --json
+sparselab runtime env doctor rocm-7900xtx --json
 # The accelerator command re-execs into the registered interpreter:
-uv run --locked --extra cpu sparselab stage /absolute/rocm-run.yaml \
+sparselab stage /absolute/rocm-run.yaml \
   --through warmup --runtime rocm-7900xtx --output /absolute/disposable/rocm-stage
 ```
 
@@ -424,9 +427,9 @@ MPS and MLX use unified memory. Their device recommendation/driver allocation an
 `inspect` builds a shape-only parameter inventory and a conservative memory estimate; it does not construct the model or load tokenizer/data/package assets. The estimate uses disjoint categories—resident weights, registered runtime buffers, gradients, optimizer state, retained activations, attention working tensors, workspace, and headroom. It is a planning model, not a measured peak. Missing capacity information produces `UNKNOWN`; an artificial `budget_bytes` can demonstrate an exceedance but cannot prove physical fit.
 
 ```sh
-uv run --locked --extra cpu sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
-uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
+sparselab inspect configs/runtime_smoke_cpu.yaml --json
+sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
+sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
 ```
 
 A stage bundle is an immutable, verified copy of the effective inputs. `inspect` records only preflight inspection; `validate` additionally validates backend and artifacts; `smoke` and `warmup` run short, disposable subprocess pilots. Pilots do not advance the eventual training run's optimizer, schedule, cursor, counters, or RNG. A stage output must be new, or an identical complete bundle is re-verified and reused. If estimation or a pilot exceeds its safe ceiling, staging writes a proposal and stops; it does not rewrite the requested config.
@@ -526,10 +529,10 @@ observation of actual phase costs. Missing evidence is `null`/unavailable, not
 zero.
 
 ```sh
-uv run --locked --extra cpu sparselab inspect CONFIG --estimate-runtime --json
-uv run --locked --extra cpu sparselab stage CONFIG --through warmup --output sparselab-work/stages/forecast
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/forecast
-uv run --locked --extra cpu sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
+sparselab inspect CONFIG --estimate-runtime --json
+sparselab stage CONFIG --through warmup --output sparselab-work/stages/forecast
+sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/forecast
+sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
 ```
 
 `inspect --estimate-runtime` is read-only. Planning uses up to the 25 most
@@ -751,7 +754,7 @@ assertion or model-quality result.
 Use the native bounded replacement for new operational measurements:
 
 ```sh
-uv run --locked --extra cpu sparselab data benchmark-preparation declaration.yaml --json
+sparselab data benchmark-preparation declaration.yaml --json
 ```
 
 The strict `sparselab-preparation-benchmark-v1` declaration names an **absent**
@@ -864,13 +867,13 @@ CONFIG=configs/runtime_smoke_cpu.yaml
 RUNTIME=cpu-py314
 RUN_ID="runtime-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
 STAGE_DIR="$WORK/staging/$RUN_ID"
-# --no-sync preserves the already provisioned worker framework.
-uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run --locked --no-sync sparselab inspect "$CONFIG" --json
-uv run --locked --no-sync sparselab stage "$CONFIG" --runtime "$RUNTIME" --through warmup --output "$STAGE_DIR"
-uv run --locked --no-sync sparselab train --runs-dir "$WORK/runs" "$CONFIG" --runtime "$RUNTIME" \
+# Direct invocation preserves the already provisioned framework.
+sparselab tokenizer train configs/tokenizer_smoke.yaml
+sparselab inspect "$CONFIG" --json
+sparselab stage "$CONFIG" --runtime "$RUNTIME" --through warmup --output "$STAGE_DIR"
+sparselab train --runs-dir "$WORK/runs" "$CONFIG" --runtime "$RUNTIME" \
   --stage-bundle "$STAGE_DIR" --run-id "$RUN_ID"
-uv run --locked --no-sync sparselab eval "$RUN_ID" --runs-dir "$WORK/runs" --runtime "$RUNTIME"
+sparselab eval "$RUN_ID" --runs-dir "$WORK/runs" --runtime "$RUNTIME"
 ```
 
 The stage, training manifest, and evaluation must record the requested backend;

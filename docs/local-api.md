@@ -1,5 +1,7 @@
 # A local API for verified checkpoints
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 `sparselab serve` loads one pinned SparseLab checkpoint and exposes a small,
 nonstreaming OpenAI-compatible API. It uses the same checkpoint, tokenizer,
 prepared-asset and runtime validation as CLI inference. Start with
@@ -20,14 +22,14 @@ cache from `data prepare`, or a `stage --prepared-inputs` bundle by itself.
 With `RUNS`, `RUN_ID` and `CHECKPOINT` set to a real verified run:
 
 ```sh
-uv run --locked --extra cpu sparselab serve "$RUN_ID" \
+sparselab serve "$RUN_ID" \
   --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
   --host 127.0.0.1 --port 8000 --model-id local-model \
   --max-new-tokens 256 --max-request-bytes 65536 \
   --request-timeout 60 --max-clients 8
 ```
 
-For a provisioned accelerator use `uv run --locked --no-sync` and the authorized
+For a provisioned accelerator use `sparselab` with the authorized
 `--runtime ID` or `--runtime-profile PATH` as documented in
 [runtime setup](runtime.md#machine-local-runtime-environments). The server
 resolves lookup pointers once; changing `latest.json` does not hot-swap a running

@@ -1,5 +1,7 @@
 # Probe battery: fast-fail checks for native checkpoints
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 The probe battery is a small, versioned suite of cheap checks that tells you, in
 seconds to minutes, whether an idea is worth a longer run. It scores supported native PyTorch
 checkpoints, optionally against a baseline checkpoint, and ends with a machine-readable
@@ -16,19 +18,19 @@ data split, a longer run, more seeds) for any claim that an idea is better.
 
 ```sh
 # Every lab try runs the fast tier automatically (disable with --config no-probes).
-uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
+sparselab try wider-ffn.yaml --vs BASELINE.yaml
 
 # Any run or checkpoint, any tier.
-uv run --locked --extra cpu sparselab probe RUN_OR_CHECKPOINT --vs BASELINE_RUN --backend cpu --config standard
-uv run --locked --extra cpu sparselab probe RUN --vs BASE --backend cpu --json      # stable schema
-uv run --locked --extra cpu sparselab report probe-20261010T150839Z-ece5a739
+sparselab probe RUN_OR_CHECKPOINT --vs BASELINE_RUN --backend cpu --config standard
+sparselab probe RUN --vs BASE --backend cpu --json      # stable schema
+sparselab report probe-20261010T150839Z-ece5a739
 
 # Standard lm-eval tasks (optional extra).
 uv sync --locked --extra cpu --extra lmeval
-uv run --locked --extra cpu --extra lmeval sparselab probe RUN --vs BASE --backend cpu --config full
+sparselab probe RUN --vs BASE --backend cpu --config full
 
 # Place a result on the reference curve (reads records; no download, no compute).
-uv run --locked --extra cpu sparselab compare TRY_OR_PROBE_ID --references
+sparselab compare TRY_OR_PROBE_ID --references
 ```
 
 `--extra cpu` selects dependencies, not the saved checkpoint backend. These
@@ -266,7 +268,7 @@ final split exists for the one verdict that must not be selected on:
 
 ```sh
 # Once, for a candidate you have already chosen. Never to pick between candidates.
-uv run --locked --extra cpu sparselab probe CANDIDATE --vs BASELINE --backend cpu --config final
+sparselab probe CANDIDATE --vs BASELINE --backend cpu --config final
 ```
 
 `--config final` (or declaration `final: true`) scores the text probes, agreement and generations on the final split
@@ -344,8 +346,8 @@ same lm-eval adapter as our checkpoints:
 
 ```sh
 uv sync --locked --extra cpu --extra reference --extra lmeval
-uv run --locked --no-sync sparselab probe ref:SmolLM2-135M --config full
-uv run --locked --no-sync sparselab compare --list-references
+sparselab probe ref:SmolLM2-135M --config full
+sparselab compare --list-references
 ```
 
 For a machine-readable registry listing, use

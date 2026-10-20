@@ -4,11 +4,11 @@
 
 Most work is a **normal authorized experiment**: a local or owned-SSH run that
 the user asked for, on hardware they already control, inside its resource
-envelope. Use the fast path for it and do not write ceremony:
+envelope. Use the fast path in the [activated environment](README.md#first-run) and do not write ceremony:
 
 ```sh
-uv run --locked --extra cpu sparselab try DELTA.yaml --vs BASELINE.yaml
-uv run --locked --extra cpu sparselab report TRY_ID
+sparselab try DELTA.yaml --vs BASELINE.yaml
+sparselab report TRY_ID
 ```
 
 `try` derives the candidate through native `config derive`, trains both arms

@@ -1,5 +1,7 @@
 # Experiment workspaces and retained evidence
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 For command-by-command storage and interpreter choices, see
 [location and runtime selection](location-runtime-controls.md), including why
 historical lab/run readers and controller stores retain separate selectors.
@@ -67,10 +69,10 @@ a nonzero exit code on any guard violation, monitor error or command failure.
 For example:
 
 ```sh
-uv run --locked --extra cpu sparselab monitor --policy monitor.yaml --workspace /data/sparselab \
+sparselab monitor --policy monitor.yaml --workspace /data/sparselab \
   --log-dir /data/sparselab/logs/unique-launch \
   --reserve-bytes 1073741824 --reserve-inodes 100 --json -- \
-  uv run --locked --extra cpu sparselab corpus measure-tokens ...
+  sparselab corpus measure-tokens ...
 ```
 
 For a 12 GiB owned-tree RSS cap, 8 GiB host available-RAM floor, 1 GiB
@@ -151,7 +153,7 @@ stable lock identity.
 Inspect the **existing agreed triplet** without launching or provisioning anything:
 
 ```sh
-uv run --locked --no-sync sparselab runner-status --json \
+sparselab runner-status --json \
   --runner-lock "$RUNNER_LOCK" --runner-state "$RUNNER_STATE" \
   --runner-blocked "$RUNNER_BLOCKED"
 ```
@@ -184,7 +186,7 @@ does not grant an automatic retry.
 For a CPU command already authorized by the owner (use a fresh log directory):
 
 ```sh
-uv run --locked --no-sync sparselab monitor --policy /data/sparselab/monitor.yaml \
+sparselab monitor --policy /data/sparselab/monitor.yaml \
   --workspace /data/sparselab --log-dir /data/sparselab/logs/unique-launch \
   --runner-lock "$HOME/src/.lab-cpu-runner.lock" \
   --runner-state "$HOME/src/.lab-cpu-runner-state" \
@@ -246,10 +248,10 @@ experiment: explicit cache locations remain separate.
 
 ```sh
 WORK="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}/experiments/dense-lm-v1"
-uv run --locked --extra cpu sparselab workspace cleanup plan "$WORK" \
+sparselab workspace cleanup plan "$WORK" \
   --output "$WORK/local-reports/cleanup-plan.json"
 # Review the JSON paths, identities, and reclaimable bytes before applying.
-uv run --locked --extra cpu sparselab workspace cleanup apply \
+sparselab workspace cleanup apply \
   "$WORK/local-reports/cleanup-plan.json"
 ```
 
@@ -273,11 +275,11 @@ controller operation, collection, and resume:
 ```sh
 WORK="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}/experiments/dense-lm-v1"
 mkdir -p "$WORK"
-uv run --locked --extra cpu sparselab study submit configs/references/dense-lm-v1/study.yaml \
+sparselab study submit configs/references/dense-lm-v1/study.yaml \
   --store "$WORK/runs" --receipt "$WORK/receipt.json"
-uv run --locked --extra cpu sparselab controller run --store "$WORK/runs"
+sparselab controller run --store "$WORK/runs"
 # After completion and verified ingestion:
-uv run --locked --extra cpu sparselab study collect configs/references/dense-lm-v1/study.yaml \
+sparselab study collect configs/references/dense-lm-v1/study.yaml \
   "$WORK/receipt.json" --runs-dir "$WORK/runs"
 ```
 

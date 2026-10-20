@@ -1,13 +1,15 @@
 # Experiment evidence
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 SparseLab is intended to make a small experiment inspectable, not to convert a successful demo into a broad capability claim. The lightweight evidence path connects three local facts: an immutable run configuration and artifacts, a verified checkpoint, and a held-out validation observation recorded against that checkpoint.
 
 ## Surface workflow
 
 ```sh
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_cpu.yaml --run-id evidence-smoke --stop-after-step 4
-uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/evidence-smoke/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab report --kind run evidence-smoke --json --runs-dir sparselab-work/runs
+sparselab train --runs-dir sparselab-work/runs configs/smoke_cpu.yaml --run-id evidence-smoke --stop-after-step 4
+sparselab checkpoint verify sparselab-work/runs/evidence-smoke/checkpoints/latest.json --json
+sparselab report --kind run evidence-smoke --json --runs-dir sparselab-work/runs
 ```
 
 Both engines evaluate at step 0, every `evaluation.every_steps`, and the terminal boundary. Each evaluation forces a checkpoint and writes an immutable report under `sparselab-work/runs/<id>/evaluations/`. `sparselab report --kind run` verifies the run manifest, run-owned artifacts, every checkpoint generation, and each report's digest, checkpoint binding, counters, finite loss, validation protocol, tokenizer, and evaluation-input identities.

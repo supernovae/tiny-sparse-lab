@@ -1,5 +1,7 @@
 # Lab mode: from a YAML delta to a scored comparison
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Lab mode is the default path for normal, authorized local experiments. One
 command trains a baseline and a candidate, scores both on the same held-out
 split and writes one compact record. For a complete input setup, start with
@@ -14,8 +16,8 @@ question: Does a wider FFN lower held-out loss at a fixed token budget?
 set:
   model.ffn_dim: 128
 YAML
-uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
-uv run --locked --extra cpu sparselab report TRY_ID      # reread later, no compute
+sparselab try wider-ffn.yaml --vs BASELINE.yaml
+sparselab report TRY_ID      # reread later, no compute
 ```
 
 `BASELINE.yaml` is any RunConfig whose tokenizer already exists. The candidate is

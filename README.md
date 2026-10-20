@@ -42,8 +42,29 @@ Install **Python 3.14** and [uv](https://docs.astral.sh/uv/), then:
 git clone https://github.com/supernovae/tiny-sparse-lab.git
 cd tiny-sparse-lab
 uv sync --locked --extra cpu --dev
+. .venv/bin/activate
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 ```
+
+Run the setup above in Linux, WSL2, or macOS. Activate `.venv` in each new
+terminal; after that commands start with `sparselab` directly. Activation only
+adds the installed environment to your shell's `PATH`. Without activation, use
+`.venv/bin/sparselab`, or `uv run --locked --no-sync sparselab` after setup.
+Direct invocation and `--no-sync` do not check or repair dependency drift.
+Repeat the locked sync when changing dependencies or Python, and keep active
+experiments on their pinned checkout and environment.
+
+For an already provisioned Windows environment, PowerShell activation is
+`.\.venv\Scripts\Activate.ps1` (or invoke `.\.venv\Scripts\sparselab.exe`
+directly). Native Windows execution is not qualified by the Linux/WSL tests;
+use the Linux commands inside WSL for that supported path.
+
+`--extra cpu` installs the framework dependencies; it is **not a run-on-CPU
+flag**. Execution uses the config's `runtime.backend` or a command's supported
+`--backend` option. A registered `--runtime ID` selects an existing interpreter
+and its runtime profile. Set up vendor GPU environments once using the
+[runtime guide](docs/runtime.md#machine-local-runtime-environments); do not sync
+the CPU extra into them. There is no generic `--extra gpu` or automatic fallback.
 
 Prefer containers? See the [CPU container guide](docs/containers.md) to run the CLI or
 web UI without a host Python install. On a Mac with Apple Silicon, see the
@@ -60,8 +81,8 @@ question: Does a wider FFN help at the same token budget?
 set:
   model.ffn_dim: 384
 YAML
-uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
-uv run --locked --extra cpu sparselab report TRY_ID
+sparselab try wider-ffn.yaml --vs BASELINE.yaml
+sparselab report TRY_ID
 ```
 
 Replace `BASELINE.yaml` with your baseline config and `TRY_ID` with the printed record ID.

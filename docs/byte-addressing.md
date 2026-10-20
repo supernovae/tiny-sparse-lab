@@ -1,5 +1,7 @@
 # Raw UTF-8 byte addressing
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Optional `model.memory: byte` uses one causal address per input token in `train_byte_addresses.npy` and `validation_byte_addresses.npy`. Each address hashes the raw-byte suffix ending at that token's exact ByteLevel byte boundary; the manifest records `raw-utf8-suffix-v1`, table size, n-gram size, and array hashes. Packing version `contiguous-eos-v3` introduced the corrected boundary semantics. Current `contiguous-eos-v4` caches additionally bind source/tokenizer/settings identity, a manifest digest, and each array's dtype, shape, token-stream length, and file hash. Byte-address arrays must align with the corresponding token arrays. Older cache directories remain untouched.
 
 No Unicode normalization, case folding, whitespace normalization, or escaping occurs. Equal raw byte spans yield equal pre-reduction hashes regardless of text segmentation; visually similar strings with distinct UTF-8 bytes do not. EOS receives address zero because it is a structural model token, not source text.
@@ -22,8 +24,8 @@ old degenerate addressing need a fresh baseline before comparison; see
 The `byte-engram` smoke lesson was scaffolded and run with offline data. After explicitly training its tokenizer, preparing data, and probing an initialized model, `café` mapped to `[189, 119, 246, 37, 94]` in the 263-entry table: five distinct nonzero slots. The prepared training and validation caches also used table size 263; their address arrays contained 111 and 104 distinct slots, with 26,779 and 799 nonzero positions, respectively. Training completed two optimizer steps with `--stop-after-step 2`. This verifies address diversity, cache preparation, and an actual update—not retrieval quality.
 
 ```sh
-uv run --locked --extra cpu sparselab data prepare configs/smoke_byte_memory_cpu.yaml
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_byte_memory_cpu.yaml --run-id byte-memory
-uv run --locked --extra cpu sparselab eval byte-memory --runs-dir sparselab-work/runs
-uv run --locked --extra cpu sparselab generate byte-memory --prompt "Once upon a time" --max-new-tokens 24 --runs-dir sparselab-work/runs
+sparselab data prepare configs/smoke_byte_memory_cpu.yaml
+sparselab train --runs-dir sparselab-work/runs configs/smoke_byte_memory_cpu.yaml --run-id byte-memory
+sparselab eval byte-memory --runs-dir sparselab-work/runs
+sparselab generate byte-memory --prompt "Once upon a time" --max-new-tokens 24 --runs-dir sparselab-work/runs
 ```

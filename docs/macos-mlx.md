@@ -1,5 +1,7 @@
 # Native MLX on Apple Silicon
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Run Lab directly on an Apple Silicon Mac with macOS 14 or newer, an installed
 stable CPython 3.14 interpreter, and uv. Use an arm64 terminal and interpreter,
 not an x86_64 Rosetta environment. Linux containers on a Mac do not expose Metal;
@@ -25,9 +27,10 @@ cd tiny-sparse-lab
 export UV_PYTHON_DOWNLOADS=never
 uv sync --locked --python python3.14 --no-dev --extra cpu --extra mlx \
   --no-build-package mlx --no-build-package mlx-metal --no-build-package torch
+. .venv/bin/activate
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
-uv run --locked --no-sync sparselab --help
-uv run --locked --no-sync sparselab runtime env discover --json
+sparselab --help
+sparselab runtime env discover --json
 ```
 
 The wheel-only restrictions on the three framework packages fail if a compatible
@@ -43,8 +46,8 @@ rebuild or redownload MLX, Metal, or Torch. Keep `.venv` and uv's download cache
 on the Mac. If `pyproject.toml`, `uv.lock`, Python, architecture, or macOS changes,
 sync again and inspect the resulting runtime before executing work. Do not copy
 a virtual environment between Macs or publish it as an OS-independent image.
-`--no-sync` is appropriate only after synchronizing the selected revision; it
-intentionally does not check or repair dependency drift.
+Direct commands use the activated environment without checking or repairing
+dependency drift; synchronize the selected revision explicitly first.
 
 ## Use the existing Lab commands
 
@@ -58,8 +61,9 @@ remain errors; packaging does not add capabilities.
 Open the native viewer in a separate terminal using the same work root:
 
 ```sh
+. .venv/bin/activate
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
-uv run --locked --no-sync sparselab dashboard
+sparselab dashboard
 ```
 
 The viewer binds to localhost and reads the local work store. Each Mac keeps its

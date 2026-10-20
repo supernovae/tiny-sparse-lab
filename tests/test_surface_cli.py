@@ -214,3 +214,22 @@ def test_preliminary_parser_handles_other_global_option_value(
         cli.main()
     assert built == [Path("parent")]
     assert list(work_roots.iterdir()) == []
+
+
+@pytest.mark.parametrize("address", [None, "0.0.0.0"])
+def test_dashboard_execs_server_with_explicit_address(work_roots, monkeypatch, address):
+    argv = ["dashboard", "--port", "8509", "--lab-dir", str(work_roots / "lab")]
+    if address:
+        argv += ["--address", address]
+    args = cli.build_parser().parse_args(argv)
+    launched = []
+    monkeypatch.setattr(
+        cli.os, "execv", lambda exe, command: launched.append((exe, command))
+    )
+    cli._dashboard(args)
+    executable, command = launched[0]
+    assert executable == sys.executable == command[0]
+    assert command[1:4] == ["-m", "streamlit", "run"]
+    assert command[command.index("--server.address") + 1] == (address or "127.0.0.1")
+    assert command[command.index("--server.port") + 1] == "8509"
+    assert command[command.index("--lab-dir") + 1] == str(work_roots / "lab")

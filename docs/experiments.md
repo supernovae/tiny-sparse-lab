@@ -1,5 +1,7 @@
 # Independent experiments and controlled comparisons
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 This guide explains the execution machinery. Neutral teaching walkthroughs are
 indexed under [`experiments/samples/`](../experiments/samples/). Keep your current
 research declarations in a user-owned recipe directory; the local
@@ -19,14 +21,14 @@ checkpoint phases.
 Run each concrete configuration with its declared tokenizer, data source, engine/backend, precision, optimizer, sequence length, effective batch, token budget, and seed. Inspect first; do not infer parameter counts or scientific equivalence from a filename.
 
 ```sh
-uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/dense_7m.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/dense_10m.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/dense_25m.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/dense_50m.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/smoke_sliding_cpu.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/smoke_mla_cpu.yaml --json
-uv run --locked --extra cpu sparselab inspect configs/smoke_combined_cpu.yaml --json
+sparselab inspect configs/micro_dense.yaml --json
+sparselab inspect configs/dense_7m.yaml --json
+sparselab inspect configs/dense_10m.yaml --json
+sparselab inspect configs/dense_25m.yaml --json
+sparselab inspect configs/dense_50m.yaml --json
+sparselab inspect configs/smoke_sliding_cpu.yaml --json
+sparselab inspect configs/smoke_mla_cpu.yaml --json
+sparselab inspect configs/smoke_combined_cpu.yaml --json
 ```
 
 
@@ -85,10 +87,10 @@ resources. The [disposition map](sample-disposition.json) identifies the fixture
 and its unchanged historical preservation.
 
 ```sh
-uv run --locked --extra cpu sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked --extra cpu sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked --extra cpu sparselab experiment diff experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked --extra cpu sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
+sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
+sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
+sparselab experiment diff experiments/samples/corpus-shape-fraction.yaml --json
+sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
 ```
 
 `lock` re-verifies artifact digests and hardware-free runtime requirements,
@@ -143,7 +145,7 @@ The checked-in matrix expands the CPU runtime smoke configuration over seeds 7, 
 ```sh
 WORK=sparselab-work/experiments/runtime-matrix
 export SPARSELAB_WORK_DIR="$WORK"
-uv run --locked --extra cpu sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
+sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
   --dry-run --store "$WORK/runs"
 ```
 
@@ -156,8 +158,8 @@ Matrix v1 uses an explicit base config and insertion-ordered axes with labeled d
 An architecture study is an optional campaign wrapper over the existing explicit matrix format. It does not add a closed architecture registry or change `RunConfig`: every matrix coordinate still resolves to a normal concrete config, with the same dotted-path validation as `experiment submit --matrix`. Use [lab mode](lab-mode.md) for a single delta; direct training remains available for explicit run control:
 
 ```sh
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/my_architecture.yaml
-uv run --locked --extra cpu sparselab inspect configs/my_architecture.yaml --json
+sparselab train --runs-dir sparselab-work/runs configs/my_architecture.yaml
+sparselab inspect configs/my_architecture.yaml --json
 ```
 
 If an architecture needs model-code or config-schema changes, make those normally and continue to train its concrete config directly. The campaign layer does not make arbitrary Python model code auto-configurable; it does not restrict existing direct builds to named presets.
@@ -200,7 +202,7 @@ The smoke config demonstrates wiring, not model quality; use a task-appropriate 
 Plan before allocating workers:
 
 ```sh
-uv run --locked --extra cpu sparselab study plan experiments/ffn-study.yaml
+sparselab study plan experiments/ffn-study.yaml
 ```
 
 The plan expands every config, hashes the inputs, reports parameter inventory and estimated weight/optimizer/checkpoint bytes, and requires each declared comparison to match one-to-one over all unselected axes. It rejects undeclared config changes before submission. For multi-seed ablations, add a `seed` matrix axis and leave it out of both selectors; the same seed then pairs baseline and variant. Seeds cannot be the varied field. `vary_fields` must list exactly the changed dotted config fields. The built-in `memory`, `attention`, `ffn`, and `scale` modes enforce their corresponding model field families.
@@ -211,17 +213,17 @@ Submit the immutable run inventory to the existing independent-worker controller
 WORK=sparselab-work/experiments/ffn-width-smoke
 export SPARSELAB_WORK_DIR="$WORK"
 mkdir -p "$WORK"
-uv run --locked --extra cpu sparselab worker register cpu-one --backend cpu --store "$WORK/runs"
-uv run --locked --extra cpu sparselab study submit experiments/ffn-study.yaml \
+sparselab worker register cpu-one --backend cpu --store "$WORK/runs"
+sparselab study submit experiments/ffn-study.yaml \
   --worker cpu-one --store "$WORK/runs" \
   --receipt "$WORK/receipt.json"
-uv run --locked --extra cpu sparselab controller run --store "$WORK/runs"
+sparselab controller run --store "$WORK/runs"
 ```
 
 After all coordinates finish, collect held-out validation loss/perplexity and each card against the run checkpoint:
 
 ```sh
-uv run --locked --extra cpu sparselab study collect experiments/ffn-study.yaml \
+sparselab study collect experiments/ffn-study.yaml \
   "$WORK/receipt.json" --runs-dir "$WORK/runs"
 ```
 
@@ -248,7 +250,7 @@ enqueue**, fix its preparation error and choose a fresh receipt filename in the
 **same directory**, keeping the same explicit store:
 
 ```sh
-uv run --locked --extra cpu sparselab study submit experiments/ffn-study.yaml \
+sparselab study submit experiments/ffn-study.yaml \
   --receipt /path/to/receipt-retry-1.json --store /path/to/runs
 ```
 
@@ -262,7 +264,7 @@ If publication failed after enqueue, use the original study and explicit native
 store to recover into a **distinct unused** output:
 
 ```sh
-uv run --locked --extra cpu sparselab study recover experiments/ffn-study.yaml \
+sparselab study recover experiments/ffn-study.yaml \
   --intent /path/to/receipt.json.intent.json \
   --store /path/to/runs --output /path/to/recovered-receipt.json
 ```
@@ -304,8 +306,8 @@ comparisons; their datasets, run IDs and budgets are not required by this DSL.
 Every serious local run should have verified checkpoint/held-out evidence before it enters a comparison:
 
 ```sh
-uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/RUN_ID/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab report --kind run RUN_ID --json
+sparselab checkpoint verify sparselab-work/runs/RUN_ID/checkpoints/latest.json --json
+sparselab report --kind run RUN_ID --json
 ```
 
 Training records held-out validation at initial, configured periodic, and terminal boundaries. A validation metric is not by itself a saved model: checkpoint cadence, a new best loss, or termination triggers a verified generation. Use checkpoint-bound evaluation reports when claiming results for exact weights. See [experiment evidence](evidence.md) for evidence levels, controlled-comparison requirements, and the separately unimplemented hardware/reference-harness protocol.

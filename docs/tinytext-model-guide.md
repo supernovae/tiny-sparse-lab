@@ -1,5 +1,7 @@
 # TinyText model guide: find, inspect and try a checkpoint
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Use this guide for human exploration of small text models: inspect their identity,
 try a literal continuation, compare retained checkpoints, and only then try chat.
 No notebook, Gradio installation or Open WebUI instance is required. This is the
@@ -27,17 +29,17 @@ expected at this training budget.
 uv sync --locked --extra cpu --dev
 export SPARSELAB_WORK_DIR="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}"
 SMOKE="$SPARSELAB_WORK_DIR/text-interface-smoke-1"
-uv run --locked --extra cpu sparselab readiness smoke --family dense --output "$SMOKE"
+sparselab readiness smoke --family dense --output "$SMOKE"
 RUNS="$SMOKE/runs"
 RUN_ID=readiness-dense
 CHECKPOINT=step_00000002_gen_000002
 GENERATION="$RUNS/$RUN_ID/checkpoints/$CHECKPOINT"
-uv run --locked --extra cpu sparselab checkpoint inspect "$GENERATION" --json
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
-uv run --locked --extra cpu sparselab generate "$RUN_ID" \
+sparselab checkpoint inspect "$GENERATION" --json
+sparselab checkpoint verify "$GENERATION" --json
+sparselab generate "$RUN_ID" \
   --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
   --prompt 'hello' --max-new-tokens 4 --strict-context --show-prompt --json
-uv run --locked --extra cpu sparselab chat "$RUN_ID" \
+sparselab chat "$RUN_ID" \
   --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
   --message 'Hi' --max-new-tokens 4 --show-prompt --json
 ```
@@ -48,7 +50,7 @@ sufficient context. You can now use these variables in the [local API guide](loc
 or compare its initial and step-2 generations:
 
 ```sh
-uv run --locked --extra cpu sparselab surface chat \
+sparselab surface chat \
   --cell initial="$RUNS/$RUN_ID/checkpoints/step_00000000_gen_000001" \
   --cell step2="$GENERATION" --backend cpu --seed 42 --port 8502
 ```
@@ -85,8 +87,8 @@ RUNS=/absolute/path/to/runs
 RUN_ID=your-run-id
 CHECKPOINT=step_00000020_gen_000001
 GENERATION="$RUNS/$RUN_ID/checkpoints/$CHECKPOINT"
-uv run --locked --extra cpu sparselab checkpoint inspect "$GENERATION" --json
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
+sparselab checkpoint inspect "$GENERATION" --json
+sparselab checkpoint verify "$GENERATION" --json
 ```
 
 `inspect` reports inventory and lineage; `verify` checks integrity and exits
@@ -117,7 +119,7 @@ run in place. To import an existing legacy snapshot, use its authenticated
 manifest and a fresh output directory:
 
 ```sh
-uv run --locked --extra cpu sparselab data migrate /path/to/legacy/snapshot/manifest.json \
+sparselab data migrate /path/to/legacy/snapshot/manifest.json \
   --kind snapshot --output "$SPARSELAB_WORK_DIR/imported-snapshot-1" --json
 ```
 
@@ -149,7 +151,7 @@ training data; asking a code base model to act as an assistant tests a different
 behavior. This example sends the literal prompt without role labels:
 
 ```sh
-uv run --locked --extra cpu sparselab generate "$RUN_ID" \
+sparselab generate "$RUN_ID" \
   --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
   --prompt 'def add(a, b):' --max-new-tokens 32 \
   --temperature 0 --top-k 0 --seed 42 --strict-context --show-prompt --json
@@ -168,14 +170,14 @@ budget instead of silently using the legacy sliding-context behavior.
 ## Inspect the chat serialization
 
 ```sh
-uv run --locked --extra cpu sparselab chat "$RUN_ID" \
+sparselab chat "$RUN_ID" \
   --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
   --message 'Write a function that adds two numbers.' \
   --system 'Answer briefly.' --max-new-tokens 32 \
   --temperature 0 --top-k 0 --seed 42 --show-prompt --json
 
 # Omit --message for a terminal conversation; choose a fresh transcript path.
-uv run --locked --extra cpu sparselab chat "$RUN_ID" \
+sparselab chat "$RUN_ID" \
   --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
   --max-new-tokens 32 --show-prompt \
   --transcript "$SPARSELAB_WORK_DIR/chat-debug-session-1.json"
@@ -212,7 +214,7 @@ There is no parameter-count threshold that turns a base model into an assistant.
 ```sh
 # Replace SECOND_GENERATION with another real immutable generation path.
 SECOND_GENERATION=/absolute/path/to/another-run/checkpoints/step_00000040_gen_000002
-uv run --locked --extra cpu sparselab surface chat \
+sparselab surface chat \
   --cell early="$GENERATION" --cell later="$SECOND_GENERATION" \
   --backend cpu --seed 42 --port 8502
 ```

@@ -12,7 +12,16 @@ def smoke(engine, image, output, revision):
     output.mkdir(parents=True, exist_ok=False)
     names = [
         "sparselab-smoke-" + uuid.uuid4().hex[:10] + suffix
-        for suffix in ("-cli", "-web", "-writer")
+        for suffix in (
+            "-cli",
+            "-web",
+            "-writer",
+            "-help",
+            "-bare",
+            "-invalid",
+            "-compare",
+            "-eval",
+        )
     ]
     volumes = [names[0] + "-data", names[1] + "-data"]
 
@@ -47,13 +56,19 @@ def smoke(engine, image, output, revision):
             volumes[1 if index == 1 else 0] + ":/state",
         ]
         if index == 1:
-            args += ["-v", volumes[0] + ":/observe:ro"]
-        else:
-            args += ["--no-healthcheck"]
+            args += [
+                "-v",
+                volumes[0] + ":/observe:ro",
+                "--health-cmd",
+                "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health',timeout=2).read()\"",
+                "--health-interval=1s",
+                "--health-timeout=3s",
+                "--health-start-period=5s",
+            ]
         call(*args, image, *command)
 
-    def wait(index):
-        assert call("wait", names[index]).stdout.strip() == "0", call(
+    def wait(index, expected="0"):
+        assert call("wait", names[index]).stdout.strip() == expected, call(
             "logs", names[index], check=False
         ).stdout
 
@@ -79,7 +94,39 @@ print(json.dumps({'module':sparselab.__file__,'torch':torch.__version__,'uid':os
             ],
         )
         wait(0)
-        start(1)
+        for index, command, expected in (
+            (3, (), "0"),
+            (4, ["report", "--help"], "0"),
+            (5, ["not-a-lab-command"], "2"),
+            (6, ["compare", "--help"], "0"),
+            (7, ["eval", "--help"], "0"),
+        ):
+            start(index, command)
+            wait(index, expected)
+            if index in (6, 7):
+                # ImageMagick compare and the shell eval builtin must not win.
+                assert (
+                    f"usage: sparselab {command[0]}"
+                    in call("logs", names[index]).stdout
+                )
+            state = json.loads(call("inspect", names[index]).stdout)[0]["State"]
+            assert not state.get("Health"), state
+        start(
+            1,
+            [
+                "dashboard",
+                "--address",
+                "0.0.0.0",
+                "--runs-dir",
+                "/observe/work/runs",
+                "--lab-dir",
+                "/observe/work/lab",
+                "--reports-dir",
+                "/observe/work/reports",
+                "--evidence-root",
+                "/observe/evidence",
+            ],
+        )
         for _ in range(60):
             response = call(
                 "exec",
@@ -90,7 +137,11 @@ print(json.dumps({'module':sparselab.__file__,'torch':torch.__version__,'uid':os
                 check=False,
                 timeout=5,
             )
-            if response.returncode == 0:
+            state = json.loads(call("inspect", names[1]).stdout)[0]["State"]
+            if (
+                response.returncode == 0
+                and state.get("Health", {}).get("Status") == "healthy"
+            ):
                 break
             time.sleep(0.5)
         else:

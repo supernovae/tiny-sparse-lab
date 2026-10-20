@@ -1,5 +1,7 @@
 # Intel Arc acceleration
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 SparseLab uses upstream PyTorch's `torch.xpu` backend for Intel GPUs. The
 `xpu-arc-v1` recipe provisions an isolated Linux x86_64 / Python 3.14 environment
 with `torch==2.14.1+xpu` and the Intel runtime pins in
@@ -35,7 +37,7 @@ Check the host before downloading framework packages:
 lspci -Dnnk
 ls -l /dev/dri
 id
-uv run --locked --extra cpu sparselab runtime env discover --json
+sparselab runtime env discover --json
 ```
 
 An Intel PCI display device is only a passive observation. Executing on native
@@ -59,11 +61,11 @@ own recipes and runtime IDs.
 ```sh
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 export SPARSELAB_RUNTIME_DIR="$HOME/.local/share/sparselab/runtimes"
-uv run --locked --extra cpu sparselab runtime env provision intel-arc \
+sparselab runtime env provision intel-arc \
   --recipe xpu-arc-v1 --json
-uv run --locked --extra cpu sparselab runtime env doctor intel-arc \
+sparselab runtime env doctor intel-arc \
   --precision fp32 --json
-uv run --locked --extra cpu sparselab runtime env show intel-arc --json
+sparselab runtime env show intel-arc --json
 ```
 
 Provision uses an existing Python 3.14 executable; supply
@@ -77,7 +79,7 @@ for receipts, roots and source repair.
 To use an already provisioned XPU interpreter instead:
 
 ```sh
-uv run --locked --extra cpu sparselab runtime env register intel-existing \
+sparselab runtime env register intel-existing \
   --python /absolute/xpu-env/bin/python --backend xpu \
   --device-index 0 --device-name-regex '(?i)Intel.*Arc.*\b(?:A\d{3}|B\d{2,3})\b' --json
 ```
@@ -85,7 +87,7 @@ uv run --locked --extra cpu sparselab runtime env register intel-existing \
 Use FP32 first on the A380. BF16 is optional and needs its own check:
 
 ```sh
-uv run --locked --extra cpu sparselab runtime env doctor intel-arc \
+sparselab runtime env doctor intel-arc \
   --precision bf16 --json
 ```
 
@@ -112,17 +114,17 @@ runtime:
 Use the registered interpreter for the baseline and candidate:
 
 ```sh
-uv run --locked --extra cpu sparselab try DELTA.yaml \
+sparselab try DELTA.yaml \
   --vs /absolute/intel-baseline.yaml --runtime intel-arc
-uv run --locked --extra cpu sparselab report TRY_ID
-uv run --locked --extra cpu sparselab probe TRY_ID \
+sparselab report TRY_ID
+sparselab probe TRY_ID \
   --backend xpu --runtime intel-arc --config standard --json
 ```
 
 The CPU environment here launches the native handoff into `intel-arc`; its CPU
-extra does not install into the selected vendor environment. When invoking that
-vendor interpreter directly, use its `bin/sparselab`, or the already provisioned
-`uv run --locked --no-sync` workflow. Never synchronize `--extra cpu` into it.
+setup does not install into the selected vendor environment. When invoking that
+vendor interpreter directly, use its `bin/sparselab`, or activate that environment
+and run `sparselab`. Never synchronize `--extra cpu` into it.
 Explicit `xpu` requests fail if unavailable. CPU evaluation of a saved XPU run
 remains explicit via `--backend cpu` and a CPU runtime.
 

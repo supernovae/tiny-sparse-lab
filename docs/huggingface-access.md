@@ -1,6 +1,8 @@
 # Hugging Face access
 
-SparseLab uses Hugging Face Hub for Corpus Forge `huggingface_dataset` acquisition, explicit `https://huggingface.co/...` HTTP documents, remote TinyStories/FineWeb-Edu/Cosmopedia streams, the one-time local TinyStories snapshot, and the pinned Pythia reference-model download. Configure credentials **before** launching `uv run --locked --extra cpu sparselab ...` so these requests use your account rather than an anonymous Hub session.
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
+SparseLab uses Hugging Face Hub for Corpus Forge `huggingface_dataset` acquisition, explicit `https://huggingface.co/...` HTTP documents, remote TinyStories/FineWeb-Edu/Cosmopedia streams, the one-time local TinyStories snapshot, and the pinned Pythia reference-model download. Configure credentials **before** launching `sparselab ...` so these requests use your account rather than an anonymous Hub session.
 
 ## Set up a token
 
@@ -18,7 +20,7 @@ time, so setting one inside an already running Python session is too late. For
 one explicit CLI invocation, supply a token **file path**, not the token itself:
 
 ```sh
-uv run --locked --extra cpu sparselab --hf-token-file "$HOME/.config/sparselab/hf-token" \
+sparselab --hf-token-file "$HOME/.config/sparselab/hf-token" \
   corpus acquire corpora/my-corpus/corpus.yaml
 ```
 
