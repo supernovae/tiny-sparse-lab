@@ -46,6 +46,8 @@ def test_disk_rows_preserve_json_semantics_and_close(tmp_path):
         b'{"records":[{},]}',
         b'{"x":1,"x":2}',
         b'{"x":NaN}',
+        b'{"a":1:"b":2}',
+        b"[1:2]",
         b'{"x":1e999}',
         b'{"records":[{"x":-1e999}]}',
         b'{"records":[',
@@ -153,3 +155,30 @@ def test_nesting_and_symlink_refusal(tmp_path):
     with metadata_operation(tmp_path), pytest.raises(ValueError, match="unsafe"):
         read_metadata(link)
     assert not list(tmp_path.glob(".metadata-*"))
+
+
+def test_collection_operations_do_not_silently_read_empty_storage(tmp_path):
+    from sparselab.corpus.bounded_metadata import decision_index
+
+    with metadata_operation(tmp_path) as store:
+        rows = store.new_rows()
+        store.append(rows, {"a": 1})
+        assert list(reversed(rows)) == [{"a": 1}]
+        assert rows.count({"a": 1}) == 1 and rows.index({"a": 1}) == 0
+        for operation in (rows.copy, lambda: rows + [], lambda: [] + rows):
+            with pytest.raises(TypeError, match="materialization"):
+                operation()
+        decisions = decision_index()
+        decisions[0] = {"a": 1}
+        assert decisions != {} and {} != decisions
+        assert decisions == {0: {"a": 1}}
+        with pytest.raises(TypeError, match="materialization"):
+            decisions.copy()
+
+
+def test_escaped_terminal_backslash(tmp_path):
+    path = tmp_path / "escape.json"
+    value = {"records": [{"text": "a" + chr(92)}]}
+    path.write_bytes(canonical_json(value))
+    with metadata_operation(tmp_path):
+        assert read_metadata(path) == value

@@ -510,7 +510,7 @@ forward as a current review. There is no compatibility adapter.
 ### Bounded admission metadata and split inventory
 
 `corpus admission-draft`, admission inspection/reverification, and split inventory
-use disposable SQLite storage for the JSON `records` and `selected_rows` arrays
+use disposable SQLite storage for the JSON `records`, `selected_rows` and `files` arrays
 and row-index lookups during their operation. Original JSON files remain the
 source of truth: native acquisition/admission checks still authenticate them,
 and canonical draft bytes and document identities are preserved. No new artifact
@@ -532,7 +532,7 @@ existing 128 MiB output limit, fsyncs it, then publishes without replacing an
 existing destination. A failure removes only its own temporary file. HF JSONL
 split inventory streams one acquired row at a time, verifies every receipt even
 beyond parser selection limits, and preserves the whole-shard digest and nonblank
-row ordinal used by the document parser. Other split-inventory file formats now
+row ordinal used by the document parser. Other split-inventory file formats, including current `wikimedia_dump` JSONL,
 refuse above 8 MiB instead of reading an unbounded file.
 
 This removes full HF metadata-array and source-shard loads from these phases.
@@ -541,3 +541,14 @@ or cold release-to-bundle path bounded at production scale. Inspection still
 uses compact numeric median metadata and bounded sample pools. Validate the
 connected tiny fixture path and then measured resource fit before preparing a
 large retained corpus; a fixture pass does not establish production readiness.
+
+
+Disk-backed collections are private to these operations. Use their explicit
+iteration/index interfaces; copying or concatenating them refuses instead of
+silently returning empty builtin storage. Do not pass the internal list/dict
+subclasses directly to Pydantic or other C-level container consumers: those can
+inspect their empty builtin backing. A future public schema boundary must use a
+non-subclass representation or deliberate bounded conversion first. No such
+consumer is used by the current admission/split entry points. Repeated metadata
+reads currently create new collections charged to the same 1 GiB cap; neither a
+cache nor a throughput improvement is claimed here.

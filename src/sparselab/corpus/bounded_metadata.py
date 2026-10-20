@@ -16,6 +16,8 @@ from pathlib import Path
 
 from sparselab.training.manifest import canonical_json
 
+_MAX_INPUT_BYTES = 256 * 1024**2
+
 
 class DiskRows(list):
     """Read-only list interface for ordered JSON rows, valid inside its store."""
@@ -62,6 +64,27 @@ class DiskRows(list):
 
     def __contains__(self, value):
         return any(row == value for row in self)
+
+    def __reversed__(self):
+        for index in range(len(self) - 1, -1, -1):
+            yield self[index]
+
+    def count(self, value):
+        return sum(row == value for row in self)
+
+    def index(self, value, start=0, stop=None):
+        start, stop, _ = slice(start, stop).indices(len(self))
+        for index in range(start, stop):
+            if self[index] == value:
+                return index
+        raise ValueError("value is not in disk-backed rows")
+
+    def _materialization(self, *args, **kwargs):
+        raise TypeError(
+            "explicitly iterate disk-backed rows; materialization is unsupported"
+        )
+
+    copy = __add__ = __radd__ = __mul__ = __rmul__ = _materialization
 
     def _readonly(self, *args, **kwargs):
         raise TypeError("disk-backed rows are read-only; use the owning store")
@@ -242,7 +265,7 @@ class _Reader:
                 result[key] = self.value(
                     depth + 1,
                     spill=self.row_bytes is None
-                    and key in {"records", "selected_rows"},
+                    and key in {"records", "selected_rows", "files"},
                 )
                 self.whitespace()
                 end = self.take()
@@ -320,7 +343,7 @@ def read_metadata(path: Path):
     store = _ACTIVE_STORE.get()
     if store is None:
         return json.loads(path.read_text(encoding="utf-8"))
-    return store.load(path, max_input_bytes=256 * 1024**2)
+    return store.load(path, max_input_bytes=_MAX_INPUT_BYTES)
 
 
 class DiskDecisions(dict):
@@ -393,6 +416,21 @@ class DiskDecisions(dict):
                 raise ValueError("metadata database byte cap exceeded") from error
             raise
         self.rows._length += 1
+
+    def __eq__(self, other):
+        from collections.abc import Mapping
+
+        if not isinstance(other, Mapping) or len(self) != len(other):
+            return False
+        return all(key in other and value == other[key] for key, value in self.items())
+
+    def __ne__(self, other):
+        return not self == other
+
+    def copy(self):
+        raise TypeError(
+            "explicitly iterate disk-backed decisions; materialization is unsupported"
+        )
 
     def keys(self):
         return iter(self)
