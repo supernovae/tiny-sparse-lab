@@ -1484,7 +1484,55 @@ def _staged_build(root: Path, build_id: str) -> Iterator[Path]:
             raise
 
 
+def _uses_disk_lm_builder(project: Any, transforms: list[Any]) -> bool:
+    return (
+        project.release.schema_version in (2, 3)
+        and len(transforms) == 1
+        and transforms[0].kind == "lm_text"
+        and project.release.lm.selected
+        and not project.release.chat.selected
+        and all(
+            source.schema_version == project.release.schema_version
+            for source in project.sources
+        )
+        and (
+            project.release.schema_version == 3
+            or (
+                project.release.record_admission is not None
+                and project.release.fraction is None
+                and all(
+                    source.kind in {"huggingface_dataset", "git"}
+                    for source in project.sources
+                )
+            )
+        )
+    )
+
+
 def build(
+    project: Any,
+    work_root: Path,
+    offline: bool = False,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> Path:
+    """Keep bounded metadata alive through native admission and build consumers."""
+    from sparselab.corpus.bounded_metadata import metadata_operation
+
+    with metadata_operation(
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+    ):
+        return _build_stored(
+            project,
+            work_root,
+            offline,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+
+
+def _build_stored(
     project: Any,
     work_root: Path,
     offline: bool = False,
@@ -1499,16 +1547,17 @@ def build(
         project, work_root, proof_store=proof_store, verification_mode=verification_mode
     )
     record_admission: dict[tuple[str, str], dict[str, Any]] = {}
-    admission_bytes: bytes | None = None
+    admission_path: Path | None = None
     if project.release.record_admission is not None:
         from sparselab.corpus.project import project_path, source_declaration_payload
 
         reference = project.release.record_admission
         admission_path = project_path(project.root, reference.path)
-        admission_bytes = admission_path.read_bytes()
-        if hashlib.sha256(admission_bytes).hexdigest() != reference.sha256.lower():
+        if sha256_file(admission_path) != reference.sha256.lower():
             raise ValueError("record admission SHA-256 mismatch")
-        admission_manifest = json.loads(admission_bytes)
+        from sparselab.corpus.bounded_metadata import read_metadata
+
+        admission_manifest = read_metadata(admission_path)
         record_admission = verify_record_admission(
             admission_manifest,
             {
@@ -1516,11 +1565,7 @@ def build(
                 for source in project.sources
             },
             {
-                source_id: json.loads(
-                    (Path(row["snapshot_path"]) / "manifest.json").read_text(
-                        encoding="utf-8"
-                    )
-                )
+                source_id: read_metadata(Path(row["snapshot_path"]) / "manifest.json")
                 for source_id, row in lock["sources"].items()
             },
             Path(work_root) / "corpora" / project.config.id / "snapshots",
@@ -1562,14 +1607,7 @@ def build(
             else {}
         ),
     }
-    large_lm_build = (
-        project.release.schema_version == 3
-        and len(transforms) == 1
-        and transforms[0].kind == "lm_text"
-        and project.release.lm.selected
-        and not project.release.chat.selected
-        and all(source.schema_version == 3 for source in project.sources)
-    )
+    large_lm_build = _uses_disk_lm_builder(project, transforms)
     if large_lm_build:
         identity["large_builder_implementation_sha256"] = sha256_file(
             Path(__file__).with_name("large_build.py")
@@ -1599,10 +1637,20 @@ def build(
             progress,
             proof_store=proof_store,
             verification_mode=verification_mode,
+            record_admission=record_admission,
+            admission_path=admission_path,
         )
     with _staged_build(root, build_id) as staging:
-        if admission_bytes is not None:
-            (staging / "record-admission.json").write_bytes(admission_bytes)
+        if admission_path is not None:
+            import shutil
+
+            destination = staging / "record-admission.json"
+            shutil.copyfile(admission_path, destination)
+            if (
+                sha256_file(destination)
+                != project.release.record_admission.sha256.lower()
+            ):
+                raise ValueError("record admission changed during build")
         documents: list[dict[str, Any]] = []
         evidence: list[dict[str, Any]] = []
         rejected: list[dict[str, Any]] = []

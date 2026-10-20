@@ -251,3 +251,31 @@ def test_local_source_declaration_stays_plain_at_native_entrypoints(
         assert json.loads(output.read_text())["source_id"] == "docs"
     assert loaded
     assert not list(root.rglob(".metadata-*"))
+
+
+def test_build_keeps_metadata_operation_active_through_native_snapshot_consumers(
+    tmp_path, monkeypatch
+):
+    from test_corpus_pipeline import _project
+
+    from sparselab.corpus.acquisition import acquire
+    from sparselab.corpus.pipeline import build
+    from sparselab.corpus.release import verify_build
+
+    project = _project()
+    acquire(project, tmp_path)
+    loaded = []
+    native_load = MetadataStore.load
+
+    def tracked(self, path, **limits):
+        result = native_load(self, path, **limits)
+        if path.name == "manifest.json":
+            assert isinstance(result["files"], DiskRows)
+            loaded.append(path)
+        return result
+
+    monkeypatch.setattr(MetadataStore, "load", tracked)
+    output = build(project, tmp_path, offline=True)
+    assert loaded
+    assert not list(tmp_path.rglob(".metadata-*"))
+    verify_build(output)

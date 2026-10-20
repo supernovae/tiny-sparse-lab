@@ -846,10 +846,17 @@ def _validate_rows(
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> None:
-    with metadata_operation(root.parent), ExitStack() as replay_stack:
+    from sparselab.corpus.admission_coverage import AdmissionCoverage
+
+    with (
+        metadata_operation(root.parent) as metadata,
+        AdmissionCoverage(metadata.connection) as coverage,
+        ExitStack() as replay_stack,
+    ):
         _validate_rows_stored(
             root,
             replay_stack=replay_stack,
+            coverage=coverage,
             proof_store=proof_store,
             verification_mode=verification_mode,
         )
@@ -859,6 +866,7 @@ def _validate_rows_stored(
     root: Path,
     *,
     replay_stack: ExitStack,
+    coverage,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> None:
@@ -938,7 +946,6 @@ def _validate_rows_stored(
     raw_sha = ""
     offsets: list[int] = []
     sample_rows = None
-    observed_admission: set[tuple[str, str, int]] = set()
     for doc in sorted(
         documents,
         key=lambda item: (
@@ -994,10 +1001,7 @@ def _validate_rows_stored(
                     or metadata.get("source_row_sha256") != choice["source_row_sha256"]
                 ):
                     raise ValueError("document lacks qualifying record admission")
-                key = (doc["source_id"], span["raw_path"], index)
-                if key in observed_admission:
-                    raise ValueError("duplicate admitted source row")
-                observed_admission.add(key)
+                coverage.observe(doc["source_id"], span["raw_path"], index, unique=True)
         elif (
             doc["license"] != source["license"]
             or doc["redistribution"] != source["redistribution"]
@@ -1138,14 +1142,11 @@ def _validate_rows_stored(
                     expected_normalizer=expected_normalizer,
                 )
     replay_stack.close()
-    expected_admission = {
-        (source_id, path, index)
-        for (source_id, path), file in rights_files.items()
-        for index, choice in file.get("_admission_decisions", {}).items()
-        if choice["decision"] == "qualify"
-    }
-    if observed_admission != expected_admission:
-        raise ValueError("admitted source row inventory differs from documents")
+    for (source_id, path), file in rights_files.items():
+        for index, choice in file.get("_admission_decisions", {}).items():
+            if choice["decision"] == "qualify":
+                coverage.expect(source_id, path, index)
+    coverage.verify()
     lineages = _rows(root / "lineage.jsonl")
     lineage_map = {row["record_id"]: row for row in lineages}
     if len(lineage_map) != len(lineages):
