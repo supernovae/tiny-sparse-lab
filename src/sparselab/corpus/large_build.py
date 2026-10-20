@@ -10,6 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
 import sqlite3
 import tempfile
 from array import array
@@ -28,7 +30,7 @@ from sparselab.corpus.provenance import (
     validate_lineage,
     verification,
 )
-from sparselab.corpus.rights import resolve_file_rights
+from sparselab.corpus.rights import reported_spdx_expression, resolve_file_rights
 from sparselab.training.manifest import canonical_json, sha256_file
 
 if TYPE_CHECKING:
@@ -39,6 +41,7 @@ _SPLITS = ("train", "validation", "test")
 _PREPARED_FILES = ("docs.jsonl", "spans.jsonl", "rejected.jsonl")
 _PROCESS_SHARD_MIN_BYTES = 32 * 1024**2
 _PROCESS_SHARD_MAX_LINE_BYTES = 1024**2
+_ADMITTED_RECORD_MAX_BYTES = 8 * 1024**2
 
 
 def _digest(value: Any) -> str:
@@ -208,11 +211,36 @@ def _prepare_file(
     decision: Any,
     progress: BuildProgress,
     normalizer_version: str = "normalizer-nfc-markdown-v1",
+    record_admission: dict[str, Any] | None = None,
+    admission_sha256: str | None = None,
 ) -> Path:
     from sparselab.corpus.pipeline import _records_for_file
     from sparselab.engram.packs import _rename_noreplace
 
+    # Internal primitive: callers must first use verify_record_admission against
+    # the pinned original rows. The digest binds that complete reviewed artifact,
+    # not a newly inferred policy or an approval supplied by this helper.
+    if (record_admission is None) != (admission_sha256 is None):
+        raise ValueError(
+            "admitted shard requires verified decisions and manifest digest"
+        )
+    if record_admission is not None:
+        if not isinstance(admission_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", admission_sha256
+        ):
+            raise ValueError("invalid admission manifest digest")
+        if "decisions" in record_admission:
+            if source.kind != "huggingface_dataset" or not file["path"].endswith(
+                ".jsonl"
+            ):
+                raise ValueError("streamed record admission requires an HF JSONL shard")
+        elif source.kind != "git":
+            raise ValueError("file admission requires a Git source")
+        if decision != record_admission["rights"]:
+            raise ValueError("admitted shard file rights differ from verified policy")
     identity = _receipt_identity(build_id, source, snapshot_sha, file)
+    if record_admission is not None:
+        identity["admission_sha256"] = admission_sha256
     parent = prepared_root / source.id
     destination = parent / _digest(identity)
     if destination.exists():
@@ -239,7 +267,16 @@ def _prepare_file(
                     index = 0
                     from sparselab.corpus.jsonl_records import iter_lf_lines
 
-                    for _, raw in iter_lf_lines(stream):
+                    input_digest = hashlib.sha256()
+                    for _, raw in iter_lf_lines(
+                        stream,
+                        max_record_bytes=(
+                            _ADMITTED_RECORD_MAX_BYTES
+                            if record_admission is not None
+                            else None
+                        ),
+                    ):
+                        input_digest.update(raw)
                         counts["input_bytes"] += len(raw)
                         if not raw.strip():
                             progress.update(input_bytes=len(raw))
@@ -256,6 +293,7 @@ def _prepare_file(
                                 source,
                                 snapshot_sha,
                                 file_rights=decision,
+                                record_admission=record_admission,
                                 rejected_records=dropped,
                                 full_file_sha256=file["sha256"],
                                 first_row_index=index,
@@ -273,8 +311,25 @@ def _prepare_file(
                         progress.update(
                             documents=1, input_bytes=len(raw), output_records=len(rows)
                         )
+                    if (
+                        record_admission is not None
+                        and input_digest.hexdigest() != file["sha256"]
+                    ):
+                        raise ValueError(
+                            "admitted source shard bytes differ from acquisition"
+                        )
             else:
-                raw = source_path.read_bytes()
+                if record_admission is not None:
+                    with source_path.open("rb") as source_stream:
+                        raw = source_stream.read(_ADMITTED_RECORD_MAX_BYTES + 1)
+                    if len(raw) > _ADMITTED_RECORD_MAX_BYTES:
+                        raise ValueError("admitted file-byte cap exceeded")
+                    if hashlib.sha256(raw).hexdigest() != file["sha256"]:
+                        raise ValueError(
+                            "admitted source bytes differ from acquisition"
+                        )
+                else:
+                    raw = source_path.read_bytes()
                 dropped = []
                 try:
                     rows = _records_for_file(
@@ -283,6 +338,7 @@ def _prepare_file(
                         source,
                         snapshot_sha,
                         file_rights=decision,
+                        record_admission=record_admission,
                         rejected_records=dropped,
                         normalizer_version=normalizer_version,
                     )
@@ -350,7 +406,11 @@ def _sources_and_rights(
                 if source.rights
                 else {}
             ),
-            "explicit_training_restriction": source.explicit_training_restriction,
+            **(
+                {"explicit_training_restriction": source.explicit_training_restriction}
+                if source.schema_version == 3
+                else {}
+            ),
             "origin": source.origin,
             "source_family": source.source_family,
             "snapshot_sha256": lock["sources"]
@@ -382,16 +442,16 @@ def _sources_and_rights(
     for item in files:
         rights = item["rights"]
         bytes_by_state[rights["training_eligibility"]] += item["size"]
-        expressions[
-            rights["detected_spdx_expression"]
-            or source_spdx[item["source_id"]]
-            or "unknown"
-        ] += 1
+        expressions[reported_spdx_expression(item, source_spdx[item["source_id"]])] += 1
         modes[rights["redistribution_mode"]] += 1
     rights_report = {
-        "schema_version": 3,
+        "schema_version": project.release.schema_version,
         "publication_mode": project.release.publication_mode,
-        "training_use_policy": project.release.training_use_policy,
+        **(
+            {"training_use_policy": project.release.training_use_policy}
+            if project.release.schema_version == 3
+            else {}
+        ),
         "weight_license_status": "separate_analysis_required",
         "sources": sources,
         "files": rights_files,
@@ -506,14 +566,172 @@ def _index_prepared(
     return connection
 
 
+def _deduplicate_v2(
+    connection: sqlite3.Connection,
+    groups_path: Path,
+    *,
+    diagnostics: Path,
+    progress: BuildProgress,
+    rejected_path: Path | None = None,
+) -> tuple[int, int]:
+    """Apply the native v2 raw/normalized policy without corpus-sized maps."""
+    connection.execute("UPDATE documents SET representative_id=document_id")
+    groups = 0
+    with groups_path.open("wb") as output:
+        for method in ("raw", "normalized"):
+            keys = connection.execute(
+                "SELECT origin FROM origins WHERE method=? GROUP BY origin "
+                "HAVING COUNT(*)>1 ORDER BY origin",
+                (method,),
+            )
+            for (key,) in keys:
+                query = (
+                    "SELECT d.document_id,d.split,d.payload FROM origins o "
+                    "JOIN documents d ON d.rowid=o.document_number "
+                    "WHERE o.method=? AND o.origin=? ORDER BY d.document_id"
+                )
+                first = None
+                splits = set()
+                signature = None
+                incompatible = False
+                count = 0
+                for identifier, split, payload in connection.execute(
+                    query, (method, key)
+                ):
+                    first = first or identifier
+                    splits.add(split)
+                    count += 1
+                    if method == "normalized":
+                        doc = json.loads(payload)
+                        rights = doc["rights"]
+                        current = canonical_json(
+                            {
+                                "license": doc["license"],
+                                "redistribution": doc["redistribution"],
+                                **{
+                                    name: rights[name]
+                                    for name in (
+                                        "training_eligibility",
+                                        "license_references",
+                                        "notices",
+                                        "training_restriction",
+                                    )
+                                },
+                            }
+                        )
+                        if signature is not None and current != signature:
+                            incompatible = True
+                        signature = current
+                # Stream even a single very large duplicate group, in canonical order.
+                output.write(b'{"method":' + canonical_json(method) + b',"origins":[')
+                for index, (identifier, _, _) in enumerate(
+                    connection.execute(query, (method, key))
+                ):
+                    if index:
+                        output.write(b",")
+                    output.write(canonical_json(identifier))
+                output.write(
+                    b'],"representative":'
+                    + canonical_json(first)
+                    + b',"sha256":'
+                    + canonical_json(key)
+                    + b',"splits":'
+                    + canonical_json(sorted(splits))
+                    + b"}\n"
+                )
+                error = (
+                    "cross-split exact text overlap"
+                    if len(splits) > 1
+                    else "duplicate source text has incompatible rights evidence"
+                    if incompatible
+                    else None
+                )
+                if error:
+                    output.flush()
+                    os.fsync(output.fileno())
+                    # Preserve the complete observed groups without loading them.
+                    diagnostics.parent.mkdir(parents=True, exist_ok=True)
+                    with diagnostics.open("wb") as report:
+                        report.write(b'{"duplicates":[')
+                        with groups_path.open("rb") as rows:
+                            for index, row in enumerate(rows):
+                                if index:
+                                    report.write(b",")
+                                report.write(row.rstrip(b"\n"))
+                        report.write(
+                            b'],"error":' + canonical_json(error) + b',"rejected":['
+                        )
+                        if rejected_path is not None:
+                            with rejected_path.open("rb") as rejected:
+                                for index, row in enumerate(rejected):
+                                    if index:
+                                        report.write(b",")
+                                    report.write(row.rstrip(b"\n"))
+                        report.write(b"]}\n")
+                        report.flush()
+                        os.fsync(report.fileno())
+                    raise ValueError(error)
+                connection.execute(
+                    "UPDATE documents SET representative_id=MIN(representative_id,?) "
+                    "WHERE rowid IN (SELECT document_number FROM origins WHERE method=? AND origin=?)",
+                    (first, method, key),
+                )
+                groups += 1
+                progress.update(documents=count)
+        output.flush()
+        os.fsync(output.fileno())
+    # Every link decreases lexicographically, so compression terminates without
+    # an in-memory union table and matches the native v2 representative chain.
+    while True:
+        changed = connection.execute(
+            "UPDATE documents SET representative_id=(SELECT p.representative_id "
+            "FROM documents p WHERE p.document_id=documents.representative_id) "
+            "WHERE representative_id<>(SELECT p.representative_id FROM documents p "
+            "WHERE p.document_id=documents.representative_id)"
+        ).rowcount
+        if not changed:
+            break
+    dropped = 0
+    for number, identifier, representative, payload in connection.execute(
+        "SELECT rowid,document_id,representative_id,payload FROM documents ORDER BY rowid"
+    ):
+        doc = json.loads(payload)
+        reason = (
+            "metadata_only_front_matter"
+            if (doc.get("structure") or {}).get("decision")
+            == "exclude_lm_metadata_only"
+            else "duplicate"
+            if identifier != representative
+            else None
+        )
+        dropped += reason is not None
+        connection.execute(
+            "UPDATE documents SET drop_reason=? WHERE rowid=?", (reason, number)
+        )
+    connection.commit()
+    return groups, dropped
+
+
 def _deduplicate(
     connection: sqlite3.Connection,
     groups_path: Path,
     *,
     diagnostics: Path,
     progress: BuildProgress,
+    schema_version: int = 3,
+    rejected_path: Path | None = None,
 ) -> tuple[int, int]:
-    """Union exact-hash and canonical page/paper groups using compact row numbers."""
+    """Apply the declared duplicate policy with disk-backed input joins."""
+    if schema_version == 2:
+        return _deduplicate_v2(
+            connection,
+            groups_path,
+            diagnostics=diagnostics,
+            progress=progress,
+            rejected_path=rejected_path,
+        )
+    if schema_version != 3:
+        raise ValueError("unsupported disk deduplication policy")
     total = connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
     parents = array("I", range(total + 1))
 
@@ -668,7 +886,9 @@ def _deduplicate(
     return groups, dropped
 
 
-def _write_audit(target: Path, groups: Path, rejected: Path, *, dropped: int) -> None:
+def _write_audit(
+    target: Path, groups: Path, rejected: Path, *, dropped: int, leakage=(), warnings=()
+) -> None:
     with target.open("wb") as output:
         output.write(b'{"drop_count":' + str(dropped).encode() + b',"duplicates":[')
         with groups.open("rb") as source:
@@ -676,13 +896,13 @@ def _write_audit(target: Path, groups: Path, rejected: Path, *, dropped: int) ->
                 if index:
                     output.write(b",")
                 output.write(row.rstrip(b"\n"))
-        output.write(b'],"leakage":[],"rejected":[')
+        output.write(b'],"leakage":' + canonical_json(list(leakage)) + b',"rejected":[')
         with rejected.open("rb") as source:
             for index, row in enumerate(source):
                 if index:
                     output.write(b",")
                 output.write(row.rstrip(b"\n"))
-        output.write(b'],"warnings":[]}\n')
+        output.write(b'],"warnings":' + canonical_json(list(warnings)) + b"}\n")
         output.flush()
         os.fsync(output.fileno())
 
@@ -729,6 +949,19 @@ def _document_lineage(
     }
     validate_lineage(row, documents={record_id: doc})
     return row
+
+
+def _write_rejected(target: Path, source_events: list[Path | dict[str, Any]]) -> None:
+    with target.open("wb") as output:
+        for event in source_events:
+            if isinstance(event, Path):
+                with (event / "rejected.jsonl").open("rb") as source:
+                    for line in source:
+                        output.write(line)
+            else:
+                _output(output, event)
+        output.flush()
+        os.fsync(output.fileno())
 
 
 def _emit_build(
@@ -892,21 +1125,44 @@ def _emit_build(
             "output_id": stage_digest.hexdigest(),
         }
     ]
-    with (staging / "rejected.jsonl").open("wb") as output:
-        for event in source_events:
-            if isinstance(event, Path):
-                with (event / "rejected.jsonl").open("rb") as source:
-                    for line in source:
-                        output.write(line)
-            else:
-                _output(output, event)
-        output.flush()
-        os.fsync(output.fileno())
+    _write_rejected(staging / "rejected.jsonl", source_events)
+    warnings = []
+    leakage = []
+    if project.release.schema_version == 2:
+        # LM-only lineages have no generated families. Source-family overlap is
+        # descriptive unless that family is the declared split policy unit.
+        for (family,) in connection.execute(
+            "SELECT source_family FROM documents "
+            "GROUP BY source_family HAVING COUNT(DISTINCT split)>1 ORDER BY source_family"
+        ):
+            splits = [
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT split FROM documents WHERE source_family=? ORDER BY split",
+                    (family,),
+                )
+            ]
+            leakage.append(
+                {
+                    "family_type": "source_family_ids",
+                    "family_id": family,
+                    "splits": splits,
+                }
+            )
+            if project.splits.unit in {"source_document_family", "source_repository"}:
+                _write_json(
+                    staging.parent / "diagnostics" / f"{build_id}.json",
+                    {"error": "shared split policy unit", "leakage": leakage},
+                )
+                raise ValueError(f"split policy unit {family} spans splits")
+            warnings.append(f"source_family_ids {family} overlaps {', '.join(splits)}")
     _write_audit(
         staging / "audit.json",
         groups_path,
         staging / "rejected.jsonl",
         dropped=dropped,
+        leakage=leakage,
+        warnings=warnings,
     )
     _write_json(staging / "splits.json", project.splits.model_dump(mode="json"))
     _write_json(staging / "sources.json", sources)
@@ -918,7 +1174,7 @@ def _emit_build(
     }
     generation_statuses = {"oracle_verified": 0}
     report = {
-        "schema_version": 3,
+        "schema_version": project.release.schema_version,
         "corpus_id": project.config.id,
         "requested_mixture": mixture,
         "actual_mixture": {
@@ -953,7 +1209,7 @@ def _emit_build(
         "generator_count": 0,
         "scenario_count": 0,
         "dedupe": {"groups": group_count, "dropped": dropped},
-        "warnings": [],
+        "warnings": warnings,
         "token_count_reason": "tokenizer_not_declared",
         "source_scale": {
             source: dict(sorted(splits.items()))
@@ -984,6 +1240,9 @@ def _emit_build(
             }
         },
     }
+    if project.release.schema_version == 2:
+        report.pop("source_scale")
+        report.pop("train_source_scale")
     progress.update(phase="measuring")
     report["measurement"] = summarize_release(
         staging, release_spec=release_spec, tokenizer=None
@@ -1018,6 +1277,29 @@ def _emit_build(
     )
 
 
+def _verify_admitted_inventory(
+    connection: sqlite3.Connection, admissions: dict
+) -> None:
+    """Compare qualified and observed source identities without materialized sets."""
+    from sparselab.corpus.admission_coverage import AdmissionCoverage
+
+    if not admissions:
+        return
+    with AdmissionCoverage(connection) as coverage:
+        for (source, path), admitted in admissions.items():
+            for index, choice in admitted.get("decisions", {}).items():
+                if choice["decision"] == "qualify":
+                    coverage.expect(source, path, index)
+        for source, raw in connection.execute(
+            "SELECT source_id,payload FROM documents"
+        ):
+            doc = json.loads(raw)
+            path = doc["source_location"].split("#", 1)[0]
+            if "decisions" in admissions.get((source, path), {}):
+                coverage.observe(source, path, doc["metadata"]["source_row_index"])
+        coverage.verify()
+
+
 def build_large(
     project: Any,
     workspace: Path,
@@ -1029,8 +1311,11 @@ def build_large(
     *,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
+    record_admission: dict | None = None,
+    admission_path: Path | None = None,
 ) -> Path:
-    """Build an LM-only v3 corpus with durable per-input receipts and disk-backed joins."""
+    """Build LM-only v2/v3 inputs using their declared admission/dedup policies."""
+    record_admission = record_admission or {}
     from sparselab.corpus.acquisition import verify_snapshot
 
     root = workspace / "builds"
@@ -1096,6 +1381,9 @@ def build_large(
             )
         ).exists()
     }
+    if record_admission:
+        # Operation-local SQLite decisions must stay in their owning process.
+        eligible_jsonl.clear()
     workers = _process_shard_workers(len(eligible_jsonl))
     if workers > 1:
         eligible_jsonl = {path for path in eligible_jsonl if _bounded_jsonl_shard(path)}
@@ -1159,6 +1447,9 @@ def build_large(
                 if source.rights
                 else None
             )
+            admitted = record_admission.get((source.id, name))
+            if admitted is not None:
+                decision = admitted["rights"]
             if decision:
                 rights_files.append(
                     {
@@ -1171,6 +1462,18 @@ def build_large(
                         "revision": source.revision,
                         "license_url": source.license_url,
                         "rights": decision.model_dump(mode="json"),
+                        **(
+                            {
+                                "admission_policy_id": admitted["policy_id"],
+                                "admission_policy_sha256": admitted["policy_sha256"],
+                                "admission_license_label": admitted["license_label"],
+                                "admission_policy_spdx_expression": admitted[
+                                    "policy_spdx_expression"
+                                ],
+                            }
+                            if admitted is not None
+                            else {}
+                        ),
                     }
                 )
                 if decision.training_eligibility not in {
@@ -1196,6 +1499,10 @@ def build_large(
                 "snapshot_sha": lock_row["snapshot_sha256"],
                 "prepared_root": prepared_root,
                 "build_id": build_id,
+                "record_admission": admitted,
+                "admission_sha256": project.release.record_admission.sha256.lower()
+                if admitted is not None
+                else None,
                 "normalizer_version": project.release.normalizer
                 or "normalizer-nfc-markdown-v1",
             }
@@ -1230,17 +1537,30 @@ def build_large(
             Path(index_dir) / "documents.sqlite", prepared, project, progress
         )
         try:
+            _verify_admitted_inventory(connection, record_admission)
             progress.update(phase="deduplicating")
             groups_path = Path(index_dir) / "groups.jsonl"
+            rejected_path = Path(index_dir) / "rejected.jsonl"
+            _write_rejected(rejected_path, source_events)
             group_count, dropped = _deduplicate(
                 connection,
                 groups_path,
                 diagnostics=root / "diagnostics" / f"{build_id}.json",
                 progress=progress,
+                schema_version=project.release.schema_version,
+                rejected_path=rejected_path,
             )
             progress.update(phase="writing_views")
             with tempfile.TemporaryDirectory(prefix=".build-", dir=root) as temporary:
                 staging = Path(temporary)
+                if admission_path is not None:
+                    copy = staging / "record-admission.json"
+                    shutil.copyfile(admission_path, copy)
+                    if (
+                        sha256_file(copy)
+                        != project.release.record_admission.sha256.lower()
+                    ):
+                        raise ValueError("record admission changed during build")
                 _emit_build(
                     connection=connection,
                     staging=staging,

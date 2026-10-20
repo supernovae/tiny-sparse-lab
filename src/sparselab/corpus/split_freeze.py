@@ -14,6 +14,7 @@ from typing import Any, cast
 import yaml
 
 from sparselab.corpus.acquisition import verify_acquisition
+from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import Project, project_path, source_declaration_payload
 from sparselab.corpus.release import verify_release
@@ -202,7 +203,7 @@ def _prior_family_splits(
     return families, strata, content
 
 
-def freeze_splits(
+def _freeze_splits(
     project: Project,
     work_root: Path,
     inventory_path: Path,
@@ -284,19 +285,16 @@ def freeze_splits(
     if reference is None:
         raise ValueError("frozen splits require a reviewed record admission")
     admission_path = project_path(project.root, reference.path)
-    admission_bytes = admission_path.read_bytes()
-    if hashlib.sha256(admission_bytes).hexdigest() != reference.sha256:
+    if sha256_file(admission_path) != reference.sha256:
         raise ValueError("record admission SHA-256 mismatch")
-    manifest = json.loads(admission_bytes)
+    manifest = read_metadata(admission_path)
     if manifest.get("schema_version") != 2:
         raise ValueError("frozen splits require complete v2 admission")
     sources = {
         source.id: source_declaration_payload(source) for source in project.sources
     }
     snapshots = {
-        source_id: json.loads(
-            (Path(entry["snapshot_path"]) / "manifest.json").read_text(encoding="utf-8")
-        )
+        source_id: read_metadata(Path(entry["snapshot_path"]) / "manifest.json")
         for source_id, entry in lock["sources"].items()
     }
     admitted = verify_record_admission(
@@ -581,3 +579,22 @@ def finalize_family_inventory(
         "split_sha256": receipt["split_sha256"],
         "family_candidate_sha256": receipt["family_candidate_sha256"],
     }
+
+
+def freeze_splits(
+    project: Project,
+    work_root: Path,
+    inventory_path: Path,
+    clusters_path: Path,
+    output: Path,
+    *,
+    recover: bool = False,
+) -> dict[str, Any]:
+    # Keep verified row decisions alive through assignment and recovery checks.
+    # Inventory/family/assignment collections are still proportional to input.
+    with metadata_operation(
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+    ):
+        return _freeze_splits(
+            project, work_root, inventory_path, clusters_path, output, recover=recover
+        )

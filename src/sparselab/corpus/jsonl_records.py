@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -72,3 +73,42 @@ def records_from_path(
         yield from iter_jsonl_records(
             stream, source=str(path), max_record_bytes=max_record_bytes
         )
+
+
+class ForwardRows:
+    """One-row replay cursor for callers ordered by nonblank source ordinal."""
+
+    def __init__(self, rows: Iterator[JSONLRecord]):
+        self.rows = rows
+        self.ordinal = 0
+        self.current = None
+
+    def get(self, ordinal: int) -> JSONLRecord:
+        if type(ordinal) is not int or ordinal < 1 or ordinal < self.ordinal:
+            raise ValueError("source replay requires increasing positive row ordinals")
+        while self.ordinal < ordinal:
+            try:
+                self.current = next(self.rows)
+            except StopIteration as error:
+                raise ValueError(
+                    "source replay row exceeds source inventory"
+                ) from error
+            self.ordinal += 1
+        assert self.current is not None
+        return self.current
+
+
+@contextmanager
+def forward_rows(
+    path: Path, *, max_record_bytes: int | None, expected_sha256: str
+) -> Iterator[ForwardRows]:
+    """Validate skipped/trailing rows and close the reader on every exit path."""
+    with closing(records_from_path(path, max_record_bytes=max_record_bytes)) as rows:
+        yield ForwardRows(rows)
+        # Preserve complete JSON validation even for rows with no kept document.
+        for _ in rows:
+            pass
+    from sparselab.training.manifest import sha256_file
+
+    if sha256_file(path) != expected_sha256:
+        raise ValueError("source replay file changed")
