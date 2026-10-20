@@ -188,15 +188,18 @@ def _candidates(
             consumed += shard.stat().st_size
             if consumed > max_input_bytes:
                 raise ValueError("admission inspection input-byte cap exceeded")
+            text_field = source.acquisition.text_field
             parsed = records_from_path(shard)
             for receipt, decision, record in zip(
                 selected, decisions, parsed, strict=True
             ):
                 value = record.value
                 if not isinstance(value, dict) or not isinstance(
-                    value.get("text"), str
+                    value.get(text_field), str
                 ):
-                    raise TypeError("inspection row lacks text")
+                    raise TypeError(
+                        f"inspection row lacks declared text field: {text_field}"
+                    )
                 envelope = value.get("_sparselab_source")
                 original = {
                     key: item
@@ -222,7 +225,7 @@ def _candidates(
                         entry,
                         decision,
                         path=file["path"],
-                        raw=value["text"],
+                        raw=value[text_field],
                         digest=digest,
                         row_index=index,
                         physical_line=record.physical_line,

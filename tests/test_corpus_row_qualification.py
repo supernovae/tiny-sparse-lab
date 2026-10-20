@@ -209,7 +209,7 @@ def test_code_policy_cannot_split_repository_or_omit_required_screen(change):
         RowQualification.model_validate({**payload, **change})
 
 
-@pytest.mark.parametrize("profile", ["synthetic", "nested_web"])
+@pytest.mark.parametrize("profile", ["synthetic", "nested_web", "code"])
 def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
     tmp_path, monkeypatch, profile
 ):
@@ -243,7 +243,17 @@ def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
                 },
             ],
         }
+    if profile == "code":
+        overrides = {
+            "policy": code_policy().model_dump(mode="json"),
+            "rows": [
+                {**code_row(), "text": "Wrong undeclared field must not be inspected."},
+                {**code_row(), "repo_name": ""},
+            ],
+        }
     manifest, source, snapshot, _ = declared_fixture(snapshot_root, **overrides)
+    if profile == "code":
+        source["acquisition"]["text_field"] = "code"
     model = SourceDeclaration.model_validate(source)
     snapshot_dir = snapshot_root / model.id / snapshot["snapshot_sha256"]
     (snapshot_dir / "manifest.json").write_text(json.dumps(snapshot))
@@ -282,6 +292,21 @@ def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
         {model.id: snapshot},
         snapshot_root,
     )
+    # Follow the same drafted decisions into the native inspection candidate
+    # reader, including a code row with a misleading undeclared text field.
+    from sparselab.corpus.admission_inspection import _candidates
+
+    candidates, consumed = _candidates(
+        project,
+        root,
+        json.loads(output.read_text()),
+        {"sources": {model.id: {"snapshot_path": str(snapshot_dir)}}},
+        1024 * 1024,
+    )
+    assert consumed == snapshot["files"][0]["size"]
+    assert len(candidates[model.id]) == 2
+    if profile == "code":
+        assert candidates[model.id][0]["raw"] == code_row()["code"]
 
 
 @pytest.mark.parametrize("uri", ["project_gutenberg_filtered", "wikimedia_filtered"])
