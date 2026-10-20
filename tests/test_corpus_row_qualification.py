@@ -1000,3 +1000,72 @@ def test_verifier_refuses_row_use_policy_on_legacy_profile(tmp_path):
         ValueError, match="row use policy requires declared row qualification"
     ):
         _verify(manifest, source, snapshot, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "count,width,truncated", [(65, 20, True), (1, 1025, True), (64, 1024, False)]
+)
+def test_notice_truncation_independent_boundaries(count, width, truncated):
+    from sparselab.corpus.row_qualification import RowUsePolicy, use_evidence
+
+    notice = "# Copyright " + "x" * (width - len("# Copyright "))
+    row = {**code_row(), "code": (notice + "\n") * count}
+    evidence = use_evidence(
+        row, code_policy(), "code", RowUsePolicy(mode="record_attribution")
+    )
+    assert evidence["notice_lines_truncated"] is truncated
+    assert len(evidence["notice_lines"]) == min(count, 64)
+    assert all(
+        len(line["text"]) == min(width, 1024) for line in evidence["notice_lines"]
+    )
+
+
+def test_split_row_stream_preserves_full_shard_identity(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from sparselab.corpus import split_inventory
+    from sparselab.corpus.rights import resolve_file_rights
+
+    _, source, snapshot, raw = declared_fixture(tmp_path)
+    model = SourceDeclaration.model_validate(source)
+    folder = tmp_path / model.id / snapshot["snapshot_sha256"]
+    file = snapshot["files"][0]
+    shard = folder / "files" / file["path"]
+    raw = b"\n" + raw.replace(b"\n", b"\n\n", 1)
+    shard.write_bytes(raw)
+    file.update(size=len(raw), sha256=hashlib.sha256(raw).hexdigest())
+    rights = resolve_file_rights(model.rights, file["path"], raw)
+    expected = _records_for_file(
+        raw, file["path"], model, snapshot["snapshot_sha256"], file_rights=rights
+    )
+    original = Path.read_bytes
+
+    def refuse_whole_shard(path):
+        assert path != shard, "whole shard payload materialized"
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse_whole_shard)
+    actual = list(
+        split_inventory._file_documents(
+            model,
+            file,
+            folder,
+            snapshot["snapshot_sha256"],
+            snapshot["retrieval"],
+            "normalizer-nfc-markdown-v1",
+        )
+    )
+    assert [(doc, span) for doc, span, _ in actual] == expected
+    assert actual[0][2]["seed"] == {"id": 7}
+    monkeypatch.setattr(split_inventory, "_MAX_RECORD_BYTES", 1)
+    with pytest.raises(ValueError, match="record-byte cap"):
+        list(
+            split_inventory._file_documents(
+                model,
+                file,
+                folder,
+                snapshot["snapshot_sha256"],
+                snapshot["retrieval"],
+                "normalizer-nfc-markdown-v1",
+            )
+        )

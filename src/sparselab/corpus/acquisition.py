@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 
+from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.corpus.project import (
     GitAcquisition,
     HttpAcquisition,
@@ -1611,7 +1612,7 @@ def verify_snapshot(
         from sparselab.experiments.artifacts import verify_artifact
         from sparselab.experiments.plan import Artifact
 
-        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+        manifest = read_metadata(path / "manifest.json")
         verify_artifact(
             Artifact(
                 kind="source_snapshot",
@@ -1675,7 +1676,7 @@ def alias_verified_snapshot(
 def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any]:
     path = Path(path)
     try:
-        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+        manifest = read_metadata(path / "manifest.json")
         if (
             manifest["schema_version"] != 1
             or manifest["source_id"] != manifest["declaration"]["id"]
@@ -1815,7 +1816,7 @@ def verify_acquisition(
     if selected.is_symlink() or any(parent.is_symlink() for parent in selected.parents):
         raise ValueError("symlinked acquisition lock")
     try:
-        lock = json.loads(selected.read_text(encoding="utf-8"))
+        lock = read_metadata(selected)
         if (
             lock["schema_version"] != 1
             or lock["project_id"] != project.config.id

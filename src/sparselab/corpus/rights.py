@@ -746,7 +746,9 @@ def _verify_record_admission_v1(
         decisions = item["records"]
         if not isinstance(decisions, list):
             raise TypeError("record admission decisions must be a list")
-        indexed: dict[int, dict[str, Any]] = {}
+        from sparselab.corpus.bounded_metadata import decision_index
+
+        indexed = decision_index()
         for decision in decisions:
             if (
                 not isinstance(decision, dict)
@@ -804,10 +806,16 @@ def _verify_record_admission_v1(
                 raise ValueError("invalid record admission manual review")
             indexed[index] = decision
         selected = shard["selected_rows"]
-        if len(indexed) != len(selected) or set(indexed) != {
-            row["source_row_index"] for row in selected
-        }:
+        if len(indexed) != len(selected):
             raise ValueError("record admission decisions do not cover selected rows")
+        selected_indices = decision_index()
+        for receipt in selected:
+            index = receipt["source_row_index"]
+            if index not in indexed or index in selected_indices:
+                raise ValueError(
+                    "record admission decisions do not cover selected rows"
+                )
+            selected_indices[index] = None
         sample = (
             snapshot_root
             / source_id
@@ -820,8 +828,8 @@ def _verify_record_admission_v1(
         from sparselab.corpus.jsonl_records import records_from_path
 
         # Keep source text bounded to the current record. Decisions and acquisition
-        # receipts remain indexed metadata; this is not a claim of bounded total
-        # manifest memory. Close the source promptly even when validation fails.
+        # receipts use disk indexes inside a metadata operation; other callers
+        # retain ordinary mappings. Close the source even when validation fails.
         with closing(
             records_from_path(sample, max_record_bytes=_MAX_RECORD_BYTES)
         ) as sample_rows:
@@ -907,10 +915,12 @@ def _verify_record_admission_v1(
                     }
                 ):
                     raise ValueError("material rights exception must be quarantined")
-        if row_use is not None and set(row_use.restricted_rows) - {
-            row["source_row_sha256"] for row in selected
-        }:
-            raise ValueError("row restriction is outside acquired row inventory")
+        if row_use is not None:
+            unmatched = set(row_use.restricted_rows)
+            for receipt in selected:
+                unmatched.discard(receipt["source_row_sha256"])
+            if unmatched:
+                raise ValueError("row restriction is outside acquired row inventory")
         resolved[source_id, file["path"]] = {
             "rights": file_rights,
             "license_label": item["license_label"],

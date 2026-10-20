@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.corpus.acquisition import verify_acquisition
+from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import Project, load_project, source_declaration_payload
 from sparselab.corpus.rights import verify_record_admission
@@ -155,7 +156,7 @@ def _scan_candidates(
     for source in project.sources:
         entry = entries[source.id]
         snapshot = Path(lock["sources"][source.id]["snapshot_path"])
-        manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
+        manifest = read_metadata(snapshot / "manifest.json")
         files = manifest["files"]
         if source.kind == "git":
             decisions = {item["path"]: item for item in entry["files"]}
@@ -301,7 +302,7 @@ def _display(
     }
 
 
-def _inspect(
+def _inspect_stored(
     project: Project,
     project_path: Path,
     work_root: Path,
@@ -333,7 +334,7 @@ def _inspect(
     draft_file = _inside(draft_path, root)
     if draft_file.stat().st_size > 128 * 1024**2:
         raise ValueError("admission inspection draft is too large")
-    draft = json.loads(draft_file.read_text(encoding="utf-8"))
+    draft = read_metadata(draft_file)
     policy = _inside(policy_document)
     if policy.stat().st_size > 1024**2:
         raise ValueError("admission inspection policy is too large")
@@ -346,10 +347,8 @@ def _inspect(
     )
     lock = verify_acquisition(project, root)
     snapshots = {
-        source.id: json.loads(
-            (
-                Path(lock["sources"][source.id]["snapshot_path"]) / "manifest.json"
-            ).read_text(encoding="utf-8")
+        source.id: read_metadata(
+            Path(lock["sources"][source.id]["snapshot_path"]) / "manifest.json"
         )
         for source in project.sources
     }
@@ -602,6 +601,7 @@ def inspect_admission(
         "items": len(payload["items"]),
         "exceptions": len(payload["quarantine_exceptions"]),
         "input_bytes": payload["input_bytes"],
+        "read_bytes": payload["read_bytes"],
     }
 
 
@@ -632,3 +632,26 @@ def verify_admission_inspection(path: Path, work_root: Path) -> dict[str, Any]:
     if observed != expected:
         raise ValueError("admission inspection receipt differs from verified inputs")
     return observed
+
+
+def _inspect(
+    project,
+    project_path,
+    work_root,
+    draft_path,
+    policy_document,
+    selection_path,
+    **limits,
+):
+    with metadata_operation(
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+    ):
+        return _inspect_stored(
+            project,
+            project_path,
+            work_root,
+            draft_path,
+            policy_document,
+            selection_path,
+            **limits,
+        )

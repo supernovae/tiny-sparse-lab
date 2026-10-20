@@ -601,3 +601,57 @@ def test_draft_refuses_row_policy_without_declared_qualification(tmp_path, kind)
         draft_admission_manifest(
             project, tmp_path, template, policy, recipe / "unsupported.json"
         )
+
+
+def test_inspection_pass_mismatch_refuses_without_output(tmp_path, monkeypatch):
+    from sparselab.corpus import admission_inspection as inspection
+
+    fixture = _fixture(tmp_path)
+    counts = iter([100, 101])
+    monkeypatch.setattr(inspection, "_scan_candidates", lambda *args: next(counts))
+    with pytest.raises(
+        ValueError, match="snapshot byte count changed between inspection passes"
+    ):
+        _inspect_again(tmp_path, fixture)
+    assert not (fixture[0] / "again.json").exists()
+
+
+@pytest.mark.parametrize("kind", ["git", "huggingface_dataset"])
+def test_inspection_refuses_before_reading_over_budget_payload(
+    tmp_path, monkeypatch, kind
+):
+    from types import SimpleNamespace
+
+    from sparselab.corpus import admission_inspection as inspection
+
+    recipe, _, draft, _, _ = _fixture(tmp_path)
+    project = load_project(recipe / "acquire.yaml")
+    source = next(source for source in project.sources if source.kind == kind)
+    lock = inspection.verify_acquisition(project, tmp_path)
+    folder = Path(lock["sources"][source.id]["snapshot_path"])
+    manifest = json.loads((folder / "manifest.json").read_text())
+    file = manifest["files"][0]
+
+    def forbid(*args, **kwargs):
+        raise AssertionError("over-budget source payload read")
+
+    if kind == "huggingface_dataset":
+        monkeypatch.setattr(inspection, "records_from_path", forbid)
+    else:
+        monkeypatch.setattr(Path, "read_bytes", forbid)
+    with pytest.raises(ValueError, match="input-byte cap exceeded"):
+        inspection._scan_candidates(
+            SimpleNamespace(sources=(source,)),
+            tmp_path,
+            json.loads(draft.read_text()),
+            lock,
+            file["size"] - 1,
+            lambda *_: None,
+        )
+
+
+def test_inspection_cli_summary_includes_sampling_reads(tmp_path):
+    fixture = _fixture(tmp_path)
+    summary = _inspect_again(tmp_path, fixture)
+    report = json.loads((fixture[0] / "again.json").read_text())
+    assert summary["read_bytes"] == report["read_bytes"] == 2 * summary["input_bytes"]

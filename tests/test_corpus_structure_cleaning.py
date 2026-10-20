@@ -376,7 +376,16 @@ def test_split_inventory_uses_declared_normalizer_and_preserves_legacy_ids(
     snapshot = tmp_path / "snapshot"
     (snapshot / "files").mkdir(parents=True)
     (snapshot / "files" / "doc.md").write_bytes(raw)
-    (snapshot / "manifest.json").write_text(json.dumps({"files": [{"path": "doc.md"}]}))
+    (snapshot / "manifest.json").write_text(
+        json.dumps(
+            {
+                "files": [
+                    {"path": "doc.md", "sha256": hashlib.sha256(raw).hexdigest()}
+                ],
+                "retrieval": {},
+            }
+        )
+    )
     monkeypatch.setattr(
         "sparselab.corpus.split_inventory.verify_acquisition",
         lambda *_: {

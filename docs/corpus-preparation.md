@@ -477,8 +477,8 @@ is not supported for undeclared historical HF profiles or Git-file admission.
 
 The verifier now streams source text one record at a time, and inspection uses
 the declared text field (including `code`). This does **not** make the entire
-preparation path bounded-memory: draft decisions/acquisition receipts remain
-in-memory metadata. `max_input_bytes` caps the snapshot payload size once (up to
+preparation path bounded-memory: build, split freezing and cold release verification
+still retain collections proportional to corpus size. `max_input_bytes` caps the snapshot payload size once (up to
 2 GiB), and its declared-source-maxima precheck uses the same units.
 `input_bytes` records that size; `read_bytes` records the two sampling payload
 passes combined. Neither counter includes separate acquisition verification or
@@ -488,8 +488,8 @@ the operation for the whole source, rather than silently skipping it. Acquisitio
 can therefore succeed for a source that admission subsequently refuses.
 Inspection allows 64 MiB of serialized sample pool entries. Median lengths remain
 compact numeric metadata. Selection retains the same deterministic rank, strata
-and fallback rules. The 128 MiB draft limit remains enforced pending bounded
-metadata storage. Do not raise limits or launch large preparation on this alone.
+and fallback rules. The 128 MiB draft limit remains enforced. Do not raise limits or launch large
+preparation on this alone.
 
 Notice excerpts retain LF physical line numbers, at most 64 matching lines and
 1024 characters per line, with `notice_lines_truncated` recording omissions.
@@ -505,3 +505,39 @@ older attribution evidence lacks the notice truncation field. Regenerate affecte
 drafts, inspection receipts and their bound admission reviews through the current
 public flow; never rewrite retained historical evidence or carry its approval
 forward as a current review. There is no compatibility adapter.
+
+
+### Bounded admission metadata and split inventory
+
+`corpus admission-draft`, admission inspection/reverification, and split inventory
+use disposable SQLite storage for the JSON `records` and `selected_rows` arrays
+and row-index lookups during their operation. Original JSON files remain the
+source of truth: native acquisition/admission checks still authenticate them,
+and canonical draft bytes and document identities are preserved. No new artifact
+schema, review authority, source identity, or training eligibility is introduced.
+
+Storage lives in `WORK_DIR/corpora/PROJECT/metadata-scratch/.metadata-*` and is
+removed when the operation exits normally or raises. Abrupt process termination
+can leave owned scratch; it is never reused as evidence. Each operation permits
+at most 1 GiB of SQLite database pages, each metadata input at most 256 MiB,
+non-row JSON at most 4 MiB, and an individual streamed metadata row at most 8 MiB.
+Duplicate JSON keys, nonfinite numbers, nesting deeper than 64, and symlinked
+metadata inputs/scratch paths refuse. These are refusal limits, not measured
+capacity guarantees. SQLite's cache setting is not a hard RSS cap or an aggregate
+filesystem limit; the existing supervisor must still account for all storage,
+time and sampled memory. Nested native verification shares the same database cap.
+
+Draft publication streams canonical JSON to a temporary file, enforces the
+existing 128 MiB output limit, fsyncs it, then publishes without replacing an
+existing destination. A failure removes only its own temporary file. HF JSONL
+split inventory streams one acquired row at a time, verifies every receipt even
+beyond parser selection limits, and preserves the whole-shard digest and nonblank
+row ordinal used by the document parser. Other split-inventory file formats now
+refuse above 8 MiB instead of reading an unbounded file.
+
+This removes full HF metadata-array and source-shard loads from these phases.
+It does not yet make the complete reviewed v2 build, frozen split assignments,
+or cold release-to-bundle path bounded at production scale. Inspection still
+uses compact numeric median metadata and bounded sample pools. Validate the
+connected tiny fixture path and then measured resource fit before preparing a
+large retained corpus; a fixture pass does not establish production readiness.

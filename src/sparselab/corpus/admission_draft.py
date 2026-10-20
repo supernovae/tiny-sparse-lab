@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from sparselab.corpus.acquisition import declaration_sha256, verify_acquisition
+from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
 from sparselab.corpus.project import Project, source_declaration_payload
 from sparselab.corpus.rights import (
     RightsPolicy,
@@ -27,6 +30,7 @@ from sparselab.corpus.rights import (
 from sparselab.training.manifest import canonical_json, sha256_file
 
 _MAX_RECORD_BYTES = 8 * 1024**2
+_MAX_OUTPUT_BYTES = 128 * 1024**2
 
 
 def _decision(value: str, reason: str) -> dict[str, Any]:
@@ -103,12 +107,13 @@ def _additional_draft_flags(record: dict[str, Any], profile: str) -> tuple[str, 
     return tuple(flags)
 
 
-def draft_admission_manifest(
+def _draft_admission_manifest(
     project: Project,
     work_root: Path,
     template_path: Path,
     policy_document: Path,
     output_path: Path,
+    store,
 ) -> dict[str, Any]:
     """Draft one complete v2 manifest; flagged cases remain quarantined.
 
@@ -126,7 +131,7 @@ def draft_admission_manifest(
         raise ValueError("admission policy template is missing or symlinked")
     if policy_document.is_symlink() or not policy_document.is_file():
         raise ValueError("admission policy document is missing or symlinked")
-    template = json.loads(template_path.read_text(encoding="utf-8"))
+    template = read_metadata(template_path)
     if (
         not isinstance(template, dict)
         or not {"policy_id", "policy_sha256", "sources"}.issubset(template)
@@ -185,9 +190,7 @@ def draft_admission_manifest(
         if row["snapshot_path"] is None:
             raise ValueError(f"missing acquired snapshot: {source_id}")
         snapshot_dir = Path(row["snapshot_path"])
-        snapshot = json.loads(
-            (snapshot_dir / "manifest.json").read_text(encoding="utf-8")
-        )
+        snapshot = read_metadata(snapshot_dir / "manifest.json")
         snapshots[source_id] = snapshot
         policy = policies[source_id]
         rights = RightsPolicy.model_validate(policy["rights"])
@@ -228,7 +231,7 @@ def draft_admission_manifest(
                 source_shard_sha256=shard["source_shard_sha256"],
             )
             selected = shard["selected_rows"]
-            decisions: list[dict[str, Any]] = []
+            decisions = store.new_rows()
             profile = _admission_profile(source_declaration_payload(source))
             with (snapshot_dir / "files" / file["path"]).open("rb") as stream:
                 from sparselab.corpus.jsonl_records import iter_jsonl_records
@@ -298,7 +301,7 @@ def draft_admission_manifest(
                             source.acquisition.text_field,
                             row_use,
                         )
-                    decisions.append(choice)
+                    store.append(decisions, choice)
                     counts[state if conflict is not None else choice["decision"]] += 1
                 if next(rows, None) is not None:
                     raise ValueError("snapshot has undeclared HF rows")
@@ -360,11 +363,51 @@ def draft_admission_manifest(
         root / "corpora" / project.config.id / "snapshots",
     )
     output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("xb") as stream:
-        stream.write(canonical_json(manifest) + b"\n")
+    # Canonical bytes stay identical; serialize row arrays directly from disk.
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".draft-", dir=output.parent, delete=False
+        ) as stream:
+            temporary = Path(stream.name)
+            size = 0
+            encoder = json.JSONEncoder(
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            )
+            for part in encoder.iterencode(manifest):
+                raw = part.encode("utf-8")
+                size += len(raw)
+                if size + 1 > _MAX_OUTPUT_BYTES:
+                    raise ValueError("admission draft output-byte cap exceeded")
+                stream.write(raw)
+            stream.write(b"\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return {
         "schema_version": 2,
         "path": str(output),
         "sha256": sha256_file(output),
         "counts": counts,
     }
+
+
+def draft_admission_manifest(
+    project: Project,
+    work_root: Path,
+    template_path: Path,
+    policy_document: Path,
+    output_path: Path,
+) -> dict[str, Any]:
+    with metadata_operation(
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+    ) as store:
+        return _draft_admission_manifest(
+            project, work_root, template_path, policy_document, output_path, store
+        )
