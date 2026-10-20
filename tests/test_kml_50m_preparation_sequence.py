@@ -1419,7 +1419,11 @@ def test_offline_preparation_sequence_through_native_supervision(
     )
     _bind(paths, "build_project", build_project)
     _run(paths, "offline-build")
-    builds = list((root / "corpora" / "fixture-candidate" / "builds").iterdir())
+    builds = [
+        path
+        for path in (root / "corpora" / "fixture-candidate" / "builds").iterdir()
+        if (path / "build.json").is_file()
+    ]
     assert len(builds) == 1
     _run(paths, "freeze-release", {"BUILD_PATH": str(builds[0])})
     releases = list((root / "corpora" / "fixture-candidate" / "releases").iterdir())
