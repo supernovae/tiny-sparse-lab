@@ -223,3 +223,40 @@ def test_application_binding_fails_closed_before_draft(
     with pytest.raises(ValueError, match=error):
         draft_admission_manifest(project, root, template_path, policy_document, output)
     assert not output.exists()
+
+
+def test_draft_canonical_bytes_and_size_failure_cleanup(tmp_path, monkeypatch):
+    from sparselab.corpus import admission_draft
+    from sparselab.training.manifest import canonical_json
+
+    project, root, template, policy = _setup(tmp_path, monkeypatch)
+    output = root / "canonical.json"
+    draft_admission_manifest(project, root, template, policy, output)
+    original = output.read_bytes()
+    assert original == canonical_json(json.loads(original)) + b"\n"
+    monkeypatch.setattr(admission_draft, "_MAX_OUTPUT_BYTES", len(original) - 1)
+    refused = root / "refused.json"
+    with pytest.raises(ValueError, match="output-byte cap"):
+        draft_admission_manifest(project, root, template, policy, refused)
+    assert not refused.exists() and output.read_bytes() == original
+    assert not list(root.rglob(".draft-*"))
+    assert not list(root.rglob(".metadata-*"))
+
+
+def test_draft_publication_race_preserves_existing_evidence(tmp_path, monkeypatch):
+    from sparselab.corpus import admission_draft
+
+    project, root, template, policy = _setup(tmp_path, monkeypatch)
+    output = root / "race.json"
+    link = admission_draft.os.link
+
+    def create_competing_output(source, destination):
+        Path(destination).write_bytes(b"other writer evidence")
+        return link(source, destination)
+
+    monkeypatch.setattr(admission_draft.os, "link", create_competing_output)
+    with pytest.raises(FileExistsError):
+        draft_admission_manifest(project, root, template, policy, output)
+    assert output.read_bytes() == b"other writer evidence"
+    assert not list(root.rglob(".draft-*"))
+    assert not list(root.rglob(".metadata-*"))
