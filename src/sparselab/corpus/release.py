@@ -137,8 +137,7 @@ def _verify_rights_files(
         admission_path = root / "record-admission.json"
         if (
             admission_path.is_symlink()
-            or sha256_file(admission_path)
-            != admission_reference["sha256"].lower()
+            or sha256_file(admission_path) != admission_reference["sha256"].lower()
         ):
             raise ValueError("record admission reference differs from frozen bytes")
         admission = verify_record_admission(
@@ -849,7 +848,9 @@ def _validate_rows(
 ) -> None:
     with metadata_operation(root.parent), ExitStack() as replay_stack:
         _validate_rows_stored(
-            root, replay_stack=replay_stack, proof_store=proof_store,
+            root,
+            replay_stack=replay_stack,
+            proof_store=proof_store,
             verification_mode=verification_mode,
         )
 
@@ -1016,7 +1017,8 @@ def _validate_rows_stored(
             offsets = [0]
             sample_rows = None
             needs_rows = (prospective and "_admission_decisions" in file) or (
-                selected_normalizer in {"normalizer-structure-v2", "normalizer-structure-v3"}
+                selected_normalizer
+                in {"normalizer-structure-v2", "normalizer-structure-v3"}
                 and "#row=" in doc["source_location"]
             )
             if needs_rows and raw_path.suffix == ".jsonl":
@@ -1051,7 +1053,11 @@ def _validate_rows_stored(
                 selected_row = sample_rows[ordinal - 1].value
             else:
                 raise ValueError("source replay row exceeds source inventory")
-        text_field = snapshots[doc["source_id"]]["declaration"].get("acquisition", {}).get("text_field", "text")
+        text_field = (
+            snapshots[doc["source_id"]]["declaration"]
+            .get("acquisition", {})
+            .get("text_field", "text")
+        )
         if (
             span["source_id"] != doc["source_id"]
             or span["snapshot_sha256"] != source["snapshot_sha256"]
@@ -1093,8 +1099,7 @@ def _validate_rows_stored(
                 or (
                     selected_normalizer
                     not in {"normalizer-structure-v2", "normalizer-structure-v3"}
-                    and _normalized(selected_row[text_field])
-                    != doc["text"]
+                    and _normalized(selected_row[text_field]) != doc["text"]
                 )
             ):
                 raise ValueError("admitted document differs from selected source row")
