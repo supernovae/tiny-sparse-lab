@@ -1343,10 +1343,31 @@ class AttemptBudget:
                 if (
                     contract.acquisition_project_sha256 is None
                     or reuse_project.config.transport_budget is not None
-                    or not reuse_project.config.source_effects
-                    or any(
-                        effect.effect != "reuse_only"
-                        for effect in reuse_project.config.source_effects
+                    or not (
+                        (
+                            reuse_project.config.source_effects
+                            and all(
+                                effect.effect == "reuse_only"
+                                for effect in reuse_project.config.source_effects
+                            )
+                        )
+                        or (
+                            reuse_project.config.source_effects is None
+                            and reuse_project.sources
+                            and all(
+                                source.kind == "huggingface_dataset"
+                                and source.acquisition.retained_subset is not None
+                                for source in reuse_project.sources
+                            )
+                            and sum(
+                                s.acquisition.max_rows for s in reuse_project.sources
+                            )
+                            <= 30_000
+                            and sum(
+                                s.acquisition.max_bytes for s in reuse_project.sources
+                            )
+                            <= 100 * 1024**2
+                        )
                     )
                 ):
                     raise AttemptBudgetError(

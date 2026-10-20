@@ -226,8 +226,25 @@ def test_public_cold_replay_streams_rows_in_source_order(tmp_path, monkeypatch):
         for line in (built / "documents.jsonl").read_text().splitlines()
     ]
     admitted = [doc for doc in docs if doc["source_id"] == "books_rows"]
-    assert [doc["metadata"]["source_row_index"] for doc in admitted] == [1, 0]
+    assert sorted(doc["metadata"]["source_row_index"] for doc in admitted) == [0, 1]
     released = freeze(built, root)
+    # Document IDs include the adapter identity. Force adversarial reader order
+    # explicitly rather than depending on one code digest sorting rows backwards.
+    from sparselab.corpus import release as release_module
+
+    native_rows = release_module._rows
+
+    def reversed_documents(path):
+        rows = native_rows(path)
+        if path.name == "documents.jsonl":
+            return sorted(
+                rows,
+                key=lambda doc: doc.get("metadata", {}).get("source_row_index", -1),
+                reverse=True,
+            )
+        return rows
+
+    monkeypatch.setattr(release_module, "_rows", reversed_documents)
     original_read = Path.read_bytes
 
     def no_shard_materialization(path):

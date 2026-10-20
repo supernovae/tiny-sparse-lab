@@ -581,3 +581,51 @@ remaining cold document/span/lineage maps or frozen inline split assignments.
 Those remain production-scale blockers; tiny fixture parity does not establish
 capacity for the retained real corpus. The existing inspection/draft limits and
 external aggregate storage, time and memory supervision still apply unchanged.
+
+
+### Small derivatives of retained HF snapshots
+
+For an explicitly approved small profile, an HF source may declare
+`acquisition.retained_subset` with an absolute `snapshot_path`, full
+`snapshot_sha256` and `manifest_sha256`, a nonempty `profile_id`, integer `seed`,
+and optional `max_record_bytes` (at most 262144). Keep the parent's source
+identity/policy fields and bounded upstream shard declaration unchanged; only
+`max_rows`, `max_bytes`, and this derivative binding differ. This produces a new
+source declaration and snapshot identity. It never relabels the original snapshot.
+
+`corpus acquire PROJECT` creates the derivative locally. All project sources must
+use retained selection, with no transport budget or source effects, and aggregate
+maxima at most 30000 rows and 100 MiB. `corpus acquire PROJECT --offline` verifies
+an already-published acquisition; it does not create one. The retained path cannot
+fall back to Hub acquisition. Use the existing supervisor's network isolation and
+resource accounting as well.
+
+Selection is exactly SHA256 of canonical JSON
+`[profile_id, seed, parent_source_id, parent_snapshot_sha256, original_row_index,
+original_row_sha256]`, interpreted as an integer modulo 100 equal to zero. Selected
+physical rows above the declared record limit are excluded and counted; other
+selected bytes are retained unchanged in parent order. Empty selection or row/byte
+overflow refuses without publishing a partial source. This samples rows, not a
+statistically certified representative population. Long-row exclusions and actual
+counts must accompany any result. Family splitting, admission, tokenizer fitting
+and training authorization remain separate native stages.
+
+A supported parent has one JSONL shard of at most 8 GiB, a manifest of at most
+256 MiB and physical rows of at most 8 MiB. These are refusal limits; selected
+output rows still have the separate 256 KiB ceiling.
+
+Cold snapshot verification replays the pinned parent and selection, including
+unselected rows, and checks exact output bytes and row membership. Nested subsets
+are unsupported. Parent mutation, policy drift, symlinks, incomplete ancestry and
+resealed omissions refuse. Parent reads can be repeated during downstream cold
+verification; budget all passes and temporary files. Parent metadata scratch is
+released after replay while preserving the existing operation database cap. A
+successful tiny fixture establishes correctness, not real-data capacity.
+
+The native preparation supervisor accepts creation under an
+`offline_retained_sources_only` contract only when the acquisition project is
+bound by its file digest, every source declares a retained subset, no transport
+allocation or source-effect plan is present, and aggregate selection caps fit.
+Mixed live/retained projects refuse before reserving work. Parent bytes still
+undergo native cold verification; a declaration or approval reference is not a
+verification receipt.

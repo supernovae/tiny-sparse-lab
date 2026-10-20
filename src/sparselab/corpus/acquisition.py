@@ -1228,6 +1228,10 @@ def _acquire_hf(
     from huggingface_hub import snapshot_download
 
     spec = source.acquisition
+    if spec.retained_subset is not None:
+        from sparselab.corpus.retained_subset import derive_subset
+
+        return derive_subset(source, staging=staging)
     if spec.bounded_shards is not None:
         return _bounded_hf_acquire(source, spec, staging, budget)
     assert isinstance(spec, HuggingFaceAcquisition)
@@ -1693,7 +1697,10 @@ def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any
             "adapter": manifest["adapter"],
             "files": manifest["files"],
         }
-        if source.kind == "wikimedia_dump":
+        if source.kind == "wikimedia_dump" or (
+            source.kind == "huggingface_dataset"
+            and source.acquisition.retained_subset is not None
+        ):
             identity_fields["retrieval"] = manifest["retrieval"]
         expected = _digest(identity_fields)
         if expected != manifest["snapshot_sha256"] or (
@@ -1723,6 +1730,15 @@ def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any
             raise ValueError("snapshot file inventory mismatch")
         if source.kind == "wikimedia_dump":
             _verify_wikimedia_receipt(path, manifest)
+        if (
+            source.kind == "huggingface_dataset"
+            and source.acquisition.retained_subset is not None
+        ):
+            from sparselab.corpus.retained_subset import derive_subset
+
+            files, retrieval = derive_subset(source)
+            if files != manifest["files"] or retrieval != manifest["retrieval"]:
+                raise ValueError("retained subset differs from cold parent replay")
         return manifest
     except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid/incomplete snapshot: {path}") from error
@@ -1891,7 +1907,23 @@ def acquire(
 ) -> dict[str, Any]:
     """Publish verified snapshots independently; replace the active lock only on success."""
     base = Path(work_root) / "corpora" / project.config.id
-    if offline:
+    selected = [
+        source
+        for source in project.sources
+        if source.kind == "huggingface_dataset"
+        and source.acquisition.retained_subset is not None
+    ]
+    if selected and (
+        len(selected) != len(project.sources)
+        or project.config.transport_budget is not None
+        or project.config.source_effects is not None
+        or sum(source.acquisition.max_rows for source in selected) > 30000
+        or sum(source.acquisition.max_bytes for source in selected) > 100 * 1024**2
+    ):
+        raise ValueError(
+            "retained subset project must be offline-only within aggregate selection caps"
+        )
+    if offline or (selected and (base / "acquisition.json").exists()):
         return verify_acquisition(
             project,
             work_root,
@@ -2080,7 +2112,10 @@ def acquire(
                 "adapter": adapter,
                 "files": files,
             }
-            if source.kind == "wikimedia_dump":
+            if source.kind == "wikimedia_dump" or (
+                source.kind == "huggingface_dataset"
+                and source.acquisition.retained_subset is not None
+            ):
                 identity_fields["retrieval"] = retrieval
             identity = _digest(identity_fields)
             manifest = {

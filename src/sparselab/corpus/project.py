@@ -151,7 +151,33 @@ class HFBoundedShard(StrictModel):
         return self
 
 
+class RetainedSubset(StrictModel):
+    """A new bounded derivative of an immutable local HF snapshot, never a download."""
+
+    snapshot_path: Path
+    snapshot_sha256: str
+    manifest_sha256: str
+    profile_id: str
+    seed: int = Field(strict=True)
+    max_record_bytes: int = Field(default=262144, gt=0, le=262144, strict=True)
+
+    @model_validator(mode="after")
+    def pinned(self) -> RetainedSubset:
+        if not self.snapshot_path.is_absolute():
+            raise ValueError("retained snapshot path must be absolute")
+        if not all(
+            _HEX.fullmatch(value)
+            for value in (self.snapshot_sha256, self.manifest_sha256)
+        ):
+            raise ValueError("retained snapshot requires full SHA256 pins")
+        _nonblank(self.profile_id)
+        return self
+
+
 class HuggingFaceAcquisition(StrictModel):
+    retained_subset: RetainedSubset | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     qualification: RowQualification | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -166,6 +192,15 @@ class HuggingFaceAcquisition(StrictModel):
 
     @model_validator(mode="after")
     def selection_required(self) -> HuggingFaceAcquisition:
+        if self.retained_subset is not None and (
+            not self.bounded_shards
+            or len(self.bounded_shards) != 1
+            or self.max_rows > 30000
+            or self.max_bytes > 100 * 1024**2
+        ):
+            raise ValueError(
+                "retained subset requires one shard and bounded row/byte limits"
+            )
         if self.qualification is not None and not self.bounded_shards:
             raise ValueError("row qualification requires pinned bounded shards")
         if bool(self.include) == bool(self.bounded_shards):
