@@ -634,3 +634,87 @@ def test_noncode_policy_refuses_each_code_only_field(field, value):
         RowQualification.model_validate(
             {"profile": "web_text", "family_fields": ["id"], field: value}
         )
+
+
+def test_admission_verifies_each_row_before_reading_next(tmp_path, monkeypatch):
+    from sparselab.corpus import jsonl_records, rights
+
+    manifest, source, snapshot, _ = declared_fixture(tmp_path)
+    original_reader = jsonl_records.records_from_path
+    original_check = rights._admission_exceptions
+    checked = 0
+    closed = False
+
+    def check(*args, **kwargs):
+        nonlocal checked
+        result = original_check(*args, **kwargs)
+        checked += 1
+        return result
+
+    def guarded_reader(path):
+        nonlocal closed
+        try:
+            for index, record in enumerate(original_reader(path)):
+                assert checked == index, (
+                    "source text was materialized before validation"
+                )
+                yield record
+        finally:
+            closed = True
+
+    monkeypatch.setattr(rights, "_admission_exceptions", check)
+    monkeypatch.setattr(jsonl_records, "records_from_path", guarded_reader)
+    _verify(manifest, source, snapshot, tmp_path)
+    assert checked == 2 and closed
+
+
+@pytest.mark.parametrize("extra", [False, True])
+def test_streamed_admission_refuses_row_count_mismatch(tmp_path, monkeypatch, extra):
+    from sparselab.corpus import jsonl_records
+
+    manifest, source, snapshot, _ = declared_fixture(tmp_path)
+    original_reader = jsonl_records.records_from_path
+    closed = False
+
+    def changed_reader(path):
+        nonlocal closed
+        try:
+            rows = original_reader(path)
+            first = next(rows)
+            yield first
+            if extra:
+                yield from rows
+                yield first
+            else:
+                rows.close()
+        finally:
+            closed = True
+
+    monkeypatch.setattr(jsonl_records, "records_from_path", changed_reader)
+    with pytest.raises(ValueError, match="row count mismatch"):
+        _verify(manifest, source, snapshot, tmp_path)
+    assert closed
+
+
+def test_streamed_admission_closes_source_on_provenance_failure(tmp_path, monkeypatch):
+    from sparselab.corpus import jsonl_records
+
+    manifest, source, snapshot, _ = declared_fixture(tmp_path)
+    manifest["sources"][0]["records"][0]["source_row_sha256"] = "0" * 64
+    original_reader = jsonl_records.records_from_path
+    closed = False
+    yielded = 0
+
+    def tracked_reader(path):
+        nonlocal closed, yielded
+        try:
+            for row in original_reader(path):
+                yielded += 1
+                yield row
+        finally:
+            closed = True
+
+    monkeypatch.setattr(jsonl_records, "records_from_path", tracked_reader)
+    with pytest.raises(ValueError, match="provenance|receipt"):
+        _verify(manifest, source, snapshot, tmp_path)
+    assert closed and yielded == 1
