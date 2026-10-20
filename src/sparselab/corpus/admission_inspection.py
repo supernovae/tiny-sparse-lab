@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,10 @@ from sparselab.corpus.structure_cleaning import (
     clean_structure,
 )
 from sparselab.training.manifest import canonical_json, sha256_file
+
+_MAX_RECORD_BYTES = 8 * 1024**2
+_MAX_FILE_BYTES = 8 * 1024**2
+_MAX_POOL_BYTES = 64 * 1024**2
 
 
 def _inside(path: Path, root: Path | None = None) -> Path:
@@ -126,20 +131,25 @@ def _candidate(
         "license_url": source.license_url,
         "snapshot_sha256": entry["snapshot_sha256"],
         "metadata": metadata or {},
+        **(
+            {"row_evidence": decision["row_evidence"]}
+            if "row_evidence" in decision
+            else {}
+        ),
         "raw": raw,
         "raw_text_sha256": hashlib.sha256(raw.encode()).hexdigest(),
         "length_bytes": len(raw.encode("utf-8")),
     }
 
 
-def _candidates(
+def _scan_candidates(
     project: Project,
     root: Path,
     draft: dict[str, Any],
     lock: dict[str, Any],
     max_input_bytes: int,
-) -> tuple[dict[str, list[dict[str, Any]]], int]:
-    result: dict[str, list[dict[str, Any]]] = {}
+    visit,
+) -> int:
     consumed = 0
     entries = {entry["source_id"]: entry for entry in draft["sources"]}
     for source in project.sources:
@@ -147,7 +157,6 @@ def _candidates(
         snapshot = Path(lock["sources"][source.id]["snapshot_path"])
         manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
         files = manifest["files"]
-        rows: list[dict[str, Any]] = []
         if source.kind == "git":
             decisions = {item["path"]: item for item in entry["files"]}
             if len(decisions) != len(entry["files"]):
@@ -155,6 +164,8 @@ def _candidates(
             for file in files:
                 path = file["path"]
                 size = (snapshot / "files" / path).stat().st_size
+                if size > _MAX_FILE_BYTES:
+                    raise ValueError("inspection file-byte cap exceeded")
                 if consumed + size > max_input_bytes:
                     raise ValueError("admission inspection input-byte cap exceeded")
                 raw = (snapshot / "files" / path).read_bytes()
@@ -166,7 +177,8 @@ def _candidates(
                 decision = decisions.pop(path)
                 if decision["sha256"] != file["sha256"]:
                     raise ValueError("draft file identity differs from snapshot")
-                rows.append(
+                visit(
+                    source.id,
                     _candidate(
                         source,
                         entry,
@@ -174,7 +186,7 @@ def _candidates(
                         path=path,
                         raw=raw.decode("utf-8"),
                         digest=file["sha256"],
-                    )
+                    ),
                 )
             if decisions:
                 raise ValueError("draft contains unobserved file decisions")
@@ -188,55 +200,60 @@ def _candidates(
             consumed += shard.stat().st_size
             if consumed > max_input_bytes:
                 raise ValueError("admission inspection input-byte cap exceeded")
-            parsed = records_from_path(shard)
-            for receipt, decision, record in zip(
-                selected, decisions, parsed, strict=True
-            ):
-                value = record.value
-                if not isinstance(value, dict) or not isinstance(
-                    value.get("text"), str
+            text_field = source.acquisition.text_field
+            with closing(
+                records_from_path(shard, max_record_bytes=_MAX_RECORD_BYTES)
+            ) as parsed:
+                for receipt, decision, record in zip(
+                    selected, decisions, parsed, strict=True
                 ):
-                    raise TypeError("inspection row lacks text")
-                envelope = value.get("_sparselab_source")
-                original = {
-                    key: item
-                    for key, item in value.items()
-                    if key != "_sparselab_source"
-                }
-                digest = hashlib.sha256(canonical_json(original)).hexdigest()
-                index = receipt["source_row_index"]
-                if (
-                    not isinstance(envelope, dict)
-                    or envelope.get("source_row_index") != index
-                    or envelope.get("source_row_sha256") != digest
-                    or decision["source_row_index"] != index
-                    or decision["source_row_sha256"] != digest
-                    or receipt["source_row_sha256"] != digest
-                ):
-                    raise ValueError(
-                        "inspection row identity differs from draft or snapshot"
+                    value = record.value
+                    if not isinstance(value, dict) or not isinstance(
+                        value.get(text_field), str
+                    ):
+                        raise TypeError(
+                            f"inspection row lacks declared text field: {text_field}"
+                        )
+                    envelope = value.get("_sparselab_source")
+                    original = {
+                        key: item
+                        for key, item in value.items()
+                        if key != "_sparselab_source"
+                    }
+                    digest = hashlib.sha256(canonical_json(original)).hexdigest()
+                    index = receipt["source_row_index"]
+                    if (
+                        not isinstance(envelope, dict)
+                        or envelope.get("source_row_index") != index
+                        or envelope.get("source_row_sha256") != digest
+                        or decision["source_row_index"] != index
+                        or decision["source_row_sha256"] != digest
+                        or receipt["source_row_sha256"] != digest
+                    ):
+                        raise ValueError(
+                            "inspection row identity differs from draft or snapshot"
+                        )
+                    visit(
+                        source.id,
+                        _candidate(
+                            source,
+                            entry,
+                            decision,
+                            path=file["path"],
+                            raw=value[text_field],
+                            digest=digest,
+                            row_index=index,
+                            physical_line=record.physical_line,
+                            metadata=original.get("metadata")
+                            if isinstance(original.get("metadata"), dict)
+                            else {},
+                        ),
                     )
-                rows.append(
-                    _candidate(
-                        source,
-                        entry,
-                        decision,
-                        path=file["path"],
-                        raw=value["text"],
-                        digest=digest,
-                        row_index=index,
-                        physical_line=record.physical_line,
-                        metadata=original.get("metadata")
-                        if isinstance(original.get("metadata"), dict)
-                        else {},
-                    )
-                )
             if sha256_file(shard) != file["sha256"]:
                 raise ValueError("snapshot shard changed during inspection")
         else:
             raise ValueError("unsupported admission inspection source kind")
-        result[source.id] = rows
-    return result, consumed
+    return consumed
 
 
 def _rank(
@@ -342,119 +359,171 @@ def _inspect(
         snapshots,
         root / "corpora" / project.config.id / "snapshots",
     )
-    rows_by_source, consumed = _candidates(project, root, draft, lock, max_input_bytes)
-    items: list[dict[str, Any]] = []
-    exceptions: list[dict[str, Any]] = []
-    coverage: list[dict[str, Any]] = []
-    for source_spec in selection["sources"]:
-        source_id = source_spec["source_id"]
-        source_rows = rows_by_source[source_id]
-        eligible = [row for row in source_rows if row["decision"] == "qualify"]
-        for row in eligible:
-            row["retained_length_bytes"] = len(
-                clean_structure(
-                    row["raw"],
-                    source_id=source_id,
-                    normalizer=selection["normalizer"],
-                )["text"].encode("utf-8")
+    # Two bounded-text passes preserve the exact median strata and deterministic
+    # rank selection without retaining every source document. Metadata/decisions
+    # are still loaded by the native verifier; do not confuse this with constant
+    # total process memory.
+    from array import array
+
+    lengths = {source.id: array("Q") for source in project.sources}
+
+    def measure(source_id, row):
+        if row["decision"] == "qualify":
+            lengths[source_id].append(
+                len(
+                    clean_structure(
+                        row["raw"],
+                        source_id=source_id,
+                        normalizer=selection["normalizer"],
+                    )["text"].encode("utf-8")
+                )
             )
-        lengths = sorted(row["retained_length_bytes"] for row in eligible)
-        middle = len(lengths) // 2
-        median2 = (
-            (lengths[middle - 1] + lengths[middle])
-            if len(lengths) % 2 == 0 and lengths
-            else (2 * lengths[middle] if lengths else 0)
+
+    consumed = _scan_candidates(project, root, draft, lock, max_input_bytes, measure)
+    medians = {}
+    populations = {}
+    for source_id, values in lengths.items():
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        medians[source_id] = (
+            ordered[middle - 1] + ordered[middle]
+            if ordered and len(ordered) % 2 == 0
+            else 2 * ordered[middle]
+            if ordered
+            else 0
         )
-        buckets: dict[str, list[dict[str, Any]]] = {
-            group["id"]: [] for group in source_spec["strata"]
-        }
-        outside = 0
-        for row in eligible:
-            for group in source_spec["strata"]:
-                prefix = group["path_prefix"]
-                band = group["length_band"]
-                issue = group["issues_nonempty"]
-                if (
-                    (prefix is None or row["path"].startswith(prefix))
-                    and (
-                        band is None
-                        or (
-                            row["retained_length_bytes"] * 2 <= median2
-                            if band == "short"
-                            else row["retained_length_bytes"] * 2 > median2
-                        )
-                    )
-                    and (issue is None or bool(row["issues"]) == issue)
-                ):
-                    buckets[group["id"]].append(row)
-                    break
-            else:
-                outside += 1
-        selected: list[tuple[str, dict[str, Any]]] = []
-        remaining: list[tuple[str, dict[str, Any]]] = []
-        sample_population = 0
-        for group in source_spec["strata"]:
-            name = group["id"]
-            ordered = sorted(
-                buckets[name],
-                key=lambda row: _rank(selection["seed"], source_id, name, row),
+        populations[source_id] = len(ordered)
+    lengths.clear()
+    del values, ordered
+    specs = {item["source_id"]: item for item in selection["sources"]}
+    pools = {
+        source_id: {group["id"]: [] for group in spec["strata"]}
+        for source_id, spec in specs.items()
+    }
+    held = {source_id: [] for source_id in specs}
+    counts = {
+        source_id: {group["id"]: 0 for group in spec["strata"]}
+        for source_id, spec in specs.items()
+    }
+    outside = dict.fromkeys(specs, 0)
+    held_counts = dict.fromkeys(specs, 0)
+    pool_bytes = 0
+    # Selection pools can exceed the final receipt (fallback candidates), but
+    # cannot grow with corpus size. Refuse rather than retain unbounded metadata.
+
+    def retain(pool, source_id, name, row, count):
+        nonlocal pool_bytes
+        if not count:
+            return
+        rank = _rank(selection["seed"], source_id, name, row)
+        if len(pool) == count and rank >= pool[-1][0]:
+            return
+        display = _display(
+            row, normalizer=selection["normalizer"], max_excerpt_bytes=max_excerpt_bytes
+        )
+        size = len(canonical_json(display))
+        removed = pool[-1][2] if len(pool) == count else 0
+        if pool_bytes + size - removed > _MAX_POOL_BYTES:
+            raise ValueError("inspection selection-pool byte cap exceeded")
+        if len(pool) == count:
+            pool.pop()
+        pool.append((rank, display, size))
+        pool.sort(key=lambda item: item[0])
+        pool_bytes += size - removed
+
+    def select(source_id, row):
+        spec = specs[source_id]
+        if row["decision"] == "quarantine":
+            held_counts[source_id] += 1
+            retain(
+                held[source_id], source_id, "quarantine", row, spec["exception_count"]
             )
-            count = group["count"]
-            selected.extend((name, row) for row in ordered[:count])
+        if row["decision"] != "qualify":
+            return
+        row["retained_length_bytes"] = len(
+            clean_structure(
+                row["raw"], source_id=source_id, normalizer=selection["normalizer"]
+            )["text"].encode("utf-8")
+        )
+        requested = sum(group["count"] for group in spec["strata"])
+        for group in spec["strata"]:
+            prefix, band, issue = (
+                group["path_prefix"],
+                group["length_band"],
+                group["issues_nonempty"],
+            )
+            if (
+                (prefix is None or row["path"].startswith(prefix))
+                and (
+                    band is None
+                    or (
+                        row["retained_length_bytes"] * 2 <= medians[source_id]
+                        if band == "short"
+                        else row["retained_length_bytes"] * 2 > medians[source_id]
+                    )
+                )
+                and (issue is None or bool(row["issues"]) == issue)
+            ):
+                counts[source_id][group["id"]] += 1
+                if group["count"]:
+                    retain(
+                        pools[source_id][group["id"]],
+                        source_id,
+                        group["id"],
+                        row,
+                        requested,
+                    )
+                else:
+                    outside[source_id] += 1
+                break
+        else:
+            outside[source_id] += 1
+
+    reread = _scan_candidates(project, root, draft, lock, max_input_bytes, select)
+    if reread != consumed:
+        raise ValueError("snapshot byte count changed between inspection passes")
+    items, exceptions, coverage = [], [], []
+    for spec in selection["sources"]:
+        source_id = spec["source_id"]
+        selected, remaining = [], []
+        sample_population = 0
+        for group in spec["strata"]:
+            name, count = group["id"], group["count"]
+            pool = pools[source_id][name]
+            selected.extend((name, row) for _, row, _ in pool[:count])
             if count:
-                sample_population += len(ordered)
-                remaining.extend((name, row) for row in ordered[count:])
-            else:
-                outside += len(ordered)
+                sample_population += counts[source_id][name]
+                remaining.extend((rank, name, row) for rank, row, _ in pool[count:])
             coverage.append(
                 {
                     "source_id": source_id,
                     "stratum": name,
-                    "population": len(ordered),
+                    "population": counts[source_id][name],
                     "requested": count,
-                    "initial_selected": min(count, len(ordered)),
+                    "initial_selected": min(count, counts[source_id][name]),
                 }
             )
-        requested = sum(group["count"] for group in source_spec["strata"])
-        if len(selected) < requested:
-            remaining.sort(
-                key=lambda pair: _rank(selection["seed"], source_id, pair[0], pair[1])
-            )
-            selected.extend(remaining[: requested - len(selected)])
+        requested = sum(group["count"] for group in spec["strata"])
+        remaining.sort(key=lambda item: item[0])
+        selected.extend(
+            (name, row) for _, name, row in remaining[: requested - len(selected)]
+        )
         if len(selected) != min(requested, sample_population):
             raise ValueError("inspection selection is incomplete")
-        for name, row in selected:
-            item = _display(
-                row,
-                normalizer=selection["normalizer"],
-                max_excerpt_bytes=max_excerpt_bytes,
-            )
-            item["stratum"] = name
-            items.append(item)
-        held = [row for row in source_rows if row["decision"] == "quarantine"]
-        held.sort(
-            key=lambda row: _rank(selection["seed"], source_id, "quarantine", row)
-        )
-        exceptions.extend(
-            _display(
-                row,
-                normalizer=selection["normalizer"],
-                max_excerpt_bytes=max_excerpt_bytes,
-            )
-            for row in held[: source_spec["exception_count"]]
-        )
+        items.extend({**row, "stratum": name} for name, row in selected)
+        exceptions.extend(row for _, row, _ in held[source_id])
         coverage.append(
             {
                 "source_id": source_id,
                 "stratum": "__summary__",
-                "qualify_population": len(eligible),
-                "outside_protocol_population": outside,
+                "qualify_population": populations[source_id],
+                "outside_protocol_population": outside[source_id],
                 "requested": requested,
                 "selected": len(selected),
                 "sample_shortfall": requested - len(selected),
-                "quarantine_population": len(held),
-                "exceptions_shown": min(len(held), source_spec["exception_count"]),
-                "exceptions_incomplete": len(held) > source_spec["exception_count"],
+                "quarantine_population": held_counts[source_id],
+                "exceptions_shown": len(held[source_id]),
+                "exceptions_incomplete": held_counts[source_id] > len(held[source_id]),
             }
         )
     payload = {
@@ -483,6 +552,7 @@ def _inspect(
         "max_excerpt_bytes": max_excerpt_bytes,
         "max_output_bytes": max_output_bytes,
         "input_bytes": consumed,
+        "read_bytes": consumed + reread,
         "items": items,
         "quarantine_exceptions": exceptions,
         "coverage": coverage,

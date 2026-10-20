@@ -26,6 +26,8 @@ from sparselab.corpus.rights import (
 )
 from sparselab.training.manifest import canonical_json, sha256_file
 
+_MAX_RECORD_BYTES = 8 * 1024**2
+
 
 def _decision(value: str, reason: str) -> dict[str, Any]:
     return {"decision": value, "reason": reason, "issues": []}
@@ -133,7 +135,8 @@ def draft_admission_manifest(
         or not isinstance(template["sources"], list)
         or any(
             not isinstance(item, dict)
-            or set(item) != {"source_id", "license_label", "rights"}
+            or set(item) - {"row_use_policy"}
+            != {"source_id", "license_label", "rights"}
             for item in template["sources"]
         )
     ):
@@ -188,6 +191,22 @@ def draft_admission_manifest(
         snapshots[source_id] = snapshot
         policy = policies[source_id]
         rights = RightsPolicy.model_validate(policy["rights"])
+        from sparselab.corpus.row_qualification import (
+            RowQualification,
+            RowUsePolicy,
+            use_evidence,
+        )
+
+        row_use = (
+            RowUsePolicy.model_validate(policy["row_use_policy"])
+            if "row_use_policy" in policy
+            else None
+        )
+        if row_use is not None and (
+            source.kind != "huggingface_dataset"
+            or source.acquisition.qualification is None
+        ):
+            raise ValueError("row use policy requires declared HF row qualification")
         entry: dict[str, Any] = {
             "source_id": source_id,
             "snapshot_sha256": snapshot["snapshot_sha256"],
@@ -195,6 +214,8 @@ def draft_admission_manifest(
             "license_label": policy["license_label"],
             "rights": rights.model_dump(mode="json"),
         }
+        if row_use is not None:
+            entry["row_use_policy"] = row_use.model_dump(mode="json")
         if source.kind == "huggingface_dataset":
             if len(snapshot["files"]) != 1 or len(snapshot["retrieval"]["shards"]) != 1:
                 raise ValueError("admission draft requires one selected HF shard")
@@ -212,7 +233,9 @@ def draft_admission_manifest(
             with (snapshot_dir / "files" / file["path"]).open("rb") as stream:
                 from sparselab.corpus.jsonl_records import iter_jsonl_records
 
-                rows = iter_jsonl_records(stream, source=file["path"])
+                rows = iter_jsonl_records(
+                    stream, source=file["path"], max_record_bytes=_MAX_RECORD_BYTES
+                )
                 for receipt in selected:
                     row = next(rows, None)
                     if row is None:
@@ -228,7 +251,10 @@ def draft_admission_manifest(
                     ):
                         raise ValueError("HF row differs from acquisition receipt")
                     conflict, flags = _admission_exceptions(
-                        record, profile, source_declaration_payload(source)
+                        record,
+                        profile,
+                        source_declaration_payload(source),
+                        row_use=row_use,
                     )
                     flags = tuple(
                         sorted(
@@ -239,6 +265,8 @@ def draft_admission_manifest(
                         state = (
                             "exclude"
                             if "outside content namespace" in conflict
+                            or conflict
+                            == "explicit training-use restriction on source row"
                             else "quarantine"
                         )
                         choice = _decision(state, conflict)
@@ -261,6 +289,15 @@ def draft_admission_manifest(
                         source_row_index=receipt["source_row_index"],
                         source_row_sha256=original_sha,
                     )
+                    if row_use is not None:
+                        choice["row_evidence"] = use_evidence(
+                            record,
+                            RowQualification.model_validate(
+                                source.acquisition.qualification
+                            ),
+                            source.acquisition.text_field,
+                            row_use,
+                        )
                     decisions.append(choice)
                     counts[state if conflict is not None else choice["decision"]] += 1
                 if next(rows, None) is not None:

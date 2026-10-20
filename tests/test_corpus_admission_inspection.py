@@ -104,6 +104,7 @@ def test_verified_pre_admission_inspection_and_exact_review(tmp_path: Path) -> N
         if file.is_file()
     )
     assert observed["input_bytes"] == actual_snapshot_bytes
+    assert observed["read_bytes"] == 2 * actual_snapshot_bytes
     assert {item["source_id"] for item in observed["items"]} == {
         "books",
         "books_rows",
@@ -246,3 +247,357 @@ def test_admission_review_rejects_obsolete_unbound_decisions(tmp_path: Path) -> 
     )
     with pytest.raises(ValueError, match="inspection-bound decision"):
         verify_admission_review(admission, tmp_path)
+
+
+def test_inspection_does_not_retain_source_candidates_between_records(
+    tmp_path, monkeypatch
+):
+    import weakref
+
+    from sparselab.corpus import admission_inspection
+
+    root = tmp_path / "work"
+    root.mkdir()
+    recipe, policy, draft, selection, _ = _fixture(root)
+    previous = None
+    calls = 0
+    original = admission_inspection._candidate
+
+    class Candidate(dict):
+        pass
+
+    def tracked(*args, **kwargs):
+        nonlocal previous, calls
+        assert previous is None or previous() is None, "whole source candidate retained"
+        row = Candidate(original(*args, **kwargs))
+        previous = weakref.ref(row)
+        calls += 1
+        return row
+
+    monkeypatch.setattr(admission_inspection, "_candidate", tracked)
+    inspect_admission(
+        load_project(recipe / "acquire.yaml"),
+        recipe / "acquire.yaml",
+        root,
+        draft,
+        policy,
+        selection,
+        recipe / "streamed.json",
+        max_input_bytes=1048576,
+        max_excerpt_bytes=80,
+        max_output_bytes=262144,
+    )
+    assert calls > 8 and previous() is None
+
+
+def test_bounded_jsonl_reads_stop_before_oversized_record_is_materialized():
+    import io
+
+    from sparselab.corpus.jsonl_records import iter_jsonl_records
+
+    class Limited(io.BytesIO):
+        def readline(self, size=-1):
+            assert size == 5
+            return super().readline(size)
+
+    assert (
+        next(
+            iter_jsonl_records(Limited(b"{}\n"), source="fixture", max_record_bytes=4)
+        ).value
+        == {}
+    )
+    with pytest.raises(ValueError, match="record-byte cap"):
+        list(
+            iter_jsonl_records(
+                Limited(b"123456789\n"), source="fixture", max_record_bytes=4
+            )
+        )
+    with pytest.raises(ValueError, match="positive integer"):
+        list(
+            iter_jsonl_records(
+                io.BytesIO(b"{}\n"), source="fixture", max_record_bytes=True
+            )
+        )
+
+
+def test_streaming_median_strata_and_fallback_match_full_sort_reference(
+    tmp_path, monkeypatch
+):
+    import hashlib
+
+    from sparselab.corpus import admission_inspection as inspection
+
+    root = tmp_path / "work"
+    root.mkdir()
+    recipe, policy, draft, selection, _ = _fixture(root)
+    project = load_project(recipe / "acquire.yaml")
+    declaration = json.loads(selection.read_text())
+    for source in declaration["sources"]:
+        source["exception_count"] = 0
+        source["strata"] = [
+            {
+                "id": "absent",
+                "count": 2,
+                "path_prefix": "absent/",
+                "length_band": None,
+                "issues_nonempty": None,
+            },
+            {
+                "id": "short",
+                "count": 1,
+                "path_prefix": None,
+                "length_band": "short",
+                "issues_nonempty": None,
+            },
+            {
+                "id": "long",
+                "count": 1,
+                "path_prefix": None,
+                "length_band": "long",
+                "issues_nonempty": None,
+            },
+        ]
+    selection.write_bytes(canonical_json(declaration))
+    entries = {
+        entry["source_id"]: entry for entry in json.loads(draft.read_text())["sources"]
+    }
+    rows = {}
+    # This sampler-only substitution follows real acquisition/draft verification;
+    # it supplies five tiny lengths to exercise median and undersupplied strata.
+    for source in project.sources:
+        rows[source.id] = [
+            inspection._candidate(
+                source,
+                entries[source.id],
+                {"decision": "qualify", "reason": "sampler fixture", "issues": []},
+                path=f"item-{number}.txt",
+                raw="Fixture prose words. " * number,
+                digest=hashlib.sha256(str(number).encode()).hexdigest(),
+                row_index=number,
+            )
+            for number in range(1, 6)
+        ]
+
+    def scan(_project, _root, _draft, _lock, budget, visit):
+        assert budget >= 100
+        for source_id, values in rows.items():
+            for row in values:
+                visit(source_id, dict(row))
+        return 100
+
+    monkeypatch.setattr(inspection, "_scan_candidates", scan)
+    output = recipe / "ranked.json"
+    inspect_admission(
+        project,
+        recipe / "acquire.yaml",
+        root,
+        draft,
+        policy,
+        selection,
+        output,
+        max_input_bytes=1048576,
+        max_excerpt_bytes=80,
+        max_output_bytes=262144,
+    )
+    report = json.loads(output.read_text())
+    assert report["input_bytes"] == 100
+    assert report["read_bytes"] == 200
+    for source_id, values in rows.items():
+        short = sorted(
+            values[:3],
+            key=lambda row: inspection._rank(
+                declaration["seed"], source_id, "short", row
+            ),
+        )
+        long = sorted(
+            values[3:],
+            key=lambda row: inspection._rank(
+                declaration["seed"], source_id, "long", row
+            ),
+        )
+        remaining = sorted(
+            [("short", row) for row in short[1:]] + [("long", row) for row in long[1:]],
+            key=lambda pair: inspection._rank(declaration["seed"], source_id, *pair),
+        )
+        expected = [("short", short[0]), ("long", long[0]), *remaining[:2]]
+        assert [
+            (item["stratum"], item["item_id"])
+            for item in report["items"]
+            if item["source_id"] == source_id
+        ] == [(name, row["item_id"]) for name, row in expected]
+
+
+def _inspect_again(root, fixture, name="again.json", **caps):
+    recipe, policy, draft, selection, _ = fixture
+    return inspect_admission(
+        load_project(recipe / "acquire.yaml"),
+        recipe / "acquire.yaml",
+        root,
+        draft,
+        policy,
+        selection,
+        recipe / name,
+        max_input_bytes=caps.get("max_input_bytes", 1048576),
+        max_excerpt_bytes=80,
+        max_output_bytes=262144,
+    )
+
+
+def test_snapshot_cap_boundary_and_two_pass_precheck(tmp_path, monkeypatch):
+    from sparselab.corpus import admission_inspection as inspection
+
+    fixture = _fixture(tmp_path)
+    recipe, _, draft, _, receipt = fixture
+    project = load_project(recipe / "acquire.yaml")
+    lock = inspection.verify_acquisition(project, tmp_path)
+    manifest = json.loads(draft.read_text())
+    size = json.loads(receipt.read_text())["input_bytes"]
+    assert (
+        inspection._scan_candidates(
+            project, tmp_path, manifest, lock, size, lambda *_: None
+        )
+        == size
+    )
+    with pytest.raises(ValueError, match="input-byte cap exceeded"):
+        inspection._scan_candidates(
+            project, tmp_path, manifest, lock, size - 1, lambda *_: None
+        )
+
+    cap = sum(source.acquisition.max_bytes for source in project.sources)
+    original = inspection._scan_candidates
+    budgets = []
+
+    def at_declared_boundary(project, root, draft, lock, budget, visit):
+        budgets.append(budget)
+        original(project, root, draft, lock, budget, visit)
+        # Fixture substitution: charge the complete declared snapshot capacity.
+        return cap
+
+    monkeypatch.setattr(inspection, "_scan_candidates", at_declared_boundary)
+    _inspect_again(tmp_path, fixture, max_input_bytes=cap)
+    report = json.loads((recipe / "again.json").read_text())
+    assert budgets == [cap, cap]
+    assert report["input_bytes"] == cap and report["read_bytes"] == 2 * cap
+    budgets.clear()
+    with pytest.raises(ValueError, match="below declared source maxima"):
+        _inspect_again(tmp_path, fixture, "below.json", max_input_bytes=cap - 1)
+    assert budgets == []
+
+
+@pytest.mark.parametrize(
+    "guard,message",
+    [
+        ("_MAX_RECORD_BYTES", "record-byte cap"),
+        ("_MAX_FILE_BYTES", "file-byte cap"),
+        ("_MAX_POOL_BYTES", "selection-pool byte cap"),
+    ],
+)
+def test_inspection_limit_callsites_refuse_without_output(
+    tmp_path, monkeypatch, guard, message
+):
+    from sparselab.corpus import admission_inspection as inspection
+
+    fixture = _fixture(tmp_path)
+    monkeypatch.setattr(inspection, guard, 1)
+    with pytest.raises(ValueError, match=message):
+        _inspect_again(tmp_path, fixture)
+    assert not (fixture[0] / "again.json").exists()
+
+
+def test_draft_record_cap_is_enforced_at_reader(tmp_path, monkeypatch):
+    from sparselab.corpus import admission_draft
+
+    recipe, policy, _, _, _ = _fixture(tmp_path)
+    monkeypatch.setattr(admission_draft, "_MAX_RECORD_BYTES", 1)
+    output = recipe / "oversize-draft.json"
+    with pytest.raises(ValueError, match="record-byte cap"):
+        draft_admission_manifest(
+            load_project(recipe / "acquire.yaml"),
+            tmp_path,
+            recipe / "application.json",
+            policy,
+            output,
+        )
+    assert not output.exists()
+
+
+def test_quarantine_coverage_counts_unshown_rows(tmp_path):
+    fixture = _fixture(tmp_path)
+    selection = fixture[3]
+    declaration = json.loads(selection.read_text())
+    for source in declaration["sources"]:
+        source["exception_count"] = 0
+    selection.write_bytes(canonical_json(declaration))
+    _inspect_again(tmp_path, fixture)
+    report = json.loads((fixture[0] / "again.json").read_text())
+    summaries = [row for row in report["coverage"] if row["stratum"] == "__summary__"]
+    assert len(summaries) == 4
+    assert all(row["quarantine_population"] > 0 for row in summaries)
+    assert all(row["exceptions_incomplete"] is True for row in summaries)
+    assert all(row["exceptions_shown"] == 0 for row in summaries)
+    assert report["quarantine_exceptions"] == []
+
+
+def test_inspection_closes_reader_when_candidate_refuses(tmp_path, monkeypatch):
+    from sparselab.corpus import admission_inspection as inspection
+
+    fixture = _fixture(tmp_path)
+    original_reader = inspection.records_from_path
+    original_candidate = inspection._candidate
+    readers = []
+    closed = []
+
+    def tracked(*args, **kwargs):
+        def iterate():
+            try:
+                yield from original_reader(*args, **kwargs)
+            finally:
+                closed.append(True)
+
+        reader = iterate()
+        readers.append(reader)  # keep alive: GC must not supply the close
+        return reader
+
+    def refuse(source, *args, **kwargs):
+        if source.kind == "huggingface_dataset":
+            raise ValueError("fixture candidate refusal")
+        return original_candidate(source, *args, **kwargs)
+
+    monkeypatch.setattr(inspection, "records_from_path", tracked)
+    monkeypatch.setattr(inspection, "_candidate", refuse)
+    with pytest.raises(ValueError, match="fixture candidate refusal"):
+        _inspect_again(tmp_path, fixture)
+    assert readers and closed == [True]
+
+
+def test_old_inspection_and_bound_review_require_regeneration(tmp_path):
+    recipe, _, draft, _, inspection = _fixture(tmp_path)
+    payload = json.loads(inspection.read_text())
+    del payload["read_bytes"]
+    inspection.write_bytes(canonical_json(payload) + b"\n")
+    with pytest.raises(ValueError, match="differs from verified inputs"):
+        verify_admission_inspection(inspection, tmp_path)
+    admission = recipe / "admission.json"
+    _review(admission, draft, inspection, [])
+    with pytest.raises(ValueError, match="differs from verified inputs"):
+        verify_admission_review(admission, tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["git", "huggingface_dataset"])
+def test_draft_refuses_row_policy_without_declared_qualification(tmp_path, kind):
+    recipe, policy, _, _, _ = _fixture(tmp_path)
+    project = load_project(recipe / "acquire.yaml")
+    source = next(source for source in project.sources if source.kind == kind)
+    template = recipe / "application.json"
+    application = json.loads(template.read_text())
+    entry = next(
+        entry for entry in application["sources"] if entry["source_id"] == source.id
+    )
+    entry["row_use_policy"] = {"mode": "record_attribution"}
+    template.write_bytes(canonical_json(application))
+    with pytest.raises(
+        ValueError, match="row use policy requires declared HF row qualification"
+    ):
+        draft_admission_manifest(
+            project, tmp_path, template, policy, recipe / "unsupported.json"
+        )

@@ -101,6 +101,70 @@ class RowQualification(StrictModel):
         return self
 
 
+class RowUsePolicy(StrictModel):
+    """Prospective application policy; never mutates acquired source declarations."""
+
+    mode: Literal["record_attribution"]
+    restricted_rows: dict[str, dict[str, str]] = Field(
+        default_factory=dict, max_length=100000
+    )
+
+    @model_validator(mode="after")
+    def explicit_restrictions(self):
+        import re
+
+        for digest, evidence in self.restricted_rows.items():
+            if (
+                re.fullmatch(r"[0-9a-f]{64}", digest) is None
+                or set(evidence) != {"basis", "evidence"}
+                or any(
+                    not value.strip() or len(value) > 4096
+                    for value in evidence.values()
+                )
+            ):
+                raise ValueError(
+                    "row restriction requires exact row digest, basis and evidence"
+                )
+        return self
+
+
+def use_evidence(
+    row: dict, qualification: RowQualification, text_field: str, policy: RowUsePolicy
+) -> dict:
+    """Retain labels and notice pointers; do not classify licenses or infer permission."""
+    digest = hashlib.sha256(canonical_json(row)).hexdigest()
+    label = field_value(row, qualification.license_field)
+    text = row.get(text_field)
+    # Iterate LF physical lines without materializing a split list. Extracted
+    # notices are bounded pointers; the original row remains authoritative.
+    from io import StringIO
+
+    notices = []
+    truncated = False
+    if isinstance(text, str):
+        for number, line in enumerate(StringIO(text), 1):
+            line = line.removesuffix("\n")
+            if (
+                "copyright" not in line.casefold()
+                and "spdx-license-identifier:" not in line.casefold()
+            ):
+                continue
+            if len(notices) == 64:
+                truncated = True
+                break
+            notices.append({"line": number, "text": line[:1024]})
+            truncated |= len(line) > 1024
+    return {
+        "source_row_sha256": digest,
+        "license_label": label,
+        "license_label_status": "recorded" if _present(label) else "unknown",
+        "notice_lines": notices,
+        "notice_lines_truncated": truncated,
+        "restriction": policy.restricted_rows.get(digest),
+        "scope": "declared source policy and explicit row restrictions; not legal clearance",
+    }
+
+
 def _present(value: object) -> bool:
     return (
         value is not None
@@ -161,14 +225,22 @@ def provenance(row: dict, policy: RowQualification) -> dict:
 
 
 def exceptions(
-    row: dict, policy: RowQualification, text_field: str
+    row: dict,
+    policy: RowQualification,
+    text_field: str,
+    *,
+    row_use: RowUsePolicy | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
-    from sparselab.corpus.rights import _ADMISSION_PRIVATE, _git_file_exceptions
+    from sparselab.corpus.rights import (
+        _ADMISSION_PRIVATE,
+        _GIT_PRIVATE,
+        _git_file_exceptions,
+    )
 
     text = row.get(text_field)
     if not isinstance(text, str) or not text.strip():
         return "empty or nontext declared content field", ()
-    if _ADMISSION_PRIVATE.search(text):
+    if _ADMISSION_PRIVATE.search(text) or _GIT_PRIVATE.search(text.encode("utf-8")):
         return "private identifier or credential in source row", ()
     try:
         provenance(row, policy)
@@ -179,6 +251,11 @@ def exceptions(
         and field_value(row, policy.language_field) not in policy.allowed_languages
     ):
         return "record outside declared language policy", ()
+    if (
+        row_use is not None
+        and hashlib.sha256(canonical_json(row)).hexdigest() in row_use.restricted_rows
+    ):
+        return "explicit training-use restriction on source row", ()
     if policy.profile != "code":
         return None, ()
     license_value = field_value(row, policy.license_field)
@@ -187,7 +264,7 @@ def exceptions(
         if isinstance(license_value, str)
         else None
     )
-    if expression is None:
+    if expression is None and row_use is None:
         return "missing or incompatible repository license label", ()
     repository = field_value(row, policy.repository_field)
     path = field_value(row, policy.path_field)
@@ -221,11 +298,11 @@ def exceptions(
     ):
         return "vendor or generated code path", ()
     material, flags = _git_file_exceptions(text.encode("utf-8"), expression)
-    if material:
+    if material and row_use is None:
         return "material or conflicting file-level code notice", ()
     if "generated" in text[:4096].casefold() and any(
         marker in text[:4096].casefold()
         for marker in ("do not edit", "automatically generated", "auto-generated")
     ):
         return "generated code notice", ()
-    return None, ("code_notice_review",) if flags else ()
+    return None, ("code_notice_review",) if flags and row_use is None else ()

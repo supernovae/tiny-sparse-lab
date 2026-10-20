@@ -64,3 +64,14 @@ See [memorization diagnostic](memorization.md) for an optional bounded continuat
 This selection policy uses `schema_version: 3` on **all** source declarations and the release; the project index remains schema v1. `explicit_training_restriction` on each source and `training_use_policy: allowed_unless_explicitly_prohibited` on the release record the selection rule. A public, attributable source without a documented incompatible ML-training restriction may be considered for private research even when its license is not recognized by the file-level SPDX classifier. This does **not** interpret a dataset's license as the license for every upstream page or paper; preserve source, file, page/paper and attribution evidence separately. Deny explicit incompatible bans, required ungranted authorization, bypassed gated access, unknown origin, secrets and private/confidential records. An absent person-by-person attestation is not an explicit no-training term.
 
 V2 historical eligibility and incompatible-rights duplicate fail-gates remain unchanged. V3 resolves cross-source exact text to one local representative while retaining every attribution origin and rights decision in the audit/receipts. An identical train/held-out source passage belongs to the held-out pool; overlapping validation and test copies fail. Approximate overlap and different text from the same URL or paper still require contamination review. The v3 `publication` command emits reconstruction metadata only. A frozen private corpus, a local training export, permission to publish raw data, and permission to license/publish future model weights are four separate decisions. No final tokenizer or training follows from freezing the source inventory.
+
+### Opt-in row attribution
+
+Declared HF admission sources may select `row_use_policy.mode: record_attribution`
+(see [corpus preparation](corpus-preparation.md#record-attribution-under-an-explicit-application-policy)).
+This applies the attribution-first processing choice at original-row granularity:
+retain labels, unknowns and notice conflicts for audit; enforce explicit restrictions
+on intended use, independently of quality filters. It is consistent with the v3
+`allowed_unless_explicitly_prohibited` direction, but does not change the source
+declaration, grant permission or constitute legal clearance. The default code-label
+gate remains when this opt-in policy is absent.
