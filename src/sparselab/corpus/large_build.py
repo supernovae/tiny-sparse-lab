@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import tempfile
 from array import array
@@ -39,6 +40,7 @@ _SPLITS = ("train", "validation", "test")
 _PREPARED_FILES = ("docs.jsonl", "spans.jsonl", "rejected.jsonl")
 _PROCESS_SHARD_MIN_BYTES = 32 * 1024**2
 _PROCESS_SHARD_MAX_LINE_BYTES = 1024**2
+_ADMITTED_RECORD_MAX_BYTES = 8 * 1024**2
 
 
 def _digest(value: Any) -> str:
@@ -208,11 +210,31 @@ def _prepare_file(
     decision: Any,
     progress: BuildProgress,
     normalizer_version: str = "normalizer-nfc-markdown-v1",
+    record_admission: dict[str, Any] | None = None,
+    admission_sha256: str | None = None,
 ) -> Path:
     from sparselab.corpus.pipeline import _records_for_file
     from sparselab.engram.packs import _rename_noreplace
 
+    # Internal primitive: callers must first use verify_record_admission against
+    # the pinned original rows. The digest binds that complete reviewed artifact,
+    # not a newly inferred policy or an approval supplied by this helper.
+    if (record_admission is None) != (admission_sha256 is None):
+        raise ValueError(
+            "admitted shard requires verified decisions and manifest digest"
+        )
+    if record_admission is not None:
+        if not isinstance(admission_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", admission_sha256
+        ):
+            raise ValueError("invalid admission manifest digest")
+        if source.kind != "huggingface_dataset" or not file["path"].endswith(".jsonl"):
+            raise ValueError("streamed record admission requires an HF JSONL shard")
+        if decision != record_admission["rights"]:
+            raise ValueError("admitted shard file rights differ from verified policy")
     identity = _receipt_identity(build_id, source, snapshot_sha, file)
+    if record_admission is not None:
+        identity["admission_sha256"] = admission_sha256
     parent = prepared_root / source.id
     destination = parent / _digest(identity)
     if destination.exists():
@@ -239,7 +261,16 @@ def _prepare_file(
                     index = 0
                     from sparselab.corpus.jsonl_records import iter_lf_lines
 
-                    for _, raw in iter_lf_lines(stream):
+                    input_digest = hashlib.sha256()
+                    for _, raw in iter_lf_lines(
+                        stream,
+                        max_record_bytes=(
+                            _ADMITTED_RECORD_MAX_BYTES
+                            if record_admission is not None
+                            else None
+                        ),
+                    ):
+                        input_digest.update(raw)
                         counts["input_bytes"] += len(raw)
                         if not raw.strip():
                             progress.update(input_bytes=len(raw))
@@ -256,6 +287,7 @@ def _prepare_file(
                                 source,
                                 snapshot_sha,
                                 file_rights=decision,
+                                record_admission=record_admission,
                                 rejected_records=dropped,
                                 full_file_sha256=file["sha256"],
                                 first_row_index=index,
@@ -272,6 +304,13 @@ def _prepare_file(
                             counts["rejected"] += 1
                         progress.update(
                             documents=1, input_bytes=len(raw), output_records=len(rows)
+                        )
+                    if (
+                        record_admission is not None
+                        and input_digest.hexdigest() != file["sha256"]
+                    ):
+                        raise ValueError(
+                            "admitted source shard bytes differ from acquisition"
                         )
             else:
                 raw = source_path.read_bytes()

@@ -16,6 +16,7 @@ from itertools import zip_longest
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.training.manifest import canonical_json, sha256_file
 
 if TYPE_CHECKING:
@@ -134,15 +135,14 @@ def _verify_rights_files(
     admission: dict[tuple[str, str], dict[str, Any]] = {}
     if admission_reference is not None:
         admission_path = root / "record-admission.json"
-        admission_bytes = admission_path.read_bytes()
         if (
             admission_path.is_symlink()
-            or hashlib.sha256(admission_bytes).hexdigest()
+            or sha256_file(admission_path)
             != admission_reference["sha256"].lower()
         ):
             raise ValueError("record admission reference differs from frozen bytes")
         admission = verify_record_admission(
-            json.loads(admission_bytes),
+            read_metadata(admission_path),
             {source_id: snapshots[source_id]["declaration"] for source_id in sources},
             snapshots,
             root.parent.parent / "snapshots",
