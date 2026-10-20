@@ -196,3 +196,58 @@ def test_extra_unselected_decision_refuses(tmp_path):
         verify_record_admission(
             manifest, {source["id"]: source}, {source["id"]: snapshot}, tmp_path
         )
+
+
+@pytest.mark.parametrize("entrypoint", ["verify", "split"])
+def test_local_source_declaration_stays_plain_at_native_entrypoints(
+    tmp_path, monkeypatch, entrypoint
+):
+    from corpus_fixtures import neutral_corpus
+    from test_corpus_structure_cleaning import _local_source
+
+    from sparselab.corpus.acquisition import acquire, verify_acquisition
+    from sparselab.corpus.project import Project
+
+    recipe = tmp_path / "recipe"
+    recipe.mkdir()
+    (recipe / "doc.md").write_text(
+        "# Fixture\nLocal prose preserves source evidence.\n"
+    )
+    payload = neutral_corpus(recipe).model_dump(mode="python")
+    payload["sources"] = [_local_source().model_dump(mode="python")]
+    payload["config"]["sources"] = ["sources/docs.yaml"]
+    payload["transforms"][0]["inputs"] = ["docs"]
+    payload["splits"]["assignments"] = {"fixture-family": "train"}
+    payload["release"] = {
+        "schema_version": 1,
+        "mixture": {"technical_docs": 1.0},
+        "lm": {"selected": True, "training_splits": ["train"]},
+        "chat": {"selected": False, "training_splits": []},
+    }
+    project = Project.model_validate(payload)
+    root = tmp_path / "work"
+    acquire(project, root)
+    expected = verify_acquisition(project, root)
+    loaded = []
+    native_load = MetadataStore.load
+
+    def tracked(self, path, **limits):
+        result = native_load(self, path, **limits)
+        if path.name == "manifest.json":
+            assert isinstance(result["files"], DiskRows)
+            files = result["declaration"]["acquisition"]["files"]
+            assert type(files) is list and len(files) == 1
+            loaded.append(path)
+        return result
+
+    monkeypatch.setattr(MetadataStore, "load", tracked)
+    if entrypoint == "verify":
+        with metadata_operation(root / "scratch"):
+            assert verify_acquisition(project, root) == expected
+    else:
+        output = root / "inventory.jsonl"
+        result = write_split_inventory(project, root, output)
+        assert result["documents"] == 1
+        assert json.loads(output.read_text())["source_id"] == "docs"
+    assert loaded
+    assert not list(root.rglob(".metadata-*"))

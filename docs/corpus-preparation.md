@@ -548,7 +548,11 @@ iteration/index interfaces; copying or concatenating them refuses instead of
 silently returning empty builtin storage. Do not pass the internal list/dict
 subclasses directly to Pydantic or other C-level container consumers: those can
 inspect their empty builtin backing. A future public schema boundary must use a
-non-subclass representation or deliberate bounded conversion first. No such
-consumer is used by the current admission/split entry points. Repeated metadata
+non-subclass representation or deliberate bounded conversion first. Cold snapshot
+verification does validate source declarations with Pydantic. Declarations remain
+plain header-bounded containers: spilling is limited to top-level inventory
+arrays, admission `sources[*].files`/`records`, and snapshot/lock retrieval
+`shards[*].selected_rows`. Arrays nested under declarations or unrelated keys
+never spill. Repeated metadata
 reads currently create new collections charged to the same 1 GiB cap; neither a
 cache nor a throughput improvement is claimed here.
