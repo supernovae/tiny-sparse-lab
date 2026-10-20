@@ -12,7 +12,16 @@ def smoke(engine, image, output, revision):
     output.mkdir(parents=True, exist_ok=False)
     names = [
         "sparselab-smoke-" + uuid.uuid4().hex[:10] + suffix
-        for suffix in ("-cli", "-web", "-writer", "-help", "-bare", "-invalid")
+        for suffix in (
+            "-cli",
+            "-web",
+            "-writer",
+            "-help",
+            "-bare",
+            "-invalid",
+            "-compare",
+            "-eval",
+        )
     ]
     volumes = [names[0] + "-data", names[1] + "-data"]
 
@@ -89,9 +98,17 @@ print(json.dumps({'module':sparselab.__file__,'torch':torch.__version__,'uid':os
             (3, (), "0"),
             (4, ["report", "--help"], "0"),
             (5, ["not-a-lab-command"], "2"),
+            (6, ["compare", "--help"], "0"),
+            (7, ["eval", "--help"], "0"),
         ):
             start(index, command)
             wait(index, expected)
+            if index in (6, 7):
+                # ImageMagick compare and the shell eval builtin must not win.
+                assert (
+                    f"usage: sparselab {command[0]}"
+                    in call("logs", names[index]).stdout
+                )
             state = json.loads(call("inspect", names[index]).stdout)[0]["State"]
             assert not state.get("Health"), state
         start(

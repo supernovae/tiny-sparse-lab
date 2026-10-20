@@ -4,6 +4,16 @@ The image installs `sparselab` directly. No host Python, uv, harness or Workshop
 installation is needed. The [uv installation](../README.md#first-run) remains an
 alternative. The current image targets Linux amd64 and CPU only.
 
+## Upgrade notice for existing viewers
+
+**Breaking change for the mutable `:cpu` tag:** after pulling the new CLI-first
+image and recreating a container, an invocation without a command prints help
+and exits 0 instead of starting the viewer. The default HTTP healthcheck is also
+removed. Update viewer launch commands to pass `dashboard` and the explicit
+healthcheck shown below before upgrading. Existing containers and images pinned
+by an old digest keep their original behavior; pulling a tag does not change an
+already-created container.
+
 ## Run the CLI and a separate web viewer
 
 After publication and the one-time package visibility action below:
@@ -32,9 +42,11 @@ logs with `podman logs lab-help` and `podman logs lab-web`; inspect exits with
 `podman inspect`. Docker accepts the same commands with `docker` in place of
 `podman`. An invocation with no arguments prints `sparselab --help` and exits. Bare verbs
 and options go to SparseLab: `"$IMAGE" report TRY_ID` or `"$IMAGE" --help`.
-Explicit `"$IMAGE" sparselab ...` still works. Installed executable commands
-such as `python`, `sh`, and `streamlit` run with their original argv; use
-explicit `sparselab COMMAND` if a Lab verb collides with an installed executable.
+Explicit `"$IMAGE" sparselab ...` still works. `sparselab`, `python`, `python3`,
+`sh`, `bash`, and `streamlit` run with their original argv. Use an explicit path
+for another executable, for example `"$IMAGE" /usr/bin/compare ...`. All other
+bare words and options go to SparseLab: `compare` and `eval` always mean Lab
+commands, even when an executable or shell builtin has the same name.
 No arguments are evaluated as shell text.
 
 CLI jobs have no image-level HTTP healthcheck. The viewer above opts into one

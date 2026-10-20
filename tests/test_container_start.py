@@ -23,7 +23,7 @@ def environment(tmp_path):
     mkdir = bin_dir / "mkdir"
     mkdir.write_text("#!/bin/sh\nexit 0\n")
     mkdir.chmod(0o700)
-    for name in ("sparselab", "python", "streamlit"):
+    for name in ("sparselab", "python", "python3", "streamlit", "compare"):
         executable = bin_dir / name
         executable.write_text(
             f"#!{sys.executable}\n"
@@ -56,12 +56,23 @@ def environment(tmp_path):
         ([], "sparselab", ["--help"]),
         (["--help"], "sparselab", ["--help"]),
         (
+            ["compare", "a b;$HOME$(touch nope)"],
+            "sparselab",
+            ["compare", "a b;$HOME$(touch nope)"],
+        ),
+        (
+            ["eval", "a b;$HOME$(touch nope)"],
+            "sparselab",
+            ["eval", "a b;$HOME$(touch nope)"],
+        ),
+        (
             ["report", "a b;$HOME$(touch nope)"],
             "sparselab",
             ["report", "a b;$HOME$(touch nope)"],
         ),
         (["sparselab", "report", "--help"], "sparselab", ["report", "--help"]),
         (["python", "-c", "literal text"], "python", ["-c", "literal text"]),
+        (["python3", "-c", "literal text"], "python3", ["-c", "literal text"]),
         (["streamlit", "run", "a b.py"], "streamlit", ["run", "a b.py"]),
         (["not-a-command"], "sparselab", ["not-a-command"]),
     ],
@@ -81,9 +92,10 @@ def test_dispatch_preserves_argv_and_exit(environment, argv, executable, tail):
     assert record["argv"][1:] == tail
 
 
-def test_explicit_shell(environment):
+@pytest.mark.parametrize("shell", ["/bin/sh", "sh", "bash"])
+def test_explicit_shell(environment, shell):
     result = subprocess.run(
-        ["/bin/sh", str(START), "/bin/sh", "-c", "exit 19"],
+        ["/bin/sh", str(START), shell, "-c", "exit 19"],
         env=environment,
         timeout=5,
         check=False,
@@ -109,3 +121,23 @@ def test_exec_preserves_pid_and_signal(environment):
             if process.poll() is None:
                 process.kill()
                 process.wait(timeout=5)
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_other_executable_requires_explicit_path(environment, relative):
+    bin_dir = Path(environment["PATH"].split(":")[0])
+    executable = "./compare" if relative else str(bin_dir / "compare")
+    tail = ["literal space;$HOME$(touch nope)"]
+    result = subprocess.run(
+        ["/bin/sh", str(START), executable, *tail],
+        cwd=bin_dir,
+        env={**environment, "EXIT": "17"},
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 17, result.stderr
+    record = json.loads(result.stdout)
+    assert Path(record["argv"][0]).name == "compare"
+    assert record["argv"][1:] == tail

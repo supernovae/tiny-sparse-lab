@@ -154,6 +154,7 @@ def _dashboard(args: argparse.Namespace) -> None:
     command.extend(["--lab-dir", str(lab_dir)])
     # Replace the launcher so container stop signals and exit status reach the
     # actual server, including when it is PID 1.
+    # Nothing may depend on Python cleanup or buffered output after this exec.
     os.execv(sys.executable, command)
 
 

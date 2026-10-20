@@ -2,11 +2,14 @@
 set -eu
 mkdir -p "$HOME" "$TMPDIR" "$SPARSELAB_WORK_DIR" "$SPARSELAB_WORKER_LEASE_DIR" \
   "$HF_HOME" "$HF_HUB_CACHE" "$HF_DATASETS_CACHE" "$XDG_CACHE_HOME" /state/evidence
-# Empty invocation prints help. Installed executables remain usable verbatim;
-# otherwise treat argv as SparseLab verbs/options without shell interpolation.
+# Bare words are Lab verbs, regardless of PATH executables or shell builtins.
+# Explicit interpreter/shell commands and executable paths retain their argv.
 if [ "$#" -eq 0 ]; then
     set -- sparselab --help
-elif ! command -v "$1" >/dev/null 2>&1; then
-    set -- sparselab "$@"
+else
+    case "$1" in
+        sparselab|python|python3|sh|bash|streamlit|*/*) ;;
+        *) set -- sparselab "$@" ;;
+    esac
 fi
 exec "$@"
