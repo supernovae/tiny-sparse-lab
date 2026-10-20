@@ -30,6 +30,9 @@ class DiskRows(list):
     def __len__(self):
         return self._length
 
+    def __repr__(self):
+        return f"DiskRows(length={len(self)})"
+
     def __iter__(self):
         cursor = self.store.connection.execute(
             "SELECT payload FROM rows WHERE collection=? ORDER BY ordinal",
@@ -162,7 +165,7 @@ class MetadataStore:
         max_header_bytes=4 * 1024**2,
         max_record_bytes=8 * 1024**2,
     ):
-        """Parse JSON strictly; spill records/selected_rows arrays without rewriting input."""
+        """Parse JSON strictly; spill allowlisted inventory arrays without rewriting input."""
         for value in (max_input_bytes, max_header_bytes, max_record_bytes):
             if type(value) is not int or value <= 0:
                 raise ValueError("metadata limits must be positive integers")
@@ -177,6 +180,22 @@ class MetadataStore:
             return _Reader(
                 stream, self, max_input_bytes, max_header_bytes, max_record_bytes
             ).read()
+
+
+def _spill_path(path):
+    """Only inventory positions spill; schema declarations stay header-bounded."""
+    if path in {(key,) for key in ("files", "records", "selected_rows")}:
+        return True
+    if len(path) == 3 and path[:2] == ("sources", None):
+        return path[2] in {"files", "records"}
+    if path == ("retrieval", "shards", None, "selected_rows"):
+        return True
+    return (
+        len(path) == 7
+        and path[0] == "sources"
+        and isinstance(path[1], str)
+        and path[2:] == ("receipt", "retrieval", "shards", None, "selected_rows")
+    )
 
 
 class _Reader:
@@ -243,7 +262,7 @@ class _Reader:
         finally:
             self.row_bytes = None
 
-    def value(self, depth=0, *, spill=False):
+    def value(self, depth=0, *, path=(), spill=False):
         if depth > 64:
             raise ValueError("metadata nesting cap exceeded")
         self.whitespace()
@@ -264,8 +283,8 @@ class _Reader:
                 self.expect(b":")
                 result[key] = self.value(
                     depth + 1,
-                    spill=self.row_bytes is None
-                    and key in {"records", "selected_rows", "files"},
+                    path=(*path, key),
+                    spill=self.row_bytes is None and _spill_path((*path, key)),
                 )
                 self.whitespace()
                 end = self.take()
@@ -283,12 +302,12 @@ class _Reader:
             while True:
                 if spill:
                     with self.record():
-                        item = self.value(depth + 1)
+                        item = self.value(depth + 1, path=(*path, None))
                         self.whitespace()
                         end = self.take()
                     self.store.append(result, item)
                 else:
-                    result.append(self.value(depth + 1))
+                    result.append(self.value(depth + 1, path=(*path, None)))
                     self.whitespace()
                     end = self.take()
                 if end == b"]":

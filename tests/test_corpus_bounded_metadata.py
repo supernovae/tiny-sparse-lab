@@ -163,9 +163,16 @@ def test_collection_operations_do_not_silently_read_empty_storage(tmp_path):
     with metadata_operation(tmp_path) as store:
         rows = store.new_rows()
         store.append(rows, {"a": 1})
+        assert repr(rows) == "DiskRows(length=1)"
         assert list(reversed(rows)) == [{"a": 1}]
         assert rows.count({"a": 1}) == 1 and rows.index({"a": 1}) == 0
-        for operation in (rows.copy, lambda: rows + [], lambda: [] + rows):
+        for operation in (
+            rows.copy,
+            lambda: rows + [],
+            lambda: [] + rows,
+            lambda: rows * 2,
+            lambda: 2 * rows,
+        ):
             with pytest.raises(TypeError, match="materialization"):
                 operation()
         decisions = decision_index()
@@ -182,3 +189,64 @@ def test_escaped_terminal_backslash(tmp_path):
     path.write_bytes(canonical_json(value))
     with metadata_operation(tmp_path):
         assert read_metadata(path) == value
+
+
+@pytest.mark.parametrize(
+    "raw,error",
+    [
+        (b'{"a":"x":"b":1}', "malformed metadata object"),
+        (b'{"a":[]:"b":1}', "malformed metadata object"),
+        (b'["a":"b"]', "malformed metadata array"),
+    ],
+)
+def test_separator_guards_refuse_after_complete_values(tmp_path, raw, error):
+    path = tmp_path / "malformed.json"
+    path.write_bytes(raw)
+    with metadata_operation(tmp_path), pytest.raises(ValueError, match=error):
+        read_metadata(path)
+
+
+@pytest.mark.parametrize("lock", [False, True])
+def test_inventory_paths_spill_but_declarations_and_unrelated_keys_do_not(
+    tmp_path, lock
+):
+    rows = [{"id": 1}]
+    declaration = {
+        "acquisition": {"files": rows, "records": rows, "selected_rows": rows}
+    }
+    retrieval = {"shards": [{"selected_rows": rows}]}
+    sources = (
+        {"local": {"receipt": {"retrieval": retrieval}, "declaration": declaration}}
+        if lock
+        else [{"files": rows, "records": rows, "declaration": declaration}]
+    )
+    value = {
+        "sources": sources,
+        "retrieval": retrieval,
+        "declaration": declaration,
+        "unrelated": {"files": rows, "records": rows, "selected_rows": rows},
+        "files": rows,
+        "records": rows,
+        "selected_rows": rows,
+    }
+    path = tmp_path / "paths.json"
+    path.write_bytes(canonical_json(value))
+    with metadata_operation(tmp_path):
+        actual = read_metadata(path)
+        for key in ("files", "records", "selected_rows"):
+            assert isinstance(actual[key], DiskRows)
+            assert type(actual["declaration"]["acquisition"][key]) is list
+            assert type(actual["unrelated"][key]) is list
+        assert isinstance(actual["retrieval"]["shards"][0]["selected_rows"], DiskRows)
+        if lock:
+            source = actual["sources"]["local"]
+            assert isinstance(
+                source["receipt"]["retrieval"]["shards"][0]["selected_rows"], DiskRows
+            )
+        else:
+            source = actual["sources"][0]
+            assert isinstance(source["files"], DiskRows)
+            assert isinstance(source["records"], DiskRows)
+        assert type(source["declaration"]["acquisition"]["files"]) is list
+        assert actual == value
+        assert canonical_json(actual) == canonical_json(value)
