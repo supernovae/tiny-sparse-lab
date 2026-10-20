@@ -16,7 +16,7 @@ from itertools import zip_longest
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from sparselab.corpus.bounded_metadata import read_metadata
+from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
 from sparselab.training.manifest import canonical_json, sha256_file
 
 if TYPE_CHECKING:
@@ -847,6 +847,20 @@ def _validate_rows(
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> None:
+    with metadata_operation(root.parent), ExitStack() as replay_stack:
+        _validate_rows_stored(
+            root, replay_stack=replay_stack, proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+
+
+def _validate_rows_stored(
+    root: Path,
+    *,
+    replay_stack: ExitStack,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> None:
     receipt = _load(
         root / ("build.json" if (root / "build.json").exists() else "manifest.json")
     )
@@ -926,7 +940,11 @@ def _validate_rows(
     observed_admission: set[tuple[str, str, int]] = set()
     for doc in sorted(
         documents,
-        key=lambda item: (item["source_id"], spans[item["document_id"]]["raw_path"]),
+        key=lambda item: (
+            item["source_id"],
+            spans[item["document_id"]]["raw_path"],
+            spans[item["document_id"]]["line_start"],
+        ),
     ):
         span = spans[doc["document_id"]]
         source = sources[doc["source_id"]]
@@ -992,24 +1010,48 @@ def _validate_rows(
         )
         raw_path = _safe(snapshot / "files", span["raw_path"])
         if raw_path != previous_file:
-            raw = raw_path.read_bytes()
-            raw_sha = hashlib.sha256(raw).hexdigest()
+            # Finishing the previous cursor validates trailing unselected rows.
+            replay_stack.close()
+            raw_sha = sha256_file(raw_path)
             offsets = [0]
             sample_rows = None
-            if "#lines=" in doc["source_location"]:
-                for line in raw.split(b"\n")[:-1]:
-                    offsets.append(offsets[-1] + len(line) + 1)
-                if raw and not raw.endswith(b"\n"):
-                    offsets.append(len(raw))
-            if (prospective and "_admission_decisions" in file) or (
-                selected_normalizer
-                in {"normalizer-structure-v2", "normalizer-structure-v3"}
+            needs_rows = (prospective and "_admission_decisions" in file) or (
+                selected_normalizer in {"normalizer-structure-v2", "normalizer-structure-v3"}
                 and "#row=" in doc["source_location"]
-            ):
-                from sparselab.corpus.jsonl_records import records_from_bytes
+            )
+            if needs_rows and raw_path.suffix == ".jsonl":
+                from sparselab.corpus.jsonl_records import forward_rows
 
-                sample_rows = list(records_from_bytes(raw, source=str(raw_path)))
+                raw = b""
+                sample_rows = replay_stack.enter_context(
+                    forward_rows(
+                        raw_path, max_record_bytes=8 * 1024**2, expected_sha256=raw_sha
+                    )
+                )
+            else:
+                raw = raw_path.read_bytes()
+                if "#lines=" in doc["source_location"]:
+                    for line in raw.split(b"\n")[:-1]:
+                        offsets.append(offsets[-1] + len(line) + 1)
+                    if raw and not raw.endswith(b"\n"):
+                        offsets.append(len(raw))
+                if needs_rows:
+                    from sparselab.corpus.jsonl_records import records_from_bytes
+
+                    sample_rows = list(records_from_bytes(raw, source=str(raw_path)))
             previous_file = raw_path
+        selected_row = None
+        if sample_rows is not None:
+            from sparselab.corpus.jsonl_records import ForwardRows
+
+            ordinal = span["line_start"]
+            if isinstance(sample_rows, ForwardRows):
+                selected_row = sample_rows.get(ordinal).value
+            elif type(ordinal) is int and 1 <= ordinal <= len(sample_rows):
+                selected_row = sample_rows[ordinal - 1].value
+            else:
+                raise ValueError("source replay row exceeds source inventory")
+        text_field = snapshots[doc["source_id"]]["declaration"].get("acquisition", {}).get("text_field", "text")
         if (
             span["source_id"] != doc["source_id"]
             or span["snapshot_sha256"] != source["snapshot_sha256"]
@@ -1043,16 +1085,15 @@ def _validate_rows(
 
             line_number = span["line_start"]
             if (
-                sample_rows is None
+                selected_row is None
                 or type(line_number) is not int
                 or line_number < 1
-                or line_number > len(sample_rows)
                 or span["line_end"] != line_number
                 or doc["source_location"] != f"{span['raw_path']}#row={line_number}"
                 or (
                     selected_normalizer
                     not in {"normalizer-structure-v2", "normalizer-structure-v3"}
-                    and _normalized(sample_rows[line_number - 1].value["text"])
+                    and _normalized(selected_row[text_field])
                     != doc["text"]
                 )
             ):
@@ -1062,11 +1103,11 @@ def _validate_rows(
             in {"normalizer-structure-v2", "normalizer-structure-v3"}
             and "#row=" in doc["source_location"]
         ):
-            if sample_rows is None:
+            if selected_row is None:
                 raise ValueError("structured source row unavailable")
             _verify_structure_replay(
                 doc,
-                sample_rows[span["line_start"] - 1].value["text"],
+                selected_row[text_field],
                 expected_normalizer=expected_normalizer,
             )
         if "#lines=" in doc["source_location"]:
@@ -1091,6 +1132,7 @@ def _validate_rows(
                     raw[byte_start:byte_end].decode("utf-8"),
                     expected_normalizer=expected_normalizer,
                 )
+    replay_stack.close()
     expected_admission = {
         (source_id, path, index)
         for (source_id, path), file in rights_files.items()
