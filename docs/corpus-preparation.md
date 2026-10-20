@@ -433,3 +433,56 @@ measured RSS and retained logs. Network isolation is also a supervisor property;
 the preview itself performs no network operation. No files are copied, and an
 existing output directory refuses. Current admission inspection limits are
 unchanged: a preview is evidence for review, not an admission inspection receipt.
+
+
+### Record attribution under an explicit application policy
+
+For acquired HF sources with declared `acquisition.qualification`, an admission
+application-template source may include `row_use_policy`:
+
+```json
+{
+  "mode": "record_attribution",
+  "restricted_rows": {
+    "<exact-original-row-sha256>": {
+      "basis": "The actual explicit restriction on the intended training use",
+      "evidence": "Pointer to the retained source notice or restriction text"
+    }
+  }
+}
+```
+
+The placeholder above must be replaced with an acquired original-row digest;
+this is not an executable declaration. An empty `restricted_rows` records no
+explicit row restrictions in that policy; it does not prove that no restrictions
+exist. Source-wide `rights.training_restriction` checks remain in force. This
+policy is provenance and a declared processing choice, not new owner authority.
+
+`record_attribution` retains unknown, mixed and unmapped code license labels and
+SPDX/copyright notice lines instead of using a permissive-label allowlist as a
+training gate. It makes no legal-clearance claim and does not infer explicit
+non-use terms from a license label. Bind known explicit restrictions to original
+row digests with their basis and evidence. Such rows are excluded, and unused
+restriction digests refuse verification. Credentials, absent family/source
+provenance, out-of-policy languages, unsafe paths and generated/vendor code
+continue to fail their separate quality checks.
+
+The native draft writes `row_evidence`; cold verification recomputes it from the
+pinned original row and refuses missing/substituted evidence. The full original
+row remains the authoritative source for license text and notices; extracted
+notice lines are not an exhaustive terms detector. Inspection carries the
+record, and normalized documents preserve it as canonical JSON in scalar
+metadata `row_attribution_json`, including explicit unknown values. Existing
+source declaration bytes and acquisition identities remain unchanged. This mode
+is not supported for undeclared historical HF profiles or Git-file admission.
+
+The verifier now streams source text one record at a time, and inspection uses
+the declared text field (including `code`). This does **not** make the entire
+preparation path bounded-memory: draft decisions/acquisition receipts remain
+in-memory metadata. Inspection uses two source-text passes, accounting both payload passes in
+`input_bytes` (additional acquisition verification and integrity-hash reads are
+not included in that field), with at most 8 MiB per record/file and 64 MiB of serialized sample
+pool entries. Median lengths remain compact numeric metadata. Selection retains
+the same deterministic rank, strata and fallback rules. Existing 2 GiB input and
+128 MiB draft limits remain enforced pending bounded metadata storage. Do not
+raise them or launch a large preparation on these changes alone.

@@ -575,6 +575,10 @@ def _records_for_file(
 
                 try:
                     evidence = provenance(item, qualification)
+                    if record_admission is not None and "row_evidence" in decision:
+                        metadata["row_attribution_json"] = canonical_json(
+                            decision["row_evidence"]
+                        ).decode("utf-8")
                     metadata["qualification_profile"] = evidence["profile"]
                     metadata["qualification_family_hint"] = evidence["family_hint"]
                     if "synthetic_provenance_sha256" in evidence:

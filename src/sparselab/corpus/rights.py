@@ -523,7 +523,11 @@ def _admission_profile(source: Mapping[str, Any]) -> str:
 
 
 def _admission_exceptions(
-    row: Mapping[str, Any], profile: str, source: Mapping[str, Any] | None = None
+    row: Mapping[str, Any],
+    profile: str,
+    source: Mapping[str, Any] | None = None,
+    *,
+    row_use=None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Return a material conflict or review flags from the original retained row."""
     if profile == "declared_rows":
@@ -536,6 +540,7 @@ def _admission_exceptions(
             dict(row),
             RowQualification.model_validate(spec["qualification"]),
             spec["text_field"],
+            row_use=row_use,
         )
     metadata = row.get("metadata")
     if not isinstance(metadata, dict):
@@ -649,7 +654,7 @@ def _verify_record_admission_v1(
         raise ValueError("record admission source inventory mismatch")
     resolved: dict[tuple[str, str], dict[str, Any]] = {}
     for item in rows:
-        if not isinstance(item, dict) or set(item) != {
+        if not isinstance(item, dict) or set(item) - {"row_use_policy"} != {
             "source_id",
             "snapshot_sha256",
             "source_revision",
@@ -668,6 +673,19 @@ def _verify_record_admission_v1(
         if source["kind"] != "huggingface_dataset" or source["schema_version"] != 2:
             raise ValueError("record admission requires v2 bounded HF source")
         profile = _admission_profile(source)
+        from sparselab.corpus.row_qualification import (
+            RowQualification,
+            RowUsePolicy,
+            use_evidence,
+        )
+
+        row_use = (
+            RowUsePolicy.model_validate(item["row_use_policy"])
+            if "row_use_policy" in item
+            else None
+        )
+        if row_use is not None and profile != "declared_rows":
+            raise ValueError("row use policy requires declared row qualification")
         if (
             item["snapshot_sha256"] != snapshot["snapshot_sha256"]
             or item["source_revision"] != source["revision"]
@@ -737,6 +755,7 @@ def _verify_record_admission_v1(
                         "reason",
                         "issues",
                         "manual_review",
+                        "row_evidence",
                     }
                 )
                 or not {
@@ -800,7 +819,9 @@ def _verify_record_admission_v1(
         # Keep source text bounded to the current record. Decisions and acquisition
         # receipts remain indexed metadata; this is not a claim of bounded total
         # manifest memory. Close the source promptly even when validation fails.
-        with closing(records_from_path(sample)) as sample_rows:
+        with closing(
+            records_from_path(sample, max_record_bytes=8 * 1024**2)
+        ) as sample_rows:
             for record, receipt in zip_longest(sample_rows, selected):
                 if record is None or receipt is None:
                     raise ValueError("record admission sample row count mismatch")
@@ -848,7 +869,24 @@ def _verify_record_admission_v1(
                     )
                 ):
                     raise ValueError("record admission row provenance mismatch")
-                conflict, flags = _admission_exceptions(original, profile, source)
+                conflict, flags = _admission_exceptions(
+                    original, profile, source, row_use=row_use
+                )
+                if row_use is not None:
+                    expected = use_evidence(
+                        original,
+                        RowQualification.model_validate(
+                            source["acquisition"]["qualification"]
+                        ),
+                        source["acquisition"]["text_field"],
+                        row_use,
+                    )
+                    if decision.get("row_evidence") != expected:
+                        raise ValueError(
+                            "record attribution evidence differs from original row"
+                        )
+                elif "row_evidence" in decision:
+                    raise ValueError("row evidence requires a bound row use policy")
                 if decision["decision"] == "qualify":
                     if conflict:
                         raise ValueError(
@@ -859,9 +897,17 @@ def _verify_record_admission_v1(
                 elif (
                     conflict
                     and decision["decision"] == "exclude"
-                    and conflict != "Wikimedia record outside content namespace"
+                    and conflict
+                    not in {
+                        "Wikimedia record outside content namespace",
+                        "explicit training-use restriction on source row",
+                    }
                 ):
                     raise ValueError("material rights exception must be quarantined")
+        if row_use is not None and set(row_use.restricted_rows) - {
+            row["source_row_sha256"] for row in selected
+        }:
+            raise ValueError("row restriction is outside acquired row inventory")
         resolved[source_id, file["path"]] = {
             "rights": file_rights,
             "license_label": item["license_label"],

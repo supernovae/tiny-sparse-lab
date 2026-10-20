@@ -103,7 +103,7 @@ def test_verified_pre_admission_inspection_and_exact_review(tmp_path: Path) -> N
         for file in (Path(source["snapshot_path"]) / "files").rglob("*")
         if file.is_file()
     )
-    assert observed["input_bytes"] == actual_snapshot_bytes
+    assert observed["input_bytes"] == 2 * actual_snapshot_bytes
     assert {item["source_id"] for item in observed["items"]} == {
         "books",
         "books_rows",
@@ -246,3 +246,180 @@ def test_admission_review_rejects_obsolete_unbound_decisions(tmp_path: Path) -> 
     )
     with pytest.raises(ValueError, match="inspection-bound decision"):
         verify_admission_review(admission, tmp_path)
+
+
+def test_inspection_does_not_retain_source_candidates_between_records(
+    tmp_path, monkeypatch
+):
+    import weakref
+
+    from sparselab.corpus import admission_inspection
+
+    root = tmp_path / "work"
+    root.mkdir()
+    recipe, policy, draft, selection, _ = _fixture(root)
+    previous = None
+    calls = 0
+    original = admission_inspection._candidate
+
+    class Candidate(dict):
+        pass
+
+    def tracked(*args, **kwargs):
+        nonlocal previous, calls
+        assert previous is None or previous() is None, "whole source candidate retained"
+        row = Candidate(original(*args, **kwargs))
+        previous = weakref.ref(row)
+        calls += 1
+        return row
+
+    monkeypatch.setattr(admission_inspection, "_candidate", tracked)
+    inspect_admission(
+        load_project(recipe / "acquire.yaml"),
+        recipe / "acquire.yaml",
+        root,
+        draft,
+        policy,
+        selection,
+        recipe / "streamed.json",
+        max_input_bytes=1048576,
+        max_excerpt_bytes=80,
+        max_output_bytes=262144,
+    )
+    assert calls > 8 and previous() is None
+
+
+def test_bounded_jsonl_reads_stop_before_oversized_record_is_materialized():
+    import io
+
+    from sparselab.corpus.jsonl_records import iter_jsonl_records
+
+    class Limited(io.BytesIO):
+        def readline(self, size=-1):
+            assert size == 5
+            return super().readline(size)
+
+    assert (
+        next(
+            iter_jsonl_records(Limited(b"{}\n"), source="fixture", max_record_bytes=4)
+        ).value
+        == {}
+    )
+    with pytest.raises(ValueError, match="record-byte cap"):
+        list(
+            iter_jsonl_records(
+                Limited(b"123456789\n"), source="fixture", max_record_bytes=4
+            )
+        )
+    with pytest.raises(ValueError, match="positive integer"):
+        list(
+            iter_jsonl_records(
+                io.BytesIO(b"{}\n"), source="fixture", max_record_bytes=True
+            )
+        )
+
+
+def test_streaming_median_strata_and_fallback_match_full_sort_reference(
+    tmp_path, monkeypatch
+):
+    import hashlib
+
+    from sparselab.corpus import admission_inspection as inspection
+
+    root = tmp_path / "work"
+    root.mkdir()
+    recipe, policy, draft, selection, _ = _fixture(root)
+    project = load_project(recipe / "acquire.yaml")
+    declaration = json.loads(selection.read_text())
+    for source in declaration["sources"]:
+        source["exception_count"] = 0
+        source["strata"] = [
+            {
+                "id": "absent",
+                "count": 2,
+                "path_prefix": "absent/",
+                "length_band": None,
+                "issues_nonempty": None,
+            },
+            {
+                "id": "short",
+                "count": 1,
+                "path_prefix": None,
+                "length_band": "short",
+                "issues_nonempty": None,
+            },
+            {
+                "id": "long",
+                "count": 1,
+                "path_prefix": None,
+                "length_band": "long",
+                "issues_nonempty": None,
+            },
+        ]
+    selection.write_bytes(canonical_json(declaration))
+    entries = {
+        entry["source_id"]: entry for entry in json.loads(draft.read_text())["sources"]
+    }
+    rows = {}
+    # This sampler-only substitution follows real acquisition/draft verification;
+    # it supplies five tiny lengths to exercise median and undersupplied strata.
+    for source in project.sources:
+        rows[source.id] = [
+            inspection._candidate(
+                source,
+                entries[source.id],
+                {"decision": "qualify", "reason": "sampler fixture", "issues": []},
+                path=f"item-{number}.txt",
+                raw="Fixture prose words. " * number,
+                digest=hashlib.sha256(str(number).encode()).hexdigest(),
+                row_index=number,
+            )
+            for number in range(1, 6)
+        ]
+
+    def scan(_project, _root, _draft, _lock, budget, visit):
+        assert budget >= 100
+        for source_id, values in rows.items():
+            for row in values:
+                visit(source_id, dict(row))
+        return 100
+
+    monkeypatch.setattr(inspection, "_scan_candidates", scan)
+    output = recipe / "ranked.json"
+    inspect_admission(
+        project,
+        recipe / "acquire.yaml",
+        root,
+        draft,
+        policy,
+        selection,
+        output,
+        max_input_bytes=1048576,
+        max_excerpt_bytes=80,
+        max_output_bytes=262144,
+    )
+    report = json.loads(output.read_text())
+    assert report["input_bytes"] == 200
+    for source_id, values in rows.items():
+        short = sorted(
+            values[:3],
+            key=lambda row: inspection._rank(
+                declaration["seed"], source_id, "short", row
+            ),
+        )
+        long = sorted(
+            values[3:],
+            key=lambda row: inspection._rank(
+                declaration["seed"], source_id, "long", row
+            ),
+        )
+        remaining = sorted(
+            [("short", row) for row in short[1:]] + [("long", row) for row in long[1:]],
+            key=lambda pair: inspection._rank(declaration["seed"], source_id, *pair),
+        )
+        expected = [("short", short[0]), ("long", long[0]), *remaining[:2]]
+        assert [
+            (item["stratum"], item["item_id"])
+            for item in report["items"]
+            if item["source_id"] == source_id
+        ] == [(name, row["item_id"]) for name, row in expected]
