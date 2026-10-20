@@ -23,6 +23,10 @@ from sparselab.corpus.structure_cleaning import (
 )
 from sparselab.training.manifest import canonical_json, sha256_file
 
+_MAX_RECORD_BYTES = 8 * 1024**2
+_MAX_FILE_BYTES = 8 * 1024**2
+_MAX_POOL_BYTES = 64 * 1024**2
+
 
 def _inside(path: Path, root: Path | None = None) -> Path:
     if (
@@ -160,7 +164,7 @@ def _scan_candidates(
             for file in files:
                 path = file["path"]
                 size = (snapshot / "files" / path).stat().st_size
-                if size > 8 * 1024**2:
+                if size > _MAX_FILE_BYTES:
                     raise ValueError("inspection file-byte cap exceeded")
                 if consumed + size > max_input_bytes:
                     raise ValueError("admission inspection input-byte cap exceeded")
@@ -198,7 +202,7 @@ def _scan_candidates(
                 raise ValueError("admission inspection input-byte cap exceeded")
             text_field = source.acquisition.text_field
             with closing(
-                records_from_path(shard, max_record_bytes=8 * 1024**2)
+                records_from_path(shard, max_record_bytes=_MAX_RECORD_BYTES)
             ) as parsed:
                 for receipt, decision, record in zip(
                     selected, decisions, parsed, strict=True
@@ -406,7 +410,6 @@ def _inspect(
     pool_bytes = 0
     # Selection pools can exceed the final receipt (fallback candidates), but
     # cannot grow with corpus size. Refuse rather than retain unbounded metadata.
-    max_pool_bytes = 64 * 1024**2
 
     def retain(pool, source_id, name, row, count):
         nonlocal pool_bytes
@@ -420,7 +423,7 @@ def _inspect(
         )
         size = len(canonical_json(display))
         removed = pool[-1][2] if len(pool) == count else 0
-        if pool_bytes + size - removed > max_pool_bytes:
+        if pool_bytes + size - removed > _MAX_POOL_BYTES:
             raise ValueError("inspection selection-pool byte cap exceeded")
         if len(pool) == count:
             pool.pop()
@@ -476,9 +479,9 @@ def _inspect(
         else:
             outside[source_id] += 1
 
-    consumed += _scan_candidates(
-        project, root, draft, lock, max_input_bytes - consumed, select
-    )
+    reread = _scan_candidates(project, root, draft, lock, max_input_bytes, select)
+    if reread != consumed:
+        raise ValueError("snapshot byte count changed between inspection passes")
     items, exceptions, coverage = [], [], []
     for spec in selection["sources"]:
         source_id = spec["source_id"]
@@ -549,6 +552,7 @@ def _inspect(
         "max_excerpt_bytes": max_excerpt_bytes,
         "max_output_bytes": max_output_bytes,
         "input_bytes": consumed,
+        "read_bytes": consumed + reread,
         "items": items,
         "quarantine_exceptions": exceptions,
         "coverage": coverage,

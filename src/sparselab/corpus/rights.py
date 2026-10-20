@@ -121,6 +121,9 @@ class FileRights(StrictModel):
     reason: str
 
 
+_MAX_RECORD_BYTES = 8 * 1024**2
+
+
 def reported_spdx_expression(file: Mapping[str, Any], source_spdx: str | None) -> str:
     """Report inherited admission SPDX without inventing one for public domain."""
     return (
@@ -820,7 +823,7 @@ def _verify_record_admission_v1(
         # receipts remain indexed metadata; this is not a claim of bounded total
         # manifest memory. Close the source promptly even when validation fails.
         with closing(
-            records_from_path(sample, max_record_bytes=8 * 1024**2)
+            records_from_path(sample, max_record_bytes=_MAX_RECORD_BYTES)
         ) as sample_rows:
             for record, receipt in zip_longest(sample_rows, selected):
                 if record is None or receipt is None:

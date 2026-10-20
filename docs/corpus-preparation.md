@@ -434,7 +434,6 @@ the preview itself performs no network operation. No files are copied, and an
 existing output directory refuses. Current admission inspection limits are
 unchanged: a preview is evidence for review, not an admission inspection receipt.
 
-
 ### Record attribution under an explicit application policy
 
 For acquired HF sources with declared `acquisition.qualification`, an admission
@@ -479,10 +478,30 @@ is not supported for undeclared historical HF profiles or Git-file admission.
 The verifier now streams source text one record at a time, and inspection uses
 the declared text field (including `code`). This does **not** make the entire
 preparation path bounded-memory: draft decisions/acquisition receipts remain
-in-memory metadata. Inspection uses two source-text passes, accounting both payload passes in
-`input_bytes` (additional acquisition verification and integrity-hash reads are
-not included in that field), with at most 8 MiB per record/file and 64 MiB of serialized sample
-pool entries. Median lengths remain compact numeric metadata. Selection retains
-the same deterministic rank, strata and fallback rules. Existing 2 GiB input and
-128 MiB draft limits remain enforced pending bounded metadata storage. Do not
-raise them or launch a large preparation on these changes alone.
+in-memory metadata. `max_input_bytes` caps the snapshot payload size once (up to
+2 GiB), and its declared-source-maxima precheck uses the same units.
+`input_bytes` records that size; `read_bytes` records the two sampling payload
+passes combined. Neither counter includes separate acquisition verification or
+integrity-hash reads. Each HF JSONL record in drafting, verification and inspection,
+and each Git file in inspection, must be at most 8 MiB; any oversized item refuses
+the operation for the whole source, rather than silently skipping it. Acquisition
+can therefore succeed for a source that admission subsequently refuses.
+Inspection allows 64 MiB of serialized sample pool entries. Median lengths remain
+compact numeric metadata. Selection retains the same deterministic rank, strata
+and fallback rules. The 128 MiB draft limit remains enforced pending bounded
+metadata storage. Do not raise limits or launch large preparation on this alone.
+
+Notice excerpts retain LF physical line numbers, at most 64 matching lines and
+1024 characters per line, with `notice_lines_truncated` recording omissions.
+Original rows, including full notices, remain authoritative.
+
+Declared-row credential screening now additionally refuses `password=`, `api_key=`
+and `secret_key=` assignments with values of at least 24 characters, in every
+declared profile (including without `row_use_policy`). Previously qualified rows
+containing these patterns can now fail cold verification.
+
+Receipts are recomputed exactly: older inspection receipts lack `read_bytes`, and
+older attribution evidence lacks the notice truncation field. Regenerate affected
+drafts, inspection receipts and their bound admission reviews through the current
+public flow; never rewrite retained historical evidence or carry its approval
+forward as a current review. There is no compatibility adapter.

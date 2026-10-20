@@ -334,6 +334,21 @@ def test_declared_draft_cold_verifies_qualified_and_quarantined_rows(
     assert len(candidates[model.id]) == 2
     if profile in {"code", "code_attribution"}:
         assert candidates[model.id][0]["raw"] == code_row()["code"]
+    if profile == "code_attribution":
+        from sparselab.corpus.admission_inspection import _display
+
+        displayed = _display(
+            candidates[model.id][0],
+            normalizer="normalizer-structure-v3",
+            max_excerpt_bytes=80,
+        )
+        assert (
+            displayed["row_evidence"]
+            == json.loads(output.read_text())["sources"][0]["records"][0][
+                "row_evidence"
+            ]
+        )
+        assert displayed["row_evidence"]["license_label_status"] == "unknown"
 
 
 @pytest.mark.parametrize("uri", ["project_gutenberg_filtered", "wikimedia_filtered"])
@@ -896,4 +911,92 @@ def test_attribution_policy_refuses_unobserved_restriction_digest(tmp_path):
         del row["_sparselab_source"]
         decision["row_evidence"] = use_evidence(row, qualification, "text", policy)
     with pytest.raises(ValueError, match="outside acquired row inventory"):
+        _verify(manifest, source, snapshot, tmp_path)
+
+
+@pytest.mark.parametrize("attribution", [False, True])
+@pytest.mark.parametrize("field", ["api_key", "password", "secret_key"])
+def test_declared_credentials_quarantine_and_cold_refuse(tmp_path, attribution, field):
+    from sparselab.corpus.row_qualification import RowUsePolicy, use_evidence
+
+    row = {"text": field + ' = "' + "A" * 28 + '"', "seed": {"id": 7}}
+    manifest, source, snapshot, raw = declared_fixture(
+        tmp_path, rows=[row, {"text": "missing seed"}]
+    )
+    qualification = RowQualification.model_validate(
+        source["acquisition"]["qualification"]
+    )
+    policy = RowUsePolicy(mode="record_attribution") if attribution else None
+    assert (
+        exceptions(row, qualification, "text", row_use=policy)[0]
+        == "private identifier or credential in source row"
+    )
+    entry = manifest["sources"][0]
+    if policy:
+        entry["row_use_policy"] = policy.model_dump(mode="json")
+        for decision, line in zip(entry["records"], raw.splitlines(), strict=True):
+            original = json.loads(line)
+            del original["_sparselab_source"]
+            decision["row_evidence"] = use_evidence(
+                original, qualification, "text", policy
+            )
+    with pytest.raises(ValueError, match="material exception"):
+        _verify(manifest, source, snapshot, tmp_path)
+    entry["records"][0].update(
+        decision="quarantine", reason="private identifier or credential in source row"
+    )
+    _verify(manifest, source, snapshot, tmp_path)
+
+
+def test_unbound_row_evidence_refuses_before_normalization(tmp_path):
+    manifest, source, snapshot, _ = declared_fixture(tmp_path)
+    manifest["sources"][0]["records"][0]["row_evidence"] = {"license_label": "invented"}
+    with pytest.raises(
+        ValueError, match="row evidence requires a bound row use policy"
+    ):
+        _verify(manifest, source, snapshot, tmp_path)
+
+
+def test_verifier_record_cap_is_enforced_at_reader(tmp_path, monkeypatch):
+    from sparselab.corpus import rights
+
+    manifest, source, snapshot, _ = declared_fixture(tmp_path)
+    monkeypatch.setattr(rights, "_MAX_RECORD_BYTES", 1)
+    with pytest.raises(ValueError, match="record-byte cap"):
+        _verify(manifest, source, snapshot, tmp_path)
+
+
+@pytest.mark.parametrize("field", ["basis", "evidence"])
+def test_restriction_evidence_length_boundary(field):
+    from sparselab.corpus.row_qualification import RowUsePolicy
+
+    evidence = {"basis": "term", "evidence": "notice", field: "a" * 4096}
+    RowUsePolicy(mode="record_attribution", restricted_rows={"a" * 64: evidence})
+    evidence[field] += "a"
+    with pytest.raises(ValueError, match="restriction"):
+        RowUsePolicy(mode="record_attribution", restricted_rows={"a" * 64: evidence})
+
+
+def test_notice_excerpts_bound_count_length_and_keep_lf_positions():
+    from sparselab.corpus.row_qualification import RowUsePolicy, use_evidence
+
+    row = {**code_row(), "code": "prefix\r\v\f\x1c\u2028suffix\n# Copyright fixture\n"}
+    policy = RowUsePolicy(mode="record_attribution")
+    evidence = use_evidence(row, code_policy(), "code", policy)
+    assert evidence["notice_lines"] == [{"line": 2, "text": "# Copyright fixture"}]
+    assert evidence["notice_lines_truncated"] is False
+    row["code"] = ("# Copyright " + "a" * 1100 + "\n") * 65
+    evidence = use_evidence(row, code_policy(), "code", policy)
+    assert len(evidence["notice_lines"]) == 64
+    assert evidence["notice_lines"][-1]["line"] == 64
+    assert all(len(item["text"]) == 1024 for item in evidence["notice_lines"])
+    assert evidence["notice_lines_truncated"] is True
+
+
+def test_verifier_refuses_row_use_policy_on_legacy_profile(tmp_path):
+    manifest, source, snapshot, _, _ = _fixture(tmp_path)
+    manifest["sources"][0]["row_use_policy"] = {"mode": "record_attribution"}
+    with pytest.raises(
+        ValueError, match="row use policy requires declared row qualification"
+    ):
         _verify(manifest, source, snapshot, tmp_path)

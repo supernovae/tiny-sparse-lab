@@ -26,6 +26,8 @@ from sparselab.corpus.rights import (
 )
 from sparselab.training.manifest import canonical_json, sha256_file
 
+_MAX_RECORD_BYTES = 8 * 1024**2
+
 
 def _decision(value: str, reason: str) -> dict[str, Any]:
     return {"decision": value, "reason": reason, "issues": []}
@@ -232,7 +234,7 @@ def draft_admission_manifest(
                 from sparselab.corpus.jsonl_records import iter_jsonl_records
 
                 rows = iter_jsonl_records(
-                    stream, source=file["path"], max_record_bytes=8 * 1024**2
+                    stream, source=file["path"], max_record_bytes=_MAX_RECORD_BYTES
                 )
                 for receipt in selected:
                     row = next(rows, None)

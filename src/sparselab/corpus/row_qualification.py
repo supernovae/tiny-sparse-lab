@@ -135,18 +135,31 @@ def use_evidence(
     digest = hashlib.sha256(canonical_json(row)).hexdigest()
     label = field_value(row, qualification.license_field)
     text = row.get(text_field)
+    # Iterate LF physical lines without materializing a split list. Extracted
+    # notices are bounded pointers; the original row remains authoritative.
+    from io import StringIO
+
+    notices = []
+    truncated = False
+    if isinstance(text, str):
+        for number, line in enumerate(StringIO(text), 1):
+            line = line.removesuffix("\n")
+            if (
+                "copyright" not in line.casefold()
+                and "spdx-license-identifier:" not in line.casefold()
+            ):
+                continue
+            if len(notices) == 64:
+                truncated = True
+                break
+            notices.append({"line": number, "text": line[:1024]})
+            truncated |= len(line) > 1024
     return {
         "source_row_sha256": digest,
         "license_label": label,
         "license_label_status": "recorded" if _present(label) else "unknown",
-        "notice_lines": [
-            {"line": number, "text": line}
-            for number, line in enumerate(text.splitlines(), 1)
-            if "copyright" in line.casefold()
-            or "spdx-license-identifier:" in line.casefold()
-        ]
-        if isinstance(text, str)
-        else [],
+        "notice_lines": notices,
+        "notice_lines_truncated": truncated,
         "restriction": policy.restricted_rows.get(digest),
         "scope": "declared source policy and explicit row restrictions; not legal clearance",
     }
