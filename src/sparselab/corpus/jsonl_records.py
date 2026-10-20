@@ -90,7 +90,9 @@ class ForwardRows:
             try:
                 self.current = next(self.rows)
             except StopIteration as error:
-                raise ValueError("source replay row exceeds source inventory") from error
+                raise ValueError(
+                    "source replay row exceeds source inventory"
+                ) from error
             self.ordinal += 1
         assert self.current is not None
         return self.current
