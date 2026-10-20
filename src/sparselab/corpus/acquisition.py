@@ -29,6 +29,8 @@ from urllib.parse import quote, urlencode, urljoin, urlparse
 
 from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.corpus.project import (
+    RETAINED_MAX_BYTES,
+    RETAINED_MAX_ROWS,
     GitAcquisition,
     HttpAcquisition,
     HuggingFaceAcquisition,
@@ -1231,7 +1233,7 @@ def _acquire_hf(
     if spec.retained_subset is not None:
         from sparselab.corpus.retained_subset import derive_subset
 
-        return derive_subset(source, staging=staging)
+        return derive_subset(source, staging=staging, scratch_directory=staging)
     if spec.bounded_shards is not None:
         return _bounded_hf_acquire(source, spec, staging, budget)
     assert isinstance(spec, HuggingFaceAcquisition)
@@ -1736,7 +1738,7 @@ def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any
         ):
             from sparselab.corpus.retained_subset import derive_subset
 
-            files, retrieval = derive_subset(source)
+            files, retrieval = derive_subset(source, scratch_directory=path.parent)
             if files != manifest["files"] or retrieval != manifest["retrieval"]:
                 raise ValueError("retained subset differs from cold parent replay")
         return manifest
@@ -1917,8 +1919,8 @@ def acquire(
         len(selected) != len(project.sources)
         or project.config.transport_budget is not None
         or project.config.source_effects is not None
-        or sum(source.acquisition.max_rows for source in selected) > 30000
-        or sum(source.acquisition.max_bytes for source in selected) > 100 * 1024**2
+        or sum(source.acquisition.max_rows for source in selected) > RETAINED_MAX_ROWS
+        or sum(source.acquisition.max_bytes for source in selected) > RETAINED_MAX_BYTES
     ):
         raise ValueError(
             "retained subset project must be offline-only within aggregate selection caps"

@@ -199,8 +199,8 @@ def test_parent_scratch_rows_released_in_shared_metadata_store(tmp_path, monkeyp
         retained = store.new_rows()
         store.append(retained, {"keep": True})
         before = store.connection.execute("SELECT COUNT(*) FROM rows").fetchone()[0]
-        first = derive_subset(project.sources[0])
-        assert derive_subset(project.sources[0]) == first
+        first = derive_subset(project.sources[0], scratch_directory=tmp_path)
+        assert derive_subset(project.sources[0], scratch_directory=tmp_path) == first
         assert (
             store.connection.execute("SELECT COUNT(*) FROM rows").fetchone()[0]
             == before
@@ -262,7 +262,25 @@ def test_warm_proof_invalidates_when_parent_changes(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "change", [None, "live", "mixed", "aggregate", "unbound", "wrong_pin"]
+    "change",
+    [
+        None,
+        "live",
+        "mixed",
+        "aggregate",
+        "aggregate_bytes",
+        "effects",
+        "unbound",
+        "wrong_pin",
+        "missing_identity",
+        "source_seed",
+        "source_profile",
+        "source_parent",
+        "source_pin",
+        "source_manifest",
+        "source_cap",
+        "source_record",
+    ],
 )
 def test_supervised_subset_is_offline_bound_and_zero_model(
     tmp_path, monkeypatch, change
@@ -271,7 +289,7 @@ def test_supervised_subset_is_offline_bound_and_zero_model(
     from test_attempt_packet_dispatch import _fixture
     from test_preparation_tokenizer_dispatch import run_words
 
-    from sparselab.corpus.acquisition import verify_acquisition
+    from sparselab.corpus.acquisition import _project_sha, verify_acquisition
     from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
 
     paths = _fixture(tmp_path, initialize=False)
@@ -290,7 +308,7 @@ def test_supervised_subset_is_offline_bound_and_zero_model(
     config.update(
         sources=["sources/source.yaml"], splits="splits.yaml", release="release.yaml"
     )
-    if change in {"mixed", "aggregate"}:
+    if change in {"mixed", "aggregate", "aggregate_bytes"}:
         import copy
 
         second = copy.deepcopy(source)
@@ -298,18 +316,36 @@ def test_supervised_subset_is_offline_bound_and_zero_model(
         if change == "mixed":
             second["acquisition"].pop("retained_subset")
         else:
-            source["acquisition"]["max_rows"] = 20000
-            second["acquisition"]["max_rows"] = 20000
+            field = "max_bytes" if change == "aggregate_bytes" else "max_rows"
+            value = 60 * 1024**2 if change == "aggregate_bytes" else 20000
+            source["acquisition"][field] = value
+            second["acquisition"][field] = value
             (recipe / "sources/source.yaml").write_text(yaml.safe_dump(source))
         (recipe / "sources/second.yaml").write_text(yaml.safe_dump(second))
         config["sources"].append("sources/second.yaml")
         config["sources"].sort()
+    if change == "effects":
+        from sparselab.corpus.acquisition import declaration_sha256
+
+        config["source_effects"] = [
+            {
+                "source_id": "one",
+                "effect": "acquire",
+                "declaration_sha256": declaration_sha256(project.sources[0]),
+            }
+        ]
     target = recipe / "project.yaml"
     target.write_text(yaml.safe_dump(config))
     contract = json.loads(paths["contract"].read_text())
     contract.update(
         preparation_only=True,
         offline_retained_sources_only=True,
+        preparation_acquisition_identity_sha256=None
+        if change == "missing_identity"
+        else _project_sha(load_project(target)),
+        preparation_normalizer=None
+        if change == "missing_identity"
+        else "normalizer-structure-v3",
         acquisition_project_sha256=None
         if change == "unbound"
         else "0" * 64
@@ -322,8 +358,31 @@ def test_supervised_subset_is_offline_bound_and_zero_model(
         contract_path=paths["contract"],
         expected_sha256=sha256_file(paths["contract"]),
     )
+    if change and change.startswith("source_"):
+        original_project_digest = sha256_file(target)
+        if change == "source_cap":
+            source["acquisition"]["max_rows"] -= 1
+        else:
+            field, value = {
+                "source_seed": ("seed", 12345),
+                "source_profile": ("profile_id", "unapproved-profile"),
+                "source_parent": ("snapshot_path", str(root / "other-parent")),
+                "source_pin": ("snapshot_sha256", "0" * 64),
+                "source_manifest": ("manifest_sha256", "0" * 64),
+                "source_record": ("max_record_bytes", 1024),
+            }[change]
+            source["acquisition"]["retained_subset"][field] = value
+        (recipe / "sources/source.yaml").write_text(yaml.safe_dump(source))
+        assert sha256_file(target) == original_project_digest
     if change is not None:
-        with pytest.raises(AttemptBudgetError):
+        reason = (
+            "retained subset acquisition identity"
+            if change == "missing_identity" or change.startswith("source_")
+            else "acquisition project differs"
+            if change == "wrong_pin"
+            else "verified offline reuse only"
+        )
+        with pytest.raises(AttemptBudgetError, match=reason):
             run_words(paths, "corpus", "acquire", str(target))
         assert AttemptBudget(paths["ledger"]).status()["reservations"] == []
     else:

@@ -619,13 +619,34 @@ unselected rows, and checks exact output bytes and row membership. Nested subset
 are unsupported. Parent mutation, policy drift, symlinks, incomplete ancestry and
 resealed omissions refuse. Parent reads can be repeated during downstream cold
 verification; budget all passes and temporary files. Parent metadata scratch is
-released after replay while preserving the existing operation database cap. A
+released after replay while preserving the existing operation database cap.
+Plain acquisition places scratch under its owned staging directory; direct cold
+verification uses the child snapshot's parent directory. An enclosing native
+metadata operation keeps its existing owned scratch location. No fallback to a
+system temporary directory is used for this replay. A
 successful tiny fixture establishes correctness, not real-data capacity.
 
 The native preparation supervisor accepts creation under an
 `offline_retained_sources_only` contract only when the acquisition project is
-bound by its file digest, every source declares a retained subset, no transport
+bound both by its file digest (`acquisition_project_sha256`) and by the existing
+resolved acquisition identity (`preparation_acquisition_identity_sha256`, paired
+with `preparation_normalizer`). The resolved identity is the native acquisition
+lock's project identity: project ID plus every complete source declaration, not
+just the bytes of the top-level YAML. A missing identity or changed source file
+refuses before reservation. Every source must declare a retained subset, with no transport
 allocation or source-effect plan is present, and aggregate selection caps fit.
 Mixed live/retained projects refuse before reserving work. Parent bytes still
 undergo native cold verification; a declaration or approval reference is not a
 verification receipt.
+
+The absolute parent path is part of the source declaration and child snapshot
+identity. Moving the parent changes that identity and prevents cold replay at the
+old location; matching parent bytes alone do not make a child snapshot portable.
+Publish a native prepared-input bundle for a portable training handoff rather
+than treating the derivative snapshot as a standalone transferable artifact.
+
+Create validation and test splits through the native family split of one subset,
+or explicitly verify overlap against other data. Different selection seeds or
+profiles are not disjoint splits and do not inherit the parent's held-out split.
+The fixed one-percent selector and named Lab ceilings deliberately refuse large
+selections; the modulus is not an adjustable sampling or automatic retry knob.

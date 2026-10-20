@@ -1,7 +1,6 @@
 """Deterministic bounded derivatives of retained HF rows with cold ancestry replay."""
 
 import hashlib
-import tempfile
 from contextlib import contextmanager, nullcontext
 from itertools import zip_longest
 from pathlib import Path
@@ -13,10 +12,10 @@ from sparselab.training.manifest import canonical_json, sha256_file
 
 
 @contextmanager
-def _parent_metadata():
+def _parent_metadata(directory):
     # Parent row indexes are replay scratch, not output. Release their rows before
     # later admission calls in the same operation, preserving the shared DB cap.
-    with metadata_operation(Path(tempfile.gettempdir())) as store:
+    with metadata_operation(Path(directory)) as store:
         first = store.next_identifier
         try:
             yield
@@ -24,7 +23,7 @@ def _parent_metadata():
             store.connection.execute("DELETE FROM rows WHERE collection > ?", (first,))
 
 
-def derive_subset(source, *, staging=None):
+def derive_subset(source, *, scratch_directory, staging=None):
     from sparselab.corpus.acquisition import _safe_snapshot_path, verify_snapshot
 
     spec = source.acquisition.retained_subset
@@ -37,7 +36,7 @@ def derive_subset(source, *, staging=None):
     # Nested derivatives are deliberately unsupported. Check before recursive verification.
     from sparselab.corpus.bounded_metadata import read_metadata
 
-    with _parent_metadata():
+    with _parent_metadata(scratch_directory):
         header = read_metadata(parent / "manifest.json")
         if header["declaration"]["acquisition"].get("retained_subset") is not None:
             raise ValueError("nested retained subsets are unsupported")

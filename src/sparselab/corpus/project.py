@@ -151,6 +151,10 @@ class HFBoundedShard(StrictModel):
         return self
 
 
+RETAINED_MAX_ROWS = 30_000
+RETAINED_MAX_BYTES = 100 * 1024**2
+
+
 class RetainedSubset(StrictModel):
     """A new bounded derivative of an immutable local HF snapshot, never a download."""
 
@@ -195,8 +199,8 @@ class HuggingFaceAcquisition(StrictModel):
         if self.retained_subset is not None and (
             not self.bounded_shards
             or len(self.bounded_shards) != 1
-            or self.max_rows > 30000
-            or self.max_bytes > 100 * 1024**2
+            or self.max_rows > RETAINED_MAX_ROWS
+            or self.max_bytes > RETAINED_MAX_BYTES
         ):
             raise ValueError(
                 "retained subset requires one shard and bounded row/byte limits"
