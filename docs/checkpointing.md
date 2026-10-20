@@ -1,14 +1,16 @@
 # Disk checkpoints, recovery, and promotion
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 A checkpoint generation is a durable, immutable local snapshot shared by the PyTorch and MLX execution paths. It is not activation recomputation, gradient accumulation, or an inference KV cache. Checkpoints are written at successful update boundaries only; partial accumulation gradients are not a resumable state.
 
 ## Verify before reuse
 
 ```sh
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
-uv run --locked --extra cpu sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
+sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
+sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
   --resume sparselab-work/runs/runtime-part/checkpoints/latest.json
 ```
 

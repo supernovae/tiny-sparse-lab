@@ -9,7 +9,6 @@ import os
 import secrets
 import shutil
 import stat
-import subprocess
 import sys
 import tempfile
 from collections.abc import Iterable, Sequence
@@ -127,7 +126,7 @@ def _dashboard(args: argparse.Namespace) -> None:
         "run",
         str(app_path),
         "--server.address",
-        "127.0.0.1",
+        args.address,
         "--server.port",
         str(args.port),
         "--server.headless",
@@ -153,7 +152,9 @@ def _dashboard(args: argparse.Namespace) -> None:
         resolve_work_dir(getattr(args, "work_dir", None))
     )
     command.extend(["--lab-dir", str(lab_dir)])
-    subprocess.run(command, check=True)
+    # Replace the launcher so container stop signals and exit status reach the
+    # actual server, including when it is PID 1.
+    os.execv(sys.executable, command)
 
 
 def _workspace_cleanup_plan(args: argparse.Namespace) -> None:
@@ -3953,6 +3954,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         help="Run directory (default: selected persistent state root/runs)",
     )
     dashboard.add_argument("--port", type=int, default=8501)
+    dashboard.add_argument(
+        "--address",
+        default="127.0.0.1",
+        help="Bind address; use 0.0.0.0 only with deliberate network isolation",
+    )
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
     dashboard.add_argument(
         "--lifecycle",

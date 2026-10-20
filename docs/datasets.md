@@ -1,5 +1,7 @@
 # Declare, pin and reuse datasets
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 A dataset is an input to an experiment, not a training function. A source
 declaration describes where text comes from and how it is selected; a lock pins
 the source; a snapshot retains the selected records and exclusion accounting.
@@ -25,8 +27,8 @@ remove within-split repeats and exclude training overlap. Selection and policy
 are part of scientific identity, not invisible cleaning defaults.
 
 ```sh
-uv run --locked --extra cpu sparselab data lock source.yaml --output source.lock.json --json
-uv run --locked --extra cpu sparselab data snapshot source.lock.json --output snapshot --json
+sparselab data lock source.yaml --output source.lock.json --json
+sparselab data snapshot source.lock.json --output snapshot --json
 ```
 
 Use new output paths. A snapshot retains its source lock, selected records,
@@ -121,10 +123,10 @@ Whole-document packing fails on insufficient token bounds rather than silently
 truncating selected text. Preparation uses disk-backed resumable chunks.
 
 ```sh
-uv run --locked --extra cpu sparselab tokenizer train tokenizer.yaml
-PREPARED=$(uv run --locked --extra cpu sparselab data prepare run.yaml)
-uv run --locked --extra cpu sparselab data coverage --prepared-root "$PREPARED" --config run.yaml --json
-uv run --locked --extra cpu sparselab data budget --prepared-root "$PREPARED" --config run.yaml \
+sparselab tokenizer train tokenizer.yaml
+PREPARED=$(sparselab data prepare run.yaml)
+sparselab data coverage --prepared-root "$PREPARED" --config run.yaml --json
+sparselab data budget --prepared-root "$PREPARED" --config run.yaml \
   --passes 1 --no-require-full --output one-pass.yaml --json
 ```
 
@@ -207,7 +209,7 @@ min_free_bytes: 1073741824
 ```
 
 ```sh
-uv run --locked --extra cpu sparselab data migrate old-run.yaml \
+sparselab data migrate old-run.yaml \
   --output migrated --resources migration-resources.yaml --accept-policy-change --json
 ```
 

@@ -1,5 +1,7 @@
 # First real model: a 17M dense decoder on FineWeb-Edu
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 This is the shortest path from the lab-mode tools to one small real model,
 using only existing configs, loaders and commands:
 
@@ -44,8 +46,8 @@ trainings and later ones cost one.
 export SPARSELAB_WORK_DIR="$PWD/sparselab-work/experiments/first-model"
 mkdir -p "$SPARSELAB_WORK_DIR"
 uv sync --locked --extra cpu --extra lmeval      # CPU env: probes, compare, dashboard
-uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_fineweb_scale_8k.yaml
-uv run --locked --no-sync sparselab data prepare configs/first_model_20m_cuda.yaml
+sparselab tokenizer train configs/tokenizer_fineweb_scale_8k.yaml
+sparselab data prepare configs/first_model_20m_cuda.yaml
 ```
 
 Both first-model configs share one tokenizer, one data cache and one lab eval
@@ -66,18 +68,18 @@ export SPARSELAB_RUNTIME_DIR="$HOME/.local/share/sparselab/runtimes"
 **NVIDIA CUDA** (Linux x86_64, existing Python 3.14):
 
 ```sh
-uv run --locked --no-sync sparselab runtime env provision cuda-gpu \
+sparselab runtime env provision cuda-gpu \
   --recipe cuda-cu126-v1 --python "$(command -v python3.14)" --json
-uv run --locked --no-sync sparselab runtime env doctor cuda-gpu --precision bf16 --json
+sparselab runtime env doctor cuda-gpu --precision bf16 --json
 GPU=(--runtime cuda-gpu)
 ```
 
 **AMD ROCm** (RX 7900 XTX / gfx1100, Linux or WSL2 with AMD's driver stack):
 
 ```sh
-uv run --locked --no-sync sparselab runtime env provision rocm-7900xtx \
+sparselab runtime env provision rocm-7900xtx \
   --recipe rocm-gfx1100-v1 --json
-uv run --locked --no-sync sparselab runtime env doctor rocm-7900xtx --precision bf16 --json
+sparselab runtime env doctor rocm-7900xtx --precision bf16 --json
 GPU=(--backend rocm --runtime rocm-7900xtx)
 ```
 
@@ -100,9 +102,9 @@ question: Does a wider FFN lower held-out loss at 49M tokens?
 set:
   model.ffn_dim: 1536
 YAML
-uv run --locked --no-sync sparselab try wider-ffn.yaml \
+sparselab try wider-ffn.yaml \
   --vs configs/first_model_20m_cuda.yaml "${GPU[@]}" --config standard
-uv run --locked --no-sync sparselab report TRY_ID
+sparselab report TRY_ID
 ```
 
 The first try trains the baseline (the config as-is) and the candidate, then
@@ -123,12 +125,12 @@ changes only the candidate, so first derive a short-budget **baseline** to make
 this fit tonight:
 
 ```sh
-uv run --locked --no-sync sparselab config derive configs/first_model_20m_cuda.yaml \
+sparselab config derive configs/first_model_20m_cuda.yaml \
   --set training.max_steps=1000 --set training.max_tokens=8192000 \
   --output "$SPARSELAB_WORK_DIR/first_model_short.yaml"
 for seed in 1 2 3; do
   printf 'seed: %s\nprobe_tier: none\n' "$seed" > "$SPARSELAB_WORK_DIR/paired-try.yaml"
-  uv run --locked --no-sync sparselab try wider-ffn.yaml \
+  sparselab try wider-ffn.yaml \
     --vs "$SPARSELAB_WORK_DIR/first_model_short.yaml" "${GPU[@]}" \
     --config "$SPARSELAB_WORK_DIR/paired-try.yaml"
 done
@@ -146,8 +148,8 @@ other change) measures the noise floor directly.
 ## 3. Probe at standard and full tiers
 
 ```sh
-uv run --locked --no-sync sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config standard
-uv run --locked --no-sync sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config full   # needs --extra lmeval
+sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config standard
+sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config full   # needs --extra lmeval
 ```
 
 `sparselab report TRY_ID` prints both arms' run ids. A run trained with plain
@@ -168,7 +170,7 @@ skipped as inapplicable, because this model is not trained on
 ## 4. Place it on the reference curve
 
 ```sh
-uv run --locked --no-sync sparselab compare TRY_ID --references
+sparselab compare TRY_ID --references
 ```
 
 Run the full-tier probe first: compare reads records only and, where lm-eval
@@ -189,7 +191,7 @@ text: The water cycle describes how water moves
 ```
 
 ```sh
-uv run --locked --no-sync sparselab explore CANDIDATE_RUN --config explore.yaml
+sparselab explore CANDIDATE_RUN --config explore.yaml
 ```
 
 `explore` already defaults to CPU, so it needs no flag after a GPU
@@ -202,7 +204,7 @@ explorer declaration (relative to that file), or pass the run directory directly
 ## 6. Read the dashboard
 
 ```sh
-uv run --locked --no-sync sparselab dashboard
+sparselab dashboard
 ```
 
 - **Home**: the newest verdict and next-step commands.
@@ -225,14 +227,14 @@ trained before it are refused at load. Retrain them under current code before
 comparing against them:
 
 ```sh
-uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_withheld_bytes.yaml
-uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_withheld_bpe.yaml
+sparselab tokenizer train configs/tokenizer_smoke.yaml
+sparselab tokenizer train configs/tokenizer_withheld_bytes.yaml
+sparselab tokenizer train configs/tokenizer_withheld_bpe.yaml
 
 for cfg in capability_recall_ngram_cpu smoke_memory_cpu smoke_byte_memory_cpu \
            smoke_combined_cpu withheld_bytes_cpu withheld_bpe_cpu; do
-  uv run --locked --no-sync sparselab train "configs/$cfg.yaml" --run-id "$cfg-postfix"
-  uv run --locked --no-sync sparselab probe "runs/$cfg-postfix" --backend cpu --config standard
+  sparselab train "configs/$cfg.yaml" --run-id "$cfg-postfix"
+  sparselab probe "runs/$cfg-postfix" --backend cpu --config standard
 done
 ```
 

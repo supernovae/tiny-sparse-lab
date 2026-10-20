@@ -1,5 +1,7 @@
 # Explore retained checkpoints
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Use the native lab interfaces to inspect and compare your own retained models.
 The [model exploration guide](tinytext-model-guide.md) covers the complete
 verify → raw completion → chat workflow and debugging controls. For client
@@ -17,9 +19,9 @@ The example selects CPU; accelerator execution needs its provisioned environment
 and the supported [runtime setup](runtime.md).
 
 ```sh
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION_A" --json
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION_B" --json
-uv run --locked --extra cpu sparselab surface chat \
+sparselab checkpoint verify "$GENERATION_A" --json
+sparselab checkpoint verify "$GENERATION_B" --json
+sparselab surface chat \
   --cell "first=$GENERATION_A" --cell "second=$GENERATION_B" \
   --backend cpu --seed 11 \
   --work-dir "$SPARSELAB_WORK_DIR/experiments/checkpoint-exploration"

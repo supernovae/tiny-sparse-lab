@@ -34,7 +34,7 @@ ENV PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin \
 USER 10001:10001
 WORKDIR /state
 EXPOSE 8501
-HEALTHCHECK --interval=10s --timeout=3s --start-period=30s \
- CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health',timeout=2).read()"]
+# CLI jobs have no HTTP server. Viewer invocations opt into a web healthcheck.
+HEALTHCHECK NONE
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/lab-start"]
-CMD ["streamlit", "run", "/opt/venv/lib/python3.14/site-packages/sparselab/dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true", "--", "--runs-dir", "/observe/work/runs", "--lab-dir", "/observe/work/lab", "--reports-dir", "/observe/work/reports", "--evidence-root", "/observe/evidence"]
+CMD ["sparselab", "--help"]

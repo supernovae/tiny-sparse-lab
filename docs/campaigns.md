@@ -1,5 +1,7 @@
 # Campaigns: declare and execute an experimental workflow
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 A Campaign is a YAML/JSON DSL that connects the steps of an experiment: inputs,
 readiness checks, training plans, runtime selection, collection, evaluation and
 review. Use it when a question needs several dependent operations and you want
@@ -103,14 +105,14 @@ statuses and hashes but does not bypass artifact, approval, or runtime checks.
 
 ```sh
 export SPARSELAB_WORK_DIR=/data/sparselab
-uv run --locked --extra cpu sparselab campaign validate examples/tiny-campaign.yaml --json
-uv run --locked --extra cpu sparselab campaign plan examples/tiny-campaign.yaml --json
-uv run --locked --extra cpu sparselab campaign status examples/tiny-campaign.yaml --json
-uv run --locked --extra cpu sparselab campaign next examples/tiny-campaign.yaml --json
-uv run --locked --extra cpu sparselab campaign apply examples/tiny-campaign.yaml --json
-uv run --locked --extra cpu sparselab campaign explain examples/tiny-campaign.yaml --json
-uv run --locked --extra cpu sparselab campaign approve examples/tiny-campaign.yaml corpus-approval --note 'Reviewed these bound inputs' --json
-uv run --locked --extra cpu sparselab campaign resume examples/tiny-campaign.yaml --json
+sparselab campaign validate examples/tiny-campaign.yaml --json
+sparselab campaign plan examples/tiny-campaign.yaml --json
+sparselab campaign status examples/tiny-campaign.yaml --json
+sparselab campaign next examples/tiny-campaign.yaml --json
+sparselab campaign apply examples/tiny-campaign.yaml --json
+sparselab campaign explain examples/tiny-campaign.yaml --json
+sparselab campaign approve examples/tiny-campaign.yaml corpus-approval --note 'Reviewed these bound inputs' --json
+sparselab campaign resume examples/tiny-campaign.yaml --json
 ```
 
 `validate` performs static checks only. `plan`, `next` and `explain` verify requisite
@@ -216,7 +218,7 @@ An absent measurement produces a typed deficit, not a pass.
 counts returned by `corpus describe` or Campaign `token_measurement`:
 
 ```sh
-uv run --locked --extra cpu sparselab --work-dir /data/sparselab \
+sparselab --work-dir /data/sparselab \
   corpus measure-tokens RELEASE --tokenizer TOKENIZER --policy POLICY.yaml \
   --output /data/sparselab/experiments/TASK/source-tokens.json --json
 ```

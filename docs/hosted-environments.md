@@ -1,5 +1,7 @@
 # Optional hosted GPU environments
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 SparseLab can execute a prepared run on a user-provisioned CUDA host, including
 an explicitly supplied Google Colab session or a full-SSH machine. Placement is
 operational: it does not change the declaration's scientific identity or make a
@@ -71,13 +73,13 @@ mkdir -p "$WORK/inputs"
 cp experiments/samples/hosted-tinystories/source.yaml "$WORK/inputs/"
 cp experiments/samples/hosted-tinystories/tokenizer.yaml "$WORK/inputs/"
 cp experiments/samples/hosted-tinystories/run-t4.yaml "$WORK/inputs/"
-uv run --locked --extra cpu sparselab workspace preflight "$WORK/inputs/tokenizer.yaml" --tokenizer
-uv run --locked --extra cpu sparselab inspect "$WORK/inputs/run-t4.yaml" --json
-uv run --locked --extra cpu sparselab workspace preflight "$WORK/inputs/run-t4.yaml"
-uv run --locked --extra cpu sparselab data lock "$WORK/inputs/source.yaml" --output "$WORK/inputs/source.lock.json"
-uv run --locked --extra cpu sparselab data snapshot "$WORK/inputs/source.lock.json" --output "$WORK/snapshot"
-uv run --locked --extra cpu sparselab tokenizer train "$WORK/inputs/tokenizer.yaml"
-uv run --locked --extra cpu sparselab data prepare "$WORK/inputs/run-t4.yaml"
+sparselab workspace preflight "$WORK/inputs/tokenizer.yaml" --tokenizer
+sparselab inspect "$WORK/inputs/run-t4.yaml" --json
+sparselab workspace preflight "$WORK/inputs/run-t4.yaml"
+sparselab data lock "$WORK/inputs/source.yaml" --output "$WORK/inputs/source.lock.json"
+sparselab data snapshot "$WORK/inputs/source.lock.json" --output "$WORK/snapshot"
+sparselab tokenizer train "$WORK/inputs/tokenizer.yaml"
+sparselab data prepare "$WORK/inputs/run-t4.yaml"
 ```
 
 Retain the prepared-data provenance and native output. Reuse already verified
@@ -200,7 +202,7 @@ cell itself submits no provider work:
 
 ```sh
 ENROLLMENT="$WORK/colab-enrollment.py" # an absolute, fresh local path
-uv run --locked --extra cpu sparselab hosted notebook-cell \
+sparselab hosted notebook-cell \
   --root /content/sparselab --output "$ENROLLMENT" --json
 ```
 
@@ -217,9 +219,9 @@ actual host properties before setup:
 ```sh
 git bundle create "$WORK/source.bundle" HEAD
 SHA="$(git rev-parse HEAD)"
-uv run --locked --extra cpu sparselab hosted inspect \
+sparselab hosted inspect \
   --colab-session "$SESSION" --colab-auth adc --root /content/sparselab --json
-uv run --locked --extra cpu sparselab hosted setup \
+sparselab hosted setup \
   --colab-session "$SESSION" --colab-auth adc --source-bundle "$WORK/source.bundle" \
   --source-commit "$SHA" --root /content/sparselab \
   --runtime-root /content/sparselab-runtimes --recipe cuda-cu126-v1 --json
@@ -245,15 +247,15 @@ With `REMOTE_PYTHON` and `REMOTE_WORKER_ROOT` copied from setup's structured
 result, register and stage the worker:
 
 ```sh
-uv run --locked --extra cpu sparselab worker register colab-t4-acceptance \
+sparselab worker register colab-t4-acceptance \
   --colab-session "$SESSION" --colab-auth adc --backend cuda --engine pytorch \
   --python "$REMOTE_PYTHON" --root "$REMOTE_WORKER_ROOT" \
   --relay-profile "$WORK/relay.yaml" --store "$WORK/runs"
-uv run --locked --extra cpu sparselab worker relay check "$WORK/relay.yaml" \
+sparselab worker relay check "$WORK/relay.yaml" \
   --worker colab-t4-acceptance --store "$WORK/runs" --json
-uv run --locked --extra cpu sparselab runtime attention "$WORK/inputs/run-t4.yaml" \
+sparselab runtime attention "$WORK/inputs/run-t4.yaml" \
   --worker colab-t4-acceptance --store "$WORK/runs" --json
-uv run --locked --extra cpu sparselab experiment submit "$WORK/inputs/run-t4.yaml" --wait \
+sparselab experiment submit "$WORK/inputs/run-t4.yaml" --wait \
   --worker colab-t4-acceptance --store "$WORK/runs"
 ```
 
@@ -275,17 +277,17 @@ When the terminal receipt or a verified durable checkpoint is available,
 collect without rerunning the executor:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment collect "$RUN_ID" \
+sparselab experiment collect "$RUN_ID" \
   --relay-profile "$WORK/relay.yaml" --store "$WORK/runs" --json
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
-uv run --locked --extra cpu sparselab report --kind run "$RUN_ID" --runs-dir "$WORK/runs" --json
+sparselab checkpoint verify "$GENERATION" --json
+sparselab report --kind run "$RUN_ID" --runs-dir "$WORK/runs" --json
 ```
 
 Recovery from a confirmed lost worker is explicit and only selects a fully
 verified committed checkpoint:
 
 ```sh
-uv run --locked --extra cpu sparselab experiment collect "$RUN_ID" \
+sparselab experiment collect "$RUN_ID" \
   --relay-profile "$WORK/relay.yaml" --store "$WORK/runs" \
   --recover --confirm-worker-lost --json
 ```
@@ -322,13 +324,13 @@ host-key verification. Do not disable host-key checking or auto-accept a
 recycled host.
 
 ```sh
-uv run --locked --extra cpu sparselab hosted inspect \
+sparselab hosted inspect \
   --ssh "$SSH_HOST" --root /absolute/task/root --json
-uv run --locked --extra cpu sparselab hosted setup \
+sparselab hosted setup \
   --ssh "$SSH_HOST" --source-bundle "$WORK/source.bundle" \
   --source-commit "$SHA" --root /absolute/task/root \
   --runtime-root /absolute/task/runtimes --recipe cuda-cu126-v1 --json
-uv run --locked --extra cpu sparselab worker register ssh-cuda-host \
+sparselab worker register ssh-cuda-host \
   --ssh "$SSH_HOST" --backend cuda --engine pytorch \
   --python "$REMOTE_PYTHON" --root "$REMOTE_WORKER_ROOT" \
   --relay-profile "$WORK/relay.yaml" --store "$WORK/runs"

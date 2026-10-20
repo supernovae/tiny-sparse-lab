@@ -1,5 +1,7 @@
 # Dashboard tour
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 `sparselab dashboard` opens a local, read-only Streamlit app. The **Lab** pages
 come first. Each one answers a single researcher question, opens with the
 verdict, explains its numbers in plain words and, when it has nothing to show,
@@ -7,9 +9,14 @@ names the command that would fill it. Run telemetry (training curves, runtime,
 memory, checkpoints) and the Learn/Research pages follow in their own sections.
 
 ```sh
-uv run --locked --extra cpu sparselab dashboard               # WORK_DIR/runs + WORK_DIR/lab
-uv run --locked --extra cpu sparselab dashboard --lab-dir DIR --runs-dir DIR
+sparselab dashboard               # WORK_DIR/runs + WORK_DIR/lab
+sparselab dashboard --lab-dir DIR --runs-dir DIR
 ```
+
+The default bind address is `127.0.0.1`. A container viewer may explicitly use
+`--address 0.0.0.0` with a localhost-only host port mapping; see
+[container usage](containers.md). Starting the dashboard replaces the CLI process
+with Streamlit so stop signals and the server's exit status are preserved.
 
 | Page | Question | What you see |
 |---|---|---|
@@ -168,8 +175,8 @@ text: Once upon a time
 ```
 
 ```sh
-uv run --locked --extra cpu sparselab explore RUN --config explore.yaml
-uv run --locked --extra cpu sparselab explore RUN --json        # the full payload
+sparselab explore RUN --config explore.yaml
+sparselab explore RUN --json        # the full payload
 ```
 
 Results are cached as sealed records under

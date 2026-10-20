@@ -1,5 +1,7 @@
 # Using Tiny Sparse Lab
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Start with [TinyStories](tinystories-microlab.md) for prepared inputs and a first
 comparison, or [lab mode](lab-mode.md) if you already have a RunConfig and
 tokenizer. The normal local path is `try` → `report`, followed by the next check
@@ -12,12 +14,12 @@ Run from the checkout in the [locked environment](../README.md#first-run).
 values printed by `try` or `report`.
 
 ```sh
-uv run --locked --extra cpu sparselab try DELTA.yaml --vs BASELINE.yaml
-uv run --locked --extra cpu sparselab report TRY_ID
-uv run --locked --extra cpu sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config standard
-uv run --locked --extra cpu sparselab compare TRY_ID --references
-uv run --locked --extra cpu sparselab explore CANDIDATE_RUN
-uv run --locked --extra cpu sparselab dashboard
+sparselab try DELTA.yaml --vs BASELINE.yaml
+sparselab report TRY_ID
+sparselab probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --config standard
+sparselab compare TRY_ID --references
+sparselab explore CANDIDATE_RUN
+sparselab dashboard
 ```
 
 `try` trains; `probe` scores; `explore` computes checkpoint diagnostics. `report`
@@ -66,7 +68,7 @@ replaced. The receipt is not an artifact identity or trusted experiment lock.
 
 ```sh
 mkdir -p "$SPARSELAB_WORK_DIR/handoffs"
-uv run --locked --extra cpu sparselab config derive configs/smoke_cpu.yaml \
+sparselab config derive configs/smoke_cpu.yaml \
   --set optimizer.peak=0.001 --set training.micro_batch_size=2 \
   --output "$SPARSELAB_WORK_DIR/handoffs/smoke-peak.yaml" --json
 ```
@@ -105,9 +107,9 @@ These commands expose operational or descriptive observations, not model-quality
 gates or authorization to train:
 
 ```sh
-uv run --locked --extra cpu sparselab semantic probe probe.yaml --json
-uv run --locked --extra cpu sparselab memorization analyze overlap.yaml --json
-uv run --locked --extra cpu sparselab data benchmark-preparation benchmark.yaml --json
+sparselab semantic probe probe.yaml --json
+sparselab memorization analyze overlap.yaml --json
+sparselab data benchmark-preparation benchmark.yaml --json
 ```
 
 `semantic probe` authenticates packs and runs one bounded CPU/PyTorch forward with

@@ -1,5 +1,7 @@
 # Chat-oriented training
 
+Commands below use the [activated, provisioned environment](../README.md#first-run).
+
 Start with [From flashcards to a useful local assistant](from-toy-to-useful.md) for the beginner explanation, the runnable 3.3M `instruction_starter.yaml` recipe, and the distinction between a familiar chat prompt and trained conversational ability.
 
 The optional `instruction_reference` source is a deterministic, offline synthetic curriculum for exercising the local chat transcript path. Each document uses the same plain-text form consumed by `sparselab chat`:
@@ -17,13 +19,13 @@ The curriculum contains bounded arithmetic, word reversal, attribute lookup, con
 ## Reference run
 
 ```sh
-uv run --locked --extra cpu sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
-uv run --locked --extra cpu sparselab data prepare configs/instruction_100m.yaml
-uv run --locked --extra cpu sparselab inspect configs/instruction_100m.yaml --json
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
-uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
-uv run --locked --extra cpu sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32 --runs-dir sparselab-work/runs
+sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
+sparselab data prepare configs/instruction_100m.yaml
+sparselab inspect configs/instruction_100m.yaml --json
+sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
+sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
+sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
+sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32 --runs-dir sparselab-work/runs
 ```
 
 `instruction_100m.yaml` is the initial larger reference: 104,843,648 dense parameters, a 20-million-target-token curriculum budget, effective batch size 16, and block activation checkpointing. It is intentionally a 100M—not 200M—configuration: establish that the corpus, transcript, checkpoint, and held-out behavior are useful before paying the substantially higher memory and training cost of a 200M experiment.
