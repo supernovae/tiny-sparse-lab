@@ -8,6 +8,7 @@ if [ "$#" -eq 0 ]; then
     set -- sparselab --help
 else
     case "$1" in
+        -*) set -- sparselab "$@" ;;
         sparselab|python|python3|sh|bash|streamlit|*/*) ;;
         *) set -- sparselab "$@" ;;
     esac

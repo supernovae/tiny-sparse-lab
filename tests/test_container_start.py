@@ -56,6 +56,16 @@ def environment(tmp_path):
         ([], "sparselab", ["--help"]),
         (["--help"], "sparselab", ["--help"]),
         (
+            ["--work-dir=/state/a b", "report", "--help"],
+            "sparselab",
+            ["--work-dir=/state/a b", "report", "--help"],
+        ),
+        (
+            ["--work-dir", "/state/a b", "report", "--help"],
+            "sparselab",
+            ["--work-dir", "/state/a b", "report", "--help"],
+        ),
+        (
             ["compare", "a b;$HOME$(touch nope)"],
             "sparselab",
             ["compare", "a b;$HOME$(touch nope)"],
