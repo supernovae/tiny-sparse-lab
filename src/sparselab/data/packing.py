@@ -69,6 +69,7 @@ if TYPE_CHECKING:
 PACKING_VERSION = "contiguous-eos-v6"
 PREVIOUS_PACKING_VERSION = "contiguous-eos-v5"
 HISTORICAL_PACKING_VERSION = "contiguous-eos-v4"
+_MAX_MIXTURE_ROW_BYTES = 64 * 1024**2
 
 
 @dataclass(frozen=True)
@@ -461,6 +462,8 @@ def _collect(
     tokenizer: Tokenizer,
     split: str,
     *,
+    root: Path | None = None,
+    proofs: dict[str, VerifiedFile] | None = None,
     byte_table_size: int | None = None,
     byte_ngram_size: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, dict[str, int]]:
@@ -475,16 +478,38 @@ def _collect(
     eos = tokenizer.token_to_id("<eos>")
     if eos is None:
         raise ValueError("tokenizer has no <eos> special token")
-    values: list[int] = []
-    supervision: list[bool] = []
-    byte_addresses: list[int] | None = [] if byte_table_size is not None else None
+    values = (
+        [] if root is None else _ArraySpool(root / f"{split}.npy", np.dtype(np.int32))
+    )
+    supervision = (
+        []
+        if root is None
+        else _ArraySpool(root / f"{split}_supervision.npy", np.dtype(bool))
+    )
+    byte_addresses = (
+        (
+            []
+            if root is None
+            else _ArraySpool(root / f"{split}_byte_addresses.npy", np.dtype(np.int32))
+        )
+        if byte_table_size is not None
+        else None
+    )
     stats = {
         "acquired_documents": 0,
         "retained_documents": 0,
         "skipped_documents": 0,
         "truncated_documents": 0,
     }
-    documents = iter(_source_documents(config, split))
+    documents = iter(
+        _source_documents(
+            config,
+            split,
+            local_text_source_bytes=TOKENIZER_BATCH_SOURCE_BYTES
+            if root is not None
+            else None,
+        )
+    )
     source_wait_seconds = 0.0
     encoding_seconds = 0.0
     source_bytes = 0
@@ -585,6 +610,20 @@ def _collect(
                 "output_tokens_per_second": len(values) / elapsed,
             },
         )
+    if root is not None:
+        for spool in (values, supervision, byte_addresses):
+            if spool is not None:
+                proof = spool.finish()
+                if proofs is not None:
+                    proofs[spool.path.name] = proof
+        return (
+            np.load(values.path, mmap_mode="r", allow_pickle=False),
+            np.load(supervision.path, mmap_mode="r", allow_pickle=False),
+            None
+            if byte_addresses is None
+            else np.load(byte_addresses.path, mmap_mode="r", allow_pickle=False),
+            stats,
+        )
     return (
         np.asarray(values, dtype=np.int32),
         np.asarray(supervision, dtype=bool),
@@ -594,7 +633,12 @@ def _collect(
 
 
 def _collect_token_mixture(
-    config: RunConfig, tokenizer: Tokenizer, receipt: dict[str, object]
+    config: RunConfig,
+    tokenizer: Tokenizer,
+    receipt: dict[str, object],
+    root: Path,
+    *,
+    proofs: dict[str, VerifiedFile] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
     """Pack exact scheduled targets with BOS and masked block-end padding."""
     dataset = config.dataset
@@ -607,15 +651,18 @@ def _collect_token_mixture(
     pad = tokenizer.token_to_id("<pad>")
     if any(value is None for value in (bos, eos, pad)):
         raise ValueError("token mixture tokenizer requires BOS, EOS and PAD")
-    ids = np.full(padded_targets + 1, pad, dtype=np.int32)
-    mask = np.zeros(padded_targets + 1, dtype=bool)
-    ids[0] = bos
+    ids = _ArraySpool(root / "train.npy", np.dtype(np.int32))
+    mask = _ArraySpool(root / "train_supervision.npy", np.dtype(bool))
+    ids.append([bos])
+    mask.append([False])
     cursor = 1
     records = 0
     stream_digest = hashlib.sha256()
     by_stratum: Counter[str] = Counter()
     with dataset.train_path.open("rb") as stream:
-        for line in stream:
+        while line := stream.readline(_MAX_MIXTURE_ROW_BYTES + 1):
+            if len(line) > _MAX_MIXTURE_ROW_BYTES:
+                raise ValueError("mixture record-byte cap exceeded")
             if not line.strip():
                 raise ValueError("empty token mixture JSONL row")
             stream_digest.update(line)
@@ -632,8 +679,8 @@ def _collect_token_mixture(
                 or cursor + len(tokens) > target_count + 1
             ):
                 raise ValueError("invalid token mixture target row")
-            ids[cursor : cursor + len(tokens)] = tokens
-            mask[cursor : cursor + len(tokens)] = True
+            ids.append(tokens)
+            mask.append([True] * len(tokens))
             cursor += len(tokens)
             records += 1
             by_stratum[row["stratum"]] += len(tokens)
@@ -644,17 +691,31 @@ def _collect_token_mixture(
         or stream_digest.hexdigest() != receipt["train_tokens_sha256"]
     ):
         raise ValueError("token mixture target count differs from verified receipt")
+    remaining_padding = padded_targets - target_count
+    while remaining_padding:
+        count = min(remaining_padding, 65_536)
+        ids.append([pad] * count)
+        mask.append([False] * count)
+        remaining_padding -= count
+    for spool in (ids, mask):
+        proof = spool.finish()
+        if proofs is not None:
+            proofs[spool.path.name] = proof
     stats = {
         "acquired_documents": records,
         "retained_documents": records,
         "skipped_documents": 0,
         "truncated_documents": 0,
         "scheduled_target_positions": target_count,
-        "supervised_target_positions": int(mask[1:].sum()),
+        "supervised_target_positions": target_count,
         "supervised_target_positions_by_stratum": receipt["actual_target_tokens"],
         "masked_padding_positions": padded_targets - target_count,
     }
-    return ids, mask, stats
+    return (
+        np.load(ids.path, mmap_mode="r", allow_pickle=False),
+        np.load(mask.path, mmap_mode="r", allow_pickle=False),
+        stats,
+    )
 
 
 class _ArraySpool:
@@ -671,11 +732,18 @@ class _ArraySpool:
         self.buffer: list[int | bool] = []
         self.count = 0
 
-    def append(self, values: list[int] | list[bool]) -> None:
+    def __len__(self):
+        return self.count
+
+    def append(self, values: list[int] | list[bool] | int | bool) -> None:
+        if isinstance(values, (int, bool)):
+            values = [values]
         self.buffer.extend(values)
         self.count += len(values)
         if len(self.buffer) >= 65_536:
             self.flush()
+
+    extend = append
 
     def flush(self) -> None:
         if self.buffer:
@@ -1584,11 +1652,18 @@ def _prepare_data(
         )
     elif token_mixture is not None:
         train, train_supervision, train_stats = _collect_token_mixture(
-            config, tokenizer, token_mixture
+            config, tokenizer, token_mixture, temporary_root, proofs=proofs
         )
         train_byte = None
         validation, validation_supervision, validation_byte, validation_stats = (
-            _collect(config.dataset, tokenizer, "validation", **settings)
+            _collect(
+                config.dataset,
+                tokenizer,
+                "validation",
+                root=temporary_root,
+                proofs=proofs,
+                **settings,
+            )
         )
     else:
         train, train_supervision, train_byte, train_stats = _collect(
@@ -1624,7 +1699,12 @@ def _prepare_data(
         ):
             if values is not None:
                 proofs[name] = _atomic_array(temporary_root / name, values)
-    if config.dataset.source not in {"local_stories", "local_text", "snapshot"}:
+    if config.dataset.source not in {
+        "local_stories",
+        "local_text",
+        "snapshot",
+        "local_token_mixture",
+    }:
         proofs["train.npy"] = _atomic_array(temporary_root / "train.npy", train)
         proofs["validation.npy"] = _atomic_array(
             temporary_root / "validation.npy", validation

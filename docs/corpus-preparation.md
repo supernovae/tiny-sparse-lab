@@ -650,3 +650,28 @@ or explicitly verify overlap against other data. Different selection seeds or
 profiles are not disjoint splits and do not inherit the parent's held-out split.
 The fixed one-percent selector and named Lab ceilings deliberately refuse large
 selections; the modulus is not an adjustable sampling or automatic retry knob.
+
+
+### Mixture preparation memory and scratch
+
+Mixture materialization and cold replay index document offsets, family/content
+constraints, deterministic ranks and encoded-token offsets in disposable SQLite
+storage. Encoded documents are spooled on disk and replayed in the same stratum,
+rank and exposure order. Token JSONL bytes and schema-1 receipt meanings are
+unchanged. The existing contiguous-EOS packer writes train and validation arrays
+through disk spools and opens the completed arrays read-only with memory mapping;
+it does not allocate arrays for the entire scheduled training quota in RAM.
+
+This bounds retained Python data by individual records and finite metadata, not
+by total corpus tokens. Individual source/encoded JSONL records are limited to
+64 MiB, receipts to 256 MiB, and exclusion entries to 128 MiB of canonical JSON. An
+oversized record or receipt refuses publication without dropping evidence from a
+successful receipt. SQLite uses a 4 MiB page cache and disk temporary storage;
+these are not hard RSS enforcement. Tokenizer internals and release verification
+have their own resource requirements.
+
+Scratch is real storage: document indexes, all eligible encoded candidates,
+output schedules, cold-replay output, raw array spools and completed arrays can
+coexist. Keep native workspace/resource monitoring and cumulative accounting;
+cleanup is not a refund. This implementation does not reduce acquisition
+reservations, authorize a larger disk budget or establish that a full corpus fits.

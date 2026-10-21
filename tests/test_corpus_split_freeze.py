@@ -12,7 +12,8 @@ import pytest
 import yaml
 
 from sparselab.corpus import split_freeze
-from sparselab.corpus.mixture import _inventory as verify_mixture_inventory
+from sparselab.corpus.mixture import _rank
+from sparselab.corpus.mixture_index import MixtureIndex
 from sparselab.corpus.project import SplitDeclaration
 from sparselab.training.manifest import canonical_json, sha256_file
 
@@ -442,11 +443,18 @@ def test_finalized_family_inventory_matches_kept_release_documents(
     result = split_freeze.finalize_family_inventory(release, split_path, final)
     assert result["kept_documents"] == 29
     kept = {key: doc for key, doc in documents.items() if doc["drop_reason"] is None}
-    assert set(
-        verify_mixture_inventory(
-            final, kept, {v: k for k, v in source_by_stratum.items()}
+    scratch = tmp_path / "mixture-index"
+    scratch.mkdir()
+    with MixtureIndex(scratch, release / "documents.jsonl") as index:
+        index.inventory(
+            final,
+            {v: k for k, v in source_by_stratum.items()},
+            lambda row: _rank(42, row["stratum"], row["family_id"], row["document_id"]),
         )
-    ) == set(kept)
+        assert {
+            row[0]
+            for row in index.db.execute("SELECT id FROM docs WHERE inventoried=1")
+        } == set(kept)
 
 
 def test_freeze_splits_stops_on_missing_decision_unresolved_family_and_duplicate(

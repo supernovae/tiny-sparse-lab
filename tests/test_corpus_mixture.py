@@ -322,7 +322,10 @@ def test_native_packing_supervises_exact_exported_quota(
     tokenizer = SimpleNamespace(
         token_to_id=lambda value: {"<bos>": 2, "<eos>": 3, "<pad>": 0}[value]
     )
-    ids, mask, stats = _collect_token_mixture(config, tokenizer, receipt)
+    (tmp_path / "pack").mkdir()
+    ids, mask, stats = _collect_token_mixture(
+        config, tokenizer, receipt, tmp_path / "pack"
+    )
     assert ids[0] == 2 and not mask[0]
     assert stats["scheduled_target_positions"] == 20
     assert stats["supervised_target_positions"] == 20
@@ -393,7 +396,10 @@ def test_yaml_mixture_consumer_is_independent_of_cwd(
             config.dataset, config.tokenizer.path, config.model.vocab_size
         )
         assert verified == receipt
-        ids, mask, stats = _collect_token_mixture(config, tokenizer, verified)
+        (cwd / "pack").mkdir()
+        ids, mask, stats = _collect_token_mixture(
+            config, tokenizer, verified, cwd / "pack"
+        )
         assert stats["supervised_target_positions"] == 20
         assert sum(mask) == 20
         assert len(ids) == len(mask)
@@ -419,6 +425,7 @@ def test_native_packing_rejects_malformed_target_row(tmp_path: Path) -> None:
                 "records": 1,
                 "train_tokens_sha256": "0" * 64,
             },
+            tmp_path,
         )
 
 
@@ -600,3 +607,377 @@ def test_unique_export_has_no_repeated_positions_and_cold_replays(
     assert all(row["exposure"] == 1 for row in rows)
     assert len({row["document_id"] for row in rows}) == len(rows)
     assert mixture.verify_mixture(declaration, output) == receipt
+
+
+_GOLDEN = json.loads(
+    (Path(__file__).parent / "fixtures/mixture_schedule_v1.json").read_text()
+)
+
+
+@pytest.mark.parametrize("golden", _GOLDEN)
+def test_disk_mixture_matches_prechange_bytes_and_receipt(
+    tmp_path, monkeypatch, golden
+):
+    # Golden bytes were produced by c5961c4, including duplicate and empty records.
+    declaration, inventory, release = _fixture(tmp_path, monkeypatch)
+    docs = list(mixture._rows(release / "documents.jsonl"))
+    extra = [
+        {**docs[0], "document_id": "g3"},
+        {**docs[0], "document_id": "g4", "content_sha256": "z" * 64, "text": ""},
+    ]
+    (release / "documents.jsonl").write_bytes(
+        b"".join(canonical_json(row) + b"\n" for row in docs + extra)
+    )
+    with inventory.open("ab") as stream:
+        for doc in extra:
+            stream.write(
+                canonical_json(
+                    {
+                        "document_id": doc["document_id"],
+                        "family_id": "family-" + doc["document_id"],
+                        "split": "train",
+                        "stratum": "general",
+                        "content_sha256": doc["content_sha256"],
+                    }
+                )
+                + b"\n"
+            )
+    with (release / "lm/train.lineage.jsonl").open("ab") as stream:
+        for doc in extra:
+            stream.write(canonical_json({"record_id": doc["document_id"]}) + b"\n")
+    spec = yaml.safe_load(declaration.read_text())
+    spec.update(
+        seed=golden["seed"],
+        max_exposures=golden["max_exposures"],
+        target_quotas=golden["receipt"]["requested_target_quotas"],
+    )
+    if golden["order_policy"]:
+        spec["order_policy"] = golden["order_policy"]
+    declaration.write_text(yaml.safe_dump(spec))
+    output = tmp_path / "output"
+    receipt = mixture.materialize_mixture(declaration, output)
+    assert (output / "train.tokens.jsonl").read_bytes() == b"".join(
+        canonical_json(row) + b"\n" for row in golden["tokens"]
+    )
+    expected = {
+        **golden["receipt"],
+        "declaration_sha256": hashlib.sha256(declaration.read_bytes()).hexdigest(),
+        "family_inventory_sha256": hashlib.sha256(inventory.read_bytes()).hexdigest(),
+    }
+    assert receipt == expected
+    assert mixture.verify_mixture(declaration, output) == receipt
+    assert sorted(path.name for path in output.iterdir()) == [
+        "receipt.json",
+        "train.tokens.jsonl",
+    ]
+    assert not list(tmp_path.glob(".mixture-*"))
+
+
+@pytest.mark.parametrize(
+    "mutation,error",
+    [
+        ("missing", "cover every"),
+        ("duplicate", "duplicate document"),
+        ("unknown", "unknown"),
+        ("content", "disagrees"),
+        ("stratum", "disagrees"),
+        ("split", "disagrees"),
+    ],
+)
+def test_disk_inventory_refusals_publish_nothing(
+    tmp_path, monkeypatch, mutation, error
+):
+    declaration, inventory, _ = _fixture(tmp_path, monkeypatch)
+    rows = list(mixture._rows(inventory))
+    if mutation == "missing":
+        rows.pop()
+    elif mutation == "duplicate":
+        rows.append(rows[0])
+    else:
+        field, value = {
+            "unknown": ("document_id", "absent"),
+            "content": ("content_sha256", "z" * 64),
+            "stratum": ("stratum", "incident"),
+            "split": ("split", "validation"),
+        }[mutation]
+        rows[0][field] = value
+    inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
+    with pytest.raises(ValueError, match=error):
+        mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert not (tmp_path / "output").exists()
+    assert not list(tmp_path.glob(".mixture-*"))
+
+
+def test_materialization_actually_uses_disk_order_and_token_spool(
+    tmp_path, monkeypatch
+):
+    declaration, _, _ = _fixture(tmp_path, monkeypatch)
+    original = mixture.MixtureIndex
+    observations = []
+
+    class ObservedIndex(original):
+        def encoded(self, stratum):
+            assert self.db.execute("SELECT COUNT(*) FROM docs").fetchone()[0] == 4
+            assert self.db.execute("SELECT COUNT(*) FROM encoded").fetchone()[0] > 0
+            assert Path(self.tokens.name).stat().st_size > 0 or self.tokens.tell() > 0
+            observations.append(stratum)
+            yield from super().encoded(stratum)
+
+    monkeypatch.setattr(mixture, "MixtureIndex", ObservedIndex)
+    mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert set(observations) == {"general", "explanatory", "incident"}
+
+
+def test_mixture_record_and_receipt_bounds_refuse(tmp_path, monkeypatch):
+    from sparselab.corpus import mixture_index
+
+    declaration, inventory, _ = _fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(mixture_index, "MAX_ROW_BYTES", 10)
+    with pytest.raises(ValueError, match="record-byte cap"):
+        mixture.materialize_mixture(declaration, tmp_path / "row-output")
+    assert not (tmp_path / "row-output").exists()
+    monkeypatch.setattr(mixture_index, "MAX_ROW_BYTES", 64 * 1024**2)
+    monkeypatch.setattr(mixture, "MAX_RECEIPT_BYTES", 10)
+    with pytest.raises(ValueError, match="receipt-byte cap"):
+        mixture.materialize_mixture(declaration, tmp_path / "receipt-output")
+    output = tmp_path / "too-large"
+    output.mkdir()
+    (output / "receipt.json").write_text(" " * 11)
+    with pytest.raises(ValueError, match="receipt-byte cap"):
+        mixture.verify_mixture(declaration, output)
+    assert not (tmp_path / "receipt-output").exists()
+    assert inventory.exists()
+
+
+def test_mixture_packing_uses_spools_not_schedule_sized_arrays(tmp_path, monkeypatch):
+    import numpy as np
+
+    declaration, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "output"
+    receipt = mixture.materialize_mixture(declaration, output)
+    root = tmp_path / "packed"
+    root.mkdir()
+    config = SimpleNamespace(
+        dataset=SimpleNamespace(train_path=output / "train.tokens.jsonl"),
+        training=SimpleNamespace(seq_len=8),
+        model=SimpleNamespace(vocab_size=260),
+    )
+    tokenizer = SimpleNamespace(
+        token_to_id=lambda token: {"<bos>": 2, "<eos>": 3, "<pad>": 0}[token]
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("schedule-sized allocation")
+
+    monkeypatch.setattr(packing.np, "full", forbidden)
+    monkeypatch.setattr(packing.np, "zeros", forbidden)
+    proofs = {}
+    ids, mask, stats = packing._collect_token_mixture(
+        config, tokenizer, receipt, root, proofs=proofs
+    )
+    assert isinstance(ids, np.memmap) and isinstance(mask, np.memmap)
+    assert set(proofs) == {"train.npy", "train_supervision.npy"}
+    assert stats["supervised_target_positions"] == 20
+    assert (
+        ids.tolist()
+        == [2]
+        + [
+            token
+            for row in mixture._rows(output / "train.tokens.jsonl")
+            for token in row["token_ids"]
+        ]
+        + [0] * 4
+    )
+    assert mask.tolist() == [False] + [True] * 20 + [False] * 4
+    assert not list(root.glob("*.raw"))
+
+
+@pytest.mark.parametrize("max_tokens", [1, 7, 100])
+def test_spooled_validation_is_byte_identical_to_legacy_collect(tmp_path, max_tokens):
+    import numpy as np
+    from tokenizers import Tokenizer, models, pre_tokenizers
+
+    path = tmp_path / "validation.jsonl"
+    path.write_text('{"text":"one two three"}\n{"text":"two three"}\n')
+    tokenizer = Tokenizer(
+        models.WordLevel(
+            {"<unk>": 0, "<eos>": 1, "one": 2, "two": 3, "three": 4}, unk_token="<unk>"
+        )
+    )
+    tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
+    config = SimpleNamespace(
+        source="local_token_mixture",
+        validation_path=path,
+        validation_max_documents=2,
+        validation_max_tokens=max_tokens,
+    )
+    expected = packing._collect(config, tokenizer, "validation")
+    proofs = {}
+    actual = packing._collect(
+        config, tokenizer, "validation", root=tmp_path, proofs=proofs
+    )
+    assert isinstance(actual[0], np.memmap)
+    assert isinstance(actual[1], np.memmap)
+    assert np.array_equal(actual[0], expected[0])
+    assert np.array_equal(actual[1], expected[1])
+    assert actual[2:] == expected[2:]
+    assert set(proofs) == {"validation.npy", "validation_supervision.npy"}
+
+
+@pytest.mark.parametrize("changed", ["documents", "inventory", "lineage"])
+def test_input_changes_during_offset_replay_never_publish(
+    tmp_path, monkeypatch, changed
+):
+    declaration, inventory, release = _fixture(tmp_path, monkeypatch)
+    target = {
+        "documents": release / "documents.jsonl",
+        "inventory": inventory,
+        "lineage": release / "lm/train.lineage.jsonl",
+    }[changed]
+    original = mixture.MixtureIndex
+
+    class ChangedIndex(original):
+        def verify_inputs(self):
+            with target.open("ab") as stream:
+                stream.write(b"\n")
+            return super().verify_inputs()
+
+    monkeypatch.setattr(mixture, "MixtureIndex", ChangedIndex)
+    with pytest.raises(ValueError, match="input changed"):
+        mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert not (tmp_path / "output").exists()
+    assert not list(tmp_path.glob(".mixture-*"))
+
+
+@pytest.mark.parametrize(
+    "kind,error", [("split", "content leaks"), ("stratum", "different strata")]
+)
+def test_disk_index_refuses_cross_document_content_conflicts(
+    tmp_path, monkeypatch, kind, error
+):
+    declaration, inventory, release = _fixture(tmp_path, monkeypatch)
+    docs = list(mixture._rows(release / "documents.jsonl"))
+    families = list(mixture._rows(inventory))
+    position = 3 if kind == "split" else 1
+    docs[position]["content_sha256"] = docs[0]["content_sha256"]
+    families[position]["content_sha256"] = docs[0]["content_sha256"]
+    (release / "documents.jsonl").write_bytes(
+        b"".join(canonical_json(row) + b"\n" for row in docs)
+    )
+    inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in families))
+    with pytest.raises(ValueError, match=error):
+        mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert not (tmp_path / "output").exists()
+
+
+def test_disk_index_requires_all_training_lineage(tmp_path, monkeypatch):
+    declaration, _, release = _fixture(tmp_path, monkeypatch)
+    (release / "lm/train.lineage.jsonl").write_bytes(
+        canonical_json({"record_id": "g1"}) + b"\n"
+    )
+    with pytest.raises(ValueError, match="train LM view"):
+        mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert not (tmp_path / "output").exists()
+
+
+def test_disk_source_and_encoded_row_limits_are_independently_enforced(
+    tmp_path, monkeypatch
+):
+    from sparselab.corpus import mixture_index
+
+    docs = tmp_path / "documents.jsonl"
+    payload = (
+        canonical_json(
+            {
+                "document_id": "one",
+                "drop_reason": None,
+                "split": "train",
+                "content_sha256": "a" * 64,
+                "source_id": "source",
+            }
+        )
+        + b"\n"
+    )
+    docs.write_bytes(payload)
+    scratch = tmp_path / "index"
+    scratch.mkdir()
+    monkeypatch.setattr(mixture_index, "MAX_ROW_BYTES", len(payload) - 1)
+    with (
+        pytest.raises(ValueError, match="record-byte cap"),
+        mixture_index.MixtureIndex(scratch, docs),
+    ):
+        pass
+    other = tmp_path / "encoded"
+    other.mkdir()
+    monkeypatch.setattr(mixture_index, "MAX_ROW_BYTES", len(payload))
+    with mixture_index.MixtureIndex(other, docs) as index:
+        with pytest.raises(ValueError, match="encoded record-byte cap"):
+            index.append(
+                {
+                    "family_id": "family",
+                    "stratum": "source",
+                    "token_ids": list(range(200)),
+                }
+            )
+        assert index.db.execute("SELECT COUNT(*) FROM encoded").fetchone()[0] == 0
+
+
+def test_exclusion_metadata_limit_refuses_without_silent_truncation(
+    tmp_path, monkeypatch
+):
+    declaration, inventory, release = _fixture(tmp_path, monkeypatch)
+    docs = list(mixture._rows(release / "documents.jsonl"))
+    duplicate = {**docs[0], "document_id": "duplicate"}
+    with (release / "documents.jsonl").open("ab") as stream:
+        stream.write(canonical_json(duplicate) + b"\n")
+    with inventory.open("ab") as stream:
+        stream.write(
+            canonical_json(
+                {
+                    "document_id": "duplicate",
+                    "family_id": "duplicate-family",
+                    "split": "train",
+                    "stratum": "general",
+                    "content_sha256": docs[0]["content_sha256"],
+                }
+            )
+            + b"\n"
+        )
+    with (release / "lm/train.lineage.jsonl").open("ab") as stream:
+        stream.write(canonical_json({"record_id": "duplicate"}) + b"\n")
+    monkeypatch.setattr(mixture, "MAX_RECEIPT_BYTES", 10)
+    with pytest.raises(ValueError, match="exclusion receipt-byte cap"):
+        mixture.materialize_mixture(declaration, tmp_path / "output")
+    assert not (tmp_path / "output").exists()
+
+
+def test_disk_index_builds_empty_indexes_and_avoids_corpus_sized_temp_sorts(tmp_path):
+    from sparselab.corpus.mixture_index import MixtureIndex
+
+    docs = tmp_path / "documents.jsonl"
+    docs.write_text("")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with MixtureIndex(scratch, docs) as index:
+        indexes = {
+            row[0]
+            for row in index.db.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            )
+        }
+        assert {"ordered_candidates", "encoded_order", "encoded_families"} <= indexes
+        statements = [
+            (
+                "SELECT offset,family FROM docs WHERE selected=1 AND stratum=? ORDER BY rank,id",
+                ("train",),
+            ),
+            ("SELECT offset FROM encoded WHERE stratum=? ORDER BY ordinal", ("train",)),
+            (
+                "SELECT COUNT(*) FROM (SELECT DISTINCT family FROM encoded INDEXED BY encoded_families WHERE stratum=?)",
+                ("train",),
+            ),
+        ]
+        for sql, parameters in statements:
+            plan = list(index.db.execute("EXPLAIN QUERY PLAN " + sql, parameters))
+            assert not any("TEMP B-TREE" in row[3] for row in plan), plan
+        assert index.family_count("train") == 0

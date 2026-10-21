@@ -1,0 +1,954 @@
+[
+  {
+    "seed": 42,
+    "order_policy": null,
+    "max_exposures": 1,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 42,
+      "requested_target_quotas": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "actual_target_tokens": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "unique_target_positions": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 3,
+        "gutenberg": 5,
+        "pagerduty": 2
+      },
+      "max_exposures": 1,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 3,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g1",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "dbad500990e276c13e91a543f1bd7133c22bea4f89d44c54254259f34068bc56",
+      "train_tokens_bytes": 519
+    },
+    "tokens": [
+      {
+        "content_token_end": 2,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          3
+        ]
+      },
+      {
+        "content_token_end": 4,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 1,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          3
+        ]
+      },
+      {
+        "content_token_end": 1,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 42,
+    "order_policy": null,
+    "max_exposures": 2,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 42,
+      "requested_target_quotas": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "actual_target_tokens": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "unique_target_positions": {
+        "explanatory": 6,
+        "general": 9,
+        "incident": 4
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 6,
+        "gutenberg": 10,
+        "pagerduty": 4
+      },
+      "max_exposures": 2,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 4,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g1",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "ab0fccd297a219c8c23e30c92431061f094620f6bb4c68f8f61695900323be2b",
+      "train_tokens_bytes": 716
+    },
+    "tokens": [
+      {
+        "content_token_end": 5,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          3
+        ]
+      },
+      {
+        "content_token_end": 8,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 1,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          3
+        ]
+      },
+      {
+        "content_token_end": 0,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 2,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          3
+        ]
+      },
+      {
+        "content_token_end": 3,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          98,
+          99,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 42,
+    "order_policy": "kml-card03-v1",
+    "max_exposures": 1,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 42,
+      "order_policy": "kml-card03-v1",
+      "requested_target_quotas": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "actual_target_tokens": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "unique_target_positions": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 3,
+        "gutenberg": 5,
+        "pagerduty": 2
+      },
+      "max_exposures": 1,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 3,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g1",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "dbad500990e276c13e91a543f1bd7133c22bea4f89d44c54254259f34068bc56",
+      "train_tokens_bytes": 519
+    },
+    "tokens": [
+      {
+        "content_token_end": 2,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          3
+        ]
+      },
+      {
+        "content_token_end": 4,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 1,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          3
+        ]
+      },
+      {
+        "content_token_end": 1,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 42,
+    "order_policy": "kml-card03-v1",
+    "max_exposures": 2,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 42,
+      "order_policy": "kml-card03-v1",
+      "requested_target_quotas": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "actual_target_tokens": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "unique_target_positions": {
+        "explanatory": 6,
+        "general": 9,
+        "incident": 4
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 6,
+        "gutenberg": 10,
+        "pagerduty": 4
+      },
+      "max_exposures": 2,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 4,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g1",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "ab0fccd297a219c8c23e30c92431061f094620f6bb4c68f8f61695900323be2b",
+      "train_tokens_bytes": 716
+    },
+    "tokens": [
+      {
+        "content_token_end": 5,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          3
+        ]
+      },
+      {
+        "content_token_end": 8,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 1,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          3
+        ]
+      },
+      {
+        "content_token_end": 0,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 2,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          3
+        ]
+      },
+      {
+        "content_token_end": 3,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          98,
+          99,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 86,
+    "order_policy": null,
+    "max_exposures": 1,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 86,
+      "requested_target_quotas": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "actual_target_tokens": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "unique_target_positions": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 3,
+        "gutenberg": 5,
+        "pagerduty": 2
+      },
+      "max_exposures": 1,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 3,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g3",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "58ae83201364fb8279c539bc2b972f0d36770ba70699098fbc186b2bc88b3f96",
+      "train_tokens_bytes": 519
+    },
+    "tokens": [
+      {
+        "content_token_end": 2,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          3
+        ]
+      },
+      {
+        "content_token_end": 4,
+        "content_token_start": 0,
+        "document_id": "g1",
+        "exposure": 1,
+        "family_id": "family-g1",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          3
+        ]
+      },
+      {
+        "content_token_end": 1,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 86,
+    "order_policy": null,
+    "max_exposures": 2,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 86,
+      "requested_target_quotas": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "actual_target_tokens": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "unique_target_positions": {
+        "explanatory": 6,
+        "general": 9,
+        "incident": 4
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 6,
+        "gutenberg": 10,
+        "pagerduty": 4
+      },
+      "max_exposures": 2,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 4,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g3",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "28b1edbbde25d33c92c542da8547c64e698d841203833faff747ac8f17bd9028",
+      "train_tokens_bytes": 716
+    },
+    "tokens": [
+      {
+        "content_token_end": 5,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          3
+        ]
+      },
+      {
+        "content_token_end": 8,
+        "content_token_start": 0,
+        "document_id": "g1",
+        "exposure": 1,
+        "family_id": "family-g1",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          3
+        ]
+      },
+      {
+        "content_token_end": 0,
+        "content_token_start": 0,
+        "document_id": "g1",
+        "exposure": 2,
+        "family_id": "family-g1",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          3
+        ]
+      },
+      {
+        "content_token_end": 3,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          98,
+          99,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 86,
+    "order_policy": "kml-card03-v1",
+    "max_exposures": 1,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 86,
+      "order_policy": "kml-card03-v1",
+      "requested_target_quotas": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "actual_target_tokens": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "unique_target_positions": {
+        "explanatory": 3,
+        "general": 5,
+        "incident": 2
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 3,
+        "gutenberg": 5,
+        "pagerduty": 2
+      },
+      "max_exposures": 1,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 3,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g1",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "dbad500990e276c13e91a543f1bd7133c22bea4f89d44c54254259f34068bc56",
+      "train_tokens_bytes": 519
+    },
+    "tokens": [
+      {
+        "content_token_end": 2,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          3
+        ]
+      },
+      {
+        "content_token_end": 4,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 1,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          3
+        ]
+      },
+      {
+        "content_token_end": 1,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 86,
+    "order_policy": "kml-card03-v1",
+    "max_exposures": 2,
+    "receipt": {
+      "schema_version": 1,
+      "release_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_manifest_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "tokenizer_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "seed": 86,
+      "order_policy": "kml-card03-v1",
+      "requested_target_quotas": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "actual_target_tokens": {
+        "explanatory": 6,
+        "general": 10,
+        "incident": 4
+      },
+      "unique_target_positions": {
+        "explanatory": 6,
+        "general": 9,
+        "incident": 4
+      },
+      "available_unique_positions": {
+        "explanatory": 7,
+        "general": 9,
+        "incident": 4
+      },
+      "eligible_train_families": {
+        "explanatory": 1,
+        "general": 1,
+        "incident": 1
+      },
+      "source_target_tokens": {
+        "wikimedia": 6,
+        "gutenberg": 10,
+        "pagerduty": 4
+      },
+      "max_exposures": 2,
+      "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+      "training_supervision_verified": false,
+      "records": 4,
+      "excluded": [
+        {
+          "document_id": "g4",
+          "reason": "zero_encoded_targets"
+        },
+        {
+          "document_id": "g1",
+          "reason": "duplicate_train_content"
+        }
+      ],
+      "quota_shortfalls": {
+        "explanatory": 0,
+        "general": 0,
+        "incident": 0
+      },
+      "train_tokens_sha256": "ab0fccd297a219c8c23e30c92431061f094620f6bb4c68f8f61695900323be2b",
+      "train_tokens_bytes": 716
+    },
+    "tokens": [
+      {
+        "content_token_end": 5,
+        "content_token_start": 0,
+        "document_id": "w1",
+        "exposure": 1,
+        "family_id": "family-w1",
+        "source_id": "wikimedia",
+        "stratum": "explanatory",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          3
+        ]
+      },
+      {
+        "content_token_end": 8,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 1,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          3
+        ]
+      },
+      {
+        "content_token_end": 0,
+        "content_token_start": 0,
+        "document_id": "g3",
+        "exposure": 2,
+        "family_id": "family-g3",
+        "source_id": "gutenberg",
+        "stratum": "general",
+        "token_ids": [
+          3
+        ]
+      },
+      {
+        "content_token_end": 3,
+        "content_token_start": 0,
+        "document_id": "p1",
+        "exposure": 1,
+        "family_id": "family-p1",
+        "source_id": "pagerduty",
+        "stratum": "incident",
+        "token_ids": [
+          97,
+          98,
+          99,
+          3
+        ]
+      }
+    ]
+  }
+]

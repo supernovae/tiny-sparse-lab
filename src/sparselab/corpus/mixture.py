@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import DatasetConfig
 from sparselab.corpus.acquisition import _sync_dir
+from sparselab.corpus.mixture_index import MAX_RECEIPT_BYTES, MixtureIndex, rows
 from sparselab.corpus.release import _verification_operation, verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
@@ -71,58 +72,7 @@ class MixtureDeclaration(BaseModel):
         return self
 
 
-def _rows(path: Path):
-    with path.open(encoding="utf-8") as stream:
-        for number, line in enumerate(stream, 1):
-            if line.strip():
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError as error:
-                    raise ValueError(f"invalid JSONL at {path}:{number}") from error
-
-
-def _inventory(
-    path: Path, documents: dict[str, dict], source_strata: dict[str, str]
-) -> dict[str, dict]:
-    result: dict[str, dict] = {}
-    families: dict[str, str] = {}
-    content_splits: dict[str, str] = {}
-    content_strata: dict[str, str] = {}
-    for row in _rows(path):
-        if (
-            not isinstance(row, dict)
-            or set(row)
-            != {"document_id", "family_id", "split", "stratum", "content_sha256"}
-            or any(not isinstance(row[key], str) or not row[key] for key in row)
-            or row["split"] not in {"train", "validation", "test"}
-        ):
-            raise ValueError("invalid family inventory row")
-        doc_id = row["document_id"]
-        doc = documents.get(doc_id)
-        if doc is None or doc_id in result:
-            raise ValueError("family inventory has unknown or duplicate document")
-        if (
-            doc["split"] != row["split"]
-            or doc["content_sha256"] != row["content_sha256"]
-            or source_strata.get(doc["source_id"]) != row["stratum"]
-            or row["stratum"] not in doc["domains"]
-        ):
-            raise ValueError("family inventory disagrees with verified release")
-        family = row["family_id"]
-        if family in families and families[family] != row["split"]:
-            raise ValueError("document family leaks across splits")
-        families[family] = row["split"]
-        content = row["content_sha256"]
-        if content in content_splits and content_splits[content] != row["split"]:
-            raise ValueError("identical content leaks across splits")
-        content_splits[content] = row["split"]
-        if content in content_strata and content_strata[content] != row["stratum"]:
-            raise ValueError("identical content assigned to different strata")
-        content_strata[content] = row["stratum"]
-        result[doc_id] = row
-    if set(result) != set(documents):
-        raise ValueError("family inventory does not cover every kept document")
-    return result
+_rows = rows
 
 
 def _source_rights(release: Path, source_strata: dict[str, str]) -> None:
@@ -211,151 +161,40 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
     eos = tokenizer.token_to_id("<eos>")
     if eos is None:
         raise ValueError("verified tokenizer lacks EOS token")
-    documents = {
-        doc["document_id"]: doc
-        for doc in _rows(release / "documents.jsonl")
-        if doc["drop_reason"] is None
-    }
-    inventory = _inventory(spec.family_inventory, documents, spec.source_strata)
-    selected = {row["record_id"] for row in _rows(release / "lm/train.lineage.jsonl")}
-    if selected != {
-        doc_id for doc_id, doc in documents.items() if doc["split"] == "train"
-    }:
-        raise ValueError(
-            "train LM view does not cover exactly eligible train documents"
-        )
-    for doc_id in selected:
-        doc = documents[doc_id]
-        if doc.get("rights", {}).get("training_eligibility") not in {
-            "eligible",
-            "eligible_with_obligations",
-        }:
-            raise ValueError("train document lacks admitted file or record rights")
-
     output = output.resolve()
     if output.exists():
         raise FileExistsError(f"mixture output already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".mixture-", dir=output.parent))
     try:
-        totals: Counter[str] = Counter()
-        unique: Counter[str] = Counter()
-        available_unique: Counter[str] = Counter()
-        eligible_families: Counter[str] = Counter()
-        source_totals: Counter[str] = Counter()
-        records = 0
-        excluded: list[dict] = []
-        with (staging / "train.tokens.jsonl").open("wb") as stream:
-            for stratum, quota in sorted(spec.target_quotas.items()):
-                candidates = sorted(
-                    (
-                        documents[doc_id]
-                        for doc_id in selected
-                        if inventory[doc_id]["stratum"] == stratum
-                    ),
-                    key=lambda doc: _rank(
-                        spec.seed,
-                        stratum,
-                        inventory[doc["document_id"]]["family_id"],
-                        doc["document_id"],
-                        spec.order_policy,
-                    ),
-                )
-                seen_content: set[str] = set()
-                encoded: list[tuple[dict, list[int]]] = []
-                available = 0
-                for doc in candidates:
-                    digest = doc["content_sha256"]
-                    if digest in seen_content:
-                        excluded.append(
-                            {
-                                "document_id": doc["document_id"],
-                                "reason": "duplicate_train_content",
-                            }
-                        )
-                        continue
-                    seen_content.add(digest)
-                    ids = tokenizer.encode(doc["text"], add_special_tokens=False).ids
-                    if not ids:
-                        excluded.append(
-                            {
-                                "document_id": doc["document_id"],
-                                "reason": "zero_encoded_targets",
-                            }
-                        )
-                        continue
-                    encoded.append((doc, ids + [eos]))
-                    available += len(ids) + 1
-                if available * spec.max_exposures < quota:
-                    raise ValueError(
-                        f"required quota impossible for {stratum}: {available} unique, "
-                        f"{quota} required, max_exposures={spec.max_exposures}, "
-                        f"shortfall={quota - available * spec.max_exposures}"
-                    )
-                available_unique[stratum] = available
-                eligible_families[stratum] = len(
-                    {inventory[doc["document_id"]]["family_id"] for doc, _ in encoded}
-                )
-                for exposure in range(1, spec.max_exposures + 1):
-                    for doc, ids in encoded:
-                        remaining = quota - totals[stratum]
-                        if remaining <= 0:
-                            break
-                        take = min(len(ids), remaining)
-                        # Every segment has an explicit end boundary. A final
-                        # truncated document uses its reserved EOS position.
-                        targets = (
-                            ids[:take] if take == len(ids) else ids[: take - 1] + [eos]
-                        )
-                        row = {
-                            "document_id": doc["document_id"],
-                            "family_id": inventory[doc["document_id"]]["family_id"],
-                            "source_id": doc["source_id"],
-                            "stratum": stratum,
-                            "exposure": exposure,
-                            "content_token_start": 0,
-                            "content_token_end": take - 1,
-                            "token_ids": targets,
-                        }
-                        stream.write(canonical_json(row) + b"\n")
-                        totals[stratum] += take
-                        source_totals[doc["source_id"]] += take
-                        if exposure == 1:
-                            unique[stratum] += take
-                        records += 1
-                    if totals[stratum] == quota:
-                        break
-                if totals[stratum] != quota:
-                    raise ValueError(f"unfilled quota for {stratum}")
-            stream.flush()
-            os.fsync(stream.fileno())
-        receipt = {
-            "schema_version": 1,
-            "release_id": manifest["release_id"],
-            "release_manifest_sha256": sha256_file(release / "manifest.json"),
-            "tokenizer_sha256": tokenizer_sha,
-            "declaration_sha256": hashlib.sha256(raw).hexdigest(),
-            "family_inventory_sha256": sha256_file(spec.family_inventory),
-            "seed": spec.seed,
-            **({"order_policy": spec.order_policy} if spec.order_policy else {}),
-            "requested_target_quotas": spec.target_quotas,
-            "actual_target_tokens": dict(totals),
-            "unique_target_positions": dict(unique),
-            "available_unique_positions": dict(available_unique),
-            "eligible_train_families": dict(eligible_families),
-            "source_target_tokens": dict(source_totals),
-            "max_exposures": spec.max_exposures,
-            "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
-            "training_supervision_verified": False,
-            "records": records,
-            "excluded": excluded,
-            "quota_shortfalls": {
-                stratum: spec.target_quotas[stratum] - totals[stratum]
-                for stratum in spec.target_quotas
-            },
-            "train_tokens_sha256": sha256_file(staging / "train.tokens.jsonl"),
-            "train_tokens_bytes": (staging / "train.tokens.jsonl").stat().st_size,
-        }
+        with (
+            tempfile.TemporaryDirectory(prefix=".index-", dir=staging) as scratch,
+            MixtureIndex(Path(scratch), release / "documents.jsonl") as index,
+        ):
+            index.inventory(
+                spec.family_inventory,
+                spec.source_strata,
+                lambda row: _rank(
+                    spec.seed,
+                    row["stratum"],
+                    row["family_id"],
+                    row["document_id"],
+                    spec.order_policy,
+                ),
+            )
+            index.select(release / "lm/train.lineage.jsonl")
+            receipt = _schedule(
+                spec,
+                raw,
+                release,
+                manifest,
+                tokenizer,
+                tokenizer_sha,
+                eos,
+                index,
+                staging,
+            )
+            index.verify_inputs()
         with (staging / "receipt.json").open("xb") as stream:
             stream.write(canonical_json(receipt) + b"\n")
             stream.flush()
@@ -370,10 +209,131 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
         raise
 
 
+def _schedule(
+    spec, raw, release, manifest, tokenizer, tokenizer_sha, eos, index, staging
+):
+    totals: Counter[str] = Counter()
+    unique: Counter[str] = Counter()
+    available_unique: Counter[str] = Counter()
+    eligible_families: Counter[str] = Counter()
+    source_totals: Counter[str] = Counter()
+    records = 0
+    excluded: list[dict] = []
+    excluded_bytes = 0
+
+    def exclude(doc, reason):
+        nonlocal excluded_bytes
+        row = {"document_id": doc["document_id"], "reason": reason}
+        excluded_bytes += len(canonical_json(row)) + 1
+        if excluded_bytes > MAX_RECEIPT_BYTES // 2:
+            raise ValueError("mixture exclusion receipt-byte cap exceeded")
+        excluded.append(row)
+
+    with (staging / "train.tokens.jsonl").open("wb") as stream:
+        for stratum, quota in sorted(spec.target_quotas.items()):
+            available = 0
+            for doc, family in index.candidates(stratum):
+                digest = doc["content_sha256"]
+                if index.seen(digest):
+                    exclude(doc, "duplicate_train_content")
+                    continue
+                ids = tokenizer.encode(doc["text"], add_special_tokens=False).ids
+                if not ids:
+                    exclude(doc, "zero_encoded_targets")
+                    continue
+                index.append(
+                    {
+                        "document_id": doc["document_id"],
+                        "source_id": doc["source_id"],
+                        "family_id": family,
+                        "token_ids": ids + [eos],
+                        "stratum": stratum,
+                    }
+                )
+                available += len(ids) + 1
+            if available * spec.max_exposures < quota:
+                raise ValueError(
+                    f"required quota impossible for {stratum}: {available} unique, "
+                    f"{quota} required, max_exposures={spec.max_exposures}, "
+                    f"shortfall={quota - available * spec.max_exposures}"
+                )
+            available_unique[stratum] = available
+            eligible_families[stratum] = index.family_count(stratum)
+            for exposure in range(1, spec.max_exposures + 1):
+                for doc in index.encoded(stratum):
+                    ids = doc["token_ids"]
+                    remaining = quota - totals[stratum]
+                    if remaining <= 0:
+                        break
+                    take = min(len(ids), remaining)
+                    # Every segment has an explicit end boundary. A final
+                    # truncated document uses its reserved EOS position.
+                    targets = (
+                        ids[:take] if take == len(ids) else ids[: take - 1] + [eos]
+                    )
+                    row = {
+                        "document_id": doc["document_id"],
+                        "family_id": doc["family_id"],
+                        "source_id": doc["source_id"],
+                        "stratum": stratum,
+                        "exposure": exposure,
+                        "content_token_start": 0,
+                        "content_token_end": take - 1,
+                        "token_ids": targets,
+                    }
+                    stream.write(canonical_json(row) + b"\n")
+                    totals[stratum] += take
+                    source_totals[doc["source_id"]] += take
+                    if exposure == 1:
+                        unique[stratum] += take
+                    records += 1
+                if totals[stratum] == quota:
+                    break
+            if totals[stratum] != quota:
+                raise ValueError(f"unfilled quota for {stratum}")
+        stream.flush()
+        os.fsync(stream.fileno())
+    receipt = {
+        "schema_version": 1,
+        "release_id": manifest["release_id"],
+        "release_manifest_sha256": sha256_file(release / "manifest.json"),
+        "tokenizer_sha256": tokenizer_sha,
+        "declaration_sha256": hashlib.sha256(raw).hexdigest(),
+        "family_inventory_sha256": sha256_file(spec.family_inventory),
+        "seed": spec.seed,
+        **({"order_policy": spec.order_policy} if spec.order_policy else {}),
+        "requested_target_quotas": spec.target_quotas,
+        "actual_target_tokens": dict(totals),
+        "unique_target_positions": dict(unique),
+        "available_unique_positions": dict(available_unique),
+        "eligible_train_families": dict(eligible_families),
+        "source_target_tokens": dict(source_totals),
+        "max_exposures": spec.max_exposures,
+        "target_semantics": "ordered encoded content IDs plus segment EOS; counts are scheduled IDs before any trainer shift or block-edge loss",
+        "training_supervision_verified": False,
+        "records": records,
+        "excluded": excluded,
+        "quota_shortfalls": {
+            stratum: spec.target_quotas[stratum] - totals[stratum]
+            for stratum in spec.target_quotas
+        },
+        "train_tokens_sha256": sha256_file(staging / "train.tokens.jsonl"),
+        "train_tokens_bytes": (staging / "train.tokens.jsonl").stat().st_size,
+    }
+    if len(canonical_json(receipt)) + 1 > MAX_RECEIPT_BYTES:
+        raise ValueError("mixture receipt-byte cap exceeded")
+    return receipt
+
+
 def verify_mixture(declaration: Path, output: Path) -> dict:
     """Cold replay catches changed inputs, schedule, rights and token arrays."""
     output = output.resolve()
-    receipt = json.loads((output / "receipt.json").read_text(encoding="utf-8"))
+    receipt_path = output / "receipt.json"
+    with receipt_path.open("rb") as stream:
+        raw = stream.read(MAX_RECEIPT_BYTES + 1)
+    if len(raw) > MAX_RECEIPT_BYTES:
+        raise ValueError("mixture receipt-byte cap exceeded")
+    receipt = json.loads(raw)
     if sha256_file(output / "train.tokens.jsonl") != receipt["train_tokens_sha256"]:
         raise ValueError("mixture token export digest mismatch")
     with tempfile.TemporaryDirectory(
