@@ -86,6 +86,16 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
+    if command == "budget-observe-time":
+        from sparselab.corpus.transport_budget import TransportBudget
+
+        project = load_project(Path(args.project))
+        ledger = TransportBudget(
+            root / "corpora" / project.config.id / "transport-budget.sqlite", project
+        )
+        ledger.observe_time(owner=args.owner, reference=args.approval_reference)
+        print(json.dumps(ledger.receipt(), sort_keys=True))
+        return
     if command == "render-declaration":
         from sparselab.corpus.declaration_render import render_declaration
 
@@ -397,6 +407,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.set_defaults(handler=_handle)
     command = sub.add_parser("budget-status", help="Read the existing transport budget")
     command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "budget-observe-time",
+        help="Record elapsed transport time without an overall expiry for this corpus ledger",
+    )
+    command.add_argument("project")
+    command.add_argument("--owner", required=True)
+    command.add_argument("--approval-reference", required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "render-declaration", help="Render one bounded JSON/YAML declaration"

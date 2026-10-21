@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sqlite3
 import time
 from contextlib import closing
@@ -12,6 +13,18 @@ from typing import Any
 
 from sparselab.corpus.project import Project
 from sparselab.training.manifest import canonical_json
+
+HTTP_OPERATION_TIMEOUT_SECONDS = 30.0
+
+
+def _valid_time_provenance(owner: Any, reference: Any) -> bool:
+    return all(
+        isinstance(value, str)
+        and 1 <= len(value.strip()) <= maximum
+        and value == value.strip()
+        and "\0" not in value
+        for value, maximum in ((owner, 128), (reference, 512))
+    )
 
 
 def _binding(project: Project) -> str:
@@ -115,8 +128,25 @@ class TransportBudget:
         if state["binding"] != self.binding:
             raise ValueError("transport budget binding changed")
         transfers = state["transfers"]
+        expected_deadline = state["created_at"] + self.spec.max_wall_seconds
+        mode = state.get("wall_clock_mode", "enforced")
+        observation = state.get("wall_clock_observation")
+        valid_mode = mode == "enforced" and observation is None
+        if mode == "observational" and isinstance(observation, dict):
+            valid_mode = (
+                set(observation)
+                == {"owner", "reference", "selected_at", "planned_deadline"}
+                and _valid_time_provenance(
+                    observation.get("owner"), observation.get("reference")
+                )
+                and type(observation.get("selected_at")) in (int, float)
+                and math.isfinite(observation["selected_at"])
+                and observation["selected_at"] >= state["created_at"]
+                and observation["planned_deadline"] == expected_deadline
+            )
         if (
-            state["deadline"] != state["created_at"] + self.spec.max_wall_seconds
+            not valid_mode
+            or state["deadline"] != expected_deadline
             or not isinstance(transfers, list)
             or len(transfers) > self.spec.max_transfers
             or state["source_charged"] != sum(item["reserved"] for item in transfers)
@@ -248,6 +278,7 @@ class TransportBudget:
                 "binding": _binding(project),
                 "created_at": now,
                 "deadline": now + spec.max_wall_seconds,
+                "wall_clock_mode": "enforced",
                 "source_charged": 0,
                 "source_actual": 0,
                 "metadata_charged": 0,
@@ -301,7 +332,9 @@ class TransportBudget:
             self._validate_state(state)
             now = time.time()
             if now < state["created_at"] or (
-                check_deadline and now >= state["deadline"]
+                check_deadline
+                and state.get("wall_clock_mode", "enforced") == "enforced"
+                and now >= state["deadline"]
             ):
                 raise ValueError("transport budget deadline exceeded")
             result = update(state)
@@ -313,11 +346,40 @@ class TransportBudget:
             return result
 
     def remaining_seconds(self) -> float:
+        """Finite window for the next operation; observational time has no total expiry."""
         state = self._read()
+        if state.get("wall_clock_mode", "enforced") == "observational":
+            return HTTP_OPERATION_TIMEOUT_SECONDS
         remaining = state["deadline"] - time.time()
         if remaining <= 0:
             raise ValueError("transport budget deadline exceeded")
         return remaining
+
+    def observe_time(self, *, owner: str, reference: str) -> dict[str, Any]:
+        """Select timing observation once for this corpus ledger, without changing its binding."""
+        if type(self) is not TransportBudget:
+            raise ValueError(
+                "observational time is supported only for a corpus transport ledger"
+            )
+        if not _valid_time_provenance(owner, reference):
+            raise ValueError("owner and approval reference are required")
+
+        def update(state: dict[str, Any]) -> dict[str, Any]:
+            if state.get("wall_clock_mode", "enforced") == "observational":
+                raise ValueError("transport time is already observational")
+            if any(item["status"] == "started" for item in state["transfers"]):
+                raise ValueError("cannot change timing with an active shard transfer")
+            observation = {
+                "owner": owner,
+                "reference": reference,
+                "selected_at": time.time(),
+                "planned_deadline": state["deadline"],
+            }
+            state["wall_clock_mode"] = "observational"
+            state["wall_clock_observation"] = observation
+            return observation
+
+        return self._mutate(update, check_deadline=False)
 
     def reserve_transfer(
         self,

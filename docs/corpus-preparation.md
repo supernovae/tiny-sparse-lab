@@ -319,8 +319,10 @@ A new transport budget may specify `initial_body_bytes` below
 `max_total_body_bytes`. Both caps combine source and metadata **reservations**;
 failed/interrupted transfers and retries retain their full conservative charge.
 For the unexecuted fresh EXP1 plan these are 4 GiB and 100 GiB, respectively.
-Separate source/metadata caps, retry limits, disk checks and the original wall
-deadline still apply. Omitted fields preserve existing ledger bindings.
+Separate source/metadata caps, retry limits and disk checks apply in either mode.
+Enforced ledgers also enforce the original wall deadline; observational ledgers
+retain and report it as a target. Omitted fields preserve existing ledger
+bindings.
 
 Before a reservation crosses the initial cap, acquisition refuses and retains
 all completed snapshots and failure evidence. Save `corpus budget-status PROJECT`
@@ -676,8 +678,30 @@ coexist. Keep native workspace/resource monitoring and cumulative accounting;
 cleanup is not a refund. This implementation does not reduce acquisition
 reservations, authorize a larger disk budget or establish that a full corpus fits.
 
+### Observe total transport time
 
-### Acquire one declared HF source with bounded admission
+Transport ledgers enforce `max_wall_seconds` by default. For an owner-authorized
+local corpus workflow whose elapsed time is observational, select that policy once
+on the existing ledger, while no shard transfer is active:
+
+```sh
+sparselab --work-dir WORK corpus budget-observe-time PROJECT --owner OWNER --approval-reference APPROVAL_REFERENCE
+```
+
+This command is intentionally excluded from automatic attempt dispatch. Run it
+through the approved operator workflow against the existing corpus ledger.
+
+This changes only the overall elapsed-time policy. The original start and planned
+deadline, project/source binding, all completed and failed transfers, cumulative
+byte charges, retry limits and storage limits remain intact. Later acquisition
+steps inherit the recorded policy; there is no repeated renewal. The reference
+records provenance and does not create owner authority.
+
+The original `deadline` is a reported target in observational mode. Each HTTP
+connect/read still has a maximum 30-second operation timeout, and cancellation,
+resource stops and verification remain active. Other corpus ledgers and bounded
+dataset-acquisition workflows retain their existing enforced defaults. Harness
+reports session start/end timestamps and elapsed duration independently.
 
 For a large project, initialize its transport ledger once with `corpus budget-init`
 and keep the complete project declaration unchanged. An explicit step selects one
