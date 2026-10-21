@@ -34,6 +34,7 @@ def _handle(args: argparse.Namespace) -> None:
     verification = (
         verification_options(root)
         if command in {"acquire", "build", "freeze", "export"}
+        and not (command == "acquire" and args.source_id is not None)
         else {}
     )
     if command == "preview":
@@ -213,7 +214,16 @@ def _handle(args: argparse.Namespace) -> None:
     if command in {"acquire", "build"}:
         project = load_project(Path(args.project))
         result = (
-            acquire(project, root, offline=args.offline, **verification)
+            acquire(
+                project,
+                root,
+                offline=args.offline,
+                source_id=args.source_id,
+                max_new_bytes=args.max_new_bytes,
+                min_free_bytes=args.min_free_bytes,
+                plan_only=args.plan,
+                **verification,
+            )
             if command == "acquire"
             else build(project, root, offline=args.offline, **verification)
         )
@@ -352,6 +362,25 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command = sub.add_parser(name)
         command.add_argument("project")
         command.add_argument("--offline", action="store_true")
+        if name == "acquire":
+            command.add_argument(
+                "--source-id", help="Acquire one exact bounded-HF source declaration"
+            )
+            command.add_argument(
+                "--max-new-bytes",
+                type=int,
+                help="Remaining native path-growth allowance for this step",
+            )
+            command.add_argument(
+                "--min-free-bytes",
+                type=int,
+                help="Required filesystem free-space floor",
+            )
+            command.add_argument(
+                "--plan",
+                action="store_true",
+                help="Verify source-step admission without writes or network",
+            )
         command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "budget-init", help="Start one durable bounded-HF transport attempt"

@@ -85,6 +85,9 @@ def _validate_scope(project: Project) -> None:
 
 
 class TransportBudget:
+    selected_source_id: str | None = None
+    bounded_storage = False
+
     def __init__(self, path: Path, project: Project):
         spec = project.config.transport_budget
         if spec is None:
@@ -173,7 +176,7 @@ class TransportBudget:
             ):
                 raise ValueError("transport budget resource counters are invalid")
 
-    def projected_disk_bytes(self) -> int:
+    def projected_disk_bytes(self, *, source_id: str | None = None) -> int:
         effects = (
             {item.source_id: item for item in self.project.config.source_effects}
             if self.project.config.source_effects is not None
@@ -182,7 +185,8 @@ class TransportBudget:
         transferring = [
             source
             for source in self.project.sources
-            if effects is None or effects[source.id].effect == "acquire"
+            if (effects is None or effects[source.id].effect == "acquire")
+            and (source_id is None or source.id == source_id)
         ]
         bounded_hf = [
             source.acquisition
@@ -202,7 +206,7 @@ class TransportBudget:
         ] + [blob.max_bytes for spec in bounded_git for blob in spec.bounded_blobs]
         return (
             sum(spec.max_bytes for spec in (*bounded_hf, *bounded_git))
-            + max(largest)
+            + max(largest, default=0)
             + 65_536  # ledger, manifests and small staging metadata
         )
 
@@ -254,9 +258,24 @@ class TransportBudget:
             db.execute("INSERT INTO state VALUES (1, ?)", (json.dumps(state),))
         return cls(path, project)
 
+    def _connection(self, **options):
+        db = sqlite3.connect(self.path, **options)
+        try:
+            if self.bounded_storage:
+                # Keep one journal inode through this step. PERSIST retains
+                # SQLite rollback/crash semantics without per-update file churn.
+                db.execute("PRAGMA journal_mode=PERSIST")
+                db.execute("PRAGMA temp_store=MEMORY")
+                page_size = db.execute("PRAGMA page_size").fetchone()[0]
+                db.execute(f"PRAGMA max_page_count={32 * 1024**2 // page_size}")
+            return db
+        except BaseException:
+            db.close()
+            raise
+
     def _read(self) -> dict[str, Any]:
         try:
-            with closing(sqlite3.connect(self.path)) as db, db:
+            with closing(self._connection()) as db, db:
                 row = db.execute("SELECT body FROM state WHERE id=1").fetchone()
             if row is None:
                 raise ValueError("transport budget ledger is incomplete")
@@ -270,7 +289,7 @@ class TransportBudget:
 
     def _mutate(self, update: Any, *, check_deadline: bool = True) -> Any:
         with (
-            closing(sqlite3.connect(self.path, timeout=30, isolation_level=None)) as db,
+            closing(self._connection(timeout=30, isolation_level=None)) as db,
             db,
         ):
             db.execute("PRAGMA synchronous=FULL")
@@ -286,7 +305,10 @@ class TransportBudget:
             ):
                 raise ValueError("transport budget deadline exceeded")
             result = update(state)
-            db.execute("UPDATE state SET body=? WHERE id=1", (json.dumps(state),))
+            body = json.dumps(state)
+            if self.bounded_storage and len(body.encode()) > 16 * 1024**2:
+                raise ValueError("acquisition step transport metadata cap exceeded")
+            db.execute("UPDATE state SET body=? WHERE id=1", (body,))
             db.execute("COMMIT")
             return result
 
@@ -361,6 +383,17 @@ class TransportBudget:
             size,
             allow_verified_retry=allow_verified_retry,
         )
+
+    def assert_source_available(self, source_id: str) -> None:
+        """Read-only admission for all shards, including cumulative transfer caps."""
+        self.remaining_seconds()
+        state = self._read()
+        source = next(item for item in self.project.sources if item.id == source_id)
+        for shard in source.acquisition.bounded_shards:
+            key = f"{source_id}:{shard.path}"
+            self._check_transfer(state, key, shard.max_shard_bytes)
+            state["source_charged"] += shard.max_shard_bytes
+            state["transfers"].append({"key": key, "status": "started"})
 
     def charge_transfer_actual(self, index: int, amount: int) -> None:
         def update(state: dict[str, Any]) -> None:
