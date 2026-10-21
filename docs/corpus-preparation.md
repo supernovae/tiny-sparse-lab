@@ -581,3 +581,72 @@ remaining cold document/span/lineage maps or frozen inline split assignments.
 Those remain production-scale blockers; tiny fixture parity does not establish
 capacity for the retained real corpus. The existing inspection/draft limits and
 external aggregate storage, time and memory supervision still apply unchanged.
+
+
+### Small derivatives of retained HF snapshots
+
+For an explicitly approved small profile, an HF source may declare
+`acquisition.retained_subset` with an absolute `snapshot_path`, full
+`snapshot_sha256` and `manifest_sha256`, a nonempty `profile_id`, integer `seed`,
+and optional `max_record_bytes` (at most 262144). Keep the parent's source
+identity/policy fields and bounded upstream shard declaration unchanged; only
+`max_rows`, `max_bytes`, and this derivative binding differ. This produces a new
+source declaration and snapshot identity. It never relabels the original snapshot.
+
+`corpus acquire PROJECT` creates the derivative locally. All project sources must
+use retained selection, with no transport budget or source effects, and aggregate
+maxima at most 30000 rows and 100 MiB. `corpus acquire PROJECT --offline` verifies
+an already-published acquisition; it does not create one. The retained path cannot
+fall back to Hub acquisition. Use the existing supervisor's network isolation and
+resource accounting as well.
+
+Selection is exactly SHA256 of canonical JSON
+`[profile_id, seed, parent_source_id, parent_snapshot_sha256, original_row_index,
+original_row_sha256]`, interpreted as an integer modulo 100 equal to zero. Selected
+physical rows above the declared record limit are excluded and counted; other
+selected bytes are retained unchanged in parent order. Empty selection or row/byte
+overflow refuses without publishing a partial source. This samples rows, not a
+statistically certified representative population. Long-row exclusions and actual
+counts must accompany any result. Family splitting, admission, tokenizer fitting
+and training authorization remain separate native stages.
+
+A supported parent has one JSONL shard of at most 8 GiB, a manifest of at most
+256 MiB and physical rows of at most 8 MiB. These are refusal limits; selected
+output rows still have the separate 256 KiB ceiling.
+
+Cold snapshot verification replays the pinned parent and selection, including
+unselected rows, and checks exact output bytes and row membership. Nested subsets
+are unsupported. Parent mutation, policy drift, symlinks, incomplete ancestry and
+resealed omissions refuse. Parent reads can be repeated during downstream cold
+verification; budget all passes and temporary files. Parent metadata scratch is
+released after replay while preserving the existing operation database cap.
+Plain acquisition places scratch under its owned staging directory; direct cold
+verification uses the child snapshot's parent directory. An enclosing native
+metadata operation keeps its existing owned scratch location. No fallback to a
+system temporary directory is used for this replay. A
+successful tiny fixture establishes correctness, not real-data capacity.
+
+The native preparation supervisor accepts creation under an
+`offline_retained_sources_only` contract only when the acquisition project is
+bound both by its file digest (`acquisition_project_sha256`) and by the existing
+resolved acquisition identity (`preparation_acquisition_identity_sha256`, paired
+with `preparation_normalizer`). The resolved identity is the native acquisition
+lock's project identity: project ID plus every complete source declaration, not
+just the bytes of the top-level YAML. A missing identity or changed source file
+refuses before reservation. Every source must declare a retained subset, with no transport
+allocation or source-effect plan is present, and aggregate selection caps fit.
+Mixed live/retained projects refuse before reserving work. Parent bytes still
+undergo native cold verification; a declaration or approval reference is not a
+verification receipt.
+
+The absolute parent path is part of the source declaration and child snapshot
+identity. Moving the parent changes that identity and prevents cold replay at the
+old location; matching parent bytes alone do not make a child snapshot portable.
+Publish a native prepared-input bundle for a portable training handoff rather
+than treating the derivative snapshot as a standalone transferable artifact.
+
+Create validation and test splits through the native family split of one subset,
+or explicitly verify overlap against other data. Different selection seeds or
+profiles are not disjoint splits and do not inherit the parent's held-out split.
+The fixed one-percent selector and named Lab ceilings deliberately refuse large
+selections; the modulus is not an adjustable sampling or automatic retry knob.

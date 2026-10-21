@@ -1337,21 +1337,56 @@ class AttemptBudget:
             if classified.operation == "corpus acquire" and not classified.options.get(
                 "--offline"
             ):
-                from sparselab.corpus.project import load_project
+                from sparselab.corpus.project import (
+                    RETAINED_MAX_BYTES,
+                    RETAINED_MAX_ROWS,
+                    load_project,
+                )
 
                 reuse_project = load_project(Path(classified.args[2]))
                 if (
                     contract.acquisition_project_sha256 is None
                     or reuse_project.config.transport_budget is not None
-                    or not reuse_project.config.source_effects
-                    or any(
-                        effect.effect != "reuse_only"
-                        for effect in reuse_project.config.source_effects
+                    or not (
+                        (
+                            reuse_project.config.source_effects
+                            and all(
+                                effect.effect == "reuse_only"
+                                for effect in reuse_project.config.source_effects
+                            )
+                        )
+                        or (
+                            reuse_project.config.source_effects is None
+                            and all(
+                                source.kind == "huggingface_dataset"
+                                and source.acquisition.retained_subset is not None
+                                for source in reuse_project.sources
+                            )
+                            and sum(
+                                s.acquisition.max_rows for s in reuse_project.sources
+                            )
+                            <= RETAINED_MAX_ROWS
+                            and sum(
+                                s.acquisition.max_bytes for s in reuse_project.sources
+                            )
+                            <= RETAINED_MAX_BYTES
+                        )
                     )
                 ):
                     raise AttemptBudgetError(
                         "this attempt permits verified offline reuse only"
                     )
+                if reuse_project.config.source_effects is None:
+                    from sparselab.corpus.acquisition import _project_sha
+
+                    if (
+                        contract.preparation_acquisition_identity_sha256 is None
+                        or _project_sha(reuse_project)
+                        != contract.preparation_acquisition_identity_sha256
+                    ):
+                        raise AttemptBudgetError(
+                            "retained subset acquisition identity differs from contract"
+                        )
                 verified_retained_copy = True
         if "--output" in classified.options:
             output = Path(str(classified.options["--output"]))

@@ -436,6 +436,11 @@ def _snapshot_dependencies(path: Path, manifest_name: str) -> tuple[Path, ...]:
 
 def _dependent_paths(artifact: Artifact, path: Path) -> tuple[Path, ...]:
     """Track external files read by domain verifiers alongside the artifact tree."""
+    if artifact.kind == "source_snapshot":
+        manifest = _json_file(path / "manifest.json")
+        retained = manifest["declaration"]["acquisition"].get("retained_subset")
+        if retained is not None:
+            return (Path(retained["snapshot_path"]),)
     if artifact.kind == "dataset_snapshot":
         # The manifest identity covers sibling split/exclusion/event payloads.
         # Include all of them in memo and persistent proof invalidation.
