@@ -104,7 +104,14 @@ def test_network_policy_refuses_active_transfer_bad_provenance_and_subclasses(
 
 
 @pytest.mark.parametrize(
-    "tamper", ["unknown_mode", "changed_limit", "nonfinite_time", "missing_reference"]
+    "tamper",
+    [
+        "unknown_mode",
+        "changed_limit",
+        "boolean_limit",
+        "nonfinite_time",
+        "missing_reference",
+    ],
 )
 def test_invalid_network_policy_refuses_on_read(tmp_path, monkeypatch, tamper):
     _, project, _, ledger, calls, _ = fixture(tmp_path, monkeypatch, second=False)
@@ -115,6 +122,14 @@ def test_invalid_network_policy_refuses_on_read(tmp_path, monkeypatch, tamper):
             body["network_mode"] = "unknown"
         elif tamper == "changed_limit":
             body["network_observation"]["planned_limits"]["max_transfers"] += 1
+        elif tamper == "boolean_limit":
+            body["network_observation"]["planned_limits"]["max_retries_per_shard"] = (
+                bool(
+                    body["network_observation"]["planned_limits"][
+                        "max_retries_per_shard"
+                    ]
+                )
+            )
         elif tamper == "nonfinite_time":
             body["network_observation"]["selected_at"] = float("inf")
         else:

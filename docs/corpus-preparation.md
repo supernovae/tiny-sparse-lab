@@ -817,3 +817,10 @@ timing. Immutable source scope, content hashes, per-response/per-file bounds,
 network inactivity timeouts, metadata storage bounds and actual resource checks
 remain. Other ledgers keep their declared budgets. Time and storage observation
 remain explicit separate selections; neither implies this network choice.
+
+A sampled free-space-floor stop is an environmental interruption. After space is
+restored and cleanup is verified, an explicit retry uses the same ledger and keeps
+both attempts and all observed bytes. Integrity failures remain terminal. Transfer
+duration/throughput measurements describe a normal same-boot start and finish;
+recovery preserves the old transfer and starts a new record, rather than inferring
+comparable historical or cross-boot throughput.

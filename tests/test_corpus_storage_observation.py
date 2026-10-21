@@ -12,7 +12,7 @@ import yaml
 from test_corpus_acquisition_steps import fixture, run
 
 from sparselab.cli.main import main
-from sparselab.corpus import acquisition_step, transport_budget
+from sparselab.corpus import acquisition, acquisition_step, transport_budget
 from sparselab.corpus.project import load_project
 from sparselab.corpus.transport_budget import TransportBudget
 
@@ -75,6 +75,8 @@ def test_actual_free_floor_is_kept_without_prediction_and_cannot_be_lowered(
         lambda _: SimpleNamespace(f_bavail=100, f_frsize=1),
     )
     run(project, root, max_new_bytes=None, min_free_bytes=100, plan_only=True)
+    with pytest.raises(ValueError, match="does not accept a write allowance"):
+        run(project, root, max_new_bytes=5, min_free_bytes=100, plan_only=True)
     with pytest.raises(ValueError, match="cannot lower"):
         run(project, root, max_new_bytes=None, min_free_bytes=99, plan_only=True)
     monkeypatch.setattr(
@@ -87,9 +89,51 @@ def test_actual_free_floor_is_kept_without_prediction_and_cannot_be_lowered(
     monkeypatch.setattr(
         transport_budget.shutil, "disk_usage", lambda _: SimpleNamespace(free=99)
     )
-    with pytest.raises(ValueError, match="free-space floor"):
+    with pytest.raises(OSError, match="free-space floor"):
         ledger.check_disk(root, 10**12)
     assert not calls
+
+
+def test_mid_transfer_free_floor_stop_preserves_history_and_same_step_can_resume(
+    tmp_path, monkeypatch
+):
+    _, project, root, ledger, _, content = local_fixture(tmp_path, monkeypatch)
+    ledger.observe_storage(owner="owner", reference="ref", min_free_bytes=100)
+    ledger.observe_network(owner="owner", reference="ref")
+    free = [1000]
+    trip = [True]
+    monkeypatch.setattr(
+        transport_budget.shutil, "disk_usage", lambda _: SimpleNamespace(free=free[0])
+    )
+    original_read = acquisition._read_with_deadline
+
+    def read(response, size, budget):
+        chunk = original_read(response, size, budget)
+        if chunk and response.url == "https://cdn.example.test/shard" and trip[0]:
+            free[0] = 99  # After body bytes arrive, before the next live floor sample.
+            trip[0] = False
+        return chunk
+
+    monkeypatch.setattr(acquisition, "_read_with_deadline", read)
+    with pytest.raises(OSError, match="free-space floor"):
+        run(project, root, max_new_bytes=None, min_free_bytes=100)
+    stopped = ledger.receipt()
+    assert len(stopped["transfers"]) == 1
+    first = stopped["transfers"][0]
+    assert first["status"] == "interrupted"
+    assert first["actual"] == len(content) > 0
+    assert not (root / "corpora/example/acquisition.json").exists()
+    free[0] = 1000  # Restore space, without replacing or editing the ledger.
+    result = run(project, root, max_new_bytes=None, min_free_bytes=100)
+    assert result["status"] == "source_verified"
+    final = TransportBudget(ledger.path, project).receipt()
+    assert final["binding"] == stopped["binding"]
+    assert final["transfers"][0] == first
+    assert len(final["transfers"]) == 2
+    assert final["transfers"][1]["status"] == "complete"
+    assert final["source_actual"] == 2 * len(content)
+    assert final["source_charged"] == 2 * len(content)
+    assert final["failures"][: len(stopped["failures"])] == stopped["failures"]
 
 
 def test_network_limit_and_explicit_default_policy_still_refuse_before_http(

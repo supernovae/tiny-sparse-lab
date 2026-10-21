@@ -328,8 +328,23 @@ def _policy(*, idle: float = 2, absolute: float = 5) -> PilotDeadlinePolicy:
 
 def test_success_and_real_metrics_without_fabrication(tmp_path: Path) -> None:
     directory = tmp_path / "pilot"
+    # Keep the child alive until a real native sample is durably recorded.
+    # A fixed sleep can finish before the supervisor is scheduled on busy CI.
+    script = (
+        "import json,sys,time\n"
+        "from pathlib import Path\n"
+        "events=Path(sys.argv[1])\n"
+        "while True:\n"
+        " for line in events.read_text().splitlines() if events.exists() else []:\n"
+        "  try: event=json.loads(line)\n"
+        "  except ValueError: continue\n"
+        "  if event.get('kind') == 'sample':\n"
+        "   rss=event['observation']['tree_rss_bytes']\n"
+        "   if rss is None or rss > 0: sys.exit(0)\n"
+        " time.sleep(.01)\n"
+    )
     result = supervise_pilot(
-        [sys.executable, "-c", "import time; time.sleep(.25)"],
+        [sys.executable, "-c", script, str(directory / "supervisor-events.jsonl")],
         purpose="smoke",
         directory=directory,
         policy=_policy(),

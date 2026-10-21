@@ -98,6 +98,10 @@ def _validate_scope(project: Project) -> None:
             )
 
 
+class _FreeSpaceFloorExhausted(OSError):
+    """Recoverable environmental interruption, distinct from invalid source bytes."""
+
+
 class TransportBudget:
     selected_source_id: str | None = None
     bounded_storage = False
@@ -499,7 +503,7 @@ class TransportBudget:
         free = shutil.disk_usage(root).free
         if state.get("storage_mode", "enforced") == "observational":
             if free < state["storage_observation"]["min_free_bytes"]:
-                raise ValueError("transport free-space floor exhausted")
+                raise _FreeSpaceFloorExhausted("transport free-space floor exhausted")
         else:
             if projected_bytes > self.spec.max_disk_bytes:
                 raise ValueError("transport budget disk allowance exhausted")
