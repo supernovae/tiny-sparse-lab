@@ -49,6 +49,9 @@ class MixtureIndex:
             CREATE TABLE encoded(ordinal INTEGER PRIMARY KEY, offset INTEGER,
                 family TEXT, stratum TEXT);
             CREATE TABLE seen(content TEXT PRIMARY KEY);
+            CREATE INDEX ordered_candidates ON docs(stratum,rank,id);
+            CREATE INDEX encoded_order ON encoded(stratum,ordinal);
+            CREATE INDEX encoded_families ON encoded(stratum,family);
         """)
 
     def _load_documents(self):
@@ -150,7 +153,6 @@ class MixtureIndex:
             )
         if self.db.execute("SELECT 1 FROM docs WHERE inventoried=0 LIMIT 1").fetchone():
             raise ValueError("family inventory does not cover every kept document")
-        self.db.execute("CREATE INDEX ordered_candidates ON docs(stratum,rank,id)")
 
     def select(self, lineage):
         self.input_digests[lineage] = sha256_file(lineage)
@@ -223,5 +225,7 @@ class MixtureIndex:
 
     def family_count(self, stratum):
         return self.db.execute(
-            "SELECT COUNT(DISTINCT family) FROM encoded WHERE stratum=?", (stratum,)
+            "SELECT COUNT(*) FROM (SELECT DISTINCT family FROM encoded "
+            "INDEXED BY encoded_families WHERE stratum=?)",
+            (stratum,),
         ).fetchone()[0]

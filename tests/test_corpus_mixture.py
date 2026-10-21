@@ -949,3 +949,35 @@ def test_exclusion_metadata_limit_refuses_without_silent_truncation(
     with pytest.raises(ValueError, match="exclusion receipt-byte cap"):
         mixture.materialize_mixture(declaration, tmp_path / "output")
     assert not (tmp_path / "output").exists()
+
+
+def test_disk_index_builds_empty_indexes_and_avoids_corpus_sized_temp_sorts(tmp_path):
+    from sparselab.corpus.mixture_index import MixtureIndex
+
+    docs = tmp_path / "documents.jsonl"
+    docs.write_text("")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with MixtureIndex(scratch, docs) as index:
+        indexes = {
+            row[0]
+            for row in index.db.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            )
+        }
+        assert {"ordered_candidates", "encoded_order", "encoded_families"} <= indexes
+        statements = [
+            (
+                "SELECT offset,family FROM docs WHERE selected=1 AND stratum=? ORDER BY rank,id",
+                ("train",),
+            ),
+            ("SELECT offset FROM encoded WHERE stratum=? ORDER BY ordinal", ("train",)),
+            (
+                "SELECT COUNT(*) FROM (SELECT DISTINCT family FROM encoded INDEXED BY encoded_families WHERE stratum=?)",
+                ("train",),
+            ),
+        ]
+        for sql, parameters in statements:
+            plan = list(index.db.execute("EXPLAIN QUERY PLAN " + sql, parameters))
+            assert not any("TEMP B-TREE" in row[3] for row in plan), plan
+        assert index.family_count("train") == 0
