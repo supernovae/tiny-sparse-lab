@@ -273,7 +273,14 @@ def test_reuse_only_step_copies_once_without_network(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     "kind",
-    ["journal_symlink", "hot_journal", "ledger_oversize", "wal", "inventory_symlink"],
+    [
+        "journal_symlink",
+        "hot_journal",
+        "ledger_oversize",
+        "wal",
+        "inventory_symlink",
+        "wal_symlink",
+    ],
 )
 def test_unsafe_metadata_refuses_before_sqlite_or_network(tmp_path, monkeypatch, kind):
     _, project, root, ledger, calls, _ = fixture(tmp_path, monkeypatch)
