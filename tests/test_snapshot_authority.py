@@ -18,7 +18,14 @@ def test_packed_inventory_authority_excludes_source_preparation(kind):
 
 
 @pytest.mark.parametrize(
-    "module", ["data.sources", "corpus.acquisition", "corpus.project", "corpus.mixture"]
+    "module",
+    [
+        "data.sources",
+        "corpus.acquisition",
+        "corpus.project",
+        "corpus.mixture",
+        "corpus.mixture_index",
+    ],
 )
 def test_tokenizer_authority_invalidates_on_snapshot_verifier_chain_change(
     monkeypatch, module
