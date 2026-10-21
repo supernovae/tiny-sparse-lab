@@ -122,7 +122,7 @@ class HFBoundedShard(StrictModel):
     path: str
     expected_sha256: str
     max_shard_bytes: int = Field(gt=0)
-    max_scanned_rows: int = Field(gt=0)
+    max_scanned_rows: int = Field(gt=0, strict=True)
     hash_modulus: int = Field(gt=0)
     hash_remainders: tuple[int, ...]
     declared_config: str | None = None
@@ -190,7 +190,7 @@ class HuggingFaceAcquisition(StrictModel):
     include: tuple[str, ...] = ()
     bounded_shards: tuple[HFBoundedShard, ...] | None = None
     text_field: str
-    max_rows: int = Field(gt=0)
+    max_rows: int = Field(gt=0, strict=True)
     max_bytes: int = Field(gt=0)
     max_decompressed_bytes: int | None = Field(default=None, gt=0)
 
@@ -584,6 +584,18 @@ class TransformDeclaration(StrictModel):
         return self
 
 
+class SplitAssignmentsReference(StrictModel):
+    sha256: str
+    rows: int = Field(gt=0, strict=True)
+
+    @field_validator("sha256")
+    @classmethod
+    def full_digest(cls, value: str) -> str:
+        if not _HEX.fullmatch(value):
+            raise ValueError("split assignments need a full SHA-256")
+        return value
+
+
 class SplitDeclaration(StrictModel):
     schema_version: Literal[1]
     unit: Literal[
@@ -595,14 +607,28 @@ class SplitDeclaration(StrictModel):
         "template_family",
     ]
     family_key: str | None = None
-    assignments: dict[str, Literal["train", "validation", "test"]]
+    assignments: dict[str, Literal["train", "validation", "test"]] = Field(
+        default_factory=dict
+    )
+    assignment_file: SplitAssignmentsReference | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_assignments(self, handler):
+        result = handler(self)
+        if self.assignment_file is None:
+            result.pop("assignment_file")
+        return result
 
     @model_validator(mode="after")
     def family_required(self) -> SplitDeclaration:
         if self.unit not in ("document", "source_repository") and not self.family_key:
             raise ValueError("family_key required for family split")
-        if not self.assignments:
-            raise ValueError("explicit split assignments required")
+        if bool(self.assignments) == (self.assignment_file is not None):
+            raise ValueError(
+                "exactly one explicit split assignment representation required"
+            )
+        if self.assignment_file is not None and self.unit != "document":
+            raise ValueError("assignment files require document split unit")
         return self
 
 
@@ -953,6 +979,12 @@ def load_project(path: Path | str, *, verify_inputs: bool = True) -> Project:
     split_path = project_path(root, config.splits)
     verify_split_bundle(split_path, required=False)
     splits = SplitDeclaration.model_validate(_yaml(split_path))
+    if splits.assignment_file is not None:
+        from sparselab.corpus.split_assignments import assignment_path
+
+        assignment_path(
+            split_path.parent, splits.assignment_file.model_dump(mode="json")
+        )
     release = ReleaseDeclaration.model_validate(
         _yaml(project_path(root, config.release))
     )

@@ -1521,7 +1521,8 @@ def build(
     from sparselab.corpus.bounded_metadata import metadata_operation
 
     with metadata_operation(
-        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch",
+        max_database_bytes=None,
     ):
         return _build_stored(
             project,
@@ -1641,6 +1642,9 @@ def _build_stored(
             admission_path=admission_path,
         )
     with _staged_build(root, build_id) as staging:
+        from sparselab.corpus.split_assignments import copy_assignments
+
+        copy_assignments(project, staging)
         if admission_path is not None:
             import shutil
 
@@ -1827,7 +1831,9 @@ def _build_stored(
                 raise ValueError("admitted source row inventory differs from documents")
         _jsonl(staging / "rejected.jsonl", rejected)
         documents.sort(key=lambda d: d["document_id"])
-        policy = _model(project.splits)
+        from sparselab.corpus.split_assignments import split_policy
+
+        policy = split_policy(project)
         for doc in documents:
             doc["split"] = _split(doc, policy)
         groups: dict[str, list[str]] = defaultdict(list)
@@ -3195,7 +3201,7 @@ def _build_stored(
             "leakage": leakage,
         }
         _json(staging / "audit.json", audit)
-        _json(staging / "splits.json", policy)
+        _json(staging / "splits.json", _model(project.splits))
         sources = [
             {
                 "id": s.id,

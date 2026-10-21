@@ -250,3 +250,18 @@ def test_inventory_paths_spill_but_declarations_and_unrelated_keys_do_not(
         assert type(source["declaration"]["acquisition"]["files"]) is list
         assert actual == value
         assert canonical_json(actual) == canonical_json(value)
+
+
+def test_unquotaed_scratch_streams_with_explicit_small_quota_still_available(tmp_path):
+    rows = [{"id": i, "text": "x" * 1024} for i in range(40)]
+    path = tmp_path / "rows.json"
+    path.write_text(json.dumps({"records": rows}))
+    with MetadataStore(tmp_path, max_database_bytes=None) as store:
+        actual = store.load(path, max_input_bytes=path.stat().st_size)
+        assert list(actual["records"]) == rows
+    with (
+        MetadataStore(tmp_path, max_database_bytes=16384) as store,
+        pytest.raises(ValueError, match="database byte cap"),
+    ):
+        store.load(path, max_input_bytes=path.stat().st_size)
+    assert not list(tmp_path.glob(".metadata-*"))

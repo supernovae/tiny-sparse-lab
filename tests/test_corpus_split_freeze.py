@@ -18,6 +18,16 @@ from sparselab.corpus.project import SplitDeclaration
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
+def _assignments(path):
+    declaration = yaml.safe_load(path.read_text())
+    reference = declaration["assignment_file"]
+    companion = path.parent / ("assignments-" + reference["sha256"] + ".jsonl")
+    assert sha256_file(companion) == reference["sha256"]
+    rows = [json.loads(line) for line in companion.read_text().splitlines()]
+    assert len(rows) == reference["rows"]
+    return {row["document_id"]: row["split"] for row in rows}
+
+
 def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, family_count=10):
     sources = [SimpleNamespace(id=source) for source in ("books", "pages", "incidents")]
     project_root = tmp_path / "project"
@@ -122,7 +132,7 @@ def test_freeze_splits_is_deterministic_and_validates_integer_family_counts(
     assert first.read_bytes() == second.read_bytes()
     declaration = yaml.safe_load(first.read_text())
     SplitDeclaration.model_validate(declaration)
-    assert set(declaration["assignments"]) == {row["document_id"] for row in rows}
+    assert set(_assignments(first)) == {row["document_id"] for row in rows}
     assert report["eligible_documents"] == 30
     assert all(
         counts
@@ -171,7 +181,7 @@ def test_freeze_splits_reads_embedded_unicode_separators_as_one_record(
     output = tmp_path / "splits-unicode.yaml"
     report = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
     assert report["eligible_documents"] == 30
-    assert len(yaml.safe_load(output.read_text())["assignments"]) == 30
+    assert len(_assignments(output)) == 30
 
 
 def test_freeze_splits_preserves_authenticated_prior_families_with_new_document_ids(
@@ -234,7 +244,7 @@ def test_freeze_splits_preserves_authenticated_prior_families_with_new_document_
     report = split_freeze.freeze_splits(
         project, tmp_path, inventory, clusters_path, output
     )
-    actual = yaml.safe_load(output.read_text())["assignments"]
+    actual = _assignments(output)
     assert {key: actual[key] for key in expected} == expected
     assert json.loads(Path(report["receipt"]).read_text())[
         "prior_family_inventory_sha256"
@@ -384,7 +394,7 @@ def test_exact_content_alias_uses_accepted_family_id_and_held_out_split(
     report = split_freeze.freeze_splits(
         project, tmp_path, inventory, clusters_path, output
     )
-    assignments = yaml.safe_load(output.read_text())["assignments"]
+    assignments = _assignments(output)
     assert assignments[accepted["document_id"]] == "test"
     assert assignments[alias["document_id"]] == "test"
     candidates = {
@@ -484,7 +494,7 @@ def test_cross_split_duplicate_qualifying_content_fails_but_quarantine_does_not(
     project, inventory, clusters_path, rows, decisions = _fixture(tmp_path, monkeypatch)
     first = tmp_path / "baseline.yaml"
     split_freeze.freeze_splits(project, tmp_path, inventory, clusters_path, first)
-    assignments = yaml.safe_load(first.read_text())["assignments"]
+    assignments = _assignments(first)
     train = next(row for row in rows if assignments[row["document_id"]] == "train")
     heldout = next(
         row
@@ -523,7 +533,7 @@ def test_cross_split_duplicate_qualifying_content_fails_but_quarantine_does_not(
     )
 
 
-@pytest.mark.parametrize("publication", [1, 2, 3])
+@pytest.mark.parametrize("publication", [1, 2, 3, 4])
 def test_interrupted_bundle_requires_explicit_identical_recovery(
     tmp_path, monkeypatch, publication
 ):
@@ -543,7 +553,7 @@ def test_interrupted_bundle_requires_explicit_identical_recovery(
     with pytest.raises(OSError, match="post-publication"):
         split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
     before = {p: (p.read_bytes(), p.stat().st_ino) for p in output.parent.iterdir()}
-    if publication < 3:
+    if publication < 4:
         with pytest.raises(
             ValueError, match="incomplete or mismatched frozen split bundle"
         ):
@@ -581,7 +591,7 @@ def test_recovery_rejects_conflict_before_publishing_anything(
     assert {p.name for p in tmp_path.glob("splits*")} == {member}
 
 
-@pytest.mark.parametrize("publication", [1, 2, 3])
+@pytest.mark.parametrize("publication", [1, 2, 3, 4])
 def test_directory_sync_failure_retains_evidence_and_recovery_resyncs(
     tmp_path, monkeypatch, publication
 ):
@@ -815,14 +825,14 @@ def test_yaml_read_errors_have_uniform_bundle_refusal(
     output = tmp_path / "splits.yaml"
     if failure == "unreadable":
         output.write_bytes(split_freeze._FREEZE_MARKER)
-        read_bytes = Path.read_bytes
+        original_open = Path.open
 
-        def denied(path):
+        def denied(path, *args, **kwargs):
             if path == output:
                 raise PermissionError("injected YAML read denial")
-            return read_bytes(path)
+            return original_open(path, *args, **kwargs)
 
-        monkeypatch.setattr(Path, "read_bytes", denied)
+        monkeypatch.setattr(Path, "open", denied)
     with pytest.raises(
         ValueError, match="^incomplete or mismatched frozen split bundle$"
     ) as error:
@@ -1002,3 +1012,109 @@ def test_exact_10000_split_weight_sum_reaches_family_count_check(tmp_path, monke
     with pytest.raises(ValueError, match="too few eligible families"):
         split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
     assert not output.exists()
+
+
+def test_sql_freeze_matches_seeded_native_quota_and_activates_indexes(
+    tmp_path, monkeypatch
+):
+    from sparselab.corpus.row_index import ValueMap
+
+    project, inventory, clusters_path, rows, _ = _fixture(tmp_path, monkeypatch)
+    activated = []
+    native = ValueMap.__init__
+
+    def tracked(self, connection):
+        native(self, connection)
+        activated.append(self.table)
+
+    monkeypatch.setattr(ValueMap, "__init__", tracked)
+    output = tmp_path / "sql-splits.yaml"
+    split_freeze.freeze_splits(project, tmp_path, inventory, clusters_path, output)
+    actual = _assignments(output)
+    clusters = json.loads(clusters_path.read_text())
+    expected = {}
+    for source, stratum in clusters["source_strata"].items():
+        source_rows = [row for row in rows if row["source_id"] == source]
+        ordered = sorted(
+            source_rows,
+            key=lambda row: hashlib.sha256(
+                canonical_json([clusters["seed"], stratum, row["family_hint"]])
+            ).hexdigest(),
+        )
+        for index, row in enumerate(ordered):
+            expected[row["document_id"]] = (
+                "train" if index < 8 else "validation" if index == 8 else "test"
+            )
+    assert actual == expected
+    assert len(activated) >= 6
+    assert not list(tmp_path.rglob(".metadata-*"))
+
+
+def test_assignment_companion_tampering_and_missing_refuse(tmp_path, monkeypatch):
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "split.yaml"
+    split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    ref = yaml.safe_load(output.read_text())["assignment_file"]
+    companion = output.parent / ("assignments-" + ref["sha256"] + ".jsonl")
+    original = companion.read_bytes()
+    companion.write_bytes(original + b" ")
+    with pytest.raises(ValueError, match="digest mismatch"):
+        split_freeze.verify_split_bundle(output)
+    with pytest.raises(ValueError, match="conflicting"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, output, recover=True
+        )
+    companion.unlink()
+    with pytest.raises(ValueError, match="missing"):
+        split_freeze.verify_split_bundle(output)
+
+
+def test_freeze_database_cap_refuses_before_publication(tmp_path, monkeypatch):
+    from sparselab.corpus.bounded_metadata import metadata_operation
+
+    project, inventory, clusters, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "bounded.yaml"
+    with (
+        pytest.raises(ValueError, match="database.*cap"),
+        metadata_operation(tmp_path / "small-db", max_database_bytes=65536),
+    ):
+        split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    assert not output.exists()
+    assert not list(tmp_path.glob("*.family-candidates.jsonl"))
+    assert not list(tmp_path.rglob(".metadata-*"))
+
+
+@pytest.mark.parametrize("special", ['"quoted', "\ncontrol", "\tcontrol"])
+def test_family_hash_ties_preserve_decoded_native_name_order(
+    tmp_path, monkeypatch, special
+):
+    project, inventory, clusters_path, rows, _ = _fixture(tmp_path, monkeypatch)
+    names = [special] + [chr(ord("A") + index) for index in range(9)]
+    for row in rows:
+        index = int(row["document_id"].rsplit("-", 1)[1])
+        row["family_hint"] = row["source_id"] + "-" + names[index]
+    inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
+    clusters = json.loads(clusters_path.read_text())
+    clusters["inventory_sha256"] = sha256_file(inventory)
+    clusters_path.write_bytes(canonical_json(clusters))
+    original = hashlib.sha256
+
+    def tied_rank(data=b"", **kwargs):
+        if data.startswith(b'["reviewed-seed-v1",'):
+            return SimpleNamespace(hexdigest=lambda: "0" * 64)
+        return original(data, **kwargs)
+
+    monkeypatch.setattr(hashlib, "sha256", tied_rank)
+    output = tmp_path / "tied.yaml"
+    split_freeze.freeze_splits(project, tmp_path, inventory, clusters_path, output)
+    expected = {}
+    for source in clusters["source_strata"]:
+        ordered = sorted(
+            (row for row in rows if row["source_id"] == source),
+            key=lambda row: row["family_hint"],
+        )
+        for index, row in enumerate(ordered):
+            expected[row["document_id"]] = (
+                "train" if index < 8 else "validation" if index == 8 else "test"
+            )
+    assert _assignments(output) == expected

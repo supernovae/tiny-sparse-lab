@@ -520,17 +520,17 @@ schema, review authority, source identity, or training eligibility is introduced
 
 Storage lives in `WORK_DIR/corpora/PROJECT/metadata-scratch/.metadata-*` and is
 removed when the operation exits normally or raises. Abrupt process termination
-can leave owned scratch; it is never reused as evidence. Each operation permits
-at most 1 GiB of SQLite database pages, each metadata input at most 256 MiB,
-non-row JSON at most 4 MiB, and an individual streamed metadata row at most 8 MiB.
+can leave owned scratch; it is never reused as evidence. Native phases use owned scratch without a fixed database/file quota. Non-row JSON
+remains limited to 4 MiB and individual streamed metadata rows to 8 MiB. Explicitly
+capped MetadataStore API contexts retain their database and input limits.
 Duplicate JSON keys, nonfinite numbers, nesting deeper than 64, and symlinked
 metadata inputs/scratch paths refuse. These are refusal limits, not measured
 capacity guarantees. SQLite's cache setting is not a hard RSS cap or an aggregate
 filesystem limit; the existing supervisor must still account for all storage,
-time and sampled memory. Nested native verification shares the same database cap.
+time and sampled memory. Nested native verification shares the same owned database and any explicit caller cap.
 
-Draft publication streams canonical JSON to a temporary file, enforces the
-existing 128 MiB output limit, fsyncs it, then publishes without replacing an
+Draft publication streams canonical JSON to a temporary file, fsyncs it,
+then publishes without replacing an
 existing destination. A failure removes only its own temporary file. HF JSONL
 split inventory streams one acquired row at a time, verifies every receipt even
 beyond parser selection limits, and preserves the whole-shard digest and nonblank
@@ -538,8 +538,8 @@ row ordinal used by the document parser. Other split-inventory file formats, inc
 refuse above 8 MiB instead of reading an unbounded file.
 
 This removes full HF metadata-array and source-shard loads from these phases.
-It does not yet make the complete reviewed v2 build, frozen split assignments,
-or cold release-to-bundle path bounded at production scale. Inspection still
+It does not establish that the complete release-to-bundle path fits a retained
+production corpus within its existing limits. Inspection still
 uses compact numeric median metadata and bounded sample pools. Validate the
 connected tiny fixture path and then measured resource fit before preparing a
 large retained corpus; a fixture pass does not establish production readiness.
@@ -556,7 +556,7 @@ plain header-bounded containers: spilling is limited to top-level inventory
 arrays, admission `sources[*].files`/`records`, and snapshot/lock retrieval
 `shards[*].selected_rows`. Arrays nested under declarations or unrelated keys
 never spill. Repeated metadata
-reads currently create new collections charged to the same 1 GiB cap; neither a
+reads currently create new collections in the same operation database; neither a
 cache nor a throughput improvement is claimed here.
 
 
@@ -578,10 +578,8 @@ warnings and policy-unit refusals.
 
 Build and cold-readback admission coverage use SQL joins rather than full Python
 identity sets. Cold coverage uses the operation's existing capped metadata
-database, including its cleanup and storage accounting. This does not bound the
-remaining cold document/span/lineage maps or frozen inline split assignments.
-Those remain production-scale blockers; tiny fixture parity does not establish
-capacity for the retained real corpus. The existing inspection/draft limits and
+database, including its cleanup and storage accounting. Frozen split and cold evidence storage are described below. Tiny fixture parity
+does not establish capacity for the retained real corpus. The existing inspection/draft limits and
 external aggregate storage, time and memory supervision still apply unchanged.
 
 
@@ -824,3 +822,64 @@ both attempts and all observed bytes. Integrity failures remain terminal. Transf
 duration/throughput measurements describe a normal same-boot start and finish;
 recovery preserves the old transfer and starts a new record, rather than inferring
 comparable historical or cross-boot throughput.
+
+### Frozen assignment companions and cold evidence indexes
+
+`corpus freeze-splits` now writes a compact document-split declaration with empty
+`assignments` and `assignment_file: {sha256: DIGEST, rows: COUNT}`. Its companion is
+`assignments-DIGEST.jsonl` beside the declaration. Each canonical row contains
+`document_id` and `split`, in strictly increasing document-ID order. Hand-authored
+inline assignments remain supported; the schema requires exactly one representation.
+The file representation is only valid for document splits. Keep the companion
+with the declaration when moving a recipe. The digest and row count are bound to
+the native build identity, and builds copy the exact companion into their closure.
+Cold build/release verification checks every emitted document against it.
+
+Inventory, family grouping, prior-family/content protection, quota assignment and
+family finalization now use operation-owned SQLite joins. Assignment choices keep
+the same seed ordering, integer quotas, prior held-out protection and duplicate
+refusals. Family candidates and assignments stream to owned temporary files.
+Publication writes the family candidates, immutable assignment companion, compact
+split YAML, then receipt. An existing identical digest-named companion may be
+shared by a second bundle. Existing owned bundle members require explicit
+`--recover`; recovery revalidates inputs and all retained members before completing
+publication. Conflicts refuse without replacement. All four publication stages are
+covered by interruption/recovery tests. Regenerate new declarations and receipts
+through the public flow; do not rewrite retained receipts or active attempt pins.
+
+Cold document/span/lineage and derived-record lookups use private SQLite indexes;
+selected-view comparisons and stage identity hashing stream rows. These private
+collections never cross Pydantic/public schema boundaries. Frozen declaration and
+receipt headers refuse above 4 MiB; frozen assignment and inventory rows refuse
+above 8 MiB. Derived evidence streams one row at a time without adding a new
+row-size limit to non-admitted builds. Admitted raw-source replay retains its
+8 MiB limit. Index tables share operation-owned disk storage, including nested operations.
+Temporary publication files and SQLite sort scratch also consume real storage;
+monitor actual free space and memory throughout the operation. Explicit caller
+quotas remain supported. No production capacity or throughput claim follows from
+the offline fixture tests.
+
+Before real preparation, validate unchanged admission/inspection limits and the
+complete corpus-to-bundle path under its approved storage/time/memory envelope.
+Other downstream inventory consumers still require capacity assessment; this
+change does not authorize acquisition, execution, cap increases or repinning.
+
+### Native metadata scratch and capacity
+
+Native admission, split, build and cold-release operations stream finite pinned
+metadata through disposable SQLite storage. They do not impose a fixed 1 GiB
+scratch quota, a 256 MiB metadata-file quota or a 128 MiB admission-draft quota.
+Readers use the current regular file size as their input bound and refuse growth
+beyond it. Record, header, nesting and path-integrity limits remain; explicit
+capped MetadataStore API contexts retain their input/database limits, including
+when a caller supplies an enclosing context. Inspection keeps its explicit
+max-input-bytes budget and small output/excerpt bounds, without a 2 GiB ceiling
+on a caller's streaming input budget. Choose that explicit input budget for the
+declared corpus; it does not allocate an array of that size.
+
+Scratch and outputs consume real disk space. For large local preparation, retain
+supervision of actual free space on the corpus filesystem and its backing volume,
+memory sampling and cancellation. SQLite cache settings are not hard RSS limits.
+I/O failure retains source evidence and removes only owned unpublished scratch;
+no complete artifact is published on failure. Tiny fixture tests establish
+semantics and streaming, not full-corpus capacity or scientific qualification.

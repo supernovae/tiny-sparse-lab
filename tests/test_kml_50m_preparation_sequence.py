@@ -1659,8 +1659,16 @@ def test_real_lineage_audit_blocks_protected_family_moved_to_train(
         _clusters(clusters, inventory, strata, seed=f"different-{index}")
         frozen = recipe / f"splits-{index}.yaml"
         freeze_splits(project, root, inventory, clusters, frozen)
-        assignments = yaml.safe_load(frozen.read_text())["assignments"]
-        if assignments[protected["document_id"]] == "train":
+        from sparselab.corpus.bounded_metadata import metadata_operation
+        from sparselab.corpus.split_assignments import Assignments, assignment_path
+
+        reference = yaml.safe_load(frozen.read_text())["assignment_file"]
+        with metadata_operation(root / "test-split-lookup"):
+            assignments = Assignments(
+                assignment_path(frozen.parent, reference), reference
+            )
+            protected_split = assignments[protected["document_id"]]
+        if protected_split == "train":
             selected = frozen
             break
     assert selected is not None

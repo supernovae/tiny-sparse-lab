@@ -277,6 +277,12 @@ def test_dropped_only_family_split_keeps_native_audit_warning(tmp_path, monkeypa
         for line in (project.root / "inventory.jsonl").read_text().splitlines()
     ]
     spec = project.model_dump(mode="json")
+    from sparselab.corpus.bounded_metadata import metadata_operation
+    from sparselab.corpus.split_assignments import split_policy
+
+    with metadata_operation(root):
+        spec["splits"]["assignments"] = dict(split_policy(project)["assignments"])
+    spec["splits"].pop("assignment_file", None)
     for row in inventory:
         if row["source_id"] == "books_rows":
             spec["splits"]["assignments"][row["document_id"]] = (

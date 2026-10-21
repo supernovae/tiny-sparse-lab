@@ -30,7 +30,6 @@ from sparselab.corpus.rights import (
 from sparselab.training.manifest import canonical_json, sha256_file
 
 _MAX_RECORD_BYTES = 8 * 1024**2
-_MAX_OUTPUT_BYTES = 128 * 1024**2
 
 
 def _decision(value: str, reason: str) -> dict[str, Any]:
@@ -370,7 +369,6 @@ def _draft_admission_manifest(
             mode="wb", prefix=".draft-", dir=output.parent, delete=False
         ) as stream:
             temporary = Path(stream.name)
-            size = 0
             encoder = json.JSONEncoder(
                 sort_keys=True,
                 separators=(",", ":"),
@@ -379,9 +377,6 @@ def _draft_admission_manifest(
             )
             for part in encoder.iterencode(manifest):
                 raw = part.encode("utf-8")
-                size += len(raw)
-                if size + 1 > _MAX_OUTPUT_BYTES:
-                    raise ValueError("admission draft output-byte cap exceeded")
                 stream.write(raw)
             stream.write(b"\n")
             stream.flush()
@@ -406,7 +401,8 @@ def draft_admission_manifest(
     output_path: Path,
 ) -> dict[str, Any]:
     with metadata_operation(
-        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch",
+        max_database_bytes=None,
     ) as store:
         return _draft_admission_manifest(
             project, work_root, template_path, policy_document, output_path, store

@@ -97,10 +97,12 @@ class DiskRows(list):
 
 
 class MetadataStore:
-    """Explicit finite database cap; SQLite cache size is not an RSS guarantee."""
+    """Owned disk scratch with an optional explicit quota; cache size is not RSS enforcement."""
 
-    def __init__(self, directory: Path, *, max_database_bytes: int):
-        if type(max_database_bytes) is not int or max_database_bytes < 16384:
+    def __init__(self, directory: Path, *, max_database_bytes: int | None):
+        if max_database_bytes is not None and (
+            type(max_database_bytes) is not int or max_database_bytes < 16384
+        ):
             raise ValueError("metadata database cap must be at least 16384 bytes")
         if any(path.is_symlink() for path in (directory, *directory.parents)):
             raise ValueError("metadata scratch directory must not be a symlink")
@@ -108,11 +110,13 @@ class MetadataStore:
         self.temporary = tempfile.TemporaryDirectory(prefix=".metadata-", dir=directory)
         self.connection = sqlite3.connect(Path(self.temporary.name) / "rows.sqlite")
         self.next_identifier = 0
+        self.max_database_bytes = max_database_bytes
         try:
             self.connection.execute("PRAGMA page_size=4096")
-            self.connection.execute(
-                f"PRAGMA max_page_count={max_database_bytes // 4096}"
-            )
+            if max_database_bytes is not None:
+                self.connection.execute(
+                    f"PRAGMA max_page_count={max_database_bytes // 4096}"
+                )
             self.connection.execute("PRAGMA cache_size=-4096")
             self.connection.execute("PRAGMA temp_store=FILE")
             # No rollback log is needed for disposable, unpublished derived rows.
@@ -354,6 +358,10 @@ def metadata_operation(directory: Path, *, max_database_bytes=1024**3):
         token = _ACTIVE_STORE.set(store)
         try:
             yield store
+        except sqlite3.OperationalError as error:
+            if error.sqlite_errorcode == sqlite3.SQLITE_FULL:
+                raise ValueError("metadata database byte cap exceeded") from error
+            raise
         finally:
             _ACTIVE_STORE.reset(token)
 
@@ -362,7 +370,12 @@ def read_metadata(path: Path):
     store = _ACTIVE_STORE.get()
     if store is None:
         return json.loads(path.read_text(encoding="utf-8"))
-    return store.load(path, max_input_bytes=_MAX_INPUT_BYTES)
+    limit = (
+        _MAX_INPUT_BYTES
+        if store.max_database_bytes is not None
+        else max(1, path.stat().st_size)
+    )
+    return store.load(path, max_input_bytes=limit)
 
 
 class DiskDecisions(dict):
@@ -465,3 +478,10 @@ class DiskDecisions(dict):
 def decision_index():
     store = _ACTIVE_STORE.get()
     return DiskDecisions(store) if store is not None else {}
+
+
+def current_metadata_store():
+    store = _ACTIVE_STORE.get()
+    if store is None:
+        raise RuntimeError("bounded evidence requires an active metadata operation")
+    return store
