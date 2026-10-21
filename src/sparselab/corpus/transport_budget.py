@@ -169,22 +169,47 @@ class TransportBudget:
                 and type(storage.get("min_free_bytes")) is int
                 and storage["min_free_bytes"] > 0
             )
+        network_mode = state.get("network_mode", "enforced")
+        network = state.get("network_observation")
+        observes_network = network_mode == "observational"
+        valid_network = network_mode == "enforced" and network is None
+        if observes_network and isinstance(network, dict):
+            valid_network = (
+                type(self) is TransportBudget
+                and set(network)
+                == {"owner", "reference", "selected_at", "planned_limits"}
+                and _valid_time_provenance(
+                    network.get("owner"), network.get("reference")
+                )
+                and type(network.get("selected_at")) in (int, float)
+                and math.isfinite(network["selected_at"])
+                and network["selected_at"] >= state["created_at"]
+                and type(network.get("planned_limits")) is dict
+                and network["planned_limits"] == self._network_limits()
+                and all(
+                    type(network["planned_limits"][key]) is type(value)
+                    for key, value in self._network_limits().items()
+                )
+            )
         if (
-            not valid_mode
+            not valid_network
+            or not valid_mode
             or not valid_storage
             or state["deadline"] != expected_deadline
             or not isinstance(transfers, list)
-            or len(transfers) > self.spec.max_transfers
+            or (not observes_network and len(transfers) > self.spec.max_transfers)
             or state["source_charged"] != sum(item["reserved"] for item in transfers)
             or state["source_actual"] != sum(item["actual"] for item in transfers)
-            or not 0
-            <= state["source_actual"]
-            <= state["source_charged"]
-            <= self.spec.max_source_body_bytes
-            or not 0
-            <= state["metadata_actual"]
-            <= state["metadata_charged"]
-            <= self.spec.max_metadata_body_bytes
+            or not 0 <= state["source_actual"] <= state["source_charged"]
+            or (
+                not observes_network
+                and state["source_charged"] > self.spec.max_source_body_bytes
+            )
+            or not 0 <= state["metadata_actual"] <= state["metadata_charged"]
+            or (
+                not observes_network
+                and state["metadata_charged"] > self.spec.max_metadata_body_bytes
+            )
             or any(
                 item["status"] not in {"started", "interrupted", "failed", "complete"}
                 or not 0 <= item["actual"] <= item["reserved"]
@@ -193,10 +218,15 @@ class TransportBudget:
         ):
             raise ValueError("transport budget ledger counters are invalid")
         charged = state["source_charged"] + state["metadata_charged"]
-        if self._total_body_limit is not None and charged > self._total_body_limit:
+        if (
+            not observes_network
+            and self._total_body_limit is not None
+            and charged > self._total_body_limit
+        ):
             raise ValueError("transport budget cumulative total exceeded")
         if (
-            self._initial_body_limit is not None
+            not observes_network
+            and self._initial_body_limit is not None
             and "gate_review" not in state
             and charged > self._initial_body_limit
         ):
@@ -381,6 +411,46 @@ class TransportBudget:
             raise ValueError("transport budget deadline exceeded")
         return remaining
 
+    def _network_limits(self) -> dict[str, Any]:
+        return {
+            name: getattr(self.spec, name)
+            for name in (
+                "max_source_body_bytes",
+                "max_metadata_body_bytes",
+                "max_total_body_bytes",
+                "initial_body_bytes",
+                "max_retries_per_shard",
+                "max_transfers",
+            )
+        }
+
+    def observe_network(self, *, owner: str, reference: str) -> dict[str, Any]:
+        """Observe local bytes and explicit retries without a cumulative allowance."""
+        if type(self) is not TransportBudget:
+            raise ValueError("network observation requires a corpus transport ledger")
+        if not _valid_time_provenance(owner, reference):
+            raise ValueError("owner and approval reference are required")
+
+        def update(state: dict[str, Any]) -> dict[str, Any]:
+            if state.get("network_mode", "enforced") == "observational":
+                raise ValueError("transport network is already observational")
+            if any(item["status"] == "started" for item in state["transfers"]):
+                raise ValueError(
+                    "cannot change network policy with an active shard transfer"
+                )
+            observation = {
+                "owner": owner,
+                "reference": reference,
+                "selected_at": time.time(),
+                "planned_limits": self._network_limits(),
+            }
+            state["network_mode"] = "observational"
+            state["network_observation"] = observation
+            self._validate_state(state)
+            return observation
+
+        return self._mutate(update, check_deadline=False)
+
     @property
     def observes_storage(self) -> bool:
         return self._read().get("storage_mode", "enforced") == "observational"
@@ -483,6 +553,9 @@ class TransportBudget:
             state["transfers"].append(
                 {"key": key, "reserved": size, "actual": 0, "status": "started"}
             )
+            if state.get("network_mode", "enforced") == "observational":
+                state["transfers"][-1]["started_at_unix"] = time.time()
+                state["transfers"][-1]["started_monotonic_seconds"] = time.monotonic()
             return len(state["transfers"]) - 1
 
         return self._mutate(update)
@@ -504,11 +577,15 @@ class TransportBudget:
             for item in prior
         ):
             raise ValueError("transport budget shard is already complete or terminal")
-        if len(prior) > self.spec.max_retries_per_shard:
+        observes_network = state.get("network_mode", "enforced") == "observational"
+        if not observes_network and len(prior) > self.spec.max_retries_per_shard:
             raise ValueError("transport budget shard retry allowance exhausted")
-        if len(state["transfers"]) >= self.spec.max_transfers:
+        if not observes_network and len(state["transfers"]) >= self.spec.max_transfers:
             raise ValueError("transport budget transfer count exhausted")
-        if size > self.spec.max_source_body_bytes - state["source_charged"]:
+        if (
+            not observes_network
+            and size > self.spec.max_source_body_bytes - state["source_charged"]
+        ):
             raise ValueError("transport budget source body allowance exhausted")
 
     def assert_transfer_available(
@@ -547,6 +624,8 @@ class TransportBudget:
             ):
                 raise ValueError("transport budget transfer body cap exceeded")
             transfer["actual"] += amount
+            if amount and "started_at_unix" in transfer:
+                transfer["last_progress_at_unix"] = time.time()
             state["source_actual"] += amount
 
         self._mutate(update, check_deadline=False)
@@ -562,6 +641,15 @@ class TransportBudget:
                 "complete" if success else "interrupted" if interrupted else "failed"
             )
             transfer["sha256_verified"] = success
+            if "started_at_unix" in transfer:
+                transfer["ended_at_unix"] = time.time()
+                elapsed = max(
+                    0.0, time.monotonic() - transfer["started_monotonic_seconds"]
+                )
+                transfer["elapsed_seconds"] = elapsed
+                transfer["body_bytes_per_second"] = (
+                    transfer["actual"] / elapsed if elapsed else None
+                )
 
         self._mutate(update, check_deadline=False)
 
@@ -580,7 +668,11 @@ class TransportBudget:
     def reserve_metadata(self, amount: int) -> None:
         def update(state: dict[str, Any]) -> None:
             self._check_combined(state, amount)
-            if amount > self.spec.max_metadata_body_bytes - state["metadata_charged"]:
+            if (
+                state.get("network_mode", "enforced") != "observational"
+                and amount
+                > self.spec.max_metadata_body_bytes - state["metadata_charged"]
+            ):
                 raise ValueError("transport budget metadata body allowance exhausted")
             state["metadata_charged"] += amount
 
@@ -609,13 +701,19 @@ class TransportBudget:
     def _check_combined(self, state: dict[str, Any], amount: int) -> None:
         if type(amount) is not int or amount < 0:
             raise ValueError("transport reservation requires nonnegative integer bytes")
+        observes_network = state.get("network_mode", "enforced") == "observational"
         charged = state["source_charged"] + state["metadata_charged"] + amount
-        if self._total_body_limit is not None and charged > self._total_body_limit:
+        if (
+            not observes_network
+            and self._total_body_limit is not None
+            and charged > self._total_body_limit
+        ):
             raise ValueError(
                 "transport budget cumulative source-plus-metadata allowance exhausted"
             )
         if (
-            self._initial_body_limit is not None
+            not observes_network
+            and self._initial_body_limit is not None
             and "gate_review" not in state
             and charged > self._initial_body_limit
         ):

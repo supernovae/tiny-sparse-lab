@@ -86,7 +86,11 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
-    if command in ("budget-observe-time", "budget-observe-storage"):
+    if command in (
+        "budget-observe-time",
+        "budget-observe-storage",
+        "budget-observe-network",
+    ):
         from sparselab.corpus.transport_budget import TransportBudget
 
         project = load_project(Path(args.project))
@@ -95,6 +99,8 @@ def _handle(args: argparse.Namespace) -> None:
         )
         if command == "budget-observe-time":
             ledger.observe_time(owner=args.owner, reference=args.approval_reference)
+        elif command == "budget-observe-network":
+            ledger.observe_network(owner=args.owner, reference=args.approval_reference)
         else:
             ledger.observe_storage(
                 owner=args.owner,
@@ -418,6 +424,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command = sub.add_parser(
         "budget-observe-time",
         help="Record elapsed transport time without an overall expiry for this corpus ledger",
+    )
+    command.add_argument("project")
+    command.add_argument("--owner", required=True)
+    command.add_argument("--approval-reference", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "budget-observe-network",
+        help="Observe local network bytes and explicit retries without cumulative quotas",
     )
     command.add_argument("project")
     command.add_argument("--owner", required=True)

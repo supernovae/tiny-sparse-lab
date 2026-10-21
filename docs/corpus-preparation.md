@@ -792,3 +792,28 @@ snapshots. Its existing full-lock and verification memory costs still apply;
 source-step admission does not certify downstream build, tokenizer, packing or
 training capacity. Keep every step's JSON/stdout/stderr and supervisor receipts.
 No real corpus acquisition or model run is part of the offline fixture evidence.
+
+
+### Local network observation
+
+For an already authorized local corpus assignment, select the policy on the
+existing ledger instead of replacing it or resetting counters:
+
+```sh
+sparselab --work-dir WORK corpus budget-observe-network PROJECT \
+  --owner OWNER --approval-reference REFERENCE
+```
+
+This is provenance of an actual owner decision, not new download authority. It
+records the original planned network limits and retains all historical byte and
+transfer records. Cumulative source/metadata/combined byte quotas, the initial
+byte gate, and numerical retry/transfer allowances become observations. A retry
+is still an explicit operator action; no retry loop is added. Known completed
+transfers and terminal integrity failures are not silently replayed.
+
+New observed transfers record start, last byte progress, end, elapsed time and
+measured body-byte throughput. Historical records are not assigned invented
+timing. Immutable source scope, content hashes, per-response/per-file bounds,
+network inactivity timeouts, metadata storage bounds and actual resource checks
+remain. Other ledgers keep their declared budgets. Time and storage observation
+remain explicit separate selections; neither implies this network choice.
