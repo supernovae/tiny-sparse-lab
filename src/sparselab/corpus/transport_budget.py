@@ -5,30 +5,26 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import re
 import sqlite3
 import time
 from contextlib import closing
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from sparselab.corpus.project import Project
 from sparselab.training.manifest import canonical_json
 
-MAX_DEADLINE_RENEWAL_SECONDS = 86400
+HTTP_OPERATION_TIMEOUT_SECONDS = 30.0
 
 
-def _utc_deadline_epoch(value: str) -> float:
-    if not isinstance(value, str) or not re.fullmatch(
-        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", value
-    ):
-        raise ValueError("deadline must be RFC 3339 UTC with whole seconds")
-    try:
-        parsed = datetime.fromisoformat(value[:-1]).replace(tzinfo=UTC)
-    except ValueError as error:
-        raise ValueError("deadline must be a valid UTC timestamp") from error
-    return parsed.timestamp()
+def _valid_time_provenance(owner: Any, reference: Any) -> bool:
+    return all(
+        isinstance(value, str)
+        and 1 <= len(value.strip()) <= maximum
+        and value == value.strip()
+        and "\0" not in value
+        for value, maximum in ((owner, 128), (reference, 512))
+    )
 
 
 def _binding(project: Project) -> str:
@@ -132,52 +128,24 @@ class TransportBudget:
         if state["binding"] != self.binding:
             raise ValueError("transport budget binding changed")
         transfers = state["transfers"]
-        renewals = state.get("renewals", [])
         expected_deadline = state["created_at"] + self.spec.max_wall_seconds
-        renewal_valid = isinstance(renewals, list) and len(renewals) <= 1
-        if renewal_valid:
-            for renewal in renewals:
-                if not isinstance(renewal, dict) or set(renewal) != {
-                    "previous_deadline",
-                    "deadline",
-                    "deadline_utc",
-                    "owner",
-                    "reference",
-                }:
-                    renewal_valid = False
-                    break
-                previous = renewal["previous_deadline"]
-                current = renewal["deadline"]
-                owner = renewal["owner"]
-                reference = renewal["reference"]
-                try:
-                    parsed_deadline = _utc_deadline_epoch(renewal["deadline_utc"])
-                except (TypeError, ValueError):
-                    renewal_valid = False
-                    break
-                if (
-                    type(previous) not in (int, float)
-                    or type(current) not in (int, float)
-                    or not math.isfinite(previous)
-                    or not math.isfinite(current)
-                    or previous != expected_deadline
-                    or current <= previous
-                    or current > previous + MAX_DEADLINE_RENEWAL_SECONDS
-                    or parsed_deadline != current
-                    or not isinstance(owner, str)
-                    or not 1 <= len(owner.strip()) <= 128
-                    or owner != owner.strip()
-                    or "\0" in owner
-                    or not isinstance(reference, str)
-                    or not 1 <= len(reference.strip()) <= 512
-                    or reference != reference.strip()
-                    or "\0" in reference
-                ):
-                    renewal_valid = False
-                    break
-                expected_deadline = current
+        mode = state.get("wall_clock_mode", "enforced")
+        observation = state.get("wall_clock_observation")
+        valid_mode = mode == "enforced" and observation is None
+        if mode == "observational" and isinstance(observation, dict):
+            valid_mode = (
+                set(observation)
+                == {"owner", "reference", "selected_at", "planned_deadline"}
+                and _valid_time_provenance(
+                    observation.get("owner"), observation.get("reference")
+                )
+                and type(observation.get("selected_at")) in (int, float)
+                and math.isfinite(observation["selected_at"])
+                and observation["selected_at"] >= state["created_at"]
+                and observation["planned_deadline"] == expected_deadline
+            )
         if (
-            not renewal_valid
+            not valid_mode
             or state["deadline"] != expected_deadline
             or not isinstance(transfers, list)
             or len(transfers) > self.spec.max_transfers
@@ -310,7 +278,7 @@ class TransportBudget:
                 "binding": _binding(project),
                 "created_at": now,
                 "deadline": now + spec.max_wall_seconds,
-                "renewals": [],
+                "wall_clock_mode": "enforced",
                 "source_charged": 0,
                 "source_actual": 0,
                 "metadata_charged": 0,
@@ -364,7 +332,9 @@ class TransportBudget:
             self._validate_state(state)
             now = time.time()
             if now < state["created_at"] or (
-                check_deadline and now >= state["deadline"]
+                check_deadline
+                and state.get("wall_clock_mode", "enforced") == "enforced"
+                and now >= state["deadline"]
             ):
                 raise ValueError("transport budget deadline exceeded")
             result = update(state)
@@ -376,54 +346,38 @@ class TransportBudget:
             return result
 
     def remaining_seconds(self) -> float:
+        """Finite window for the next operation; observational time has no total expiry."""
         state = self._read()
+        if state.get("wall_clock_mode", "enforced") == "observational":
+            return HTTP_OPERATION_TIMEOUT_SECONDS
         remaining = state["deadline"] - time.time()
         if remaining <= 0:
             raise ValueError("transport budget deadline exceeded")
         return remaining
 
-    def renew_deadline(
-        self, deadline_utc: str, *, owner: str, reference: str
-    ) -> dict[str, Any]:
-        new_deadline = _utc_deadline_epoch(deadline_utc)
-        if (
-            not isinstance(owner, str)
-            or not 1 <= len(owner.strip()) <= 128
-            or owner != owner.strip()
-            or "\0" in owner
-            or not isinstance(reference, str)
-            or not 1 <= len(reference.strip()) <= 512
-            or reference != reference.strip()
-            or "\0" in reference
-        ):
+    def observe_time(self, *, owner: str, reference: str) -> dict[str, Any]:
+        """Select timing observation once for this corpus ledger, without changing its binding."""
+        if type(self) is not TransportBudget:
+            raise ValueError(
+                "observational time is supported only for a corpus transport ledger"
+            )
+        if not _valid_time_provenance(owner, reference):
             raise ValueError("owner and approval reference are required")
 
         def update(state: dict[str, Any]) -> dict[str, Any]:
-            previous = state["deadline"]
-            now = time.time()
-            if now < previous:
-                raise ValueError("transport budget deadline has not expired")
-            if new_deadline <= now:
-                raise ValueError("renewed transport deadline must be in the future")
-            if state.get("renewals"):
-                raise ValueError("transport budget renewal already used")
+            if state.get("wall_clock_mode", "enforced") == "observational":
+                raise ValueError("transport time is already observational")
             if any(item["status"] == "started" for item in state["transfers"]):
-                raise ValueError("cannot renew with an active shard transfer")
-            if (
-                new_deadline <= previous
-                or new_deadline > previous + MAX_DEADLINE_RENEWAL_SECONDS
-            ):
-                raise ValueError("renewed deadline exceeds the one-day bound")
-            renewal = {
-                "previous_deadline": previous,
-                "deadline": new_deadline,
-                "deadline_utc": deadline_utc,
+                raise ValueError("cannot change timing with an active shard transfer")
+            observation = {
                 "owner": owner,
                 "reference": reference,
+                "selected_at": time.time(),
+                "planned_deadline": state["deadline"],
             }
-            state["renewals"] = [renewal]
-            state["deadline"] = new_deadline
-            return renewal
+            state["wall_clock_mode"] = "observational"
+            state["wall_clock_observation"] = observation
+            return observation
 
         return self._mutate(update, check_deadline=False)
 

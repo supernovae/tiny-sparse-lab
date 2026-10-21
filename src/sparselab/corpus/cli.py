@@ -86,16 +86,14 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
-    if command == "budget-renew":
+    if command == "budget-observe-time":
         from sparselab.corpus.transport_budget import TransportBudget
 
         project = load_project(Path(args.project))
         ledger = TransportBudget(
             root / "corpora" / project.config.id / "transport-budget.sqlite", project
         )
-        ledger.renew_deadline(
-            args.deadline, owner=args.owner, reference=args.approval_reference
-        )
+        ledger.observe_time(owner=args.owner, reference=args.approval_reference)
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
     if command == "render-declaration":
@@ -411,11 +409,10 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("project")
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
-        "budget-renew",
-        help="Record one owner-approved renewal of an expired bounded transport window",
+        "budget-observe-time",
+        help="Record elapsed transport time without an overall expiry for this corpus ledger",
     )
     command.add_argument("project")
-    command.add_argument("--deadline", required=True, help="New exact UTC deadline, ending in Z")
     command.add_argument("--owner", required=True)
     command.add_argument("--approval-reference", required=True)
     command.set_defaults(handler=_handle)

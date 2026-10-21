@@ -676,25 +676,27 @@ coexist. Keep native workspace/resource monitoring and cumulative accounting;
 cleanup is not a refund. This implementation does not reduce acquisition
 reservations, authorize a larger disk budget or establish that a full corpus fits.
 
-### Renew an expired transport window
+### Observe total transport time
 
-A transport window can be renewed once, by at most 24 hours, only after the
-existing deadline expires, every reserved shard has left the started state, and
-the owner has approved the exact renewal separately. The renewal changes only the
-deadline. It keeps the same project binding, source declarations, retry history,
-charges, and all byte, disk, free-space, and process limits. Approval fields in a
-spec or ledger are provenance, not authority.
+Transport ledgers enforce `max_wall_seconds` by default. For an owner-authorized
+local corpus workflow whose elapsed time is observational, select that policy once
+on the existing ledger, while no shard transfer is active:
 
-Run this command as a reviewed slot in the explicit Harness continuation:
+```sh
+sparselab --work-dir WORK corpus budget-observe-time PROJECT --owner OWNER --approval-reference APPROVAL_REFERENCE
+```
 
-    sparselab --work-dir WORK corpus budget-renew PROJECT --deadline UTC_DEADLINE --owner OWNER --approval-reference APPROVAL_REFERENCE
+This changes only the overall elapsed-time policy. The original start and planned
+deadline, project/source binding, all completed and failed transfers, cumulative
+byte charges, retry limits and storage limits remain intact. Later acquisition
+steps inherit the recorded policy; there is no repeated renewal. The reference
+records provenance and does not create owner authority.
 
-The timestamp is an exact UTC deadline with whole seconds. The command refuses a
-live deadline, a past new deadline, an active transfer, a second renewal, or an
-extension longer than 24 hours. Preserve the returned ledger receipt alongside
-the predecessor receipts. budget-init must not be rerun to simulate a renewal.
-
-### Acquire one declared HF source with bounded admission
+The original `deadline` is a reported target in observational mode. Each HTTP
+connect/read still has a maximum 30-second operation timeout, and cancellation,
+resource stops and verification remain active. Other corpus ledgers and bounded
+dataset-acquisition workflows retain their existing enforced defaults. Harness
+reports session start/end timestamps and elapsed duration independently.
 
 For a large project, initialize its transport ledger once with `corpus budget-init`
 and keep the complete project declaration unchanged. An explicit step selects one
