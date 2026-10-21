@@ -108,6 +108,52 @@ def test_legacy_ledger_stays_enforced_and_tampered_policy_refuses(
         TransportBudget(ledger.path, project)
 
 
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "unknown_mode",
+        "enforced_with_observation",
+        "unexpected_key",
+        "missing_reference",
+        "padded_owner",
+        "nul_reference",
+        "boolean_selected_at",
+        "nonfinite_selected_at",
+        "early_selected_at",
+        "changed_planned_deadline",
+    ],
+)
+def test_tampered_observation_policy_refuses_on_read(tmp_path, monkeypatch, tamper):
+    _recipe, project, _root, ledger, _, _ = fixture(tmp_path, monkeypatch, second=False)
+    ledger.observe_time(owner="owner", reference="ref")
+    with sqlite3.connect(ledger.path) as db:
+        body = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+        observation = body["wall_clock_observation"]
+        if tamper == "unknown_mode":
+            body["wall_clock_mode"] = "unknown"
+        elif tamper == "enforced_with_observation":
+            body["wall_clock_mode"] = "enforced"
+        elif tamper == "unexpected_key":
+            observation["unexpected"] = True
+        elif tamper == "missing_reference":
+            observation.pop("reference")
+        elif tamper == "padded_owner":
+            observation["owner"] = " owner "
+        elif tamper == "nul_reference":
+            observation["reference"] = "ref\u0000"
+        elif tamper == "boolean_selected_at":
+            observation["selected_at"] = True
+        elif tamper == "nonfinite_selected_at":
+            observation["selected_at"] = float("nan")
+        elif tamper == "early_selected_at":
+            observation["selected_at"] = body["created_at"] - 1
+        elif tamper == "changed_planned_deadline":
+            observation["planned_deadline"] += 1
+        db.execute("UPDATE state SET body=? WHERE id=1", (json.dumps(body),))
+    with pytest.raises(ValueError, match="counters are invalid"):
+        TransportBudget(ledger.path, project)
+
+
 def test_public_command_selects_policy_on_same_ledger(tmp_path, monkeypatch):
     recipe, _project, root, ledger, _, _ = fixture(tmp_path, monkeypatch, second=False)
     monkeypatch.setattr(

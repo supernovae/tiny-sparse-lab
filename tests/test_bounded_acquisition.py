@@ -186,6 +186,16 @@ def transport(tmp_path, lock, **limits):
     )
 
 
+def test_dataset_transport_rejects_corpus_only_observation(tmp_path, monkeypatch):
+    _, lock, _ = pinned_files(tmp_path / "input", monkeypatch)
+    current = transport(tmp_path, lock)
+    current.initialize()
+    with pytest.raises(
+        ValueError, match="supported only for a corpus transport ledger"
+    ):
+        current.observe_time(owner="owner", reference="ref")
+
+
 @pytest.mark.parametrize("lfs", [False, True])
 def test_typed_file_identity_and_verified_cache(tmp_path, monkeypatch, http_files, lfs):
     _, lock, files = pinned_files(tmp_path / "input", monkeypatch, lfs=lfs)
