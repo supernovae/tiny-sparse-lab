@@ -86,14 +86,21 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
-    if command == "budget-observe-time":
+    if command in ("budget-observe-time", "budget-observe-storage"):
         from sparselab.corpus.transport_budget import TransportBudget
 
         project = load_project(Path(args.project))
         ledger = TransportBudget(
             root / "corpora" / project.config.id / "transport-budget.sqlite", project
         )
-        ledger.observe_time(owner=args.owner, reference=args.approval_reference)
+        if command == "budget-observe-time":
+            ledger.observe_time(owner=args.owner, reference=args.approval_reference)
+        else:
+            ledger.observe_storage(
+                owner=args.owner,
+                reference=args.approval_reference,
+                min_free_bytes=args.min_free_bytes,
+            )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
     if command == "render-declaration":
@@ -415,6 +422,15 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("project")
     command.add_argument("--owner", required=True)
     command.add_argument("--approval-reference", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "budget-observe-storage",
+        help="Observe corpus storage usage without a retained or cumulative quota",
+    )
+    command.add_argument("project")
+    command.add_argument("--owner", required=True)
+    command.add_argument("--approval-reference", required=True)
+    command.add_argument("--min-free-bytes", type=int, required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "render-declaration", help="Render one bounded JSON/YAML declaration"

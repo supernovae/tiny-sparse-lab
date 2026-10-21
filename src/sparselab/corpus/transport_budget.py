@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import shutil
 import sqlite3
 import time
 from contextlib import closing
@@ -144,8 +145,33 @@ class TransportBudget:
                 and observation["selected_at"] >= state["created_at"]
                 and observation["planned_deadline"] == expected_deadline
             )
+        storage_mode = state.get("storage_mode", "enforced")
+        storage = state.get("storage_observation")
+        valid_storage = storage_mode == "enforced" and storage is None
+        if storage_mode == "observational" and isinstance(storage, dict):
+            valid_storage = (
+                type(self) is TransportBudget
+                and set(storage)
+                == {
+                    "owner",
+                    "reference",
+                    "selected_at",
+                    "planned_max_disk_bytes",
+                    "min_free_bytes",
+                }
+                and _valid_time_provenance(
+                    storage.get("owner"), storage.get("reference")
+                )
+                and type(storage.get("selected_at")) in (int, float)
+                and math.isfinite(storage["selected_at"])
+                and storage["selected_at"] >= state["created_at"]
+                and storage["planned_max_disk_bytes"] == self.spec.max_disk_bytes
+                and type(storage.get("min_free_bytes")) is int
+                and storage["min_free_bytes"] > 0
+            )
         if (
             not valid_mode
+            or not valid_storage
             or state["deadline"] != expected_deadline
             or not isinstance(transfers, list)
             or len(transfers) > self.spec.max_transfers
@@ -354,6 +380,61 @@ class TransportBudget:
         if remaining <= 0:
             raise ValueError("transport budget deadline exceeded")
         return remaining
+
+    @property
+    def observes_storage(self) -> bool:
+        return self._read().get("storage_mode", "enforced") == "observational"
+
+    def observe_storage(
+        self, *, owner: str, reference: str, min_free_bytes: int
+    ) -> dict[str, Any]:
+        """Record local storage observation; preserve every network reservation."""
+        if type(self) is not TransportBudget:
+            raise ValueError(
+                "storage observation is supported only for a corpus transport ledger"
+            )
+        if (
+            not _valid_time_provenance(owner, reference)
+            or type(min_free_bytes) is not int
+            or min_free_bytes <= 0
+        ):
+            raise ValueError(
+                "owner, approval reference and positive free-space floor are required"
+            )
+
+        def update(state: dict[str, Any]) -> dict[str, Any]:
+            if state.get("storage_mode", "enforced") == "observational":
+                raise ValueError("transport storage is already observational")
+            if any(item["status"] == "started" for item in state["transfers"]):
+                raise ValueError(
+                    "cannot change storage policy with an active shard transfer"
+                )
+            observation = {
+                "owner": owner,
+                "reference": reference,
+                "selected_at": time.time(),
+                "planned_max_disk_bytes": self.spec.max_disk_bytes,
+                "min_free_bytes": min_free_bytes,
+            }
+            state["storage_mode"] = "observational"
+            state["storage_observation"] = observation
+            self._validate_state(state)
+            return observation
+
+        return self._mutate(update, check_deadline=False)
+
+    def check_disk(self, root: Path, projected_bytes: int) -> None:
+        """Observe the real free-space floor, or retain the default bounded policy."""
+        state = self._read()
+        free = shutil.disk_usage(root).free
+        if state.get("storage_mode", "enforced") == "observational":
+            if free < state["storage_observation"]["min_free_bytes"]:
+                raise ValueError("transport free-space floor exhausted")
+        else:
+            if projected_bytes > self.spec.max_disk_bytes:
+                raise ValueError("transport budget disk allowance exhausted")
+            if free < projected_bytes:
+                raise ValueError("insufficient disk space for bounded acquisition")
 
     def observe_time(self, *, owner: str, reference: str) -> dict[str, Any]:
         """Select timing observation once for this corpus ledger, without changing its binding."""

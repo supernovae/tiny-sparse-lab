@@ -44,7 +44,7 @@ def prepare(
     work_root: Path,
     source_id: str,
     *,
-    max_new_bytes: int,
+    max_new_bytes: int | None,
     min_free_bytes: int,
     proof_store,
     verification_mode,
@@ -62,8 +62,6 @@ def prepare(
         or source_id not in {s.id for s in project.sources}
     ):
         raise ValueError("exact declared source ID required")
-    if type(max_new_bytes) is not int or max_new_bytes <= 0:
-        raise ValueError("positive remaining native write allowance required")
     if type(min_free_bytes) is not int or min_free_bytes < 0:
         raise ValueError("nonnegative explicit free-space floor required")
     if (
@@ -113,6 +111,14 @@ def prepare(
             if any(stream.read(8)):
                 raise ValueError("acquisition step requires a clean rollback journal")
     budget = TransportBudget(ledger, project)
+    observes_storage = budget.observes_storage
+    if observes_storage:
+        if max_new_bytes is not None:
+            raise ValueError("observational storage does not accept a write allowance")
+        if min_free_bytes < budget.receipt()["storage_observation"]["min_free_bytes"]:
+            raise ValueError("cannot lower the recorded storage free-space floor")
+    elif type(max_new_bytes) is not int or max_new_bytes <= 0:
+        raise ValueError("positive remaining native write allowance required")
     if len(json.dumps(budget.receipt()).encode()) > 16 * 1024**2:
         raise ValueError("acquisition step transport metadata cap exceeded")
     effects = {x.source_id: x for x in project.config.source_effects or ()}
@@ -192,11 +198,11 @@ def prepare(
     )
     current_bytes = _files(base)
     free = os.statvfs(base).f_bavail * os.statvfs(base).f_frsize
-    if path_bytes > max_new_bytes:
+    if not observes_storage and path_bytes > max_new_bytes:
         raise ValueError("insufficient remaining native cumulative write allowance")
-    if current_bytes + peak_bytes > budget.spec.max_disk_bytes:
+    if not observes_storage and current_bytes + peak_bytes > budget.spec.max_disk_bytes:
         raise ValueError("transport budget disk allowance exhausted")
-    if free < peak_bytes + min_free_bytes:
+    if free < min_free_bytes + (0 if observes_storage else peak_bytes):
         raise ValueError("insufficient acquisition step disk headroom")
     return (
         source,
@@ -215,6 +221,7 @@ def prepare(
             "free_bytes": free,
             "min_free_bytes": min_free_bytes,
             "max_new_bytes": max_new_bytes,
+            "storage_mode": "observational" if observes_storage else "enforced",
             "external_logs_receipts_and_baseline_are_additional": True,
         },
     )

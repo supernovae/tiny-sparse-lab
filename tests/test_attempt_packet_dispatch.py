@@ -545,6 +545,39 @@ def test_bounded_source_step_attempt_grammar_requires_all_limits(
     assert parsed.options.get("--plan", False) is plan
 
 
+def test_observational_source_shape_defers_storage_policy_to_native_ledger():
+    parsed = classify_attempt_command(
+        [
+            "sparselab",
+            "corpus",
+            "acquire",
+            "project",
+            "--source-id",
+            "source-one",
+            "--min-free-bytes",
+            "123",
+        ]
+    )
+    assert parsed.effect == "preparation"
+    assert "--max-new-bytes" not in parsed.options
+    assert parsed.options["--min-free-bytes"] == "123"
+    with pytest.raises(ValueError, match="unreviewed native attempt"):
+        classify_attempt_command(
+            [
+                "sparselab",
+                "corpus",
+                "budget-observe-storage",
+                "project",
+                "--owner",
+                "owner",
+                "--approval-reference",
+                "ref",
+                "--min-free-bytes",
+                "123",
+            ]
+        )
+
+
 @pytest.mark.parametrize(
     "tail",
     [

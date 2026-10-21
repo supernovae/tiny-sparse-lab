@@ -112,6 +112,8 @@ class _AcquisitionResources:
             self.persist()
 
     def observe(self) -> None:
+        if self.budget is not None and self.budget.observes_storage:
+            self.budget.check_disk(self.root, 0)
         try:
             root_info = self.root.lstat()
         except OSError as error:
@@ -455,10 +457,7 @@ def _bounded_git_acquire(
             or matches[0].get("size") != blob.max_bytes
         ):
             raise ValueError(f"pinned Git blob missing or ambiguous: {blob.path}")
-    if budget.projected_disk_bytes() > budget.spec.max_disk_bytes:
-        raise ValueError("transport budget disk allowance exhausted")
-    if shutil.disk_usage(staging).free < budget.projected_disk_bytes():
-        raise ValueError("insufficient disk space for bounded Git blobs")
+    budget.check_disk(staging, budget.projected_disk_bytes())
     files = []
     for blob in spec.bounded_blobs:
         resources = _AcquisitionResources(staging, budget)
@@ -1035,10 +1034,7 @@ def _bounded_hf_acquire(
                     projected = budget.projected_disk_bytes(
                         source_id=budget.selected_source_id
                     )
-                    if projected > budget.spec.max_disk_bytes:
-                        raise ValueError("transport budget disk allowance exhausted")
-                    if shutil.disk_usage(staging).free < projected:
-                        raise ValueError("insufficient disk space for bounded HF shard")
+                    budget.check_disk(staging, projected)
                     _hf_pinned_metadata(source, spec, shard, headers, budget)
                     transfer_index = budget.reserve_transfer(
                         source.id, shard.path, shard.max_shard_bytes

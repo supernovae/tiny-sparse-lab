@@ -678,6 +678,31 @@ coexist. Keep native workspace/resource monitoring and cumulative accounting;
 cleanup is not a refund. This implementation does not reduce acquisition
 reservations, authorize a larger disk budget or establish that a full corpus fits.
 
+### Observe local corpus storage
+
+For an owner-authorized local workflow without a storage allowance, select the
+policy once on the existing ledger while no transfer is active:
+
+```sh
+sparselab --work-dir WORK corpus budget-observe-storage PROJECT --owner OWNER --approval-reference APPROVAL_REFERENCE --min-free-bytes FREE_FLOOR
+```
+
+This records the original disk target and the actual free-space floor as
+provenance. It preserves full project/source identity, transfer/retry history and
+every network reservation/charge. It changes neither time policy nor training
+scope. Other ledgers and dataset acquisition keep their enforced defaults.
+The command is intentionally excluded from automatic attempt dispatch.
+
+With observational storage, source steps omit `--max-new-bytes` and retain
+`--min-free-bytes` at least as large as the recorded floor. Native path/peak
+projections remain reported observations; they do not admit/refuse by a storage
+allowance or predicted occupancy. Actual free space is checked before transfer
+and at staging growth observations. The outer supervisor must keep the floor on
+both the actual corpus mount and its Windows backing volume. These checks are
+sampled stops, not filesystem quotas. Existing file integrity, bounded traversal,
+memory and cancellation controls remain active. This policy grants no new
+downloads, cloud spending or authority beyond the approved corpus.
+
 ### Observe total transport time
 
 Transport ledgers enforce `max_wall_seconds` by default. For an owner-authorized
