@@ -380,3 +380,59 @@ def test_unsupported_platform_refuses_before_work(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="POSIX filesystem"):
         run(project, root)
     assert not calls and ledger.path.read_bytes() == before
+
+
+def test_reuse_admission_only_credits_the_exact_pinned_origin(tmp_path, monkeypatch):
+    import hashlib
+    import json
+    import shutil
+
+    root, _, recipe = _project(tmp_path, monkeypatch)
+    config = yaml.safe_load(recipe.read_text())
+    config["transport_budget"]["max_disk_bytes"] = ALLOWANCE
+    _yaml(recipe, config)
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        root / "corpora/candidate/transport-budget.sqlite", project
+    )
+    effect = project.config.source_effects[0]
+    origin = acquisition._retained_origin(root, effect)
+    manifest = json.loads((origin / "manifest.json").read_text())
+    # A different, internally valid historical snapshot of the same declaration
+    # must not count as the exact source_effects origin already copied locally.
+    candidate = tmp_path / "candidate"
+    shutil.copytree(origin, candidate)
+    row = manifest["files"][0]
+    body = b'{"text":"different historical content"}\n'
+    (candidate / "files" / row["path"]).write_bytes(body)
+    row.update(size=len(body), sha256=hashlib.sha256(body).hexdigest())
+    manifest["snapshot_sha256"] = acquisition._digest(
+        {key: manifest[key] for key in ("declaration_sha256", "adapter", "files")}
+    )
+    acquisition._write_json(candidate / "manifest.json", manifest)
+    destination = (
+        ledger.path.parent
+        / "snapshots"
+        / effect.source_id
+        / manifest["snapshot_sha256"]
+    )
+    destination.parent.mkdir(parents=True)
+    candidate.rename(destination)
+    acquisition.verify_snapshot(destination)
+    plan = run(project, root, effect.source_id, plan_only=True)["admission"]
+    original = json.loads((origin / "manifest.json").read_text())
+    expected = (
+        2
+        * (
+            sum(row["size"] for row in original["files"])
+            + (origin / "manifest.json").stat().st_size
+        )
+        + acquisition_step.LEDGER_BYTES
+        + acquisition_step.JOURNAL_BYTES
+    )
+    assert (
+        plan["existing_snapshot"] is None and plan["native_new_path_bytes"] == expected
+    )
+    result = run(project, root, effect.source_id)
+    assert result["source"]["snapshot_sha256"] == effect.snapshot_sha256
+    assert destination.exists()
