@@ -676,6 +676,23 @@ coexist. Keep native workspace/resource monitoring and cumulative accounting;
 cleanup is not a refund. This implementation does not reduce acquisition
 reservations, authorize a larger disk budget or establish that a full corpus fits.
 
+### Renew an expired transport window
+
+A transport window can be renewed once, by at most 24 hours, only after the
+existing deadline expires, every reserved shard has left the started state, and
+the owner has approved the exact renewal separately. The renewal changes only the
+deadline. It keeps the same project binding, source declarations, retry history,
+charges, and all byte, disk, free-space, and process limits. Approval fields in a
+spec or ledger are provenance, not authority.
+
+Run this command as a reviewed slot in the explicit Harness continuation:
+
+    sparselab --work-dir WORK corpus budget-renew PROJECT --deadline UTC_DEADLINE --owner OWNER --approval-reference APPROVAL_REFERENCE
+
+The timestamp is an exact UTC deadline with whole seconds. The command refuses a
+live deadline, a past new deadline, an active transfer, a second renewal, or an
+extension longer than 24 hours. Preserve the returned ledger receipt alongside
+the predecessor receipts. budget-init must not be rerun to simulate a renewal.
 
 ### Acquire one declared HF source with bounded admission
 
