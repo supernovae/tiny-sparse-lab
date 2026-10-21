@@ -510,6 +510,80 @@ def test_hidden_commands_and_malformed_options_are_rejected(words: list[str]) ->
         classify_attempt_command(words)
 
 
+@pytest.mark.parametrize("plan", [False, True])
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        ["sparselab"],
+        ["sparselab", "--work-dir", "/work"],
+        ["uv", "run", "--locked", "--no-sync", "sparselab"],
+        ["uv", "run", "--locked", "--no-sync", "sparselab", "--work-dir", "/work"],
+    ],
+)
+def test_bounded_source_step_attempt_grammar_requires_all_limits(
+    plan: bool, prefix: list[str]
+) -> None:
+    words = [
+        "corpus",
+        "acquire",
+        "project",
+        "--source-id",
+        "source-one",
+        "--max-new-bytes",
+        "1024",
+        "--min-free-bytes",
+        "0",
+    ]
+    if plan:
+        words.append("--plan")
+    parsed = classify_attempt_command([*prefix, *words])
+    assert parsed.effect == "preparation"
+    assert parsed.operation == "corpus acquire"
+    assert parsed.options["--source-id"] == "source-one"
+    assert parsed.options["--max-new-bytes"] == "1024"
+    assert parsed.options["--min-free-bytes"] == "0"
+    assert parsed.options.get("--plan", False) is plan
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        ["--source-id", "source-one"],
+        ["--source-id", "source-one", "--max-new-bytes", "1024"],
+        ["--plan"],
+        [
+            "--source-id",
+            "source-one",
+            "--max-new-bytes",
+            "nope",
+            "--min-free-bytes",
+            "0",
+        ],
+        ["--source-id", "source-one", "--max-new-bytes", "0", "--min-free-bytes", "0"],
+        [
+            "--source-id",
+            "source-one",
+            "--max-new-bytes",
+            "1024",
+            "--min-free-bytes",
+            "-1",
+        ],
+        [
+            "--offline",
+            "--source-id",
+            "source-one",
+            "--max-new-bytes",
+            "1024",
+            "--min-free-bytes",
+            "0",
+        ],
+    ],
+)
+def test_bounded_source_step_attempt_grammar_refuses_partial_or_invalid_limits(tail):
+    with pytest.raises(ValueError):
+        classify_attempt_command(["sparselab", "corpus", "acquire", "project", *tail])
+
+
 @pytest.mark.parametrize(
     "words,effect",
     [

@@ -692,6 +692,11 @@ sparselab --work-dir WORK corpus acquire PROJECT --source-id SOURCE_ID \
   --max-new-bytes REMAINING_NATIVE_BYTES --min-free-bytes FREE_FLOOR_BYTES
 ```
 
+Within a Lab supervised attempt, `corpus acquire` accepts this step form only
+when `--source-id`, `--max-new-bytes` and `--min-free-bytes` are all present;
+`--plan` is optional, and `--offline` cannot be combined with step limits. The
+attempt classifier rejects partial or invalid numeric limits before dispatch.
+
 Both byte limits are required integers. `--plan` cold-verifies retained origins,
 existing selected snapshots, the full-project ledger binding and admission without
 network or writes. Execution repeats admission. Use an exclusive supervised work

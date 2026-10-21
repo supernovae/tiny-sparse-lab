@@ -59,7 +59,12 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
     "corpus budget-status": (1, set(), set(), "inspection"),
     "corpus alias-snapshot": (1, {"--source-id", "--snapshot"}, set(), "preparation"),
     "corpus preview": (1, {"--input-root", "--output"}, set(), "preparation"),
-    "corpus acquire": (1, set(), {"--offline"}, "preparation"),
+    "corpus acquire": (
+        1,
+        {"--source-id", "--max-new-bytes", "--min-free-bytes"},
+        {"--offline", "--plan"},
+        "preparation",
+    ),
     "corpus admission-draft": (
         1,
         {"--template", "--policy-document", "--output"},
@@ -411,6 +416,28 @@ def classify_attempt_command(command: list[str], *, depth: int = 0) -> AttemptCo
                 raise ValueError("required native option is missing")
             if name == "stage" and options.get("--through") != "validate":
                 raise ValueError("attempt stage must stop at validation")
+            if name == "corpus acquire":
+                step_options = {"--source-id", "--max-new-bytes", "--min-free-bytes"}
+                if (
+                    step_options.intersection(options) or "--plan" in options
+                ) and not step_options.issubset(options):
+                    raise ValueError("acquisition step requires all source limits")
+                if step_options.issubset(options):
+                    if "--offline" in options:
+                        raise ValueError("offline acquisition cannot use step limits")
+                    if not str(options["--source-id"]).strip():
+                        raise ValueError("acquisition step source ID is empty")
+                    try:
+                        max_new_bytes = int(str(options["--max-new-bytes"]))
+                        min_free_bytes = int(str(options["--min-free-bytes"]))
+                    except ValueError as error:
+                        raise ValueError(
+                            "acquisition step limits must be integers"
+                        ) from error
+                    if max_new_bytes <= 0 or min_free_bytes < 0:
+                        raise ValueError(
+                            "acquisition step limits are outside their bounds"
+                        )
             if name == "evaluation fixed-slices score":
                 mode = options.get("--mode")
                 if mode not in {"validation", "test", "utility"}:
