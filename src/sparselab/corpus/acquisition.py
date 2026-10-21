@@ -220,9 +220,12 @@ def _reusable_immutable_adapter(
     )
 
 
-def _write_json(path: Path, value: object) -> None:
+def _write_json(path: Path, value: object, *, max_bytes: int | None = None) -> None:
+    body = canonical_json(value) + b"\n"
+    if max_bytes is not None and len(body) > max_bytes:
+        raise ValueError("acquisition step manifest byte cap exceeded")
     with path.open("wb") as handle:
-        handle.write(canonical_json(value) + b"\n")
+        handle.write(body)
         handle.flush()
         os.fsync(handle.fileno())
 
@@ -1029,7 +1032,9 @@ def _bounded_hf_acquire(
                     budget.assert_transfer_available(
                         source.id, shard.path, shard.max_shard_bytes
                     )
-                    projected = budget.projected_disk_bytes()
+                    projected = budget.projected_disk_bytes(
+                        source_id=budget.selected_source_id
+                    )
                     if projected > budget.spec.max_disk_bytes:
                         raise ValueError("transport budget disk allowance exhausted")
                     if shutil.disk_usage(staging).free < projected:
@@ -1906,8 +1911,39 @@ def acquire(
     *,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
+    source_id: str | None = None,
+    max_new_bytes: int | None = None,
+    min_free_bytes: int | None = None,
+    plan_only: bool = False,
 ) -> dict[str, Any]:
     """Publish verified snapshots independently; replace the active lock only on success."""
+    step = None
+    step_budget = None
+    step_retained = None
+    active_sources = project.sources
+    if source_id is not None:
+        from sparselab.corpus import acquisition_step
+
+        if offline:
+            raise ValueError(
+                "source steps cannot use --offline; use --plan for admission"
+            )
+        source, step_budget, step_retained, step = acquisition_step.prepare(
+            project,
+            Path(work_root),
+            source_id,
+            max_new_bytes=max_new_bytes,
+            min_free_bytes=min_free_bytes,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+        if plan_only:
+            return {"status": "planned", "complete": False, "admission": step}
+        active_sources = (source,)
+        step_budget.selected_source_id = source_id
+        step_budget.bounded_storage = True
+    elif max_new_bytes is not None or min_free_bytes is not None or plan_only:
+        raise ValueError("step admission options require --source-id")
     base = Path(work_root) / "corpora" / project.config.id
     selected = [
         source
@@ -1937,8 +1973,8 @@ def acquire(
         if project.config.source_effects is not None
         else None
     )
-    retained: dict[str, tuple[Path, dict[str, Any]]] = {}
-    if effects is not None:
+    retained: dict[str, tuple[Path, dict[str, Any]]] = step_retained or {}
+    if effects is not None and step_retained is None:
         # Complete rights/source permission and all retained-byte checks happen
         # before the first metadata request, transfer, or acquisition lock write.
         for source in project.sources:
@@ -1954,13 +1990,13 @@ def acquire(
                 )
     snapshot_root = base / "snapshots"
     snapshot_root.mkdir(parents=True, exist_ok=True)
-    budget = (
+    budget = step_budget or (
         TransportBudget(base / "transport-budget.sqlite", project)
         if project.config.transport_budget is not None
         else None
     )
     entries = {}
-    for source in project.sources:
+    for source in active_sources:
         declared_digest = declaration_sha256(source)
         effect = effects[source.id] if effects is not None else None
         if effect is not None and effect.effect == "reuse_only":
@@ -2130,7 +2166,11 @@ def acquire(
                 "retrieval": retrieval,
                 "snapshot_sha256": identity,
             }
-            _write_json(staging / "manifest.json", manifest)
+            _write_json(
+                staging / "manifest.json",
+                manifest,
+                max_bytes=acquisition_step.MANIFEST_BYTES if step is not None else None,
+            )
             if verify_snapshot(staging, _staged=True)["snapshot_sha256"] != identity:
                 raise ValueError("staged snapshot identity mismatch")
             destination = parent / identity
@@ -2200,6 +2240,17 @@ def acquire(
             )
             if current != retained[source.id][1]:
                 raise ValueError(f"retained origin changed before lock: {source.id}")
+    if step is not None:
+        entry = entries[source_id]
+        return {
+            "status": "source_verified",
+            "complete": False,
+            "admission": step,
+            "source": {
+                key: entry[key]
+                for key in ("declaration_sha256", "snapshot_sha256", "snapshot_path")
+            },
+        }
     lock = {
         "schema_version": 1,
         "project_id": project.config.id,

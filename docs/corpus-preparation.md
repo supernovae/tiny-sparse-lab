@@ -675,3 +675,66 @@ output schedules, cold-replay output, raw array spools and completed arrays can
 coexist. Keep native workspace/resource monitoring and cumulative accounting;
 cleanup is not a refund. This implementation does not reduce acquisition
 reservations, authorize a larger disk budget or establish that a full corpus fits.
+
+
+### Acquire one declared HF source with bounded admission
+
+For a large project, initialize its transport ledger once with `corpus budget-init`
+and keep the complete project declaration unchanged. An explicit step selects one
+exact source ID and all bounded shards in that declaration. It does not create a
+smaller project, change sampling or mixture, reset the ledger, or retry a failure.
+For a project with one declared shard per source, this is one shard per step.
+
+```sh
+sparselab --work-dir WORK corpus acquire PROJECT --source-id SOURCE_ID \
+  --max-new-bytes REMAINING_NATIVE_BYTES --min-free-bytes FREE_FLOOR_BYTES --plan
+sparselab --work-dir WORK corpus acquire PROJECT --source-id SOURCE_ID \
+  --max-new-bytes REMAINING_NATIVE_BYTES --min-free-bytes FREE_FLOOR_BYTES
+```
+
+Both byte limits are required integers. `--plan` cold-verifies retained origins,
+existing selected snapshots, the full-project ledger binding and admission without
+network or writes. Execution repeats admission. Use an exclusive supervised work
+root; the command is a single acquisition operation, not a scheduler or authority
+to acquire data. The caller must supply the actual remaining cumulative allowance
+after charging earlier work and reserving external logs, receipts and baseline
+files. There is no inference of approval from these numeric options.
+
+Admission reports `native_new_path_bytes` (a conservative bound on added logical
+path bytes) separately from `native_peak_added_bytes` (peak added logical occupancy).
+The former includes selected compressed bodies, expanded output and source
+manifest at both staging and published paths, plus native ledger overhead. The
+latter uses one expanded copy and the largest compressed shard. Current project
+bytes plus peak addition must fit the unchanged transport disk cap; filesystem
+free space must cover peak addition plus the requested floor. This does not bound
+physical allocated blocks, other volumes, total bytes rewritten to an existing
+file, or concurrent unrelated disk use. A supervisor must enforce those separate
+host limits and cumulative accounting. Deletion does not refund previous charges.
+
+The step is tested on Linux with the existing Python 3.14 runtime; native Windows
+is unsupported (POSIX filesystem statistics are required). It supports immutable
+bounded-HF declarations, including verified
+`reuse_only` sources. It requires an existing full-project transport ledger,
+cold verification and no proof-store or metadata-scratch writes. Source manifests
+are capped at 256 MiB before writing. Transport state is capped at 16 MiB JSON in
+a 32 MiB SQLite database, with a stable rollback journal reserved at 64 MiB;
+PERSIST journaling preserves rollback semantics without creating a new journal
+inode on every counter update. These are native metadata ceilings, not RSS caps.
+Unsafe paths, a hot journal needing recovery, missing pins, changed bindings or
+insufficient allowance refuse before transport. Metadata and response bodies
+remain subject to the existing transport counters, deadlines and retry limits.
+
+A successful step returns `status: source_verified`, `complete: false`, the exact
+snapshot path/digest, full-project identity, transport binding and admission.
+Snapshots and the ledger retain partial progress; there is no partial active
+`acquisition.json`. A later explicit step reuses a cold-verified completed source
+without downloading or copying it again. Failures preserve earlier snapshots and
+consumed charges. Changing the selected ID never weakens source permissions or
+publishes an incomplete corpus as complete.
+
+After every declared source is present, ordinary `corpus acquire PROJECT` verifies
+all declarations and publishes the complete acquisition lock, reusing the saved
+snapshots. Its existing full-lock and verification memory costs still apply;
+source-step admission does not certify downstream build, tokenizer, packing or
+training capacity. Keep every step's JSON/stdout/stderr and supervisor receipts.
+No real corpus acquisition or model run is part of the offline fixture evidence.
