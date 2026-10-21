@@ -97,3 +97,20 @@ def test_assignment_schema_and_path_refuse_ambiguous_unsafe_and_symlink(tmp_path
     (tmp_path / ("assignments-" + digest + ".jsonl")).symlink_to(target)
     with pytest.raises(ValueError, match="symlink"):
         assignment_path(tmp_path, {"sha256": digest, "rows": 1})
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"exclude_none": True},
+        {"exclude": {"assignment_file"}},
+        {"include": {"unit", "assignments"}},
+    ],
+)
+def test_inline_assignment_serializer_respects_optional_field_selection(options):
+    declaration = SplitDeclaration.model_validate(
+        {"schema_version": 1, "unit": "document", "assignments": {"doc": "train"}}
+    )
+    output = declaration.model_dump(mode="json", **options)
+    assert output["assignments"] == {"doc": "train"}
+    assert "assignment_file" not in output

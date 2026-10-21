@@ -616,7 +616,7 @@ class SplitDeclaration(StrictModel):
     def serialize_assignments(self, handler):
         result = handler(self)
         if self.assignment_file is None:
-            result.pop("assignment_file")
+            result.pop("assignment_file", None)
         return result
 
     @model_validator(mode="after")
