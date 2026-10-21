@@ -678,6 +678,31 @@ coexist. Keep native workspace/resource monitoring and cumulative accounting;
 cleanup is not a refund. This implementation does not reduce acquisition
 reservations, authorize a larger disk budget or establish that a full corpus fits.
 
+### Observe local corpus storage
+
+For an owner-authorized local workflow without a storage allowance, select the
+policy once on the existing ledger while no transfer is active:
+
+```sh
+sparselab --work-dir WORK corpus budget-observe-storage PROJECT --owner OWNER --approval-reference APPROVAL_REFERENCE --min-free-bytes FREE_FLOOR
+```
+
+This records the original disk target and the actual free-space floor as
+provenance. It preserves full project/source identity, transfer/retry history and
+every network reservation/charge. It changes neither time policy nor training
+scope. Other ledgers and dataset acquisition keep their enforced defaults.
+The command is intentionally excluded from automatic attempt dispatch.
+
+With observational storage, source steps omit `--max-new-bytes` and retain
+`--min-free-bytes` at least as large as the recorded floor. Native path/peak
+projections remain reported observations; they do not admit/refuse by a storage
+allowance or predicted occupancy. Actual free space is checked before transfer
+and at staging growth observations. The outer supervisor must keep the floor on
+both the actual corpus mount and its Windows backing volume. These checks are
+sampled stops, not filesystem quotas. Existing file integrity, bounded traversal,
+memory and cancellation controls remain active. This policy grants no new
+downloads, cloud spending or authority beyond the approved corpus.
+
 ### Observe total transport time
 
 Transport ledgers enforce `max_wall_seconds` by default. For an owner-authorized
@@ -767,3 +792,35 @@ snapshots. Its existing full-lock and verification memory costs still apply;
 source-step admission does not certify downstream build, tokenizer, packing or
 training capacity. Keep every step's JSON/stdout/stderr and supervisor receipts.
 No real corpus acquisition or model run is part of the offline fixture evidence.
+
+
+### Local network observation
+
+For an already authorized local corpus assignment, select the policy on the
+existing ledger instead of replacing it or resetting counters:
+
+```sh
+sparselab --work-dir WORK corpus budget-observe-network PROJECT \
+  --owner OWNER --approval-reference REFERENCE
+```
+
+This is provenance of an actual owner decision, not new download authority. It
+records the original planned network limits and retains all historical byte and
+transfer records. Cumulative source/metadata/combined byte quotas, the initial
+byte gate, and numerical retry/transfer allowances become observations. A retry
+is still an explicit operator action; no retry loop is added. Known completed
+transfers and terminal integrity failures are not silently replayed.
+
+New observed transfers record start, last byte progress, end, elapsed time and
+measured body-byte throughput. Historical records are not assigned invented
+timing. Immutable source scope, content hashes, per-response/per-file bounds,
+network inactivity timeouts, metadata storage bounds and actual resource checks
+remain. Other ledgers keep their declared budgets. Time and storage observation
+remain explicit separate selections; neither implies this network choice.
+
+A sampled free-space-floor stop is an environmental interruption. After space is
+restored and cleanup is verified, an explicit retry uses the same ledger and keeps
+both attempts and all observed bytes. Integrity failures remain terminal. Transfer
+duration/throughput measurements describe a normal same-boot start and finish;
+recovery preserves the old transfer and starts a new record, rather than inferring
+comparable historical or cross-boot throughput.

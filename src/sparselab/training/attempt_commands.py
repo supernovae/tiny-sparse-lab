@@ -418,23 +418,32 @@ def classify_attempt_command(command: list[str], *, depth: int = 0) -> AttemptCo
                 raise ValueError("attempt stage must stop at validation")
             if name == "corpus acquire":
                 step_options = {"--source-id", "--max-new-bytes", "--min-free-bytes"}
+                required_step = {"--source-id", "--min-free-bytes"}
                 if (
                     step_options.intersection(options) or "--plan" in options
-                ) and not step_options.issubset(options):
-                    raise ValueError("acquisition step requires all source limits")
-                if step_options.issubset(options):
+                ) and not required_step.issubset(options):
+                    raise ValueError(
+                        "acquisition step requires source ID and free-space floor"
+                    )
+                if required_step.issubset(options):
                     if "--offline" in options:
                         raise ValueError("offline acquisition cannot use step limits")
                     if not str(options["--source-id"]).strip():
                         raise ValueError("acquisition step source ID is empty")
                     try:
-                        max_new_bytes = int(str(options["--max-new-bytes"]))
+                        max_new_bytes = (
+                            int(str(options["--max-new-bytes"]))
+                            if "--max-new-bytes" in options
+                            else None
+                        )
                         min_free_bytes = int(str(options["--min-free-bytes"]))
                     except ValueError as error:
                         raise ValueError(
                             "acquisition step limits must be integers"
                         ) from error
-                    if max_new_bytes <= 0 or min_free_bytes < 0:
+                    if (
+                        max_new_bytes is not None and max_new_bytes <= 0
+                    ) or min_free_bytes < 0:
                         raise ValueError(
                             "acquisition step limits are outside their bounds"
                         )
