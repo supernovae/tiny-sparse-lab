@@ -504,6 +504,11 @@ def _freeze_splits(
         "assignments": {},
         "assignment_file": {"sha256": assignment_digest, "rows": len(assignments)},
     }
+    overrides = getattr(getattr(project, "splits", None), "family_fields_by_source", {})
+    if overrides:
+        declaration["family_fields_by_source"] = {
+            source_id: list(fields) for source_id, fields in sorted(overrides.items())
+        }
     payload = _FREEZE_MARKER + yaml.safe_dump(declaration, sort_keys=False).encode(
         "utf-8"
     )

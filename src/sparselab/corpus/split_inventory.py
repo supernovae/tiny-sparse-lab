@@ -208,11 +208,18 @@ def _wiki_locator_hint(locator: str) -> str | None:
 
 
 def _family_hint(
-    source: Any, document: dict[str, Any], source_metadata: dict[str, Any]
+    source: Any,
+    document: dict[str, Any],
+    source_metadata: dict[str, Any],
+    *,
+    qualification=None,
 ) -> str:
     """Conservative grouping hint; a reviewer must merge mirrored/topic siblings."""
     metadata = document.get("metadata") or {}
-    qualification = getattr(getattr(source, "acquisition", None), "qualification", None)
+    if qualification is None:
+        qualification = getattr(
+            getattr(source, "acquisition", None), "qualification", None
+        )
     if qualification is not None:
         from sparselab.corpus.row_qualification import family_hint
 
@@ -269,6 +276,19 @@ def write_split_inventory_stored(
         ) as stream:
             temporary = stream.name
             for source in project.sources:
+                qualification = getattr(source.acquisition, "qualification", None)
+                overrides = getattr(
+                    getattr(project, "splits", None), "family_fields_by_source", {}
+                )
+                if source.id in overrides:
+                    from sparselab.corpus.row_qualification import RowQualification
+
+                    qualification = RowQualification.model_validate(
+                        {
+                            **qualification.model_dump(mode="json"),
+                            "family_fields": overrides[source.id],
+                        }
+                    )
                 entry = lock["sources"][source.id]
                 if entry["snapshot_path"] is None:
                     continue
@@ -302,7 +322,10 @@ def write_split_inventory_stored(
                                 "content_sha256": document["content_sha256"],
                                 "raw_content_sha256": document["raw_content_sha256"],
                                 "family_hint": _family_hint(
-                                    source, document, source_metadata
+                                    source,
+                                    document,
+                                    source_metadata,
+                                    qualification=qualification,
                                 ),
                                 "source_row_index": index,
                             }

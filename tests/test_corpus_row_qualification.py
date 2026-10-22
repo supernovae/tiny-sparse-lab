@@ -122,6 +122,10 @@ def declared_fixture(tmp_path, *, policy=None, rows=None):
     entry = manifest["sources"][0]
     rendered = []
     selected = []
+    while len(entry["records"]) < len(rows):
+        entry["records"].append(
+            {**entry["records"][0], "source_row_index": len(entry["records"])}
+        )
     for index, row in enumerate(rows):
         digest = hashlib.sha256(canonical_json(row)).hexdigest()
         envelope = {
