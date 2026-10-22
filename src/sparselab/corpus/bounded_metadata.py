@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sqlite3
 import tempfile
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from pathlib import Path
 from sparselab.training.manifest import canonical_json
 
 _MAX_INPUT_BYTES = 256 * 1024**2
+_STRING_SPECIAL = re.compile(rb'["\\]')
 
 
 class DiskRows(list):
@@ -238,6 +240,32 @@ class _Reader:
                 raise ValueError("metadata record-byte cap exceeded")
         return value
 
+    def take_run(self, size):
+        # String scans already have a buffered span. Charge it once, retaining
+        # the first byte limit that the single-byte path would encounter.
+        value = self.buffer[self.offset : self.offset + size]
+        if not value:
+            raise ValueError("truncated metadata JSON")
+        size = len(value)
+        input_left = self.input_limit - self.total
+        field_left = (
+            self.header_limit - self.header
+            if self.row_bytes is None
+            else self.row_limit - self.row_bytes
+        )
+        if size > min(input_left, field_left):
+            if input_left <= field_left:
+                raise ValueError("metadata input-byte cap exceeded")
+            field = "header" if self.row_bytes is None else "record"
+            raise ValueError(f"metadata {field}-byte cap exceeded")
+        self.offset += size
+        self.total += size
+        if self.row_bytes is None:
+            self.header += size
+        else:
+            self.row_bytes += size
+        return value
+
     def whitespace(self):
         while self.peek() and self.peek() in b" \t\r\n":
             self.take()
@@ -252,11 +280,18 @@ class _Reader:
         raw = bytearray(b'"')
         escaped = False
         while True:
-            char = self.take()
-            raw.extend(char)
-            if char == b'"' and not escaped:
-                return json.loads(raw)
-            escaped = char == b"\\" and not escaped
+            if escaped:
+                raw.extend(self.take())
+                escaped = False
+                continue
+            self.peek()
+            special = _STRING_SPECIAL.search(self.buffer, self.offset)
+            end = special.end() if special is not None else len(self.buffer)
+            raw.extend(self.take_run(end - self.offset))
+            if special is not None:
+                if special[0] == b'"':
+                    return json.loads(raw)
+                escaped = True
 
     @contextmanager
     def record(self):
