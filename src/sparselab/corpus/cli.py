@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 from sparselab.verification_proofs import verification_options
@@ -236,8 +238,23 @@ def _handle(args: argparse.Namespace) -> None:
         return
     if command in {"acquire", "build"}:
         project = load_project(Path(args.project))
-        result = (
-            acquire(
+        if command == "build":
+            print(build(project, root, offline=args.offline, **verification))
+            return
+        from sparselab.corpus.bounded_metadata import metadata_operation
+
+        # Keep disk-backed receipt rows alive through verification and output.
+        # Per-source acquisition retains its existing compact-result path.
+        operation = (
+            metadata_operation(
+                root / "corpora" / project.config.id / "metadata-scratch",
+                max_database_bytes=None,
+            )
+            if args.source_id is None
+            else nullcontext()
+        )
+        with operation:
+            result = acquire(
                 project,
                 root,
                 offline=args.offline,
@@ -247,14 +264,10 @@ def _handle(args: argparse.Namespace) -> None:
                 plan_only=args.plan,
                 **verification,
             )
-            if command == "acquire"
-            else build(project, root, offline=args.offline, **verification)
-        )
-        print(
-            json.dumps(result, sort_keys=True, default=str)
-            if command == "acquire"
-            else result
-        )
+            encoder = json.JSONEncoder(sort_keys=True, default=str)
+            for part in encoder.iterencode(result):
+                sys.stdout.write(part)
+            sys.stdout.write("\n")
         return
     if command == "freeze":
         print(publication.freeze(Path(args.build), root, **verification))

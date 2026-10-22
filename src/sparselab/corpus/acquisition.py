@@ -2256,7 +2256,15 @@ def acquire(
     handle, name = tempfile.mkstemp(prefix=".acquisition-", dir=base)
     try:
         with os.fdopen(handle, "wb") as output:
-            output.write(canonical_json(lock) + b"\n")
+            encoder = json.JSONEncoder(
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            )
+            for part in encoder.iterencode(lock):
+                output.write(part.encode("utf-8"))
+            output.write(b"\n")
             output.flush()
             os.fsync(output.fileno())
         os.replace(name, base / "acquisition.json")

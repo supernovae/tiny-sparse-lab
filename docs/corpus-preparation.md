@@ -883,3 +883,15 @@ memory sampling and cancellation. SQLite cache settings are not hard RSS limits.
 I/O failure retains source evidence and removes only owned unpublished scratch;
 no complete artifact is published on failure. Tiny fixture tests establish
 semantics and streaming, not full-corpus capacity or scientific qualification.
+
+
+### Full acquisition closure memory
+
+The full-project `corpus acquire PROJECT` CLI keeps manifest and receipt row
+inventories in operation-owned disk scratch through cold verification, atomic
+lock publication and stdout serialization. It streams the existing JSON shape;
+canonical acquisition-lock bytes and source identities are unchanged. The
+receipt can still be large on disk, so retain stdout with appropriate capture
+capacity and supervise actual free space. Per-source acquisition keeps its
+compact result and does not claim a complete project lock. This change does not
+alter source selection, retry policy or scientific preparation settings.
