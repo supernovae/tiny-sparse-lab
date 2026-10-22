@@ -95,6 +95,23 @@ def test_public_v2_disk_build_matches_native_in_memory_outputs(
         ],
     ]:
         assert (disk / name).read_bytes() == (memory / name).read_bytes(), name
+    from sparselab.corpus import release as release_module
+    from sparselab.corpus.row_index import RowIndex
+
+    indexed_keys = []
+    native_index = RowIndex.__init__
+
+    def tracked_index(self, connection, rows, key, **kwargs):
+        native_index(self, connection, rows, key, **kwargs)
+        indexed_keys.append(len(self))
+
+    monkeypatch.setattr(RowIndex, "__init__", tracked_index)
+    monkeypatch.setattr(
+        release_module,
+        "_rows",
+        lambda *_: pytest.fail("cold verification materialized JSONL"),
+    )
     assert verify_release(release)["release_id"] == release.name
+    assert indexed_keys and max(indexed_keys) >= 30
     assert verify_release(freeze(memory, root))["release_id"]
     assert not list(root.rglob(".metadata-*"))

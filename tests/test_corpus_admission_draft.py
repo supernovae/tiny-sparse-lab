@@ -225,7 +225,7 @@ def test_application_binding_fails_closed_before_draft(
     assert not output.exists()
 
 
-def test_draft_canonical_bytes_and_size_failure_cleanup(tmp_path, monkeypatch):
+def test_draft_canonical_bytes_and_io_failure_cleanup(tmp_path, monkeypatch):
     from sparselab.corpus import admission_draft
     from sparselab.training.manifest import canonical_json
 
@@ -234,9 +234,13 @@ def test_draft_canonical_bytes_and_size_failure_cleanup(tmp_path, monkeypatch):
     draft_admission_manifest(project, root, template, policy, output)
     original = output.read_bytes()
     assert original == canonical_json(json.loads(original)) + b"\n"
-    monkeypatch.setattr(admission_draft, "_MAX_OUTPUT_BYTES", len(original) - 1)
+
+    def disk_failure(_fd):
+        raise OSError("injected disk failure before publication")
+
+    monkeypatch.setattr(admission_draft.os, "fsync", disk_failure)
     refused = root / "refused.json"
-    with pytest.raises(ValueError, match="output-byte cap"):
+    with pytest.raises(OSError, match="disk failure"):
         draft_admission_manifest(project, root, template, policy, refused)
     assert not refused.exists() and output.read_bytes() == original
     assert not list(root.rglob(".draft-*"))

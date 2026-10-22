@@ -507,7 +507,9 @@ def _index_prepared(
         );
         """
     )
-    policy = project.splits.model_dump(mode="json")
+    from sparselab.corpus.split_assignments import split_policy
+
+    policy = split_policy(project)
     rank = {
         source.id: (
             0
@@ -1553,6 +1555,9 @@ def build_large(
             progress.update(phase="writing_views")
             with tempfile.TemporaryDirectory(prefix=".build-", dir=root) as temporary:
                 staging = Path(temporary)
+                from sparselab.corpus.split_assignments import copy_assignments
+
+                copy_assignments(project, staging)
                 if admission_path is not None:
                     copy = staging / "record-admission.json"
                     shutil.copyfile(admission_path, copy)

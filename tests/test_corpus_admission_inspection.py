@@ -655,3 +655,13 @@ def test_inspection_cli_summary_includes_sampling_reads(tmp_path):
     summary = _inspect_again(tmp_path, fixture)
     report = json.loads((fixture[0] / "again.json").read_text())
     assert summary["read_bytes"] == report["read_bytes"] == 2 * summary["input_bytes"]
+
+
+def test_explicit_large_streaming_input_budget_does_not_allocate_or_refuse_by_native_ceiling(
+    tmp_path,
+):
+    fixture = _fixture(tmp_path)
+    _inspect_again(tmp_path, fixture, "large-budget.json", max_input_bytes=3 * 1024**3)
+    observed = json.loads((fixture[0] / "large-budget.json").read_text())
+    assert observed["max_input_bytes"] == 3 * 1024**3
+    assert observed["input_bytes"] < 1048576

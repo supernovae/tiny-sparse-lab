@@ -333,6 +333,7 @@ def write_split_inventory(
     project: Project, work_root: Path, output: Path
 ) -> dict[str, Any]:
     with metadata_operation(
-        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch",
+        max_database_bytes=None,
     ):
         return write_split_inventory_stored(project, work_root, output)

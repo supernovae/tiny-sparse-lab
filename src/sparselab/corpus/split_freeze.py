@@ -6,19 +6,25 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import tempfile
-from collections import defaultdict
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 import yaml
 
 from sparselab.corpus.acquisition import verify_acquisition
-from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
+from sparselab.corpus.bounded_metadata import (
+    current_metadata_store,
+    metadata_operation,
+    read_metadata,
+)
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import Project, project_path, source_declaration_payload
 from sparselab.corpus.release import verify_release
 from sparselab.corpus.rights import verify_record_admission
+from sparselab.corpus.row_index import RowIndex, ValueMap
 from sparselab.corpus.split_inventory import write_split_inventory
 from sparselab.result_publication import sync_directory as _sync_directory
 from sparselab.training.manifest import canonical_json, sha256_file
@@ -49,7 +55,10 @@ def verify_split_bundle(
     candidate = output.with_name(output.stem + ".family-candidates.jsonl")
     receipt_path = output.with_name(output.stem + ".receipt.json")
     try:
-        payload = output.read_bytes()
+        with output.open("rb") as stream:
+            payload = stream.read(4 * 1024**2 + 1)
+        if len(payload) > 4 * 1024**2:
+            raise ValueError("split declaration header byte cap exceeded")
         if not required and not (
             payload.startswith(_FREEZE_MARKER)
             or candidate.exists()
@@ -63,7 +72,11 @@ def verify_split_bundle(
             for path in (output, candidate, receipt_path)
         ):
             raise ValueError("missing or nonregular bundle member")
-        receipt = json.loads(receipt_path.read_bytes())
+        with receipt_path.open("rb") as stream:
+            receipt_bytes = stream.read(4 * 1024**2 + 1)
+        if len(receipt_bytes) > 4 * 1024**2:
+            raise ValueError("split receipt header byte cap exceeded")
+        receipt = json.loads(receipt_bytes)
         if (
             not isinstance(receipt, dict)
             or not {
@@ -82,6 +95,14 @@ def verify_split_bundle(
             raise ValueError("receipt digest mismatch")
     except (OSError, ValueError) as exc:
         raise ValueError("incomplete or mismatched frozen split bundle") from exc
+    from sparselab.corpus.project import SplitDeclaration
+    from sparselab.corpus.split_assignments import assignment_path
+
+    declaration = SplitDeclaration.model_validate(yaml.safe_load(payload))
+    if declaration.assignment_file is not None:
+        assignment_path(
+            output.parent, declaration.assignment_file.model_dump(mode="json")
+        )
     return receipt
 
 
@@ -111,7 +132,9 @@ def _counts(
     return floors[0], floors[1], floors[2]
 
 
-def _publish_new(path: Path, data: bytes, *, work_root: Path | None = None) -> None:
+def _publish_new(
+    path: Path, data: bytes | Path, *, work_root: Path | None = None
+) -> None:
     sync_root = work_root
     if sync_root is None:
         # Standalone family-inventory publication: persist every directory we
@@ -126,7 +149,11 @@ def _publish_new(path: Path, data: bytes, *, work_root: Path | None = None) -> N
     ) as stream:
         temporary = Path(stream.name)
         try:
-            stream.write(data)
+            if isinstance(data, Path):
+                with data.open("rb") as source:
+                    shutil.copyfileobj(source, stream)
+            else:
+                stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
             os.link(temporary, path)
@@ -158,16 +185,21 @@ def _prior_family_splits(
     manifest = verify_release(release, **verification_options(root))
     if manifest["release_id"] != release.name:
         raise ValueError("prior release identity mismatch")
-    kept = {}
-    for record in records_from_path(release / "documents.jsonl"):
-        doc = record.value
-        if doc["drop_reason"] is None:
-            kept[doc["document_id"]] = doc
-    families: dict[str, str] = {}
-    strata: dict[str, str] = {}
-    content: dict[str, tuple[str, str]] = {}
-    seen: set[str] = set()
-    for record in records_from_path(prior_path):
+    connection = current_metadata_store().connection
+    kept = RowIndex(
+        connection,
+        (
+            record.value
+            for record in records_from_path(release / "documents.jsonl")
+            if record.value["drop_reason"] is None
+        ),
+        lambda row: row["document_id"],
+    )
+    families = ValueMap(connection)
+    strata = ValueMap(connection)
+    content = ValueMap(connection)
+    seen = ValueMap(connection)
+    for record in records_from_path(prior_path, max_record_bytes=8 * 1024**2):
         row = record.value
         if (
             not isinstance(row, dict)
@@ -179,7 +211,7 @@ def _prior_family_splits(
             or not row["family_id"]
         ):
             raise ValueError("invalid prior family inventory row")
-        seen.add(row["document_id"])
+        seen[row["document_id"]] = True
         doc = kept.get(row["document_id"])
         if (
             doc is None
@@ -198,7 +230,7 @@ def _prior_family_splits(
         previous = content.setdefault(row["content_sha256"], (family, row["split"]))
         if previous != (family, row["split"]):
             raise ValueError("prior content spans families or splits")
-    if seen != set(kept):
+    if not seen.same_keys(kept):
         raise ValueError("prior family inventory does not cover kept release")
     return families, strata, content
 
@@ -214,12 +246,18 @@ def _freeze_splits(
 ) -> dict[str, Any]:
     """Assign eligible document families; excluded rows get held-out placeholders."""
     root = work_root.resolve()
+    if any(
+        part.is_symlink()
+        for path in (inventory_path, clusters_path, output)
+        for part in (path, *path.parents)
+    ):
+        raise ValueError("symlink in split input or output")
     paths = [inventory_path.resolve(), clusters_path.resolve(), output.resolve()]
     if any(not path.is_relative_to(root) for path in paths):
         raise ValueError("split inputs and output must reside in the work root")
     if not recover and (output.exists() or output.is_symlink()):
         raise ValueError("frozen split output already exists")
-    raw_clusters = json.loads(clusters_path.read_text(encoding="utf-8"))
+    raw_clusters = read_metadata(clusters_path)
     if (
         not isinstance(raw_clusters, dict)
         or not {
@@ -303,12 +341,22 @@ def _freeze_splits(
         snapshots,
         root / "corpora" / project.config.id / "snapshots",
     )
-    inventory = [record.value for record in records_from_path(inventory_path)]
-    ids = [row["document_id"] for row in inventory]
-    if len(set(ids)) != len(ids):
-        raise ValueError("split inventory has duplicate document IDs")
-    hints = {row["family_hint"] for row in inventory}
-    merged: dict[str, str] = {}
+    connection = current_metadata_store().connection
+    inventory = RowIndex(
+        connection,
+        (
+            record.value
+            for record in records_from_path(
+                inventory_path, max_record_bytes=8 * 1024**2
+            )
+        ),
+        lambda row: row["document_id"],
+        duplicate="split inventory has duplicate document IDs",
+    )
+    hints = ValueMap(connection)
+    for row in inventory.values():
+        hints[row["family_hint"]] = True
+    merged = ValueMap(connection)
     for item in raw_clusters["merges"]:
         if (
             not isinstance(item, dict)
@@ -323,11 +371,11 @@ def _freeze_splits(
             raise ValueError("invalid reviewed family merge")
         for hint in item["member_hints"]:
             merged[hint] = item["family_id"]
-    families: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
-    assignments: dict[str, str] = {}
-    qualified_family: dict[str, tuple[str, str]] = {}
+    families = ValueMap(connection)
+    assignments = ValueMap(connection)
+    qualified_family = ValueMap(connection)
     eligible = 0
-    for row in inventory:
+    for row in inventory.values():
         source_id = row["source_id"]
         path = row["source_location"].split("#", 1)[0]
         decision = admitted.get((source_id, path))
@@ -352,115 +400,141 @@ def _freeze_splits(
         previous = prior_content.get(row["content_sha256"])
         if previous is not None and previous[0] != family:
             raise ValueError("prior content changed reviewed family")
-        families[stratum, family].append(row)
+        families[stratum, family] = hashlib.sha256(
+            canonical_json([raw_clusters["seed"], stratum, family])
+        ).hexdigest()
         qualified_family[row["document_id"]] = (stratum, family)
         eligible += 1
     # A family may not straddle source strata. It must be merged/reviewed first.
-    family_strata: dict[str, set[str]] = defaultdict(set)
+    family_strata = ValueMap(connection)
     for stratum, family in families:
-        family_strata[family].add(stratum)
-    if any(len(strata) > 1 for strata in family_strata.values()):
-        raise ValueError("reviewed family spans multiple token strata")
+        if family_strata.setdefault(family, stratum) != stratum:
+            raise ValueError("reviewed family spans multiple token strata")
     realized: dict[str, dict[str, Any]] = {}
     for stratum in sorted(set(raw_clusters["source_strata"].values())):
-        names = sorted(
-            (
-                family
-                for family_stratum, family in families
-                if family_stratum == stratum
-            ),
-            key=lambda family: hashlib.sha256(
-                canonical_json([raw_clusters["seed"], stratum, family])
-            ).hexdigest(),
-        )
-        if len(names) < sum(weights):
+
+        def names(stratum=stratum):
+            for row in connection.execute(
+                f"SELECT key FROM {families.table} WHERE json_extract(key,'$[0]')=? ORDER BY json_extract(value,'$'),json_extract(key,'$[1]')",
+                (stratum,),
+            ):
+                yield json.loads(row[0])[1]
+
+        name_count = connection.execute(
+            f"SELECT COUNT(*) FROM {families.table} WHERE json_extract(key,'$[0]')=?",
+            (stratum,),
+        ).fetchone()[0]
+        if name_count < sum(weights):
             raise ValueError(f"too few eligible families for {stratum} split")
-        train, validation, test = _counts(len(names), weights)
+        train, validation, test = _counts(name_count, weights)
         realized[stratum] = {
-            "families": len(names),
+            "families": name_count,
             "train": train,
             "validation": validation,
             "test": test,
             "fractions": {
-                "train": f"{train}/{len(names)}",
-                "validation": f"{validation}/{len(names)}",
-                "test": f"{test}/{len(names)}",
+                "train": f"{train}/{name_count}",
+                "validation": f"{validation}/{name_count}",
+                "test": f"{test}/{name_count}",
             },
         }
         planned = dict(zip(_SPLITS, (train, validation, test), strict=True))
-        pinned = {
-            family: prior_families[family]
-            for family in names
-            if family in prior_families
-        }
-        if any(prior_strata[family] != stratum for family in pinned):
-            raise ValueError("prior family changed token stratum")
+        pinned = ValueMap(connection)
+        for family in names():
+            if family in prior_families:
+                pinned[family] = prior_families[family]
+                if prior_strata[family] != stratum:
+                    raise ValueError("prior family changed token stratum")
         remaining = {
             split: planned[split] - sum(value == split for value in pinned.values())
             for split in _SPLITS
         }
         if any(count < 0 for count in remaining.values()):
             raise ValueError("prior family assignments exceed new split quota")
-        new_names = [family for family in names if family not in pinned]
-        if sum(remaining.values()) != len(new_names):
+        if sum(remaining.values()) != name_count - len(pinned):
             raise ValueError("prior family split accounting mismatch")
-        assigned = dict(pinned)
-        for index, family in enumerate(new_names):
-            assigned[family] = (
-                "train"
-                if index < remaining["train"]
-                else "validation"
-                if index < remaining["train"] + remaining["validation"]
-                else "test"
-            )
-        for family in names:
-            split = assigned[family]
-            for row in families[stratum, family]:
-                assignments[row["document_id"]] = split
-    if set(assignments) != set(ids):
+        index = 0
+        for family in names():
+            if family in pinned:
+                split = pinned[family]
+            else:
+                split = (
+                    "train"
+                    if index < remaining["train"]
+                    else "validation"
+                    if index < remaining["train"] + remaining["validation"]
+                    else "test"
+                )
+                index += 1
+            for document_id in qualified_family.keys_for_value((stratum, family)):
+                assignments[document_id] = split
+    if not assignments.same_keys(inventory):
         raise ValueError("split assignments do not cover inventory")
-    by_content: dict[str, set[str]] = defaultdict(set)
-    for row in inventory:
+    by_content = ValueMap(connection)
+    for row in inventory.values():
         if row["document_id"] not in assignments:
             raise ValueError("missing document assignment")
         if row["document_id"] in qualified_family:
-            by_content[row["content_sha256"]].add(assignments[row["document_id"]])
+            if (
+                by_content.setdefault(
+                    row["content_sha256"], assignments[row["document_id"]]
+                )
+                != assignments[row["document_id"]]
+            ):
+                raise ValueError("cross-split exact content duplicate")
             previous = prior_content.get(row["content_sha256"])
             if previous is not None and assignments[row["document_id"]] != previous[1]:
                 raise ValueError("prior held-out content changed split")
-    if any(len(splits) > 1 for splits in by_content.values()):
-        raise ValueError("cross-split exact content duplicate")
+    temporary = Path(current_metadata_store().temporary.name)
+    assignment_payload = temporary / ("assignments-" + uuid4().hex)
+    with assignment_payload.open("xb") as stream:
+        for document_id in assignments:
+            stream.write(
+                canonical_json(
+                    {"document_id": document_id, "split": assignments[document_id]}
+                )
+                + b"\n"
+            )
+    assignment_digest = sha256_file(assignment_payload)
+    assignment_output = output.parent / ("assignments-" + assignment_digest + ".jsonl")
     declaration = {
         "schema_version": 1,
         "unit": "document",
         "family_key": None,
-        "assignments": dict(sorted(assignments.items())),
+        "assignments": {},
+        "assignment_file": {"sha256": assignment_digest, "rows": len(assignments)},
     }
     payload = _FREEZE_MARKER + yaml.safe_dump(declaration, sort_keys=False).encode(
         "utf-8"
     )
-    family_rows = [
-        {
-            "document_id": row["document_id"],
-            "family_id": qualified_family[row["document_id"]][1],
-            "split": assignments[row["document_id"]],
-            "stratum": qualified_family[row["document_id"]][0],
-            "content_sha256": row["content_sha256"],
-        }
-        for row in sorted(inventory, key=lambda row: row["document_id"])
-        if row["document_id"] in qualified_family
-    ]
+    family_payload = temporary / ("families-" + uuid4().hex)
+    with family_payload.open("xb") as stream:
+        for row in inventory.ordered_values():
+            document_id = row["document_id"]
+            if document_id in qualified_family:
+                stratum, family = qualified_family[document_id]
+                stream.write(
+                    canonical_json(
+                        {
+                            "document_id": document_id,
+                            "family_id": family,
+                            "split": assignments[document_id],
+                            "stratum": stratum,
+                            "content_sha256": row["content_sha256"],
+                        }
+                    )
+                    + b"\n"
+                )
     candidate_path = output.with_name(output.stem + ".family-candidates.jsonl")
     receipt_path = output.with_name(output.stem + ".receipt.json")
     if not recover and any(
         path.exists() or path.is_symlink() for path in (candidate_path, receipt_path)
     ):
         raise ValueError("frozen split companion output already exists")
-    family_payload = b"".join(canonical_json(row) + b"\n" for row in family_rows)
     receipt = {
         "schema_version": 1,
         "split_sha256": hashlib.sha256(payload).hexdigest(),
-        "family_candidate_sha256": hashlib.sha256(family_payload).hexdigest(),
+        "family_candidate_sha256": sha256_file(family_payload),
         "inventory_sha256": report["sha256"],
         "admission_sha256": reference.sha256,
         "cluster_sha256": sha256_file(clusters_path),
@@ -485,17 +559,26 @@ def _freeze_splits(
     }
     members = (
         (candidate_path, family_payload),
+        (assignment_output, assignment_payload),
         (output, payload),
         (receipt_path, canonical_json(receipt) + b"\n"),
     )
     # Validate every existing member before publishing anything, including receipt.
     for path, expected in members:
         if path.is_symlink() or (
-            path.exists() and (not path.is_file() or path.read_bytes() != expected)
+            path.exists()
+            and (
+                not path.is_file()
+                or (
+                    sha256_file(path) != sha256_file(expected)
+                    if isinstance(expected, Path)
+                    else path.read_bytes() != expected
+                )
+            )
         ):
             raise ValueError(f"conflicting frozen split evidence: {path}")
     for path, expected in members:
-        if recover and path.exists():
+        if (recover or path == assignment_output) and path.exists():
             # Re-establish durability after a previous uncertain publication.
             with path.open("rb") as stream:
                 os.fsync(stream.fileno())
@@ -514,7 +597,7 @@ def _freeze_splits(
         "family_candidate_sha256": receipt["family_candidate_sha256"],
         "receipt": str(receipt_path),
         "eligible_documents": eligible,
-        "placeholder_documents": len(ids) - eligible,
+        "placeholder_documents": len(inventory) - eligible,
         "family_counts": realized,
         **(
             {"split_weights": raw_clusters["split_weights"]}
@@ -524,7 +607,7 @@ def _freeze_splits(
     }
 
 
-def finalize_family_inventory(
+def _finalize_family_inventory(
     release: Path, frozen_splits: Path, output: Path
 ) -> dict[str, Any]:
     """Filter the authenticated family candidates to exactly kept release docs."""
@@ -541,41 +624,54 @@ def finalize_family_inventory(
         != yaml.safe_load(frozen_splits.read_text(encoding="utf-8"))
     ):
         raise ValueError("family candidates differ from frozen release split")
-    candidate_rows = [record.value for record in records_from_path(candidate_path)]
-    candidates = {row["document_id"]: row for row in candidate_rows}
-    docs = {
-        row["document_id"]: row
-        for row in (
-            record.value for record in records_from_path(release / "documents.jsonl")
-        )
-    }
-    if len(candidates) != len(candidate_rows):
-        raise ValueError("duplicate family candidate document")
-    if set(candidates) != set(docs):
+    connection = current_metadata_store().connection
+    candidates = RowIndex(
+        connection,
+        (
+            record.value
+            for record in records_from_path(
+                candidate_path, max_record_bytes=8 * 1024**2
+            )
+        ),
+        lambda row: row["document_id"],
+        duplicate="duplicate family candidate document",
+    )
+    docs = RowIndex(
+        connection,
+        (record.value for record in records_from_path(release / "documents.jsonl")),
+        lambda row: row["document_id"],
+    )
+    if not candidates.same_keys(docs):
         raise ValueError("family candidates differ from release documents")
-    kept = []
-    for document_id, doc in sorted(docs.items()):
-        row = candidates[document_id]
-        if (
-            set(row)
-            != {"document_id", "family_id", "split", "stratum", "content_sha256"}
-            or row["split"] != doc["split"]
-            or row["content_sha256"] != doc["content_sha256"]
-            or row["stratum"] not in doc["domains"]
-        ):
-            raise ValueError("family candidate disagrees with verified release")
-        if doc["drop_reason"] is None:
-            kept.append(row)
+    kept = 0
+    payload = Path(current_metadata_store().temporary.name) / (
+        "final-family-" + uuid4().hex
+    )
+    with payload.open("xb") as stream:
+        for doc in docs.ordered_values():
+            document_id = doc["document_id"]
+            row = candidates[document_id]
+            if (
+                set(row)
+                != {"document_id", "family_id", "split", "stratum", "content_sha256"}
+                or row["split"] != doc["split"]
+                or row["content_sha256"] != doc["content_sha256"]
+                or row["stratum"] not in doc["domains"]
+            ):
+                raise ValueError("family candidate disagrees with verified release")
+            if doc["drop_reason"] is None:
+                stream.write(canonical_json(row) + b"\n")
+                kept += 1
     if output.exists() or output.is_symlink():
         raise ValueError("final family inventory already exists")
-    _publish_new(output, b"".join(canonical_json(row) + b"\n" for row in kept))
+    _publish_new(output, payload)
     return {
         "schema_version": 1,
         "release_id": manifest["release_id"],
         "output": str(output),
         "sha256": sha256_file(output),
-        "kept_documents": len(kept),
-        "duplicate_documents_removed": len(docs) - len(kept),
+        "kept_documents": kept,
+        "duplicate_documents_removed": len(docs) - kept,
         "split_sha256": receipt["split_sha256"],
         "family_candidate_sha256": receipt["family_candidate_sha256"],
     }
@@ -591,10 +687,18 @@ def freeze_splits(
     recover: bool = False,
 ) -> dict[str, Any]:
     # Keep verified row decisions alive through assignment and recovery checks.
-    # Inventory/family/assignment collections are still proportional to input.
+    # All inventory/family/assignment joins share the owned operation database.
     with metadata_operation(
-        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch",
+        max_database_bytes=None,
     ):
         return _freeze_splits(
             project, work_root, inventory_path, clusters_path, output, recover=recover
         )
+
+
+def finalize_family_inventory(
+    release: Path, frozen_splits: Path, output: Path
+) -> dict[str, Any]:
+    with metadata_operation(output.parent, max_database_bytes=None):
+        return _finalize_family_inventory(release, frozen_splits, output)

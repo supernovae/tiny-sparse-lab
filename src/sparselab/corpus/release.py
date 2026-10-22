@@ -849,7 +849,7 @@ def _validate_rows(
     from sparselab.corpus.admission_coverage import AdmissionCoverage
 
     with (
-        metadata_operation(root.parent) as metadata,
+        metadata_operation(root.parent, max_database_bytes=None) as metadata,
         AdmissionCoverage(metadata.connection) as coverage,
         ExitStack() as replay_stack,
     ):
@@ -857,6 +857,7 @@ def _validate_rows(
             root,
             replay_stack=replay_stack,
             coverage=coverage,
+            row_connection=metadata.connection,
             proof_store=proof_store,
             verification_mode=verification_mode,
         )
@@ -867,6 +868,7 @@ def _validate_rows_stored(
     *,
     replay_stack: ExitStack,
     coverage,
+    row_connection,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> None:
@@ -877,15 +879,27 @@ def _validate_rows_stored(
     selected_normalizer = identity["release"].get(
         "normalizer", "normalizer-nfc-markdown-v1"
     )
-    documents = _rows(root / "documents.jsonl")
-    document_map = {doc["document_id"]: doc for doc in documents}
-    if len(document_map) != len(documents):
-        raise ValueError("duplicate document identity")
-    for doc in documents:
+    from sparselab.corpus.jsonl_records import records_from_path
+    from sparselab.corpus.row_index import RowIndex
+
+    def rows(path):
+        if path.is_symlink():
+            raise ValueError("symlinked evidence input")
+        return (record.value for record in records_from_path(path))
+
+    def row_index(path, key="record_id", *, duplicate="duplicate evidence identity"):
+        return RowIndex(
+            row_connection, rows(path), lambda row: row[key], duplicate=duplicate
+        )
+
+    document_map = row_index(
+        root / "documents.jsonl", "document_id", duplicate="duplicate document identity"
+    )
+    for doc in document_map.values():
         if doc["content_sha256"] != hashlib.sha256(doc["text"].encode()).hexdigest():
             raise ValueError("document content digest mismatch")
         _verify_cleaning_decision(doc, selected_normalizer)
-    spans = {item["record_id"]: item for item in _rows(root / "spans.jsonl")}
+    spans = row_index(root / "spans.jsonl")
     sources = {item["id"]: item for item in _load(root / "sources.json")}
     from sparselab.corpus.acquisition import verify_snapshot
 
@@ -939,21 +953,14 @@ def _validate_rows_stored(
             raise ValueError("source declaration attribution mismatch")
     prospective = any("rights_policy" in source for source in sources.values())
     rights_files = _verify_rights_files(root, sources, snapshots) if prospective else {}
-    if set(spans) != set(document_map):
+    if not spans.same_keys(document_map):
         raise ValueError("document evidence span inventory mismatch")
     previous_file: Path | None = None
     raw = b""
     raw_sha = ""
     offsets: list[int] = []
     sample_rows = None
-    for doc in sorted(
-        documents,
-        key=lambda item: (
-            item["source_id"],
-            spans[item["document_id"]]["raw_path"],
-            spans[item["document_id"]]["line_start"],
-        ),
-    ):
+    for doc in document_map.source_order(spans):
         span = spans[doc["document_id"]]
         source = sources[doc["source_id"]]
         if (
@@ -1153,11 +1160,8 @@ def _validate_rows_stored(
             if choice["decision"] == "qualify":
                 coverage.expect(source_id, path, index)
     coverage.verify()
-    lineages = _rows(root / "lineage.jsonl")
-    lineage_map = {row["record_id"]: row for row in lineages}
-    if len(lineage_map) != len(lineages):
-        raise ValueError("duplicate lineage ID")
-    classified = any("origin" in row for row in lineages)
+    lineage_map = row_index(root / "lineage.jsonl", duplicate="duplicate lineage ID")
+    classified = any("origin" in row for row in lineage_map.values())
     if classified:
         from sparselab.corpus.pipeline import _path_scenario, _scenario, _scenario_shape
         from sparselab.corpus.provenance import (
@@ -1170,26 +1174,24 @@ def _validate_rows_stored(
         receipt = _load(
             root / ("build.json" if (root / "build.json").exists() else "manifest.json")
         )
-        stage_rows = {
-            (stage["id"], record.get("record_id", record.get("scenario_id"))): record
-            for stage in receipt["stages"]
-            for record in _rows(root / "stages" / f"{stage['id']}.jsonl")
-            if record.get("record_id") or record.get("scenario_id")
-        }
-        chats = {
-            record["record_id"]: record for record in _rows(root / "chat/records.jsonl")
-        }
-        scenarios = {
-            record["scenario_id"]: record for record in _rows(root / "scenarios.jsonl")
-        }
-        generations = {
-            record["record_id"]: record for record in _rows(root / "generations.jsonl")
-        }
-        semantic = {
-            record["record_id"]: record
-            for record in _rows(root / "semantic/candidates.jsonl")
-        }
-        for row in lineages:
+        stage_rows = RowIndex(
+            row_connection,
+            (
+                {"stage": stage["id"], "record": record}
+                for stage in receipt["stages"]
+                for record in rows(root / "stages" / f"{stage['id']}.jsonl")
+                if record.get("record_id") or record.get("scenario_id")
+            ),
+            lambda item: (
+                item["stage"],
+                item["record"].get("record_id", item["record"].get("scenario_id")),
+            ),
+        )
+        chats = row_index(root / "chat/records.jsonl")
+        scenarios = row_index(root / "scenarios.jsonl", "scenario_id")
+        generations = row_index(root / "generations.jsonl")
+        semantic = row_index(root / "semantic/candidates.jsonl")
+        for row in lineage_map.values():
             validate_lineage(row, documents=document_map)
             expected_origin = (
                 source_origins[document_map[row["record_id"]]["source_id"]]
@@ -1313,7 +1315,8 @@ def _validate_rows_stored(
                     else None
                 )
             else:
-                payload = stage_rows.get((row["transform_id"], row["record_id"]))
+                stored = stage_rows.get((row["transform_id"], row["record_id"]))
+                payload = stored["record"] if stored is not None else None
             source_payload = record if kind in {"chat_sft", "tool_episode"} else payload
             expected_shape = {
                 "lexical_candidate": "lexical_inventory",
@@ -1470,9 +1473,9 @@ def _validate_rows_stored(
                         raise ValueError("semantic chat generator/evidence mismatch")
                 else:
                     raise ValueError("chat missing generator reference")
-    for row in lineages:
+    for row in lineage_map.values():
         parents = row["parent_document_ids"]
-        if not set(parents).issubset(document_map) or (
+        if any(parent not in document_map for parent in parents) or (
             row["split"] not in {"train", "validation", "test"}
             and not (
                 row["record_kind"] == "lexical_candidate"
@@ -1480,7 +1483,10 @@ def _validate_rows_stored(
             )
         ):
             raise ValueError("dangling lineage or invalid split")
-        if not set(row["representative_parent_document_ids"]).issubset(document_map):
+        if any(
+            parent not in document_map
+            for parent in row["representative_parent_document_ids"]
+        ):
             raise ValueError("invalid representative lineage")
         if row["split"] == "inventory":
             if len({document_map[parent]["split"] for parent in parents}) < 2:
@@ -1491,7 +1497,7 @@ def _validate_rows_stored(
             {document_map[parent]["representative_id"] for parent in parents}
         ):
             raise ValueError("incorrect duplicate representative lineage")
-    for doc in documents:
+    for doc in document_map.values():
         row = lineage_map.get(doc["document_id"])
         if (
             row is None
@@ -1499,13 +1505,16 @@ def _validate_rows_stored(
             or row["split"] != doc["split"]
         ):
             raise ValueError("document lineage mismatch")
-    chats = {row["record_id"]: row for row in _rows(root / "chat/records.jsonl")}
+    if not classified:
+        chats = row_index(root / "chat/records.jsonl")
     for split in ("train", "validation", "test"):
-        lm = _rows(root / "lm" / f"{split}.jsonl")
-        lm_lineage = _rows(root / "lm" / f"{split}.lineage.jsonl")
-        if len(lm) != len(lm_lineage):
-            raise ValueError("LM lineage count mismatch")
-        for row, link in zip(lm, lm_lineage, strict=True):
+        from itertools import zip_longest
+
+        lm = rows(root / "lm" / f"{split}.jsonl")
+        lm_lineage = rows(root / "lm" / f"{split}.lineage.jsonl")
+        for row, link in zip_longest(lm, lm_lineage):
+            if row is None or link is None:
+                raise ValueError("LM lineage count mismatch")
             doc = document_map[link["record_id"]]
             if classified and (
                 link["split"] != split
@@ -1523,11 +1532,13 @@ def _validate_rows_stored(
                 or doc["drop_reason"]
             ):
                 raise ValueError("invalid LM record or lineage")
-        chat = _rows(root / "chat" / f"{split}.jsonl")
-        chat_lineage = _rows(root / "chat" / f"{split}.lineage.jsonl")
-        if len(chat) != len(chat_lineage):
-            raise ValueError("chat lineage count mismatch")
-        for row, link in zip(chat, chat_lineage, strict=True):
+        from itertools import zip_longest
+
+        chat = rows(root / "chat" / f"{split}.jsonl")
+        chat_lineage = rows(root / "chat" / f"{split}.lineage.jsonl")
+        for row, link in zip_longest(chat, chat_lineage):
+            if row is None or link is None:
+                raise ValueError("chat lineage count mismatch")
             record = chats[link["record_id"]]
             if classified and (
                 link["split"] != split
@@ -1551,7 +1562,8 @@ def _validate_rows_stored(
                 raise ValueError("invalid chat record lineage")
         from sparselab.data.conversations import iter_rendered_conversations
 
-        list(iter_rendered_conversations(root / "chat" / f"{split}.jsonl"))
+        for _ in iter_rendered_conversations(root / "chat" / f"{split}.jsonl"):
+            pass
 
 
 def _verify_stages(
@@ -1573,22 +1585,17 @@ def _verify_stages(
         ):
             raise ValueError("stage declaration identity mismatch")
         output = _safe(root, f"stages/{stage['id']}.jsonl")
-        if _streaming_v3(identity):
-            digest = hashlib.sha256()
-            digest.update(canonical_json([stage["id"]])[:-1])
-            digest.update(b",[")
-            count = 0
-            for index, row in enumerate(_iter_rows(output)):
-                if index:
-                    digest.update(b",")
-                digest.update(canonical_json(row))
-                count = index + 1
-            digest.update(b"]]")
-            output_id = digest.hexdigest()
-        else:
-            rows = _rows(output)
-            count = len(rows)
-            output_id = _digest([stage["id"], rows])
+        digest = hashlib.sha256()
+        digest.update(canonical_json([stage["id"]])[:-1])
+        digest.update(b",[")
+        count = 0
+        for index, row in enumerate(_iter_rows(output)):
+            if index:
+                digest.update(b",")
+            digest.update(canonical_json(row))
+            count = index + 1
+        digest.update(b"]]")
+        output_id = digest.hexdigest()
         if (
             sha256_file(output) != stage["output_sha256"]
             or count != stage["output_count"]
@@ -1664,6 +1671,7 @@ def _verify_build_cold(
     )
     _verify_stages(path, manifest["stages"], manifest["identity"])
     from sparselab.corpus.acquisition import verify_snapshot
+    from sparselab.corpus.split_assignments import verify_document_assignments
 
     for snapshot in manifest["snapshots"]:
         receipt = verify_snapshot(
@@ -1681,6 +1689,10 @@ def _verify_build_cold(
         proof_store=proof_store,
         verification_mode=verification_mode,
     )
+    with metadata_operation(path.parent, max_database_bytes=None):
+        verify_document_assignments(
+            path, manifest["identity"], _iter_rows(path / "documents.jsonl")
+        )
     return manifest
 
 
@@ -1881,6 +1893,7 @@ def _verify_release_cold(
     )
     _verify_stages(path, manifest["stages"], manifest["build_identity"])
     from sparselab.corpus.acquisition import verify_snapshot
+    from sparselab.corpus.split_assignments import verify_document_assignments
 
     for snapshot in manifest["snapshots"]:
         receipt = verify_snapshot(
@@ -1898,6 +1911,10 @@ def _verify_release_cold(
         if _streaming_v3(manifest["build_identity"])
         else _validate_rows
     )(path, proof_store=proof_store, verification_mode=verification_mode)
+    with metadata_operation(path.parent, max_database_bytes=None):
+        verify_document_assignments(
+            path, manifest["build_identity"], _iter_rows(path / "documents.jsonl")
+        )
     if proofs is not None:
         if closure_key != _release_closure_key(path, manifest):
             raise ValueError("release changed during verification operation")

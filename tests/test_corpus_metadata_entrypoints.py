@@ -134,7 +134,10 @@ def test_inspection_enforces_metadata_input_cap_wiring(tmp_path, monkeypatch):
     recipe, policy, draft, selection, _ = _fixture(root)
     output = recipe / "refused.json"
     monkeypatch.setattr(bounded_metadata, "_MAX_INPUT_BYTES", draft.stat().st_size - 1)
-    with pytest.raises(ValueError, match="metadata input-byte cap exceeded"):
+    with (
+        metadata_operation(root / "explicit-capped-scratch"),
+        pytest.raises(ValueError, match="metadata input-byte cap exceeded"),
+    ):
         inspect(root, recipe, policy, draft, selection, output)
     assert not output.exists()
 
@@ -279,3 +282,29 @@ def test_build_keeps_metadata_operation_active_through_native_snapshot_consumers
     assert loaded
     assert not list(tmp_path.rglob(".metadata-*"))
     verify_build(output)
+
+
+def test_native_metadata_uses_file_bound_instead_of_fixed_input_quota(
+    tmp_path, monkeypatch
+):
+    from sparselab.corpus import bounded_metadata
+
+    root = tmp_path / "work"
+    root.mkdir()
+    recipe, policy, draft, selection, _ = _fixture(root)
+    monkeypatch.setattr(bounded_metadata, "_MAX_INPUT_BYTES", 1)
+    limits = []
+    original = MetadataStore.load
+
+    def tracked(self, path, **kwargs):
+        limits.append(
+            (self.max_database_bytes, kwargs["max_input_bytes"], path.stat().st_size)
+        )
+        return original(self, path, **kwargs)
+
+    monkeypatch.setattr(MetadataStore, "load", tracked)
+    inspect(root, recipe, policy, draft, selection, recipe / "streaming.json")
+    assert limits and all(
+        quota is None and bound == size for quota, bound, size in limits
+    )
+    assert not list(root.rglob(".metadata-*"))

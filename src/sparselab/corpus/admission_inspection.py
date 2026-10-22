@@ -318,11 +318,7 @@ def _inspect_stored(
     for value in (max_input_bytes, max_excerpt_bytes, max_output_bytes):
         if type(value) is not int or value <= 0:
             raise ValueError("inspection caps must be positive integers")
-    if (
-        max_input_bytes > 2 * 1024**3
-        or max_excerpt_bytes > 4096
-        or max_output_bytes > 4 * 1024**2
-    ):
+    if max_excerpt_bytes > 4096 or max_output_bytes > 4 * 1024**2:
         raise ValueError("inspection cap exceeds native maximum")
     if (
         sum(source.acquisition.max_bytes for source in project.sources)
@@ -332,8 +328,6 @@ def _inspect_stored(
             "admission inspection input-byte cap is below declared source maxima"
         )
     draft_file = _inside(draft_path, root)
-    if draft_file.stat().st_size > 128 * 1024**2:
-        raise ValueError("admission inspection draft is too large")
     draft = read_metadata(draft_file)
     policy = _inside(policy_document)
     if policy.stat().st_size > 1024**2:
@@ -644,7 +638,8 @@ def _inspect(
     **limits,
 ):
     with metadata_operation(
-        Path(work_root) / "corpora" / project.config.id / "metadata-scratch"
+        Path(work_root) / "corpora" / project.config.id / "metadata-scratch",
+        max_database_bytes=None,
     ):
         return _inspect_stored(
             project,
