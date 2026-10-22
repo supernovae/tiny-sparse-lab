@@ -611,12 +611,24 @@ class SplitDeclaration(StrictModel):
         default_factory=dict
     )
     assignment_file: SplitAssignmentsReference | None = None
+    family_fields_by_source: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+
+    @field_validator("family_fields_by_source")
+    @classmethod
+    def family_fields_valid(cls, value):
+        for source_id, fields in value.items():
+            if not _ID.fullmatch(source_id):
+                raise ValueError("invalid split family source ID")
+            RowQualification(profile="web_text", family_fields=fields)
+        return value
 
     @model_serializer(mode="wrap")
     def serialize_assignments(self, handler):
         result = handler(self)
         if self.assignment_file is None:
             result.pop("assignment_file", None)
+        if not self.family_fields_by_source:
+            result.pop("family_fields_by_source", None)
         return result
 
     @model_validator(mode="after")
@@ -875,6 +887,23 @@ class Project(StrictModel):
 
     @model_validator(mode="after")
     def rights_protocol_consistent(self) -> Project:
+        overrides = self.splits.family_fields_by_source
+        if set(overrides) - {source.id for source in self.sources}:
+            raise ValueError("split family fields name an unknown source")
+        for source in self.sources:
+            if source.id not in overrides:
+                continue
+            qualification = getattr(source.acquisition, "qualification", None)
+            if qualification is None:
+                raise ValueError(
+                    "split family fields require declared HF qualification"
+                )
+            RowQualification.model_validate(
+                {
+                    **qualification.model_dump(mode="json"),
+                    "family_fields": overrides[source.id],
+                }
+            )
         if any(
             source.schema_version != self.release.schema_version
             for source in self.sources

@@ -895,3 +895,40 @@ receipt can still be large on disk, so retain stdout with appropriate capture
 capacity and supervise actual free space. Per-source acquisition keeps its
 compact result and does not claim a complete project lock. This change does not
 alter source selection, retry policy or scientific preparation settings.
+
+
+### Reproducible split families from retained fields
+
+The existing split declaration accepts `family_fields_by_source`, mapping a
+qualified HF source ID to original row field names. For Cosmopedia preparation:
+
+```yaml
+family_fields_by_source:
+  cosmopedia_shard: [prompt]
+```
+
+This changes split grouping without editing immutable acquisition declarations
+or reacquiring their bytes. Inventory generation applies the declared fields;
+freeze persists the same map in the resulting split YAML. Cold inventory replay
+therefore uses the identical rule. Unknown sources, missing qualification,
+invalid field paths and overrides that weaken repository grouping refuse.
+Missing original row values produce unresolved families and cannot be admitted
+to frozen training splits.
+
+The native family ID is `synthetic_text-family:` followed by SHA-256 of the
+canonical UTF-8 JSON array of the selected original values. With `[prompt]`,
+that array contains the exact retained prompt: no trimming, case folding,
+Unicode normalization or extraction of quoted seed text. Identical prompts
+group together across shards. Different prompts may still share an underlying
+seed; repeatable prompt families are not proof of independent original seeds.
+Cosmopedia's retained `seed_data` values can be dataset labels, and quoted seed
+excerpts in prompts are not authenticated original seed IDs.
+
+To reproduce a split, retain the recipe/code commit, upstream revision, shard
+and snapshot digests, acquisition lock, admitted inventory digest, explicit
+family-field map, reviewed merges, split seed and integer weights. Native
+freezing ranks families by the hash of `[seed, stratum, family]`, with the family
+name as the tie-breaker, and assigns deterministic integer split counts. Keep
+the frozen YAML, digest-bound assignment companion, family inventory and commit
+receipt together. A clean clone can verify those artifacts and regenerate the
+same memberships from the same bytes; mutable upstream availability is separate.
