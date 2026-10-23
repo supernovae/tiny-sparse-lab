@@ -128,6 +128,29 @@ def _load_run_data(
     )
 
 
+def _check_training_storage(config: RunConfig, data: PreparedData) -> None:
+    from sparselab.workspace_preflight import require_storage, training_storage_checks
+
+    # Fresh packing checks new-cache growth before allocating. Native loading
+    # has now authenticated these inputs, so reserve only their run copy and
+    # checkpoints. Bind the actual cache/stage location for this storage query;
+    # mixture path selectors are excluded by the native packing identity.
+    storage_config = config.model_copy(
+        update={
+            "dataset": config.dataset.model_copy(
+                update={
+                    "cache_dir": data.root.parent,
+                    "mixture_declaration_path": None,
+                    "mixture_output_path": None,
+                }
+            )
+        }
+    )
+    require_storage(
+        training_storage_checks(storage_config, verified_prepared=data.receipt)
+    )
+
+
 def _stack_optional(
     records: list[
         tuple[
@@ -861,13 +884,6 @@ def _train_impl(
         spot_decision = (
             check_spot_capacity(spot_policy, run) if spot_policy is not None else None
         )
-        if purpose == "training":
-            from sparselab.workspace_preflight import (
-                require_storage,
-                training_storage_checks,
-            )
-
-            require_storage(training_storage_checks(config))
         if config.runtime.engine == "pytorch":
             engine = PyTorchEngine()
         elif config.runtime.engine == "mlx":
@@ -974,6 +990,9 @@ def _train_impl(
                     proof_store=proof_store,
                     verification_mode=verification_mode,
                 )
+        if purpose == "training":
+            _check_training_storage(config, data)
+            _check_startup_cancel(cancel_path)
         dataset = TokenBlockDataset(
             data.train,
             config.training.seq_len,
