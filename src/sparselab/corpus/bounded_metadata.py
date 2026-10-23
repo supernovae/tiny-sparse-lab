@@ -6,11 +6,14 @@ The JSON bytes and existing native verifiers remain the source of truth.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import os
 import re
 import sqlite3
 import tempfile
+from collections import OrderedDict
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -19,6 +22,89 @@ from sparselab.training.manifest import canonical_json
 
 _MAX_INPUT_BYTES = 256 * 1024**2
 _STRING_SPECIAL = re.compile(rb'["\\]')
+_REUSED_INPUTS = 128
+_REUSED_HEADER_BYTES = 8 * 1024**2  # Eviction budget, not a workload/RSS limit.
+
+
+def _fingerprint(info):
+    return tuple(
+        getattr(info, name)
+        for name in (
+            "st_dev",
+            "st_ino",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+            "st_mode",
+            "st_uid",
+            "st_gid",
+            "st_nlink",
+        )
+    )
+
+
+def _input_stat(path):
+    if any(part.is_symlink() for part in (path, *path.parents)) or not path.is_file():
+        raise ValueError("unsafe metadata input")
+    return path.stat()
+
+
+class _HashedInput:
+    def __init__(self, stream):
+        self.stream = stream
+        self.digest = hashlib.sha256()
+
+    def read(self, size):
+        raw = self.stream.read(size)
+        self.digest.update(raw)
+        return raw
+
+
+def _content_digest(stream, limit):
+    digest = hashlib.sha256()
+    consumed = 0
+    while raw := stream.read(min(256 * 1024, limit - consumed + 1)):
+        consumed += len(raw)
+        if consumed > limit:
+            raise ValueError("metadata input-byte cap exceeded")
+        digest.update(raw)
+    return digest.hexdigest()
+
+
+def _metadata_view(value):
+    """Fresh small headers, shared immutable row backing; never expand rows."""
+    if isinstance(value, DiskRows):
+        result = DiskRows(value.store, value.identifier)
+        result._length = value._length
+        result._shared = True
+        return result
+    if isinstance(value, dict):
+        return {key: _metadata_view(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_metadata_view(item) for item in value]
+    return value
+
+
+def _materialization_present(value):
+    if isinstance(value, DiskRows):
+        if not value._length:
+            return True
+        # SQLite can roll back earlier imports after a capacity/write error.
+        # Whole collections are private and otherwise changed only by append
+        # detachment or explicit scoped release; check their indexed endpoints.
+        return all(
+            value.store.connection.execute(
+                "SELECT 1 FROM rows WHERE collection=? AND ordinal=?",
+                (value.identifier, ordinal),
+            ).fetchone()
+            is not None
+            for ordinal in {0, value._length - 1}
+        )
+    if isinstance(value, dict):
+        return all(_materialization_present(item) for item in value.values())
+    if isinstance(value, list):
+        return all(_materialization_present(item) for item in value)
+    return True
 
 
 class DiskRows(list):
@@ -28,6 +114,7 @@ class DiskRows(list):
         self.store = store
         self.identifier = identifier
         self._length = 0
+        self._shared = False
 
     def __len__(self):
         return self._length
@@ -113,6 +200,8 @@ class MetadataStore:
         self.connection = sqlite3.connect(Path(self.temporary.name) / "rows.sqlite")
         self.next_identifier = 0
         self.max_database_bytes = max_database_bytes
+        self._loaded = OrderedDict()
+        self._loaded_header_bytes = 0
         try:
             self.connection.execute("PRAGMA page_size=4096")
             if max_database_bytes is not None:
@@ -138,6 +227,7 @@ class MetadataStore:
         self.close()
 
     def close(self):
+        self._loaded.clear()
         self.connection.close()
         self.temporary.cleanup()
 
@@ -145,10 +235,29 @@ class MetadataStore:
         self.next_identifier += 1
         return DiskRows(self, self.next_identifier)
 
+    def release_after(self, identifier):
+        """Release scoped scratch and invalidate only materializations using it."""
+        for key, cached in tuple(self._loaded.items()):
+            if cached[4] is not None and cached[4] > identifier:
+                self._loaded_header_bytes -= cached[3]
+                del self._loaded[key]
+        self.connection.execute("DELETE FROM rows WHERE collection > ?", (identifier,))
+
     def append(self, rows, value):
         if rows.store is not self:
             raise ValueError("row collection belongs to another metadata store")
         try:
+            if rows._shared:
+                # Preserve the owning-store append API without changing another
+                # reader or the cached input. Read-only use never copies rows.
+                detached = self.new_rows()
+                self.connection.execute(
+                    "INSERT INTO rows SELECT ?, ordinal, payload FROM rows "
+                    "WHERE collection=? AND ordinal<?",
+                    (detached.identifier, rows.identifier, rows._length),
+                )
+                rows.identifier = detached.identifier
+                rows._shared = False
             self.connection.execute(
                 "INSERT INTO rows VALUES(?,?,?)",
                 (
@@ -175,17 +284,65 @@ class MetadataStore:
         for value in (max_input_bytes, max_header_bytes, max_record_bytes):
             if type(value) is not int or value <= 0:
                 raise ValueError("metadata limits must be positive integers")
-        if (
-            any(part.is_symlink() for part in (path, *path.parents))
-            or not path.is_file()
-        ):
-            raise ValueError("unsafe metadata input")
-        if path.stat().st_size > max_input_bytes:
+        info = _input_stat(path)
+        if info.st_size > max_input_bytes:
             raise ValueError("metadata input-byte cap exceeded")
+        key = (
+            str(path.absolute()),
+            max_input_bytes,
+            max_header_bytes,
+            max_record_bytes,
+        )
+        stamp = _fingerprint(info)
+
+        def stable(stream):
+            opened = os.fstat(stream.fileno())
+            current = _input_stat(path)
+            if max(opened.st_size, current.st_size) > max_input_bytes:
+                raise ValueError("metadata input-byte cap exceeded")
+            if _fingerprint(opened) != stamp or _fingerprint(current) != stamp:
+                raise ValueError("metadata input changed while reading")
+
         with path.open("rb") as stream:
-            return _Reader(
-                stream, self, max_input_bytes, max_header_bytes, max_record_bytes
-            ).read()
+            stable(stream)
+            cached = self._loaded.get(key)
+            if cached is not None and cached[0] == stamp:
+                # Hash-only validation still checks exact bytes on filesystems
+                # with coarse timestamps; it does not reparse/reinsert rows.
+                digest = _content_digest(stream, max_input_bytes)
+                stable(stream)
+                if digest == cached[1] and _materialization_present(cached[2]):
+                    self._loaded.move_to_end(key)
+                    return _metadata_view(cached[2])
+                stream.seek(0)
+            if cached is not None:
+                self._loaded_header_bytes -= self._loaded.pop(key)[3]
+            first_identifier = self.next_identifier
+            hashed = _HashedInput(stream)
+            reader = _Reader(
+                hashed, self, max_input_bytes, max_header_bytes, max_record_bytes
+            )
+            value = reader.read()
+            stable(stream)
+            if reader.header <= _REUSED_HEADER_BYTES:
+                while self._loaded and (
+                    len(self._loaded) >= _REUSED_INPUTS
+                    or self._loaded_header_bytes + reader.header > _REUSED_HEADER_BYTES
+                ):
+                    _, previous = self._loaded.popitem(last=False)
+                    self._loaded_header_bytes -= previous[3]
+                self._loaded[key] = (
+                    stamp,
+                    hashed.digest.hexdigest(),
+                    value,
+                    reader.header,
+                    self.next_identifier
+                    if self.next_identifier > first_identifier
+                    else None,
+                )
+                self._loaded_header_bytes += reader.header
+                return _metadata_view(value)
+            return value
 
 
 def _spill_path(path):

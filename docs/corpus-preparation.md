@@ -599,9 +599,17 @@ verification does validate source declarations with Pydantic. Declarations remai
 plain header-bounded containers: spilling is limited to top-level inventory
 arrays, admission `sources[*].files`/`records`, and snapshot/lock retrieval
 `shards[*].selected_rows`. Arrays nested under declarations or unrelated keys
-never spill. Repeated metadata
-reads currently create new collections in the same operation database; neither a
-cache nor a throughput improvement is claimed here.
+never spill. Repeated reads of unchanged metadata within one operation reuse the
+parsed row collections after checking the exact input bytes and file identity.
+They hash the file again, but do not parse or insert its rows again. Parser-limit
+changes invalidate reuse. Headers are fresh copies, and owning-store appends
+detach shared rows before modification. Scoped row release invalidates affected
+materializations while preserving older collections. The bounded header cache evicts or skips
+entries rather than refusing a valid workload; its budget is not a hard RSS cap.
+This is operation-local derived storage, not an authenticated execution receipt
+or a persistent restart cache. Native provenance/source verification still runs;
+closing the operation discards the materialization. No full-corpus speedup is
+claimed from tiny regression fixtures.
 
 
 ### v2 disk builds
