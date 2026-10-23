@@ -128,7 +128,9 @@ def _load_run_data(
     )
 
 
-def _check_training_storage(config: RunConfig, data: PreparedData) -> None:
+def _check_training_storage(
+    config: RunConfig, data: PreparedData, *, tokenizer_path: Path | None = None
+) -> None:
     from sparselab.workspace_preflight import require_storage, training_storage_checks
 
     # Fresh packing checks new-cache growth before allocating. Native loading
@@ -143,7 +145,10 @@ def _check_training_storage(config: RunConfig, data: PreparedData) -> None:
                     "mixture_declaration_path": None,
                     "mixture_output_path": None,
                 }
-            )
+            ),
+            "tokenizer": config.tokenizer.model_copy(
+                update={"path": tokenizer_path or config.tokenizer.path}
+            ),
         }
     )
     require_storage(
@@ -991,7 +996,17 @@ def _train_impl(
                     verification_mode=verification_mode,
                 )
         if purpose == "training":
-            _check_training_storage(config, data)
+            _check_training_storage(
+                config,
+                data,
+                # Native continuation/stage verification selected this owned
+                # input source. A resumed run need not retain caller-local files.
+                tokenizer_path=(
+                    artifact_source / "tokenizer.json"
+                    if artifact_source is not None
+                    else None
+                ),
+            )
             _check_startup_cancel(cancel_path)
         dataset = TokenBlockDataset(
             data.train,

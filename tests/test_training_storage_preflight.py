@@ -146,3 +146,68 @@ def test_fresh_preparation_retains_preallocation_space_check(tmp_path, monkeypat
         trainer.train(config, run_id="fresh-insufficient")
     assert not list(config.dataset.cache_dir.rglob("*.npy"))
     assert not (config.logging.root_dir / "fresh-insufficient").exists()
+
+
+@pytest.mark.parametrize("mode", ["plain", "staged", "staged-with-bundle"])
+def test_interrupted_resume_uses_saved_tokenizer(tmp_path, monkeypatch, mode):
+    config = configured(tmp_path, monkeypatch)
+    bundle = (
+        stage(config, tmp_path / "resume-stage", through="validate")
+        if mode != "plain"
+        else None
+    )
+    if bundle is not None:
+        shutil.move(config.tokenizer.path, tmp_path / "retained-tokenizer.json")
+        shutil.move(config.dataset.cache_dir, tmp_path / "retained-cache")
+    part_id = trainer.train(
+        config, run_id="part", stop_after_step=2, stage_bundle=bundle
+    )
+    part = config.logging.root_dir / part_id
+    if bundle is None:
+        shutil.move(config.tokenizer.path, tmp_path / "retained-tokenizer.json")
+        shutil.move(config.dataset.cache_dir, tmp_path / "retained-cache")
+    assert not config.tokenizer.path.exists()
+    assert not config.dataset.cache_dir.exists()
+    assert (part / "tokenizer.json").is_file()
+
+    def no_preparation(*args, **kwargs):
+        pytest.fail("resume rebuilt already saved training inputs")
+
+    monkeypatch.setattr(trainer, "prepare_data", no_preparation)
+    run_id = trainer.train(
+        config,
+        run_id="resumed",
+        resume=part / "checkpoints/latest.json",
+        stage_bundle=bundle if mode == "staged-with-bundle" else None,
+    )
+    root = config.logging.root_dir / run_id
+    progress = json.loads((root / "progress.json").read_text())
+    assert progress["status"] == "completed"
+    assert (progress["step"], progress["tokens_seen"]) == (3, 96)
+    assert (root / "data/train.npy").read_bytes() == (
+        part / "data/train.npy"
+    ).read_bytes()
+    assert (root / "tokenizer.json").read_bytes() == (
+        part / "tokenizer.json"
+    ).read_bytes()
+
+
+def test_cancel_during_data_open_stops_before_model(tmp_path, monkeypatch):
+    config = configured(tmp_path, monkeypatch)
+    cancel = tmp_path / "cancel"
+    prepare = trainer.prepare_data
+
+    def prepared_then_cancel(*args, **kwargs):
+        data = prepare(*args, **kwargs)
+        cancel.write_text("cancel after native input loading")
+        return data
+
+    def no_model(*args, **kwargs):
+        pytest.fail("data-open cancellation reached model initialization")
+
+    monkeypatch.setattr(trainer, "prepare_data", prepared_then_cancel)
+    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", no_model)
+    with pytest.raises(InterruptedError, match="before run creation"):
+        trainer.train(config, run_id="cancelled-data-open", cancel_path=cancel)
+    assert not (config.logging.root_dir / "cancelled-data-open").exists()
+    assert cancel.read_text() == "cancel after native input loading"
