@@ -561,7 +561,7 @@ def test_symlinked_optional_cache_is_not_followed_or_required(
     assert not list(outside.iterdir())
 
 
-@pytest.mark.parametrize("unavailable", ["key", "store"])
+@pytest.mark.parametrize("unavailable", ["key", "store", "store_file"])
 def test_unavailable_verification_state_reports_cold_fallback(
     private_inspection, unavailable
 ):
@@ -571,14 +571,20 @@ def test_unavailable_verification_state_reports_cold_fallback(
         if unavailable == "key"
         else root / "cache/verification-v1"
     )
-    directory.chmod(0o755)
+    if unavailable == "store_file":
+        directory.rename(directory.with_name("retained-verification"))
+        directory.write_bytes(b"not a proof directory")
+        directory.chmod(0o600)
+    else:
+        directory.chmod(0o755)
     summary = _inspect_again(root, fixture, "unavailable-state.json")
     work = summary["work"]
     assert work["full_source_passes"] == 4
     assert work["operation_cache_hits"] == work["source_cache_hits"] == 0
     assert work["cache_read_available"] is False
     assert work["cache_write_available"] is False
-    assert work["cache_unavailable_reason"] == f"verification_{unavailable}_unavailable"
+    reason = "key" if unavailable == "key" else "store"
+    assert work["cache_unavailable_reason"] == f"verification_{reason}_unavailable"
     assert (fixture[0] / "unavailable-state.json").read_bytes() == fixture[
         4
     ].read_bytes()

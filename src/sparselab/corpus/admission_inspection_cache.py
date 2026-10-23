@@ -91,9 +91,10 @@ class InspectionCache:
             self.proofs = None
             self._unavailable("verification_key_unavailable")
             return
-        if (
-            self.proofs.directory.exists() or self.proofs.directory.is_symlink()
-        ) and not _trusted(self.root, self.proofs.directory, private=True):
+        if (self.proofs.directory.exists() or self.proofs.directory.is_symlink()) and (
+            not self.proofs.directory.is_dir()
+            or not _trusted(self.root, self.proofs.directory, private=True)
+        ):
             self.proofs = None
             self._unavailable("verification_store_unavailable")
 
