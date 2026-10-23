@@ -8,13 +8,25 @@ from __future__ import annotations
 
 import hashlib
 import json
-from contextlib import closing
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from sparselab.corpus.acquisition import verify_acquisition
-from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
-from sparselab.corpus.jsonl_records import records_from_path
+from sparselab.corpus.admission_inspection_cache import (
+    InspectionCache,
+    SourceIndex,
+    capture,
+    metadata_sha256,
+    unchanged,
+)
+from sparselab.corpus.bounded_metadata import (
+    current_metadata_store,
+    metadata_operation,
+    read_metadata,
+)
+from sparselab.corpus.jsonl_records import records_from_bytes
 from sparselab.corpus.project import Project, load_project, source_declaration_payload
 from sparselab.corpus.rights import verify_record_admission
 from sparselab.corpus.structure_cleaning import (
@@ -23,6 +35,7 @@ from sparselab.corpus.structure_cleaning import (
     clean_structure,
 )
 from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.verification_proofs import _sync
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 _MAX_FILE_BYTES = 8 * 1024**2
@@ -144,116 +157,87 @@ def _candidate(
 
 
 def _scan_candidates(
-    project: Project,
-    root: Path,
-    draft: dict[str, Any],
-    lock: dict[str, Any],
-    max_input_bytes: int,
+    project,
+    root,
+    draft,
+    lock,
+    max_input_bytes,
     visit,
-) -> int:
+    *,
+    only_source=None,
+    snapshots=None,
+):
+    """One native admission-validation pass; candidates come from verified rows."""
     consumed = 0
     entries = {entry["source_id"]: entry for entry in draft["sources"]}
     for source in project.sources:
+        if only_source is not None and source.id != only_source:
+            continue
         entry = entries[source.id]
         snapshot = Path(lock["sources"][source.id]["snapshot_path"])
-        manifest = read_metadata(snapshot / "manifest.json")
-        files = manifest["files"]
-        if source.kind == "git":
-            decisions = {item["path"]: item for item in entry["files"]}
-            if len(decisions) != len(entry["files"]):
-                raise ValueError("duplicate draft file decision")
-            for file in files:
-                path = file["path"]
-                size = (snapshot / "files" / path).stat().st_size
-                if size > _MAX_FILE_BYTES:
-                    raise ValueError("inspection file-byte cap exceeded")
-                if consumed + size > max_input_bytes:
-                    raise ValueError("admission inspection input-byte cap exceeded")
-                raw = (snapshot / "files" / path).read_bytes()
-                consumed += len(raw)
-                if consumed > max_input_bytes:
-                    raise ValueError("admission inspection input-byte cap exceeded")
-                if hashlib.sha256(raw).hexdigest() != file["sha256"]:
-                    raise ValueError("snapshot file changed during inspection")
-                decision = decisions.pop(path)
-                if decision["sha256"] != file["sha256"]:
-                    raise ValueError("draft file identity differs from snapshot")
-                visit(
-                    source.id,
-                    _candidate(
-                        source,
-                        entry,
-                        decision,
-                        path=path,
-                        raw=raw.decode("utf-8"),
-                        digest=file["sha256"],
-                    ),
-                )
-            if decisions:
-                raise ValueError("draft contains unobserved file decisions")
-        elif source.kind == "huggingface_dataset":
-            if len(files) != 1 or len(manifest["retrieval"]["shards"]) != 1:
-                raise ValueError("inspection requires one declared JSONL shard")
-            file = files[0]
-            selected = manifest["retrieval"]["shards"][0]["selected_rows"]
-            decisions = entry["records"]
-            shard = snapshot / "files" / file["path"]
-            consumed += shard.stat().st_size
+        manifest = (
+            snapshots[source.id]
+            if snapshots is not None
+            else read_metadata(snapshot / "manifest.json")
+        )
+        for file in manifest["files"]:
+            size = (snapshot / "files" / file["path"]).stat().st_size
+            if source.kind == "git" and size > _MAX_FILE_BYTES:
+                raise ValueError("inspection file-byte cap exceeded")
+            consumed += size
             if consumed > max_input_bytes:
                 raise ValueError("admission inspection input-byte cap exceeded")
-            text_field = source.acquisition.text_field
-            with closing(
-                records_from_path(shard, max_record_bytes=_MAX_RECORD_BYTES)
-            ) as parsed:
-                for receipt, decision, record in zip(
-                    selected, decisions, parsed, strict=True
-                ):
-                    value = record.value
-                    if not isinstance(value, dict) or not isinstance(
-                        value.get(text_field), str
-                    ):
-                        raise TypeError(
-                            f"inspection row lacks declared text field: {text_field}"
-                        )
-                    envelope = value.get("_sparselab_source")
-                    original = {
-                        key: item
-                        for key, item in value.items()
-                        if key != "_sparselab_source"
-                    }
-                    digest = hashlib.sha256(canonical_json(original)).hexdigest()
-                    index = receipt["source_row_index"]
-                    if (
-                        not isinstance(envelope, dict)
-                        or envelope.get("source_row_index") != index
-                        or envelope.get("source_row_sha256") != digest
-                        or decision["source_row_index"] != index
-                        or decision["source_row_sha256"] != digest
-                        or receipt["source_row_sha256"] != digest
-                    ):
-                        raise ValueError(
-                            "inspection row identity differs from draft or snapshot"
-                        )
-                    visit(
-                        source.id,
-                        _candidate(
-                            source,
-                            entry,
-                            decision,
-                            path=file["path"],
-                            raw=value[text_field],
-                            digest=digest,
-                            row_index=index,
-                            physical_line=record.physical_line,
-                            metadata=original.get("metadata")
-                            if isinstance(original.get("metadata"), dict)
-                            else {},
-                        ),
+
+        def observed(
+            source_id, name, decision, record, ordinal, source=source, entry=entry
+        ):
+            if source.kind == "git":
+                candidate = _candidate(
+                    source,
+                    entry,
+                    decision,
+                    path=name,
+                    raw=record.decode("utf-8"),
+                    digest=decision["sha256"],
+                )
+                offset = 0
+            else:
+                value = record.value
+                field = source.acquisition.text_field
+                if not isinstance(value.get(field), str):
+                    raise TypeError(
+                        f"inspection row lacks declared text field: {field}"
                     )
-            if sha256_file(shard) != file["sha256"]:
-                raise ValueError("snapshot shard changed during inspection")
-        else:
-            raise ValueError("unsupported admission inspection source kind")
+                ordered = entry["records"][ordinal]
+                if ordered["source_row_index"] != decision["source_row_index"]:
+                    raise ValueError(
+                        "inspection row identity differs from draft or snapshot"
+                    )
+                candidate = _candidate(
+                    source,
+                    entry,
+                    decision,
+                    path=name,
+                    raw=value[field],
+                    digest=decision["source_row_sha256"],
+                    row_index=decision["source_row_index"],
+                    physical_line=record.physical_line,
+                    metadata=value.get("metadata")
+                    if isinstance(value.get("metadata"), dict)
+                    else {},
+                )
+                offset = record.byte_offset
+            candidate["_ordinal"], candidate["_offset"] = ordinal, offset
+            visit(source_id, candidate)
+
+        verify_record_admission(
+            {**draft, "sources": [entry]},
+            {source.id: source_declaration_payload(source)},
+            {source.id: manifest},
+            root / "corpora" / project.config.id / "snapshots",
+            _visit=observed,
+            _max_record_bytes=_MAX_RECORD_BYTES,
+        )
     return consumed
 
 
@@ -281,7 +265,11 @@ def _display(
     clean_excerpt, clean_truncated = _clip(cleaned["text"], max_excerpt_bytes)
     structure = cleaned["structure"]
     return {
-        **{key: value for key, value in row.items() if key != "raw"},
+        **{
+            key: value
+            for key, value in row.items()
+            if key != "raw" and not key.startswith("_")
+        },
         "source_span": {
             "path": row["path"],
             "row_index": row["row_index"],
@@ -302,143 +290,85 @@ def _display(
     }
 
 
-def _inspect_stored(
-    project: Project,
-    project_path: Path,
-    work_root: Path,
-    draft_path: Path,
-    policy_document: Path,
-    selection_path: Path,
-    *,
-    max_input_bytes: int,
-    max_excerpt_bytes: int,
-    max_output_bytes: int,
-) -> dict[str, Any]:
-    root = work_root.resolve(strict=True)
-    for value in (max_input_bytes, max_excerpt_bytes, max_output_bytes):
-        if type(value) is not int or value <= 0:
-            raise ValueError("inspection caps must be positive integers")
-    if max_excerpt_bytes > 4096 or max_output_bytes > 4 * 1024**2:
-        raise ValueError("inspection cap exceeds native maximum")
-    if (
-        sum(source.acquisition.max_bytes for source in project.sources)
-        > max_input_bytes
-    ):
-        raise ValueError(
-            "admission inspection input-byte cap is below declared source maxima"
-        )
-    draft_file = _inside(draft_path, root)
-    draft = read_metadata(draft_file)
-    policy = _inside(policy_document)
-    if policy.stat().st_size > 1024**2:
-        raise ValueError("admission inspection policy is too large")
-    if draft.get("schema_version") != 2 or draft.get("policy_sha256") != sha256_file(
-        policy
-    ):
-        raise ValueError("inspection draft or policy identity mismatch")
-    selection = _selection(
-        selection_path, root, {source.id for source in project.sources}
+def _fetch_candidate(source, entry, snapshot, row, stats):
+    """Replay only selected offsets, checking their content identity again."""
+    path = _inside(snapshot / "files" / row["path"], snapshot.resolve())
+    if source.kind == "git":
+        raw = path.read_bytes()
+        if len(raw) > _MAX_FILE_BYTES:
+            raise ValueError("inspection file-byte cap exceeded")
+        digest = hashlib.sha256(raw).hexdigest()
+        value, metadata = raw.decode("utf-8"), {}
+        decision = entry["files"][row["_ordinal"]]
+    else:
+        with path.open("rb") as stream:
+            stream.seek(row["_offset"])
+            raw = stream.readline(_MAX_RECORD_BYTES + 1)
+        if len(raw) > _MAX_RECORD_BYTES:
+            raise ValueError("JSONL record-byte cap exceeded")
+        record = next(records_from_bytes(raw, source=str(path)))
+        original = {
+            key: value
+            for key, value in record.value.items()
+            if key != "_sparselab_source"
+        }
+        digest = hashlib.sha256(canonical_json(original)).hexdigest()
+        value = original[source.acquisition.text_field]
+        metadata = original.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        decision = entry["records"][row["_ordinal"]]
+    if digest != row["digest"]:
+        raise ValueError("selected inspection record changed")
+    stats["selected_records_read"] += 1
+    stats["selected_bytes_read"] += len(raw)
+    result = _candidate(
+        source,
+        entry,
+        decision,
+        path=row["path"],
+        raw=value,
+        digest=digest,
+        row_index=row["row_index"],
+        physical_line=row["physical_line"],
+        metadata=metadata,
     )
-    lock = verify_acquisition(project, root)
-    snapshots = {
-        source.id: read_metadata(
-            Path(lock["sources"][source.id]["snapshot_path"]) / "manifest.json"
-        )
-        for source in project.sources
-    }
-    verify_record_admission(
-        draft,
-        {source.id: source_declaration_payload(source) for source in project.sources},
-        snapshots,
-        root / "corpora" / project.config.id / "snapshots",
-    )
-    # Two bounded-text passes preserve the exact median strata and deterministic
-    # rank selection without retaining every source document. Metadata/decisions
-    # are still loaded by the native verifier; do not confuse this with constant
-    # total process memory.
-    from array import array
+    if row["decision"] == "qualify":
+        result["retained_length_bytes"] = row["retained_length_bytes"]
+    return result
 
-    lengths = {source.id: array("Q") for source in project.sources}
 
-    def measure(source_id, row):
-        if row["decision"] == "qualify":
-            lengths[source_id].append(
-                len(
-                    clean_structure(
-                        row["raw"],
-                        source_id=source_id,
-                        normalizer=selection["normalizer"],
-                    )["text"].encode("utf-8")
-                )
-            )
+def _sample_source(index, source, entry, snapshot, selection, spec, excerpt, stats):
+    source_id = source.id
+    median, population = index.median()
+    pools = {group["id"]: [] for group in spec["strata"]}
+    held = []
+    counts = dict.fromkeys(pools, 0)
+    outside = held_count = pool_bytes = 0
+    requested = sum(group["count"] for group in spec["strata"])
 
-    consumed = _scan_candidates(project, root, draft, lock, max_input_bytes, measure)
-    medians = {}
-    populations = {}
-    for source_id, values in lengths.items():
-        ordered = sorted(values)
-        middle = len(ordered) // 2
-        medians[source_id] = (
-            ordered[middle - 1] + ordered[middle]
-            if ordered and len(ordered) % 2 == 0
-            else 2 * ordered[middle]
-            if ordered
-            else 0
-        )
-        populations[source_id] = len(ordered)
-    lengths.clear()
-    del values, ordered
-    specs = {item["source_id"]: item for item in selection["sources"]}
-    pools = {
-        source_id: {group["id"]: [] for group in spec["strata"]}
-        for source_id, spec in specs.items()
-    }
-    held = {source_id: [] for source_id in specs}
-    counts = {
-        source_id: {group["id"]: 0 for group in spec["strata"]}
-        for source_id, spec in specs.items()
-    }
-    outside = dict.fromkeys(specs, 0)
-    held_counts = dict.fromkeys(specs, 0)
-    pool_bytes = 0
-    # Selection pools can exceed the final receipt (fallback candidates), but
-    # cannot grow with corpus size. Refuse rather than retain unbounded metadata.
-
-    def retain(pool, source_id, name, row, count):
+    def retain(pool, name, row, count):
         nonlocal pool_bytes
         if not count:
             return
         rank = _rank(selection["seed"], source_id, name, row)
         if len(pool) == count and rank >= pool[-1][0]:
             return
-        display = _display(
-            row, normalizer=selection["normalizer"], max_excerpt_bytes=max_excerpt_bytes
-        )
-        size = len(canonical_json(display))
+        size = len(canonical_json(row))
         removed = pool[-1][2] if len(pool) == count else 0
         if pool_bytes + size - removed > _MAX_POOL_BYTES:
             raise ValueError("inspection selection-pool byte cap exceeded")
         if len(pool) == count:
             pool.pop()
-        pool.append((rank, display, size))
+        pool.append((rank, row, size))
         pool.sort(key=lambda item: item[0])
         pool_bytes += size - removed
 
-    def select(source_id, row):
-        spec = specs[source_id]
+    for row in index:
         if row["decision"] == "quarantine":
-            held_counts[source_id] += 1
-            retain(
-                held[source_id], source_id, "quarantine", row, spec["exception_count"]
-            )
+            held_count += 1
+            retain(held, "quarantine", row, spec["exception_count"])
         if row["decision"] != "qualify":
-            return
-        row["retained_length_bytes"] = len(
-            clean_structure(
-                row["raw"], source_id=source_id, normalizer=selection["normalizer"]
-            )["text"].encode("utf-8")
-        )
-        requested = sum(group["count"] for group in spec["strata"])
+            continue
         for group in spec["strata"]:
             prefix, band, issue = (
                 group["path_prefix"],
@@ -450,75 +380,221 @@ def _inspect_stored(
                 and (
                     band is None
                     or (
-                        row["retained_length_bytes"] * 2 <= medians[source_id]
+                        row["retained_length_bytes"] * 2 <= median
                         if band == "short"
-                        else row["retained_length_bytes"] * 2 > medians[source_id]
+                        else row["retained_length_bytes"] * 2 > median
                     )
                 )
                 and (issue is None or bool(row["issues"]) == issue)
             ):
-                counts[source_id][group["id"]] += 1
+                counts[group["id"]] += 1
                 if group["count"]:
-                    retain(
-                        pools[source_id][group["id"]],
-                        source_id,
-                        group["id"],
-                        row,
-                        requested,
-                    )
+                    retain(pools[group["id"]], group["id"], row, requested)
                 else:
-                    outside[source_id] += 1
+                    outside += 1
                 break
         else:
-            outside[source_id] += 1
-
-    reread = _scan_candidates(project, root, draft, lock, max_input_bytes, select)
-    if reread != consumed:
-        raise ValueError("snapshot byte count changed between inspection passes")
-    items, exceptions, coverage = [], [], []
-    for spec in selection["sources"]:
-        source_id = spec["source_id"]
-        selected, remaining = [], []
-        sample_population = 0
-        for group in spec["strata"]:
-            name, count = group["id"], group["count"]
-            pool = pools[source_id][name]
-            selected.extend((name, row) for _, row, _ in pool[:count])
-            if count:
-                sample_population += counts[source_id][name]
-                remaining.extend((rank, name, row) for rank, row, _ in pool[count:])
-            coverage.append(
-                {
-                    "source_id": source_id,
-                    "stratum": name,
-                    "population": counts[source_id][name],
-                    "requested": count,
-                    "initial_selected": min(count, counts[source_id][name]),
-                }
-            )
-        requested = sum(group["count"] for group in spec["strata"])
-        remaining.sort(key=lambda item: item[0])
-        selected.extend(
-            (name, row) for _, name, row in remaining[: requested - len(selected)]
-        )
-        if len(selected) != min(requested, sample_population):
-            raise ValueError("inspection selection is incomplete")
-        items.extend({**row, "stratum": name} for name, row in selected)
-        exceptions.extend(row for _, row, _ in held[source_id])
+            outside += 1
+    selected, remaining, coverage = [], [], []
+    sample_population = 0
+    for group in spec["strata"]:
+        name, count = group["id"], group["count"]
+        pool = pools[name]
+        selected.extend((name, row) for _, row, _ in pool[:count])
+        if count:
+            sample_population += counts[name]
+            remaining.extend((rank, name, row) for rank, row, _ in pool[count:])
         coverage.append(
             {
                 "source_id": source_id,
-                "stratum": "__summary__",
-                "qualify_population": populations[source_id],
-                "outside_protocol_population": outside[source_id],
-                "requested": requested,
-                "selected": len(selected),
-                "sample_shortfall": requested - len(selected),
-                "quarantine_population": held_counts[source_id],
-                "exceptions_shown": len(held[source_id]),
-                "exceptions_incomplete": held_counts[source_id] > len(held[source_id]),
+                "stratum": name,
+                "population": counts[name],
+                "requested": count,
+                "initial_selected": min(count, counts[name]),
             }
         )
+    remaining.sort(key=lambda item: item[0])
+    selected.extend(
+        (name, row) for _, name, row in remaining[: requested - len(selected)]
+    )
+    if len(selected) != min(requested, sample_population):
+        raise ValueError("inspection selection is incomplete")
+
+    display_bytes = 0
+
+    def display(row):
+        nonlocal display_bytes
+        result = _display(
+            _fetch_candidate(source, entry, snapshot, row, stats),
+            normalizer=selection["normalizer"],
+            max_excerpt_bytes=excerpt,
+        )
+        display_bytes += len(canonical_json(result))
+        if display_bytes > _MAX_POOL_BYTES:
+            raise ValueError("inspection selection-pool byte cap exceeded")
+        return result
+
+    items = [{**display(row), "stratum": name} for name, row in selected]
+    exceptions = [display(row) for _, row, _ in held]
+    coverage.append(
+        {
+            "source_id": source_id,
+            "stratum": "__summary__",
+            "qualify_population": population,
+            "outside_protocol_population": outside,
+            "requested": requested,
+            "selected": len(selected),
+            "sample_shortfall": requested - len(selected),
+            "quarantine_population": held_count,
+            "exceptions_shown": len(held),
+            "exceptions_incomplete": held_count > len(held),
+        }
+    )
+    return {"items": items, "quarantine_exceptions": exceptions, "coverage": coverage}
+
+
+def _inspect_stored(
+    project,
+    project_path,
+    root,
+    draft_path,
+    policy,
+    selection_path,
+    selection,
+    cache,
+    stats,
+    dependencies,
+    **limits,
+):
+    draft = read_metadata(draft_path)
+    if draft.get("schema_version") != 2 or draft.get("policy_sha256") != sha256_file(
+        policy
+    ):
+        raise ValueError("inspection draft or policy identity mismatch")
+    options = {
+        "proof_store": cache.proofs,
+        "verification_mode": "verified_reuse" if cache.proofs is not None else "cold",
+    }
+    before_proofs = cache.proofs.diagnostics() if cache.proofs is not None else None
+    lock = verify_acquisition(project, root, **options)
+    if before_proofs is not None:
+        after_proofs = cache.proofs.diagnostics()
+        stats["snapshot_proof_hits"] += after_proofs["hits"] - before_proofs["hits"]
+        stats["snapshot_cold_checks"] += (
+            after_proofs["misses"] - before_proofs["misses"]
+        )
+    else:
+        stats["snapshot_cold_checks"] += len(project.sources)
+    snapshots = {
+        source.id: read_metadata(
+            Path(lock["sources"][source.id]["snapshot_path"]) / "manifest.json"
+        )
+        for source in project.sources
+    }
+    entries = {entry["source_id"]: entry for entry in draft["sources"]}
+    if len(entries) != len(draft["sources"]) or set(entries) != {
+        s.id for s in project.sources
+    }:
+        raise ValueError("record admission source inventory mismatch")
+    specs = {item["source_id"]: item for item in selection["sources"]}
+    results = {}
+    output_bytes = 0
+    input_bytes = 0
+    for source in project.sources:
+        entry = entries[source.id]
+        snapshot = Path(lock["sources"][source.id]["snapshot_path"])
+        source_dependencies = capture([snapshot])
+        dependencies.update(source_dependencies)
+        request = {
+            "source": source_declaration_payload(source),
+            "admission": metadata_sha256(
+                {
+                    "policy_id": draft["policy_id"],
+                    "policy_sha256": draft["policy_sha256"],
+                    "entry": entry,
+                }
+            ),
+            "snapshot": lock["sources"][source.id]["snapshot_sha256"],
+            "selection": specs[source.id],
+            "seed": selection["seed"],
+            "normalizer": selection["normalizer"],
+            "excerpt": limits["max_excerpt_bytes"],
+            "record_cap": _MAX_RECORD_BYTES,
+            "file_cap": _MAX_FILE_BYTES,
+            "pool_cap": _MAX_POOL_BYTES,
+        }
+        hit = cache.load("source", request, limit=_MAX_POOL_BYTES + 65536)
+        if hit is not None:
+            result, signed_dependencies = hit
+            dependencies.update(signed_dependencies)
+            stats["source_cache_hits"] += 1
+        else:
+            index = SourceIndex()
+
+            def collect(source_id, row, index=index):
+                length = (
+                    len(
+                        clean_structure(
+                            row["raw"],
+                            source_id=source_id,
+                            normalizer=selection["normalizer"],
+                        )["text"].encode("utf-8")
+                    )
+                    if row["decision"] == "qualify"
+                    else None
+                )
+                index.add(row, length)
+
+            consumed = _scan_candidates(
+                project,
+                root,
+                draft,
+                lock,
+                limits["max_input_bytes"],
+                collect,
+                only_source=source.id,
+                snapshots=snapshots,
+            )
+            stats["full_source_passes"] += 1
+            stats["records_validated"] += index.rows
+            before = stats["selected_bytes_read"]
+            result = _sample_source(
+                index,
+                source,
+                entry,
+                snapshot,
+                selection,
+                specs[source.id],
+                limits["max_excerpt_bytes"],
+                stats,
+            )
+            result.update(
+                input_bytes=consumed,
+                read_bytes=consumed + stats["selected_bytes_read"] - before,
+            )
+            cache.publish(
+                "source",
+                request,
+                result,
+                source_dependencies,
+                limit=_MAX_POOL_BYTES + 65536,
+            )
+        results[source.id] = result
+        input_bytes += result["input_bytes"]
+        if input_bytes > limits["max_input_bytes"]:
+            raise ValueError("admission inspection input-byte cap exceeded")
+        output_bytes += sum(
+            len(canonical_json(result[key]))
+            for key in ("items", "quarantine_exceptions", "coverage")
+        )
+        if output_bytes > limits["max_output_bytes"]:
+            raise ValueError("admission inspection output-byte cap exceeded")
+    items, exceptions, coverage = [], [], []
+    for spec in selection["sources"]:
+        result = results[spec["source_id"]]
+        items.extend(result["items"])
+        exceptions.extend(result["quarantine_exceptions"])
+        coverage.extend(result["coverage"])
     payload = {
         "format": "sparselab-admission-inspection-v1",
         "project_id": project.config.id,
@@ -538,19 +614,16 @@ def _inspect_stored(
             Path(__file__).with_name("structure_cleaning.py")
         ),
         "snapshot_sha256": {
-            source.id: lock["sources"][source.id]["snapshot_sha256"]
-            for source in project.sources
+            s.id: lock["sources"][s.id]["snapshot_sha256"] for s in project.sources
         },
-        "max_input_bytes": max_input_bytes,
-        "max_excerpt_bytes": max_excerpt_bytes,
-        "max_output_bytes": max_output_bytes,
-        "input_bytes": consumed,
-        "read_bytes": consumed + reread,
+        **limits,
+        "input_bytes": sum(v["input_bytes"] for v in results.values()),
+        "read_bytes": sum(v["read_bytes"] for v in results.values()),
         "items": items,
         "quarantine_exceptions": exceptions,
         "coverage": coverage,
     }
-    if len(canonical_json(payload)) + 1 > max_output_bytes:
+    if len(canonical_json(payload)) + 1 > limits["max_output_bytes"]:
         raise ValueError("admission inspection output-byte cap exceeded")
     return payload
 
@@ -569,12 +642,15 @@ def inspect_admission(
     max_output_bytes: int,
 ) -> dict[str, Any]:
     root = work_root.resolve(strict=True)
-    if (
-        any(part.is_symlink() for part in (output, *output.parents))
-        or output.exists()
-        or not output.resolve().is_relative_to(root)
+    if any(
+        part.is_symlink() for part in (output, *output.parents)
+    ) or not output.resolve().is_relative_to(root):
+        raise ValueError("inspection requires safe output within work root")
+    if output.exists() and (
+        not output.is_file() or output.stat().st_size > 4 * 1024**2
     ):
-        raise ValueError("inspection requires unused output within work root")
+        raise ValueError("invalid existing inspection output")
+    work_stats = {}
     payload = _inspect(
         project,
         project_path,
@@ -585,17 +661,47 @@ def inspect_admission(
         max_input_bytes=max_input_bytes,
         max_excerpt_bytes=max_excerpt_bytes,
         max_output_bytes=max_output_bytes,
+        _stats=work_stats,
     )
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("xb") as stream:
-        stream.write(canonical_json(payload) + b"\n")
+    if not output.exists():
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            prefix=".inspection-", dir=output.parent, delete=False
+        ) as stream:
+            temporary = Path(stream.name)
+            try:
+                stream.write(canonical_json(payload) + b"\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            except BaseException:
+                temporary.unlink(missing_ok=True)
+                raise
+        try:
+            os.link(temporary, output)
+            _sync(output.parent)
+        finally:
+            temporary.unlink(missing_ok=True)
+    _inside(output, root)
+    output_guard = capture([output])
+    with output.open("rb") as stream:
+        raw = stream.read(4 * 1024**2 + 1)
+    unchanged(output_guard)
+    if len(raw) > 4 * 1024**2:
+        raise ValueError("invalid existing inspection output")
+    try:
+        observed = json.loads(raw)
+    except (ValueError, UnicodeDecodeError) as error:
+        raise ValueError("invalid/incomplete existing inspection output") from error
+    if observed != payload:
+        raise ValueError("existing inspection output differs from verified inputs")
     return {
         "path": str(output),
-        "sha256": sha256_file(output),
+        "sha256": hashlib.sha256(raw).hexdigest(),
         "items": len(payload["items"]),
         "exceptions": len(payload["quarantine_exceptions"]),
         "input_bytes": payload["input_bytes"],
         "read_bytes": payload["read_bytes"],
+        "work": work_stats,
     }
 
 
@@ -635,18 +741,111 @@ def _inspect(
     draft_path,
     policy_document,
     selection_path,
+    *,
+    _stats=None,
     **limits,
 ):
+    root = Path(work_root).resolve(strict=True)
+    for value in limits.values():
+        if type(value) is not int or value <= 0:
+            raise ValueError("inspection caps must be positive integers")
+    if limits["max_excerpt_bytes"] > 4096 or limits["max_output_bytes"] > 4 * 1024**2:
+        raise ValueError("inspection cap exceeds native maximum")
+    if (
+        sum(s.acquisition.max_bytes for s in project.sources)
+        > limits["max_input_bytes"]
+    ):
+        raise ValueError(
+            "admission inspection input-byte cap is below declared source maxima"
+        )
+    draft_path = _inside(Path(draft_path), root)
+    project_path = _inside(Path(project_path))
+    policy = _inside(Path(policy_document))
+    if policy.stat().st_size > 1024**2:
+        raise ValueError("admission inspection policy is too large")
+    selection_path = _inside(Path(selection_path))
+    selection = _selection(selection_path, root, {s.id for s in project.sources})
+    request = {
+        "paths": [str(p) for p in (project_path, draft_path, policy, selection_path)],
+        "project": project.config.id,
+        "sources": [source_declaration_payload(s) for s in project.sources],
+        "project_file": sha256_file(project_path),
+        "policy": sha256_file(policy),
+        "selection": sha256_file(selection_path),
+        "limits": limits,
+        "record_cap": _MAX_RECORD_BYTES,
+        "file_cap": _MAX_FILE_BYTES,
+        "pool_cap": _MAX_POOL_BYTES,
+    }
+    stats = _stats if _stats is not None else {}
+    stats.update(
+        operation_cache_hits=0,
+        source_cache_hits=0,
+        full_source_passes=0,
+        records_validated=0,
+        selected_records_read=0,
+        selected_bytes_read=0,
+        snapshot_proof_hits=0,
+        snapshot_cold_checks=0,
+    )
+    cache = InspectionCache(root)
+    stats.update(
+        cache_read_available=cache.proofs is not None,
+        cache_write_available=cache.writable,
+        cache_unavailable_reason=cache.unavailable_reason,
+    )
+    try:
+        active_store = current_metadata_store()
+    except RuntimeError:
+        active_store = None
+    # An explicit caller-selected metadata cap still applies to its input read.
+    hit = (
+        cache.load("operation", request, limit=limits["max_output_bytes"] + 65536)
+        if active_store is None or active_store.max_database_bytes is None
+        else None
+    )
+    if hit is not None:
+        payload, _ = hit
+        stats["operation_cache_hits"] = 1
+        stats["source_cache_hits"] = len(project.sources)
+        return payload
+    dependencies = capture(
+        [
+            project_path,
+            draft_path,
+            policy,
+            selection_path,
+            root / "corpora" / project.config.id / "acquisition.json",
+        ]
+    )
     with metadata_operation(
-        Path(work_root) / "corpora" / project.config.id / "metadata-scratch",
+        root / "corpora" / project.config.id / "metadata-scratch",
         max_database_bytes=None,
     ):
-        return _inspect_stored(
+        payload = _inspect_stored(
             project,
             project_path,
-            work_root,
+            root,
             draft_path,
-            policy_document,
+            policy,
             selection_path,
+            selection,
+            cache,
+            stats,
+            dependencies,
             **limits,
         )
+    unchanged(dependencies)
+    cache.publish(
+        "operation",
+        request,
+        payload,
+        dependencies,
+        limit=limits["max_output_bytes"] + 65536,
+    )
+    stats.update(
+        cache_read_available=cache.proofs is not None,
+        cache_write_available=cache.writable,
+        cache_unavailable_reason=cache.unavailable_reason,
+    )
+    return payload

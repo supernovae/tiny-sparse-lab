@@ -42,9 +42,14 @@ def inspect(root, recipe, policy, draft, selection, output):
 
 @pytest.mark.parametrize("entrypoint", ["draft", "inspect", "verify", "split"])
 def test_entrypoint_activates_metadata_storage(tmp_path, monkeypatch, entrypoint):
+    from sparselab.corpus.admission_inspection_cache import InspectionCache
+
     root = tmp_path / "work"
     root.mkdir()
     recipe, policy, draft, selection, receipt = _fixture(root)
+    # Warm authenticated reuse intentionally avoids decoding. Keep this a cold,
+    # removal-sensitive storage-wiring check; recovery tests cover the warm path.
+    monkeypatch.setattr(InspectionCache, "load", lambda *args, **kwargs: None)
     loaded = {}
     native_load = MetadataStore.load
 
@@ -288,10 +293,12 @@ def test_native_metadata_uses_file_bound_instead_of_fixed_input_quota(
     tmp_path, monkeypatch
 ):
     from sparselab.corpus import bounded_metadata
+    from sparselab.corpus.admission_inspection_cache import InspectionCache
 
     root = tmp_path / "work"
     root.mkdir()
     recipe, policy, draft, selection, _ = _fixture(root)
+    monkeypatch.setattr(InspectionCache, "load", lambda *args, **kwargs: None)
     monkeypatch.setattr(bounded_metadata, "_MAX_INPUT_BYTES", 1)
     limits = []
     original = MetadataStore.load

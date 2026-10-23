@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
@@ -16,6 +17,23 @@ from sparselab.corpus.admission_inspection import (
 from sparselab.corpus.project import load_project
 from sparselab.corpus.release_review import verify_admission_review
 from sparselab.training.manifest import canonical_json, sha256_file
+
+
+def _selected_bytes(report, lock):
+    total = 0
+    for item in report["items"] + report["quarantine_exceptions"]:
+        path = (
+            Path(lock["sources"][item["source_id"]]["snapshot_path"])
+            / "files"
+            / item["path"]
+        )
+        if item["row_index"] is None:
+            total += path.stat().st_size
+        else:
+            total += len(
+                io.BytesIO(path.read_bytes()).readlines()[item["physical_line"] - 1]
+            )
+    return total
 
 
 def _fixture(root: Path) -> tuple[Path, Path, Path, Path, Path]:
@@ -104,7 +122,9 @@ def test_verified_pre_admission_inspection_and_exact_review(tmp_path: Path) -> N
         if file.is_file()
     )
     assert observed["input_bytes"] == actual_snapshot_bytes
-    assert observed["read_bytes"] == 2 * actual_snapshot_bytes
+    assert observed["read_bytes"] == actual_snapshot_bytes + _selected_bytes(
+        observed, lock
+    )
     assert {item["source_id"] for item in observed["items"]} == {
         "books",
         "books_rows",
@@ -259,6 +279,9 @@ def test_inspection_does_not_retain_source_candidates_between_records(
     root = tmp_path / "work"
     root.mkdir()
     recipe, policy, draft, selection, _ = _fixture(root)
+    monkeypatch.setattr(
+        admission_inspection.InspectionCache, "load", lambda *a, **k: None
+    )
     previous = None
     calls = 0
     original = admission_inspection._candidate
@@ -378,14 +401,28 @@ def test_streaming_median_strata_and_fallback_match_full_sort_reference(
             for number in range(1, 6)
         ]
 
-    def scan(_project, _root, _draft, _lock, budget, visit):
+    def scan(
+        _project, _root, _draft, _lock, budget, visit, *, only_source=None, **kwargs
+    ):
         assert budget >= 100
         for source_id, values in rows.items():
-            for row in values:
-                visit(source_id, dict(row))
+            if only_source is not None and source_id != only_source:
+                continue
+            for ordinal, row in enumerate(values):
+                visit(source_id, {**row, "_ordinal": ordinal, "_offset": 0})
         return 100
 
+    def fetch(source, entry, snapshot, row, stats):
+        return {
+            **rows[source.id][row["_ordinal"]],
+            "retained_length_bytes": row["retained_length_bytes"],
+        }
+
     monkeypatch.setattr(inspection, "_scan_candidates", scan)
+    monkeypatch.setattr(inspection, "_fetch_candidate", fetch)
+    # This is deliberately sampler-only synthetic data, never signed cold proof.
+    monkeypatch.setattr(inspection.InspectionCache, "load", lambda *a, **k: None)
+    monkeypatch.setattr(inspection.InspectionCache, "publish", lambda *a, **k: None)
     output = recipe / "ranked.json"
     inspect_admission(
         project,
@@ -400,8 +437,8 @@ def test_streaming_median_strata_and_fallback_match_full_sort_reference(
         max_output_bytes=262144,
     )
     report = json.loads(output.read_text())
-    assert report["input_bytes"] == 100
-    assert report["read_bytes"] == 200
+    assert report["input_bytes"] == 100 * len(project.sources)
+    assert report["read_bytes"] == report["input_bytes"]
     for source_id, values in rows.items():
         short = sorted(
             values[:3],
@@ -443,7 +480,7 @@ def _inspect_again(root, fixture, name="again.json", **caps):
     )
 
 
-def test_snapshot_cap_boundary_and_two_pass_precheck(tmp_path, monkeypatch):
+def test_snapshot_cap_boundary_and_single_pass_precheck(tmp_path, monkeypatch):
     from sparselab.corpus import admission_inspection as inspection
 
     fixture = _fixture(tmp_path)
@@ -467,17 +504,24 @@ def test_snapshot_cap_boundary_and_two_pass_precheck(tmp_path, monkeypatch):
     original = inspection._scan_candidates
     budgets = []
 
-    def at_declared_boundary(project, root, draft, lock, budget, visit):
+    def at_declared_boundary(project, root, draft, lock, budget, visit, **kwargs):
         budgets.append(budget)
-        original(project, root, draft, lock, budget, visit)
-        # Fixture substitution: charge the complete declared snapshot capacity.
-        return cap
+        original(project, root, draft, lock, budget, visit, **kwargs)
+        # Fixture substitution: charge this source's full declared capacity.
+        return next(
+            source.acquisition.max_bytes
+            for source in project.sources
+            if source.id == kwargs["only_source"]
+        )
 
     monkeypatch.setattr(inspection, "_scan_candidates", at_declared_boundary)
+    monkeypatch.setattr(inspection.InspectionCache, "load", lambda *a, **k: None)
+    monkeypatch.setattr(inspection.InspectionCache, "publish", lambda *a, **k: None)
     _inspect_again(tmp_path, fixture, max_input_bytes=cap)
     report = json.loads((recipe / "again.json").read_text())
-    assert budgets == [cap, cap]
-    assert report["input_bytes"] == cap and report["read_bytes"] == 2 * cap
+    assert budgets == [cap] * len(project.sources)
+    assert report["input_bytes"] == cap
+    assert report["read_bytes"] == cap + _selected_bytes(report, lock)
     budgets.clear()
     with pytest.raises(ValueError, match="below declared source maxima"):
         _inspect_again(tmp_path, fixture, "below.json", max_input_bytes=cap - 1)
@@ -540,9 +584,10 @@ def test_quarantine_coverage_counts_unshown_rows(tmp_path):
 
 def test_inspection_closes_reader_when_candidate_refuses(tmp_path, monkeypatch):
     from sparselab.corpus import admission_inspection as inspection
+    from sparselab.corpus import jsonl_records
 
     fixture = _fixture(tmp_path)
-    original_reader = inspection.records_from_path
+    original_reader = jsonl_records.records_from_path
     original_candidate = inspection._candidate
     readers = []
     closed = []
@@ -563,8 +608,9 @@ def test_inspection_closes_reader_when_candidate_refuses(tmp_path, monkeypatch):
             raise ValueError("fixture candidate refusal")
         return original_candidate(source, *args, **kwargs)
 
-    monkeypatch.setattr(inspection, "records_from_path", tracked)
+    monkeypatch.setattr(jsonl_records, "records_from_path", tracked)
     monkeypatch.setattr(inspection, "_candidate", refuse)
+    monkeypatch.setattr(inspection.InspectionCache, "load", lambda *a, **k: None)
     with pytest.raises(ValueError, match="fixture candidate refusal"):
         _inspect_again(tmp_path, fixture)
     assert readers and closed == [True]
@@ -603,15 +649,22 @@ def test_draft_refuses_row_policy_without_declared_qualification(tmp_path, kind)
         )
 
 
-def test_inspection_pass_mismatch_refuses_without_output(tmp_path, monkeypatch):
+def test_inspection_changed_input_refuses_without_output(tmp_path, monkeypatch):
     from sparselab.corpus import admission_inspection as inspection
 
     fixture = _fixture(tmp_path)
-    counts = iter([100, 101])
-    monkeypatch.setattr(inspection, "_scan_candidates", lambda *args: next(counts))
-    with pytest.raises(
-        ValueError, match="snapshot byte count changed between inspection passes"
-    ):
+    original = inspection._scan_candidates
+
+    def changed(project, root, draft, lock, *args, **kwargs):
+        count = original(project, root, draft, lock, *args, **kwargs)
+        folder = Path(lock["sources"][kwargs["only_source"]]["snapshot_path"]) / "files"
+        target = next(path for path in folder.rglob("*") if path.is_file())
+        target.write_bytes(target.read_bytes() + b"\n")
+        return count
+
+    monkeypatch.setattr(inspection, "_scan_candidates", changed)
+    monkeypatch.setattr(inspection.InspectionCache, "load", lambda *a, **k: None)
+    with pytest.raises(ValueError, match="changed"):
         _inspect_again(tmp_path, fixture)
     assert not (fixture[0] / "again.json").exists()
 
@@ -623,6 +676,7 @@ def test_inspection_refuses_before_reading_over_budget_payload(
     from types import SimpleNamespace
 
     from sparselab.corpus import admission_inspection as inspection
+    from sparselab.corpus import jsonl_records
 
     recipe, _, draft, _, _ = _fixture(tmp_path)
     project = load_project(recipe / "acquire.yaml")
@@ -636,12 +690,12 @@ def test_inspection_refuses_before_reading_over_budget_payload(
         raise AssertionError("over-budget source payload read")
 
     if kind == "huggingface_dataset":
-        monkeypatch.setattr(inspection, "records_from_path", forbid)
+        monkeypatch.setattr(jsonl_records, "records_from_path", forbid)
     else:
         monkeypatch.setattr(Path, "read_bytes", forbid)
     with pytest.raises(ValueError, match="input-byte cap exceeded"):
         inspection._scan_candidates(
-            SimpleNamespace(sources=(source,)),
+            SimpleNamespace(sources=(source,), config=project.config),
             tmp_path,
             json.loads(draft.read_text()),
             lock,
@@ -654,7 +708,14 @@ def test_inspection_cli_summary_includes_sampling_reads(tmp_path):
     fixture = _fixture(tmp_path)
     summary = _inspect_again(tmp_path, fixture)
     report = json.loads((fixture[0] / "again.json").read_text())
-    assert summary["read_bytes"] == report["read_bytes"] == 2 * summary["input_bytes"]
+    lock = json.loads(
+        (tmp_path / "corpora/inspection-fixture/acquisition.json").read_text()
+    )
+    assert summary["read_bytes"] == report["read_bytes"]
+    assert summary["read_bytes"] == summary["input_bytes"] + _selected_bytes(
+        report, lock
+    )
+    assert summary["work"]["full_source_passes"] == 0
 
 
 def test_explicit_large_streaming_input_budget_does_not_allocate_or_refuse_by_native_ceiling(

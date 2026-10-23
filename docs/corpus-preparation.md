@@ -477,21 +477,29 @@ metadata `row_attribution_json`, including explicit unknown values. Existing
 source declaration bytes and acquisition identities remain unchanged. This mode
 is not supported for undeclared historical HF profiles or Git-file admission.
 
-The verifier now streams source text one record at a time, and inspection uses
-the declared text field (including `code`). This does **not** make the entire
-preparation path bounded-memory: build, split freezing and cold release verification
-still retain collections proportional to corpus size. `max_input_bytes` caps the snapshot payload size once (up to
-2 GiB), and its declared-source-maxima precheck uses the same units.
-`input_bytes` records that size; `read_bytes` records the two sampling payload
-passes combined. Neither counter includes separate acquisition verification or
-integrity-hash reads. Each HF JSONL record in drafting, verification and inspection,
-and each Git file in inspection, must be at most 8 MiB; any oversized item refuses
-the operation for the whole source, rather than silently skipping it. Acquisition
-can therefore succeed for a source that admission subsequently refuses.
-Inspection allows 64 MiB of serialized sample pool entries. Median lengths remain
-compact numeric metadata. Selection retains the same deterministic rank, strata
-and fallback rules. The 128 MiB draft limit remains enforced. Do not raise limits or launch large
-preparation on this alone.
+Inspection gathers offsets and cleaned lengths during native admission validation,
+then selects samples from disk-backed metadata using the exact median, rank,
+strata and fallback rules. It reads only selected records again for display;
+whole source text is not retained. The declared text field includes `code`.
+HF integrity hashing is folded into its physical JSONL validation pass, including
+blank lines. Cold snapshot authentication remains a separate native check.
+
+`max_input_bytes` bounds the snapshot payload size once, and its declared-source-
+maxima precheck uses the same units. `input_bytes` records that size; `read_bytes`
+records the source-validation plus selected-record reads used to construct the
+inspection. These construction observations remain stable when completed work is
+reused; they are not a claim that the current invocation reread those bytes.
+The command's `work` summary records current full source passes, validated rows,
+selected records/bytes, cache hits, and distinct upstream snapshot cold checks
+or proof hits. Separate acquisition/integrity reads are not included in the
+inspection `read_bytes` counter. No elapsed-time or throughput improvement is
+implied by the tiny fixture pass-count tests.
+
+Each HF JSONL record in drafting, verification and inspection, and each Git file
+in inspection, must be at most 8 MiB; an oversized item refuses the source rather
+than being skipped. Inspection retains its 64 MiB sample-pool bound, small
+excerpt/output bounds and explicit input budget. These bounds do not establish
+capacity or model-training readiness for a whole production corpus.
 
 Notice excerpts retain LF physical line numbers, at most 64 matching lines and
 1024 characters per line, with `notice_lines_truncated` recording omissions.
@@ -502,11 +510,47 @@ and `secret_key=` assignments with values of at least 24 characters, in every
 declared profile (including without `row_use_policy`). Previously qualified rows
 containing these patterns can now fail cold verification.
 
-Receipts are recomputed exactly: older inspection receipts lack `read_bytes`, and
-older attribution evidence lacks the notice truncation field. Regenerate affected
-drafts, inspection receipts and their bound admission reviews through the current
-public flow; never rewrite retained historical evidence or carry its approval
-forward as a current review. There is no compatibility adapter.
+Receipt verification compares the complete recorded inspection with the expected
+result from current validated inputs. It may reuse an authenticated completed
+inspection; it never accepts an edited public receipt merely because inputs
+still hash correctly. Regenerate an incompatible inspection and its bound review
+through the current flow, reusing an unchanged valid draft. A draft whose own
+attribution evidence is outdated still needs native regeneration. Preserve old
+evidence and approvals as history; there is no compatibility adapter.
+
+#### Inspection reuse and restart
+
+Reissue the same `corpus inspect-admission` declaration after an interruption.
+Completed, authenticated source results survive; incomplete source work is
+discarded and recomputed. A matching completed output is verified and returned
+without overwriting it. Different, corrupt or incomplete existing output refuses;
+use a new output path to preserve that evidence. Publication uses a temporary
+file and an exclusive final link, so a new interruption cannot publish a partial
+receipt. The command does not automatically retry a failed operation.
+
+Reuse uses Lab's existing host-authenticated operational proof store. It binds
+source/admission identities, selection and normalizer settings, verifier code,
+and the exact input inventories and file fingerprints, including ctime. A changed
+source decision or source-specific selection recomputes that source; changed
+shared settings or code invalidate the affected completed work. A missing,
+corrupt, unsigned or stale cache falls back to native validation. Unavailable
+cache authority or cache storage also falls back; the `work` summary reports
+cache availability without treating the native result as a cache hit. Public receipt
+contents are still compared in full against the authenticated expected result.
+Source hashes alone do not establish that sampling or validation ran correctly.
+
+Keep the same owned work root, service UID and persistent `XDG_CONFIG_HOME`
+across process/container restarts. The configuration directory holds the existing
+private verification key; keep it outside published artifacts and logs. Lost or
+foreign keys and unsafe ownership/permissions prevent warm reuse rather than
+relaxing checks. The proof-store trust boundary assumes immutable service-owned
+inputs; it does not protect against a compromised same-UID owner.
+
+The `work` summary counts completed full validation passes for this invocation,
+not partial work from a failed attempt. Source indexing and exact-median queries
+use disposable disk metadata; only successful bounded inspection results are
+retained for reuse. Warm reuse is an operational optimization, not new review
+authority or evidence that the corpus is scientifically suitable for training.
 
 
 ### Bounded admission metadata and split inventory
