@@ -527,6 +527,12 @@ def test_native_prepared_cache_preserves_exact_mixture_supervision(
         packing, "Tokenizer", SimpleNamespace(from_file=lambda path: tokenizer)
     )
     prepared = _prepare_data(config, tokenizer)
+    from sparselab.training.trainer import _check_training_storage
+
+    monkeypatch.setattr(
+        "sparselab.data.tokenizer.load_tokenizer", lambda path: tokenizer
+    )
+    _check_training_storage(config, prepared)
     assert prepared.manifest["train"]["supervised_target_positions"] == 20
     assert (
         prepared.manifest["train"]["supervised_target_positions_by_stratum"]
