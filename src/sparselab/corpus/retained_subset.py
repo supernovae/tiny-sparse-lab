@@ -20,7 +20,7 @@ def _parent_metadata(directory):
         try:
             yield
         finally:
-            store.connection.execute("DELETE FROM rows WHERE collection > ?", (first,))
+            store.release_after(first)
 
 
 def derive_subset(source, *, scratch_directory, staging=None):

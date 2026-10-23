@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,30 @@ def test_cold_validation_parses_each_hf_shard_once(private_inspection, monkeypat
     assert summary["work"]["full_source_passes"] == 4
     assert summary["work"]["records_validated"] == 38
     assert summary["work"]["selected_records_read"] == 8
+
+
+def test_inspection_materializes_each_metadata_input_once_per_operation(
+    private_inspection, monkeypatch
+):
+    from sparselab.corpus import bounded_metadata
+
+    root, fixture = private_inspection
+    monkeypatch.setattr(InspectionCache, "load", lambda *args, **kwargs: None)
+    original = bounded_metadata._Reader.read
+    parsed = Counter()
+
+    def tracked(reader):
+        stream = getattr(reader.stream, "stream", reader.stream)
+        parsed[(reader.store.temporary.name, str(stream.name))] += 1
+        return original(reader)
+
+    monkeypatch.setattr(bounded_metadata._Reader, "read", tracked)
+    summary = _inspect_again(root, fixture, "metadata-once.json")
+    assert parsed and all(count == 1 for count in parsed.values())
+    assert len({name for _, name in parsed if name.endswith("manifest.json")}) == 4
+    assert summary["work"]["full_source_passes"] == 4
+    assert summary["work"]["records_validated"] == 38
+    assert (fixture[0] / "metadata-once.json").read_bytes() == fixture[4].read_bytes()
 
 
 def test_interruption_reuses_only_completed_sources(private_inspection, monkeypatch):

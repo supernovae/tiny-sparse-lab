@@ -73,6 +73,9 @@ def test_exact_string_byte_limits_and_overflow_inside_run(tmp_path, monkeypatch,
             reads.append(len(data))
             return data
 
+        def fileno(self):
+            return self.stream.fileno()
+
         def __enter__(self):
             return self
 
