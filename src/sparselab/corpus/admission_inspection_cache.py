@@ -82,6 +82,20 @@ class InspectionCache:
         except OSError, ValueError, TypeError, KeyError, SyntaxError:
             self.proofs = None
             self._unavailable("verifier_authority_unavailable")
+            return
+        try:
+            key_available = self.proofs._key(create=True) is not None
+        except OSError, ValueError:
+            key_available = False
+        if not key_available:
+            self.proofs = None
+            self._unavailable("verification_key_unavailable")
+            return
+        if (
+            self.proofs.directory.exists() or self.proofs.directory.is_symlink()
+        ) and not _trusted(self.root, self.proofs.directory, private=True):
+            self.proofs = None
+            self._unavailable("verification_store_unavailable")
 
     def _unavailable(self, reason):
         self.writable = False

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -704,9 +705,14 @@ def test_inspection_refuses_before_reading_over_budget_payload(
         )
 
 
-def test_inspection_cli_summary_includes_sampling_reads(tmp_path):
-    fixture = _fixture(tmp_path)
-    summary = _inspect_again(tmp_path, fixture)
+def test_inspection_cli_summary_includes_sampling_reads(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "private-settings"))
+    previous = os.umask(0o077)
+    try:
+        fixture = _fixture(tmp_path)
+        summary = _inspect_again(tmp_path, fixture)
+    finally:
+        os.umask(previous)
     report = json.loads((fixture[0] / "again.json").read_text())
     lock = json.loads(
         (tmp_path / "corpora/inspection-fixture/acquisition.json").read_text()

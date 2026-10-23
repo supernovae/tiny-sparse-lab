@@ -559,3 +559,48 @@ def test_symlinked_optional_cache_is_not_followed_or_required(
     assert summary["work"]["cache_write_available"] is False
     assert summary["work"]["cache_unavailable_reason"] == "untrusted_cache_directory"
     assert not list(outside.iterdir())
+
+
+@pytest.mark.parametrize("unavailable", ["key", "store"])
+def test_unavailable_verification_state_reports_cold_fallback(
+    private_inspection, unavailable
+):
+    root, fixture = private_inspection
+    directory = (
+        Path(os.environ["XDG_CONFIG_HOME"]) / "sparselab"
+        if unavailable == "key"
+        else root / "cache/verification-v1"
+    )
+    directory.chmod(0o755)
+    summary = _inspect_again(root, fixture, "unavailable-state.json")
+    work = summary["work"]
+    assert work["full_source_passes"] == 4
+    assert work["operation_cache_hits"] == work["source_cache_hits"] == 0
+    assert work["cache_read_available"] is False
+    assert work["cache_write_available"] is False
+    assert work["cache_unavailable_reason"] == f"verification_{unavailable}_unavailable"
+    assert (fixture[0] / "unavailable-state.json").read_bytes() == fixture[
+        4
+    ].read_bytes()
+
+
+def test_git_file_cap_refuses_before_native_file_read(private_inspection, monkeypatch):
+    root, fixture = private_inspection
+    project = load_project(fixture[0] / "acquire.yaml")
+    source = next(source for source in project.sources if source.kind == "git")
+    lock = json.loads(
+        (root / "corpora" / project.config.id / "acquisition.json").read_text()
+    )
+    files = Path(lock["sources"][source.id]["snapshot_path"]) / "files"
+    original = Path.read_bytes
+
+    def no_native_file_read(path):
+        if path.is_relative_to(files):
+            raise AssertionError("oversized Git file reached native read_bytes")
+        return original(path)
+
+    monkeypatch.setattr(inspection, "_MAX_FILE_BYTES", 1)
+    monkeypatch.setattr(Path, "read_bytes", no_native_file_read)
+    with pytest.raises(ValueError, match="inspection file-byte cap exceeded"):
+        _inspect_again(root, fixture, "over-file-cap.json")
+    assert not (fixture[0] / "over-file-cap.json").exists()
