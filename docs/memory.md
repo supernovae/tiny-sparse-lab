@@ -30,6 +30,30 @@ Engram and MoE are capacity subsets, not extra totals. A displayed expert or mem
 
 Unified-memory MPS/Metal memory is shared with the host; do not add host RAM and device capacity. If a required reading is unavailable the fit result is `UNKNOWN`. `budget_bytes` is an additional artificial cap, useful to disprove a fit in planning or tests, but cannot prove that real hardware will fit.
 
+## Choose estimate admission per run
+
+`runtime.memory.estimate_policy` defaults to `enforce`, preserving the existing
+refusal when estimated training memory exceeds its planning ceiling. For an
+explicit observational run, select:
+
+```yaml
+runtime:
+  memory:
+    estimate_policy: observe
+```
+
+Both `train` and staging retain the estimate and its assumptions, warn about an
+exceedance, and continue with the same requested configuration. Staging also
+records a pilot's measured peak above the planning ceiling without treating that
+comparison as an allocator failure. Resolved configurations record observation mode explicitly. No proposal is applied automatically, and model, batch, optimizer,
+precision and token budgets are unchanged.
+
+Actual allocation failures, failed pilots, cancellation, input verification and
+explicit resource envelopes still apply. Observation mode does not certify a
+physical fit or implement a hard memory cap. This option addresses a potential
+policy mismatch; an estimate alone is not evidence that a particular model fails
+on a particular device.
+
 ## Observe an update
 
 During PyTorch training, memory monitoring samples at begin, after forward, after backward, after optimizer work, and end of each update. Relevant metric families include:

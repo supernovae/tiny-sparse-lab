@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -93,6 +94,8 @@ if TYPE_CHECKING:
     from sparselab.bottleneck_observations import BottleneckObserver
     from sparselab.verification_proofs import ProofStore
 
+
+_LOGGER = logging.getLogger(__name__)
 
 _LEVELS = {"inspect": 1, "validate": 2, "smoke": 3, "warmup": 4}
 _MAX_REPORT_BYTES = 16 * 1024 * 1024
@@ -1161,12 +1164,17 @@ def stage(
                         )
                     report["effective_config"] = effective
                     if estimate.result == "LIKELY_TO_EXCEED":
-                        write_resource_proposal(
-                            plan_memory(config, runtime, estimate),
-                            work / "proposal.yaml",
-                        )
-                        raise MemoryError(
-                            "estimated training memory exceeds the explicit safe ceiling"
+                        if config.runtime.memory.estimate_policy == "enforce":
+                            write_resource_proposal(
+                                plan_memory(config, runtime, estimate),
+                                work / "proposal.yaml",
+                            )
+                            raise MemoryError(
+                                "estimated training memory exceeds the explicit safe ceiling"
+                            )
+                        _LOGGER.warning(
+                            "Estimated training memory exceeds the planning ceiling; "
+                            "estimate_policy=observe continues with the unchanged configuration"
                         )
                     if prepared_inputs is None:
                         prepared_root = materialize_prepared_inputs(
@@ -1270,12 +1278,18 @@ def stage(
                         and estimate.capacity_ceiling_bytes is not None
                         and peak > estimate.capacity_ceiling_bytes
                     ):
-                        write_resource_proposal(
-                            plan_memory(config, runtime, estimate),
-                            work / "proposal.yaml",
-                        )
-                        raise MemoryError(
-                            f"{purpose} measured or calibrated memory exceeds safe ceiling"
+                        if config.runtime.memory.estimate_policy == "enforce":
+                            write_resource_proposal(
+                                plan_memory(config, runtime, estimate),
+                                work / "proposal.yaml",
+                            )
+                            raise MemoryError(
+                                f"{purpose} measured or calibrated memory exceeds safe ceiling"
+                            )
+                        _LOGGER.warning(
+                            "%s memory exceeds the planning ceiling; "
+                            "estimate_policy=observe retains the measurements and unchanged configuration",
+                            purpose,
                         )
                     if purpose == "warmup":
                         raw_updates = pilot["report"].get("update_observations", [])
