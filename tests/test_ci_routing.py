@@ -23,6 +23,8 @@ NODES = (
     "tests/test_spot_safety.py",
     "tests/test_snapshot_warm_reuse.py",
     "tests/test_snapshot_inheritance.py",
+    "tests/test_admission_inspection_recovery.py::test_warm_completed_output_and_fresh_process_skip_full_passes",
+    "tests/test_admission_inspection_recovery.py::test_public_cli_reuses_completed_inspection",
     "tests/test_study_recovery.py",
     "tests/test_lab_job.py",
     "tests/test_container_start.py",

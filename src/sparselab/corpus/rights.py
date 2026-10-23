@@ -23,7 +23,7 @@ from urllib.parse import unquote, urlsplit
 from pydantic import field_validator, model_validator
 
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_json
 
 TrainingEligibility = Literal[
     "eligible", "eligible_with_obligations", "review_required", "ineligible"
@@ -634,6 +634,9 @@ def _verify_record_admission_v1(
     sources: Mapping[str, Mapping[str, Any]],
     snapshots: Mapping[str, Mapping[str, Any]],
     snapshot_root: Path,
+    *,
+    _visit=None,
+    _max_record_bytes: int | None = None,
 ) -> dict[tuple[str, str], dict[str, Any]]:
     """Recheck a complete admission inventory against immutable selected HF rows.
 
@@ -823,7 +826,7 @@ def _verify_record_admission_v1(
             / "files"
             / file["path"]
         )
-        if sample.is_symlink() or sha256_file(sample) != file["sha256"]:
+        if sample.is_symlink():
             raise ValueError("record admission sample bytes differ from snapshot")
         from sparselab.corpus.jsonl_records import records_from_path
 
@@ -831,9 +834,19 @@ def _verify_record_admission_v1(
         # receipts use disk indexes inside a metadata operation; other callers
         # retain ordinary mappings. Close the source even when validation fails.
         with closing(
-            records_from_path(sample, max_record_bytes=_MAX_RECORD_BYTES)
+            records_from_path(
+                sample,
+                max_record_bytes=(
+                    _MAX_RECORD_BYTES
+                    if _max_record_bytes is None
+                    else min(_MAX_RECORD_BYTES, _max_record_bytes)
+                ),
+                expected_sha256=file["sha256"],
+            )
         ) as sample_rows:
-            for record, receipt in zip_longest(sample_rows, selected):
+            for ordinal, (record, receipt) in enumerate(
+                zip_longest(sample_rows, selected)
+            ):
                 if record is None or receipt is None:
                     raise ValueError("record admission sample row count mismatch")
                 row = record.value
@@ -915,6 +928,8 @@ def _verify_record_admission_v1(
                     }
                 ):
                     raise ValueError("material rights exception must be quarantined")
+                if _visit is not None:
+                    _visit(source_id, file["path"], decision, record, ordinal)
         if row_use is not None:
             unmatched = set(row_use.restricted_rows)
             for receipt in selected:
@@ -965,6 +980,9 @@ def verify_record_admission(
     sources: Mapping[str, Mapping[str, Any]],
     snapshots: Mapping[str, Mapping[str, Any]],
     snapshot_root: Path,
+    *,
+    _visit=None,
+    _max_record_bytes: int | None = None,
 ) -> dict[tuple[str, str], dict[str, Any]]:
     """Verify reviewed HF rows and, in v2, each pinned Git file.
 
@@ -973,7 +991,14 @@ def verify_record_admission(
     through to a permissive source default.
     """
     if manifest.get("schema_version") == 1:
-        return _verify_record_admission_v1(manifest, sources, snapshots, snapshot_root)
+        return _verify_record_admission_v1(
+            manifest,
+            sources,
+            snapshots,
+            snapshot_root,
+            _visit=_visit,
+            _max_record_bytes=_max_record_bytes,
+        )
     if (
         set(manifest) != {"schema_version", "policy_id", "policy_sha256", "sources"}
         or manifest.get("schema_version") != 2
@@ -1008,6 +1033,8 @@ def verify_record_admission(
         {key: sources[key] for key in hf_ids},
         {key: snapshots[key] for key in hf_ids},
         snapshot_root,
+        _visit=_visit,
+        _max_record_bytes=_max_record_bytes,
     )
     for item in git_entries:
         if set(item) != {
@@ -1055,7 +1082,7 @@ def verify_record_admission(
             or {decision.get("path") for decision in decisions} != set(files)
         ):
             raise ValueError("Git file admission decisions do not cover pinned files")
-        for decision in decisions:
+        for ordinal, decision in enumerate(decisions):
             if (
                 not set(decision).issubset(
                     {"path", "sha256", "decision", "reason", "issues", "manual_review"}
@@ -1085,9 +1112,11 @@ def verify_record_admission(
             sample = (
                 snapshot_root / source_id / snapshot["snapshot_sha256"] / "files" / path
             )
-            if sample.is_symlink() or sha256_file(sample) != file["sha256"]:
+            if sample.is_symlink():
                 raise ValueError("Git file admission bytes differ from snapshot")
             raw = sample.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != file["sha256"]:
+                raise ValueError("Git file admission bytes differ from snapshot")
             header = b"\n".join(raw.splitlines()[:30]) + b"\n"
             material, flagged = _git_file_exceptions(raw, policy.spdx_expression)
             checked = resolve_file_rights(
@@ -1135,4 +1164,6 @@ def verify_record_admission(
                 "policy_id": manifest["policy_id"],
                 "policy_sha256": manifest["policy_sha256"],
             }
+            if _visit is not None:
+                _visit(source_id, path, decision, raw, ordinal)
     return resolved

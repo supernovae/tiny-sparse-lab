@@ -7,6 +7,7 @@ nonblank records. Source bytes are never rewritten by this reader.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 from collections.abc import Iterator
@@ -21,6 +22,7 @@ class JSONLRecord:
     physical_line: int
     value: Any
     raw: bytes
+    byte_offset: int = 0
 
 
 def iter_lf_lines(
@@ -44,7 +46,10 @@ def iter_jsonl_records(
     stream: BinaryIO, *, source: str, max_record_bytes: int | None = None
 ) -> Iterator[JSONLRecord]:
     """Decode UTF-8 strictly and parse one JSON value per nonblank LF record."""
+    offset = 0
     for physical_line, raw in iter_lf_lines(stream, max_record_bytes=max_record_bytes):
+        start = offset
+        offset += len(raw)
         if not raw.strip():
             continue
         try:
@@ -59,20 +64,47 @@ def iter_jsonl_records(
             raise ValueError(
                 f"malformed JSON in {source} physical line {physical_line}: {error.msg}"
             ) from error
-        yield JSONLRecord(physical_line, value, raw)
+        yield JSONLRecord(physical_line, value, raw, start)
 
 
 def records_from_bytes(raw: bytes, *, source: str) -> Iterator[JSONLRecord]:
     return iter_jsonl_records(io.BytesIO(raw), source=source)
 
 
+class _HashingLines:
+    def __init__(self, stream):
+        self.stream = stream
+        self.digest = hashlib.sha256()
+
+    def readline(self, size=-1):
+        raw = self.stream.readline(size)
+        self.digest.update(raw)
+        return raw
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raw = self.readline()
+        if not raw:
+            raise StopIteration
+        return raw
+
+
 def records_from_path(
-    path: Path, *, max_record_bytes: int | None = None
+    path: Path,
+    *,
+    max_record_bytes: int | None = None,
+    expected_sha256: str | None = None,
 ) -> Iterator[JSONLRecord]:
+    """Validate the whole-file hash in the parsing pass, including blank lines."""
     with path.open("rb") as stream:
+        reader = _HashingLines(stream) if expected_sha256 is not None else stream
         yield from iter_jsonl_records(
-            stream, source=str(path), max_record_bytes=max_record_bytes
+            reader, source=str(path), max_record_bytes=max_record_bytes
         )
+        if expected_sha256 is not None and reader.digest.hexdigest() != expected_sha256:
+            raise ValueError("JSONL source SHA-256 mismatch")
 
 
 class ForwardRows:
