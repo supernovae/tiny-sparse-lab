@@ -302,6 +302,9 @@ class ActivationOffloadConfig(StrictModel):
 
 
 class MemoryConfig(StrictModel):
+    estimate_policy: Literal["enforce", "observe"] = Field(
+        default="enforce", exclude_if=lambda value: value == "enforce"
+    )
     policy: Literal["fast", "balanced", "low_memory", "max_fit"] = "balanced"
     max_device_memory_fraction: float = Field(default=0.90, gt=0, le=1)
     budget_bytes: int | None = Field(default=None, gt=0)

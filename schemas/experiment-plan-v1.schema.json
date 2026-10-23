@@ -1202,6 +1202,15 @@
           "default": null,
           "title": "Budget Bytes"
         },
+        "estimate_policy": {
+          "default": "enforce",
+          "enum": [
+            "enforce",
+            "observe"
+          ],
+          "title": "Estimate Policy",
+          "type": "string"
+        },
         "max_device_memory_fraction": {
           "default": 0.9,
           "exclusiveMinimum": 0,

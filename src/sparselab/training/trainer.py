@@ -1014,8 +1014,13 @@ def _train_impl(
                 )
         memory_estimate = calibrated_estimate(config, runtime, inventory, observations)
         if memory_estimate.result == "LIKELY_TO_EXCEED":
-            raise MemoryError(
-                "estimated training memory exceeds the safe ceiling; inspect --write-proposal before training"
+            if config.runtime.memory.estimate_policy == "enforce":
+                raise MemoryError(
+                    "estimated training memory exceeds the safe ceiling; inspect --write-proposal before training"
+                )
+            _LOGGER.warning(
+                "Estimated training memory exceeds the planning ceiling; "
+                "estimate_policy=observe continues with the unchanged configuration"
             )
         offload_headroom = validate_offload_headroom(config, runtime, memory_estimate)
         history.finish()
