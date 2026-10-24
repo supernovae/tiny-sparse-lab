@@ -447,9 +447,49 @@ class AttentionConfig(StrictModel):
         return self
 
 
+class FixedValidationPanel(StrictModel):
+    """Immutable prepared selection, independent of any particular checkpoint."""
+
+    name: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
+    prepared_path: Path
+    prepared_manifest_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    tokenizer_file_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    tokenizer_canonical_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    split: Literal["validation"]
+    sampling: Literal["first_eligible_blocks"]
+    sequence_length: Annotated[int, Field(strict=True, gt=0)]
+    blocks: Annotated[int, Field(strict=True, gt=0)]
+    supervised_targets: Annotated[int, Field(strict=True, gt=0)]
+    batch_size: Annotated[int, Field(strict=True, gt=0)]
+    max_forward_positions: Annotated[int, Field(strict=True, gt=0)]
+
+    @model_validator(mode="after")
+    def budget(self) -> FixedValidationPanel:
+        positions = self.blocks * self.sequence_length
+        if (
+            positions > self.max_forward_positions
+            or self.supervised_targets > positions
+        ):
+            raise ValueError("panel selection exceeds its forward or target budget")
+        return self
+
+
 class EvaluationConfig(StrictModel):
     every_steps: int = Field(default=25, gt=0)
     max_batches: int = Field(default=16, gt=0)
+    panels: tuple[FixedValidationPanel, ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
+
+    @model_validator(mode="after")
+    def fixed_pair(self) -> EvaluationConfig:
+        if self.panels and (
+            len(self.panels) != 2 or len({p.name for p in self.panels}) != 2
+        ):
+            raise ValueError(
+                "fixed validation requires exactly two distinct named panels"
+            )
+        return self
 
 
 class CheckpointMilestone(StrictModel):
@@ -552,6 +592,24 @@ class RunConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_cross_section(self) -> RunConfig:
+        if self.evaluation.panels:
+            if (
+                self.runtime.engine != "pytorch"
+                or self.model.memory != "none"
+                or self.model.ffn != "dense"
+                or self.dataset.allocation_manifest_path is not None
+                or self.model.semantic_memory_dim is not None
+            ):
+                raise ValueError(
+                    "fixed panels require a dense PyTorch run without memory"
+                )
+            if any(
+                p.sequence_length != self.training.seq_len
+                for p in self.evaluation.panels
+            ):
+                raise ValueError(
+                    "fixed panel sequence length must match training.seq_len"
+                )
         if self.training.seq_len > self.model.max_seq_len:
             raise ValueError("training.seq_len cannot exceed model.max_seq_len")
         if self.training.portability_manifest_path is not None:

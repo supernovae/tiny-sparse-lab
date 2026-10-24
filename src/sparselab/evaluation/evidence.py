@@ -157,14 +157,29 @@ def validate_held_out_report(
             or not math.isclose(perplexity, math.exp(loss), rel_tol=1e-12)
         ):
             return None, "invalid perplexity"
-        for field in ("batch_size", "max_batches", "seq_len"):
+        declared_panels = manifest["effective_config"]["evaluation"].get("panels", [])
+        if declared_panels:
+            from sparselab.evaluation.panel_data import validate_panel_results
+
+            validate_panel_results(payload, declared_panels, artifacts)
+        elif payload.get("panels"):
+            return None, "unexpected fixed-panel results"
+        for field in (
+            ("seq_len",)
+            if declared_panels
+            else ("batch_size", "max_batches", "seq_len")
+        ):
             if not isinstance(payload.get(field), int) or payload[field] <= 0:
                 return None, f"missing {field}"
         config = manifest["effective_config"]
         expected_protocol = {
-            "batch_size": config["training"]["micro_batch_size"],
+            "batch_size": None
+            if declared_panels
+            else config["training"]["micro_batch_size"],
             "seq_len": config["training"]["seq_len"],
-            "max_batches": config["evaluation"]["max_batches"],
+            "max_batches": None
+            if declared_panels
+            else config["evaluation"]["max_batches"],
         }
         if any(payload[key] != value for key, value in expected_protocol.items()):
             return None, "evaluation protocol differs from run config"
@@ -243,6 +258,10 @@ def experiment_evidence(
                 np.count_nonzero(validation.supervision[start : start + seq_len])
             )
     expected_batches = math.ceil(blocks / batch_size)
+    if config["evaluation"].get("panels"):
+        from sparselab.evaluation.panel_data import panel_coverage
+
+        expected_targets, expected_batches = panel_coverage(config["evaluation"])
     manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     checkpoints: list[dict[str, object]] = []

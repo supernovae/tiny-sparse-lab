@@ -249,6 +249,10 @@ def _expected_validation(
     config: dict[str, Any],
     mask_required: bool,
 ) -> tuple[int, int]:
+    if config["evaluation"].get("panels"):
+        from sparselab.evaluation.panel_data import panel_coverage
+
+        return panel_coverage(config["evaluation"])
     seq = config["training"]["seq_len"]
     batch = config["training"]["micro_batch_size"]
     supervision = "data/validation_supervision.npy"

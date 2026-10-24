@@ -34,6 +34,9 @@ def _paths(value: BaseModel, prefix: str = "") -> dict[str, Path]:
             paths[field] = item
         elif isinstance(item, BaseModel):
             paths.update(_paths(item, field))
+        elif name == "panels" and isinstance(item, tuple):
+            for index, panel in enumerate(item):
+                paths.update(_paths(panel, f"{field}.{index}"))
     return paths
 
 
@@ -49,7 +52,10 @@ def _bind_config(
     if set(bindings) - _paths(config).keys():
         raise ValueError("binding does not name a declared native config path")
     for field, value in _paths(config).items():
-        if field not in _INPUT_FIELDS | _OUTPUT_FIELDS:
+        panel_input = field.startswith("evaluation.panels.") and field.endswith(
+            ".prepared_path"
+        )
+        if field not in _INPUT_FIELDS | _OUTPUT_FIELDS and not panel_input:
             raise ValueError(
                 f"unsupported portable path field: {field}; native loaders are unchanged"
             )
@@ -57,6 +63,11 @@ def _bind_config(
         path = bindings.get(field, safe_path(source.parent, value.as_posix()))
         if field not in bindings and not path.is_relative_to(context.root):
             raise ValueError(f"config path escapes recipe: {field}")
-        section, name = field.split(".")
-        raw[section][name] = path
+        if panel_input:
+            raw["evaluation"]["panels"][int(field.split(".")[2])]["prepared_path"] = (
+                path
+            )
+        else:
+            section, name = field.split(".")
+            raw[section][name] = path
     return RunConfig.model_validate(raw)
