@@ -1044,6 +1044,14 @@
           "exclusiveMinimum": 0,
           "title": "Max Batches",
           "type": "integer"
+        },
+        "panels": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FixedValidationPanel"
+          },
+          "title": "Panels",
+          "type": "array"
         }
       },
       "title": "EvaluationConfig",
@@ -1121,6 +1129,88 @@
         }
       },
       "title": "Execution",
+      "type": "object"
+    },
+    "FixedValidationPanel": {
+      "additionalProperties": false,
+      "description": "Immutable prepared selection, independent of any particular checkpoint.",
+      "properties": {
+        "batch_size": {
+          "exclusiveMinimum": 0,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "blocks": {
+          "exclusiveMinimum": 0,
+          "title": "Blocks",
+          "type": "integer"
+        },
+        "max_forward_positions": {
+          "exclusiveMinimum": 0,
+          "title": "Max Forward Positions",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "prepared_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Prepared Manifest Sha256",
+          "type": "string"
+        },
+        "prepared_path": {
+          "format": "path",
+          "title": "Prepared Path",
+          "type": "string"
+        },
+        "sampling": {
+          "const": "first_eligible_blocks",
+          "title": "Sampling",
+          "type": "string"
+        },
+        "sequence_length": {
+          "exclusiveMinimum": 0,
+          "title": "Sequence Length",
+          "type": "integer"
+        },
+        "split": {
+          "const": "validation",
+          "title": "Split",
+          "type": "string"
+        },
+        "supervised_targets": {
+          "exclusiveMinimum": 0,
+          "title": "Supervised Targets",
+          "type": "integer"
+        },
+        "tokenizer_canonical_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Tokenizer Canonical Sha256",
+          "type": "string"
+        },
+        "tokenizer_file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Tokenizer File Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "prepared_path",
+        "prepared_manifest_sha256",
+        "tokenizer_file_sha256",
+        "tokenizer_canonical_sha256",
+        "split",
+        "sampling",
+        "sequence_length",
+        "blocks",
+        "supervised_targets",
+        "batch_size",
+        "max_forward_positions"
+      ],
+      "title": "FixedValidationPanel",
       "type": "object"
     },
     "LoggingConfig": {
