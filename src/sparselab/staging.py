@@ -690,7 +690,7 @@ def materialize_prepared_inputs(
             )
             from sparselab.evaluation.panel_data import copy_fixed_panels
 
-            copy_fixed_panels(config, assets)
+            copy_fixed_panels(config, assets, training_manifest=data.manifest)
             allocation_source = config.dataset.allocation_manifest_path
             if allocation_source is not None:
                 allocation = load_allocation_manifest(

@@ -321,7 +321,9 @@ def _copy_artifacts(
         )
     else:
         shutil.copytree(data.root, run / "data")
-    copy_fixed_panels(config, run, inputs_root=source_run)
+    copy_fixed_panels(
+        config, run, inputs_root=source_run, training_manifest=data.manifest
+    )
     mask_required = supervision_requires_mask(data.manifest)
     for split in ("train", "validation"):
         mask = run / "data" / f"{split}_supervision.npy"
@@ -1016,6 +1018,7 @@ def _train_impl(
             tokenizer_path=(artifact_source / "tokenizer.json")
             if artifact_source
             else None,
+            training_manifest=data.manifest,
         )
         if purpose == "training":
             _check_training_storage(
@@ -1227,7 +1230,10 @@ def _train_impl(
         with pilot_phase("run_input_materialization"):
             artifacts = _copy_artifacts(run, config, data, artifact_source)
             fixed_panels = load_fixed_panels(
-                config, inputs_root=run, tokenizer_path=run / "tokenizer.json"
+                config,
+                inputs_root=run,
+                tokenizer_path=run / "tokenizer.json",
+                training_manifest=data.manifest,
             )
         exposure_base = exposure_context(
             dataset,

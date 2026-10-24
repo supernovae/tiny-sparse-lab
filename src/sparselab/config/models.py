@@ -481,6 +481,15 @@ class EvaluationConfig(StrictModel):
         default=(), exclude_if=lambda value: not value
     )
 
+    @property
+    def batch_limit(self) -> int:
+        """Actual fixed-panel batches, or the ordinary validation upper bound."""
+        if self.panels:
+            return sum(
+                (p.blocks + p.batch_size - 1) // p.batch_size for p in self.panels
+            )
+        return self.max_batches
+
     @model_validator(mode="after")
     def fixed_pair(self) -> EvaluationConfig:
         if self.panels and (

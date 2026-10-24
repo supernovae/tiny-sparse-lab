@@ -38,6 +38,15 @@ Loss masks can make that count smaller than forward positions. Sequence length
 must match training; the current hook supports the dense PyTorch path without
 memory or allocation sidecars. `evaluation.max_batches` applies only to ordinary
 validation. Fixed panels use their own complete block and batch declarations.
+The pair must have distinct prepared manifests and validation arrays. An exact
+alias of the authenticated training array is refused. These cheap identity
+checks do not detect shared subsets, overlapping windows or common seed data;
+construct both panels from the verified held-out split. A legitimate ordinary
+validation-array alias is not itself training leakage.
+
+The existing explicitly budgeted Lab workflow counts the sum of both panels'
+batches through `evaluation.batch_limit`; no new campaign limit is added.
+Separate probe/try scorers retain their own ordinary validation protocol.
 
 Runs and materialized prepared-input stages own copies under `panels/<name>/`.
 Their existing inventories bind all required native prepared files. Resume reads

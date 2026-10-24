@@ -156,7 +156,7 @@ class WorkflowExecution:
                 * config.training.micro_batch_size
                 * config.training.gradient_accumulation
             )
-            if config.evaluation.max_batches > limits.max_eval_batches:
+            if config.evaluation.batch_limit > limits.max_eval_batches:
                 raise ValueError("workflow exceeds declared evaluation limit")
         if (
             updates > limits.max_training_updates

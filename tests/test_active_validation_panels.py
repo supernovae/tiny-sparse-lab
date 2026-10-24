@@ -35,7 +35,9 @@ def panel(config, name, *, masked=False):
     }
     for split in ("train", "validation"):
         path = root / f"{split}.npy"
-        np.save(path, np.arange(33, dtype=np.int32))
+        np.save(
+            path, np.arange(33, dtype=np.int32) + (40 if name == "technical" else 0)
+        )
         manifest[split] = {
             "dtype": "int32",
             "shape": [33],
@@ -246,3 +248,58 @@ def test_prepared_stage_owns_panel_inputs(measured, tmp_path):
         measured, tmp_path / "copied", prepared_inputs=staged
     )
     assert verify_prepared_inputs(copied, measured)
+
+
+def test_same_bundle_with_two_names_refuses(measured, monkeypatch):
+    first = measured.evaluation.panels[0]
+    duplicate = first.model_copy(update={"name": "technical"})
+    config = measured.model_copy(
+        update={
+            "evaluation": measured.evaluation.model_copy(
+                update={"panels": (first, duplicate)}
+            )
+        }
+    )
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("duplicate panel inputs reached model initialization")
+
+    monkeypatch.setattr(PyTorchEngine, "initialize", unexpected)
+    with pytest.raises(ValueError, match="distinct prepared validation inputs"):
+        train(config, run_id="duplicate")
+
+
+def test_exact_training_array_alias_refuses(measured):
+    root = measured.evaluation.panels[0].prepared_path
+    manifest = json.loads((root / "manifest.json").read_text())
+    # The already authenticated training manifest supplies the array identity;
+    # no token-overlap scan or extra full training-array read is introduced.
+    with pytest.raises(ValueError, match="aliases the training array"):
+        load_fixed_panels(measured, training_manifest={"train": manifest["validation"]})
+
+
+def test_explicit_workflow_budget_counts_both_panels(measured, tmp_path):
+    from test_workflow_execution import admitted, execution_fixture
+
+    assert EvaluationConfig(max_batches=4).batch_limit == 4
+    assert measured.evaluation.max_batches == 1
+    assert measured.evaluation.batch_limit == 3
+    raw = measured.model_dump(mode="json")
+    for item in raw["evaluation"]["panels"]:
+        item.update(
+            prepared_path=f"panels/{item['name']}",
+            blocks=5,
+            supervised_targets=80,
+            batch_size=1,
+            max_forward_positions=80,
+        )
+    source, bindings = execution_fixture(tmp_path / "recipe", raw)
+    bound = json.loads(bindings.read_text())
+    bound["config_paths"] = {
+        f"evaluation.panels.{index}.prepared_path": f"panels/{item['name']}"
+        for index, item in enumerate(raw["evaluation"]["panels"])
+    }
+    bindings.write_text(json.dumps(bound))
+    with pytest.raises(ValueError, match="declared evaluation limit"):
+        admitted(source, bindings, tmp_path / "work")
+    assert not (tmp_path / "work").exists()

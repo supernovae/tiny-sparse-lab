@@ -66,6 +66,7 @@ def load_fixed_panels(
     *,
     inputs_root: Path | None = None,
     tokenizer_path: Path | None = None,
+    training_manifest: dict | None = None,
 ) -> dict:
     if not config.evaluation.panels:
         return {}
@@ -73,6 +74,8 @@ def load_fixed_panels(
     file_sha = sha256_file(tokenizer_path)
     canonical_sha = _tokenizer_sha256(load_tokenizer(tokenizer_path))
     result = {}
+    manifests = set()
+    validation_arrays = set()
     for panel in config.evaluation.panels:
         if (
             file_sha != panel.tokenizer_file_sha256
@@ -83,18 +86,42 @@ def load_fixed_panels(
             inputs_root / "panels" / panel.name if inputs_root else panel.prepared_path
         )
         dataset, identity = select_panel(panel, path)
+        validation_sha = identity["validation_sha256"]
+        if (
+            panel.prepared_manifest_sha256 in manifests
+            or validation_sha in validation_arrays
+        ):
+            raise ValueError(
+                "fixed panels must use distinct prepared validation inputs"
+            )
+        if (
+            training_manifest is not None
+            and validation_sha == training_manifest["train"]["sha256"]
+        ):
+            raise ValueError("fixed panel validation aliases the training array")
+        manifests.add(panel.prepared_manifest_sha256)
+        validation_arrays.add(validation_sha)
         result[panel.name] = (panel, dataset, identity)
     return result
 
 
 def copy_fixed_panels(
-    config: RunConfig, destination: Path, *, inputs_root: Path | None = None
+    config: RunConfig,
+    destination: Path,
+    *,
+    inputs_root: Path | None = None,
+    training_manifest: dict | None = None,
 ) -> None:
     """Copy only native prepared inputs; run/stage inventories bind every byte."""
     if not config.evaluation.panels:
         return
     tokenizer_path = (inputs_root or destination) / "tokenizer.json"
-    load_fixed_panels(config, inputs_root=inputs_root, tokenizer_path=tokenizer_path)
+    load_fixed_panels(
+        config,
+        inputs_root=inputs_root,
+        tokenizer_path=tokenizer_path,
+        training_manifest=training_manifest,
+    )
     for panel in config.evaluation.panels:
         source = (
             inputs_root / "panels" / panel.name if inputs_root else panel.prepared_path
@@ -105,7 +132,10 @@ def copy_fixed_panels(
         for name in ("manifest.json", *prepared.receipt.proofs):
             shutil.copy2(source / name, target / name)
     load_fixed_panels(
-        config, inputs_root=destination, tokenizer_path=destination / "tokenizer.json"
+        config,
+        inputs_root=destination,
+        tokenizer_path=destination / "tokenizer.json",
+        training_manifest=training_manifest,
     )
 
 
