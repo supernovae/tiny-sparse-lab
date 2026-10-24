@@ -10,83 +10,26 @@ import time
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-import numpy as np
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field
 
-from sparselab.config.models import StrictModel
+from sparselab.config.models import FixedValidationPanel
 from sparselab.data.packing import (
-    TokenBlockDataset,
     _tokenizer_sha256,
-    load_prepared_data,
 )
 from sparselab.evaluation.inference import load_run
 from sparselab.evaluation.language_model import evaluate
+from sparselab.evaluation.panel_data import select_panel as _dataset
 from sparselab.training.attempt_budget import AttemptBudget
 from sparselab.training.manifest import canonical_json
 
 Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-Positive = Annotated[int, Field(strict=True, gt=0)]
 
 
-class HeldoutPanel(StrictModel):
+class HeldoutPanel(FixedValidationPanel):
     schema_version: Literal[1]
-    name: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
     purpose: Literal["development"]
-    prepared_path: Path
-    prepared_manifest_sha256: Digest
-    tokenizer_file_sha256: Digest
-    tokenizer_canonical_sha256: Digest
     checkpoint_sha256: Digest
-    split: Literal["validation"]
-    sampling: Literal["first_eligible_blocks"]
-    sequence_length: Positive
-    blocks: Positive
-    supervised_targets: Positive
-    batch_size: Positive
-    max_forward_positions: Positive
-
-    @model_validator(mode="after")
-    def budget(self) -> HeldoutPanel:
-        positions = self.blocks * self.sequence_length
-        if (
-            positions > self.max_forward_positions
-            or self.supervised_targets > positions
-        ):
-            raise ValueError("panel selection exceeds its forward or target budget")
-        return self
-
-
-def _dataset(panel: HeldoutPanel, root: Path) -> tuple[TokenBlockDataset, dict]:
-    prepared = load_prepared_data(root, byte_enabled=False)
-    manifest = prepared.manifest
-    if manifest["manifest_sha256"] != panel.prepared_manifest_sha256:
-        raise ValueError("panel prepared manifest identity mismatch")
-    if manifest["tokenizer_sha256"] != panel.tokenizer_canonical_sha256:
-        raise ValueError("panel prepared tokenizer identity mismatch")
-    if manifest.get("allocation") is not None:
-        raise ValueError("named panels do not support allocation sidecars")
-    dataset = TokenBlockDataset(
-        prepared.validation,
-        panel.sequence_length,
-        supervision=prepared.validation_supervision,
-    )
-    if len(dataset) < panel.blocks:
-        raise ValueError("panel has insufficient eligible blocks (possibly empty)")
-    dataset.block_indices = dataset.block_indices[: panel.blocks].copy()
-    targets = sum(
-        int(np.count_nonzero(dataset.numpy_block(i)[1] != -100))
-        for i in range(len(dataset))
-    )
-    if targets != panel.supervised_targets:
-        raise ValueError("panel supervised-target coverage differs from declaration")
-    return dataset, {
-        "prepared_manifest_sha256": manifest["manifest_sha256"],
-        "validation_sha256": manifest["validation"]["sha256"],
-        "supervision": manifest["supervision"],
-        "packing_version": manifest["packing_version"],
-        "source_identity_sha256": manifest.get("source_identity_sha256"),
-    }
 
 
 def run_panel(

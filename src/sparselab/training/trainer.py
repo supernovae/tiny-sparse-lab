@@ -46,8 +46,14 @@ from sparselab.data.packing import (
     supervision_requires_mask,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.engines.base import EngineState, Microbatch
+from sparselab.engines.base import EngineState, EvaluationResult, Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
+from sparselab.evaluation.panel_data import (
+    copy_fixed_panels,
+    load_fixed_panels,
+    panel_protocol,
+    panel_protocol_sha256,
+)
 from sparselab.evaluation.post_train_triage import triage_completed_run
 from sparselab.memory import (
     calibrated_estimate,
@@ -315,6 +321,9 @@ def _copy_artifacts(
         )
     else:
         shutil.copytree(data.root, run / "data")
+    copy_fixed_panels(
+        config, run, inputs_root=source_run, training_manifest=data.manifest
+    )
     mask_required = supervision_requires_mask(data.manifest)
     for split in ("train", "validation"):
         mask = run / "data" / f"{split}_supervision.npy"
@@ -526,6 +535,10 @@ def _write_validation_report(
     addresses = run / "data" / "validation_byte_addresses.npy"
     if addresses.is_file():
         identities["data/validation_byte_addresses.npy"] = sha256_file(addresses)
+    if config.evaluation.panels:
+        for path in sorted((run / "panels").rglob("*")):
+            if path.is_file():
+                identities[path.relative_to(run).as_posix()] = sha256_file(path)
     payload: dict[str, object] = {
         "kind": "held_out_validation_v2",
         "checkpoint": record.relative_path,
@@ -533,8 +546,12 @@ def _write_validation_report(
         "step": record.step,
         "tokens_seen": record.tokens_seen,
         "identities": identities,
-        "batch_size": config.training.micro_batch_size,
-        "max_batches": config.evaluation.max_batches,
+        "batch_size": None
+        if config.evaluation.panels
+        else config.training.micro_batch_size,
+        "max_batches": None
+        if config.evaluation.panels
+        else config.evaluation.max_batches,
         "seq_len": config.training.seq_len,
         **result,
     }
@@ -995,6 +1012,14 @@ def _train_impl(
                     proof_store=proof_store,
                     verification_mode=verification_mode,
                 )
+        load_fixed_panels(
+            config,
+            inputs_root=artifact_source,
+            tokenizer_path=(artifact_source / "tokenizer.json")
+            if artifact_source
+            else None,
+            training_manifest=data.manifest,
+        )
         if purpose == "training":
             _check_training_storage(
                 config,
@@ -1204,6 +1229,12 @@ def _train_impl(
         resources.enter_context(manager.writer_lease())
         with pilot_phase("run_input_materialization"):
             artifacts = _copy_artifacts(run, config, data, artifact_source)
+            fixed_panels = load_fixed_panels(
+                config,
+                inputs_root=run,
+                tokenizer_path=run / "tokenizer.json",
+                training_manifest=data.manifest,
+            )
         exposure_base = exposure_context(
             dataset,
             artifacts,
@@ -1862,16 +1893,19 @@ def _train_impl(
 
         validation_pass_index = 0
 
-        def evaluation_batches():
-            limit = config.evaluation.max_batches
+        def evaluation_batches(
+            selected=validation_dataset,
+            batch_size=None,
+            limit=config.evaluation.max_batches,
+            name="default",
+        ):
+            batch_size = batch_size or config.training.micro_batch_size
             progress_total = 0
             if current_pilot_progress() is not None:
-                count = (
-                    len(validation_dataset) + config.training.micro_batch_size - 1
-                ) // config.training.micro_batch_size
+                count = (len(selected) + batch_size - 1) // batch_size
                 progress_total = count if limit is None else min(count, limit)
             for emitted, offset in enumerate(
-                range(0, len(validation_dataset), config.training.micro_batch_size),
+                range(0, len(selected), batch_size),
                 start=1,
             ):
                 if limit is not None and emitted > limit:
@@ -1879,19 +1913,19 @@ def _train_impl(
                 if wall_expired():
                     raise _WallTimeExpired
                 records = [
-                    validation_dataset.numpy_microblock(index)
+                    selected.numpy_microblock(index)
                     for index in range(
                         offset,
                         min(
-                            offset + config.training.micro_batch_size,
-                            len(validation_dataset),
+                            offset + batch_size,
+                            len(selected),
                         ),
                     )
                 ]
                 inputs = np.stack([record[0] for record in records])
                 if AttemptBudget.forward_allocation_active_from_environment():
                     AttemptBudget.reserve_forward_from_environment(
-                        f"validation:{run_id}:{validation_pass_index}:{emitted}",
+                        f"validation:{run_id}:{validation_pass_index}:{name}:{emitted}",
                         kind="operational_validation",
                         positions=int(inputs.size),
                     )
@@ -1939,9 +1973,46 @@ def _train_impl(
                     completed_steps=step,
                     completed_targets=tokens,
                 ):
-                    evaluation_result = engine.evaluate(
-                        evaluation_batches()
-                    ).to_report()
+                    if fixed_panels:
+                        named = {}
+                        totals = []
+                        for name, (panel, selected, identity) in fixed_panels.items():
+                            measured = engine.evaluate(
+                                evaluation_batches(
+                                    selected, panel.batch_size, None, name
+                                )
+                            )
+                            if (
+                                measured.valid_targets != panel.supervised_targets
+                                or measured.batches
+                                != (panel.blocks + panel.batch_size - 1)
+                                // panel.batch_size
+                            ):
+                                raise ValueError(
+                                    "active evaluation did not complete panel coverage"
+                                )
+                            totals.append(measured)
+                            named[name] = {
+                                **measured.to_report(),
+                                "nll_sum": measured.loss_sum,
+                                "protocol": panel_protocol(panel),
+                                "protocol_sha256": panel_protocol_sha256(panel),
+                                "data_identity": identity,
+                            }
+                        combined = EvaluationResult(
+                            math.fsum(item.loss_sum for item in totals),
+                            sum(item.valid_targets for item in totals),
+                            sum(item.batches for item in totals),
+                        )
+                        evaluation_result = {
+                            **combined.to_report(),
+                            "nll_sum": combined.loss_sum,
+                            "panels": named,
+                        }
+                    else:
+                        evaluation_result = engine.evaluate(
+                            evaluation_batches()
+                        ).to_report()
                 result: dict[str, object] = {}
                 result.update(evaluation_result)
             except _WallTimeExpired:
@@ -1971,6 +2042,12 @@ def _train_impl(
             perplexity = result.get("perplexity")
             if isinstance(perplexity, (int, float)):
                 metrics["validation/perplexity"] = float(perplexity)
+            for name, panel_result in result.get("panels", {}).items():
+                metrics[f"validation/{name}/loss"] = float(panel_result["loss"])
+                if panel_result["perplexity"] is not None:
+                    metrics[f"validation/{name}/perplexity"] = float(
+                        panel_result["perplexity"]
+                    )
             reporting_started = time.perf_counter()
             try:
                 completion_elapsed = elapsed_seconds()

@@ -19,6 +19,7 @@ _PATH_KEYS = {
     "train_path",
     "portability_manifest_path",
     "validation_path",
+    "prepared_path",
     "allocation_manifest_path",
     "source_manifest_path",
     "corpus_release_path",
