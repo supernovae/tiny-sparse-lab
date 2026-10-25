@@ -28,6 +28,42 @@ artifacts. The current contract is v1 and durable ledger storage is schema 2.
 This finite refactor does not redesign serving, architecture, evaluation science
 or archived experiments.
 
+## Inventory completion and split recovery
+
+Native `corpus split-inventory` records a host-owned authenticated completion
+cache after all source processing finishes. `corpus freeze-splits` can reuse that
+inventory while its source declarations, normalizer, family fields, acquired
+snapshot dependencies, output and producer authority remain unchanged. Missing,
+corrupt or unavailable optional cache state never becomes evidence of success.
+
+A retained inventory that predates those completion records can select an
+`inventory_completion: {path, sha256}` reference in its reviewed cluster
+declaration. This explicitly adopts successful local executor evidence: exact
+producer revision, Python and container identities, native command, bound
+scientific inputs, native output digest and counts, completed session and cleanup.
+Control receipts must be bounded owned files inside the work root. Adoption is
+reported as `adopted_execution`, distinct from `native_production` or a fresh
+`cold_verification`; neither a checksum alone nor a failed or partial execution
+is a completion proof. Acquisition and admission verification remain required
+before frozen splits publish. Historical timers and resource allowances are not
+execution policy for the adopting run.
+
+Adoption preserves output from the explicitly selected producer revision; it
+does not run that historical code or claim current-code production equivalence.
+Native completion reuse instead binds current producer and transitive corpus
+verifier authority, including normalization and row-family qualification. If a
+producer's final unchanged-input check fails, its output is not completed work
+and must be discarded rather than reused.
+
+The optional `merge_provenance: {path, sha256}` reference binds reviewed
+exact-content component evidence to the inventory, admission, source strata,
+seed, weights and merge membership. Missing known merges or stale review inputs
+are reported before expensive source processing. This diagnostic does not replace
+the full exact-content leakage check. Component IDs are the SHA-256 of canonical
+JSON containing the stratum and sorted member hints, prefixed
+`exact-content-family:`. Applying a reviewed component does not remove documents
+or move them to another stratum.
+
 ## Test coverage and pruning
 
 | Guarantee | Retained coverage |
@@ -95,8 +131,9 @@ An interrupted budgeted attempt must retain its failure/accounting evidence;
 operator recovery does not replay or reset that attempt. Adding recovery to the
 attempt protocol requires a separately reviewed policy change.
 
-The operator command explicitly revalidates acquisition, admission,
-inventory and reviewed clusters, recomputes deterministic bytes, checks **every**
+The operator command revalidates acquisition, admission and reviewed clusters,
+reuses authenticated completed inventory or verifies it through native production,
+recomputes deterministic bytes, checks **every**
 existing member before writing, and exclusively publishes only missing members.
 Existing identical members are fsynced again without replacement; any conflicting
 file or symlink stops recovery. Ordinary retries still refuse existing outputs.

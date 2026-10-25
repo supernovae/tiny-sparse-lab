@@ -267,6 +267,15 @@ def write_split_inventory_stored(
     if not destination.is_relative_to(root) or destination.exists():
         raise ValueError("split inventory requires a new path within the work root")
     lock = verify_acquisition(project, root)
+    from sparselab.corpus.split_inventory_cache import InventoryCache, inventory_inputs
+
+    # Completion caching is optional; a native producer can still run when
+    # metadata cannot be fingerprinted, but must not publish a reuse proof.
+    try:
+        dependencies = inventory_inputs(project, root, lock)
+    except OSError:
+        dependencies = None
+    cache = InventoryCache(root) if dependencies is not None else None
     destination.parent.mkdir(parents=True, exist_ok=True)
     counts: Counter[str] = Counter()
     temporary: str | None = None
@@ -342,7 +351,7 @@ def write_split_inventory_stored(
     finally:
         if temporary is not None:
             Path(temporary).unlink(missing_ok=True)
-    return {
+    report = {
         "schema_version": 1,
         "project_id": project.config.id,
         "path": str(destination),
@@ -350,6 +359,13 @@ def write_split_inventory_stored(
         "counts": dict(sorted(counts.items())),
         "documents": sum(counts.values()),
     }
+    from sparselab.corpus.admission_inspection_cache import capture, unchanged
+
+    if dependencies is not None:
+        unchanged(dependencies)
+        dependencies.update(capture([destination]))
+        cache.record_completed(project, destination, report, dependencies)
+    return report
 
 
 def write_split_inventory(

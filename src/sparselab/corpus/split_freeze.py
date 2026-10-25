@@ -26,6 +26,7 @@ from sparselab.corpus.release import verify_release
 from sparselab.corpus.rights import verify_record_admission
 from sparselab.corpus.row_index import RowIndex, ValueMap
 from sparselab.corpus.split_inventory import write_split_inventory
+from sparselab.corpus.split_inventory_cache import InventoryCache, verified_inventory
 from sparselab.result_publication import sync_directory as _sync_directory
 from sparselab.training.manifest import canonical_json, sha256_file
 from sparselab.verification_proofs import verification_options
@@ -257,7 +258,12 @@ def _freeze_splits(
         raise ValueError("split inputs and output must reside in the work root")
     if not recover and (output.exists() or output.is_symlink()):
         raise ValueError("frozen split output already exists")
+    from sparselab.corpus.admission_inspection_cache import capture, unchanged
+
+    configuration = capture([clusters_path])
+    clusters_sha256 = sha256_file(clusters_path)
     raw_clusters = read_metadata(clusters_path)
+    unchanged(configuration)
     if (
         not isinstance(raw_clusters, dict)
         or not {
@@ -280,6 +286,8 @@ def _freeze_splits(
             "reviewed_on",
             "prior_family_inventory",
             "split_weights",
+            "inventory_completion",
+            "merge_provenance",
         }
         or raw_clusters["schema_version"] != 1
         or not isinstance(raw_clusters["seed"], str)
@@ -288,7 +296,8 @@ def _freeze_splits(
         or not raw_clusters["reviewer"].strip()
         or not isinstance(raw_clusters["reviewed_on"], str)
         or not raw_clusters["reviewed_on"].strip()
-        or raw_clusters["inventory_sha256"] != sha256_file(inventory_path)
+        or not isinstance(raw_clusters["inventory_sha256"], str)
+        or re.fullmatch(r"[0-9a-f]{64}", raw_clusters["inventory_sha256"]) is None
         or not isinstance(raw_clusters["source_strata"], dict)
         or set(raw_clusters["source_strata"])
         != {source.id for source in project.sources}
@@ -305,19 +314,43 @@ def _freeze_splits(
         if "split_weights" in raw_clusters
         else _WEIGHTS
     )
+    if "merge_provenance" in raw_clusters:
+        from sparselab.corpus.split_merge_provenance import (
+            check_reviewed_merge_provenance,
+        )
+
+        configuration.update(
+            check_reviewed_merge_provenance(
+                project,
+                root,
+                inventory_path,
+                raw_clusters,
+                raw_clusters["merge_provenance"],
+            )
+        )
     prior_families, prior_strata, prior_content = (
         _prior_family_splits(raw_clusters["prior_family_inventory"], root)
         if "prior_family_inventory" in raw_clusters
         else ({}, {}, {})
     )
-    # Recompute through the same verified native parser, not caller-supplied IDs.
-    check_dir = root / "corpora" / project.config.id / "split-inventory-check"
-    check_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="verify-", dir=check_dir) as folder:
-        regenerated = Path(folder) / "inventory.jsonl"
-        report = write_split_inventory(project, root, regenerated)
-        if report["sha256"] != raw_clusters["inventory_sha256"]:
-            raise ValueError("split inventory differs from verified snapshots")
+    adopted = None
+    if "inventory_completion" in raw_clusters:
+        from sparselab.corpus.split_inventory_adoption import adopt_completed_inventory
+
+        adopted = adopt_completed_inventory(
+            project, root, inventory_path, raw_clusters["inventory_completion"]
+        )
+    inventory_work = {}
+    report, inventory_reused = verified_inventory(
+        project,
+        root,
+        inventory_path,
+        raw_clusters["inventory_sha256"],
+        write_split_inventory,
+        adopted=adopted,
+        work=inventory_work,
+    )
+    adopted = inventory_work["adopted"]
     lock = verify_acquisition(project, root)
     reference = project.release.record_admission
     if reference is None:
@@ -486,6 +519,13 @@ def _freeze_splits(
             if previous is not None and assignments[row["document_id"]] != previous[1]:
                 raise ValueError("prior held-out content changed split")
     temporary = Path(current_metadata_store().temporary.name)
+    if adopted is not None:
+        adopted.check(
+            InventoryCache(root),
+            project,
+            inventory_path,
+            raw_clusters["inventory_sha256"],
+        )
     assignment_payload = temporary / ("assignments-" + uuid4().hex)
     with assignment_payload.open("xb") as stream:
         for document_id in assignments:
@@ -542,7 +582,7 @@ def _freeze_splits(
         "family_candidate_sha256": sha256_file(family_payload),
         "inventory_sha256": report["sha256"],
         "admission_sha256": reference.sha256,
-        "cluster_sha256": sha256_file(clusters_path),
+        "cluster_sha256": clusters_sha256,
         "family_counts": realized,
         **(
             {"split_weights": raw_clusters["split_weights"]}
@@ -582,6 +622,14 @@ def _freeze_splits(
             )
         ):
             raise ValueError(f"conflicting frozen split evidence: {path}")
+    unchanged(configuration)
+    if adopted is not None:
+        adopted.check(
+            InventoryCache(root),
+            project,
+            inventory_path,
+            raw_clusters["inventory_sha256"],
+        )
     for path, expected in members:
         if (recover or path == assignment_output) and path.exists():
             # Re-establish durability after a previous uncertain publication.
@@ -597,11 +645,13 @@ def _freeze_splits(
         "sha256": sha256_file(output),
         "inventory_sha256": report["sha256"],
         "admission_sha256": reference.sha256,
-        "cluster_sha256": sha256_file(clusters_path),
+        "cluster_sha256": clusters_sha256,
         "family_candidates": str(candidate_path),
         "family_candidate_sha256": receipt["family_candidate_sha256"],
         "receipt": str(receipt_path),
         "eligible_documents": eligible,
+        "inventory_reused": inventory_reused,
+        "inventory_completion": inventory_work["completion_mode"],
         "placeholder_documents": len(inventory) - eligible,
         "family_counts": realized,
         **(
