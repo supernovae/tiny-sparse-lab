@@ -15,11 +15,13 @@ from sparselab.corpus.split_merge_provenance import (
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
-def _review(tmp_path, monkeypatch, *, merged=True):
+def _review(tmp_path, monkeypatch, *, merged=True, unresolved_second=False):
     project, inventory, clusters_path, rows, _ = _fixture(
         tmp_path, monkeypatch, family_count=11
     )
     rows[1]["content_sha256"] = rows[0]["content_sha256"]
+    if unresolved_second:
+        rows[3]["content_sha256"] = rows[2]["content_sha256"]
     inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
     import json
 
@@ -46,8 +48,25 @@ def _review(tmp_path, monkeypatch, *, merged=True):
             }
         ],
     }
+    if unresolved_second:
+        component = {
+            "stratum": "general_prose",
+            "families": [row["family_hint"] for row in rows[2:4]],
+        }
+        data["components"].append(component)
+        data["groups"].append(
+            {
+                "content_sha256": rows[2]["content_sha256"],
+                "members": [{**row, "stratum": "general_prose"} for row in rows[2:4]],
+                "families": [
+                    {"stratum": "general_prose", "family_hint": hint}
+                    for hint in component["families"]
+                ],
+            }
+        )
+        data["cross_family_groups"] = 2
     summary = {
-        "cross_family_groups": 1,
+        "cross_family_groups": len(data["groups"]),
         "cross_stratum_groups": 0,
         "inputs": {
             "inventory.jsonl": clusters["inventory_sha256"],
@@ -99,6 +118,19 @@ def test_unresolved_reviewed_component_stops_before_source_work(tmp_path, monkey
         split_freeze.freeze_splits(
             project, tmp_path, inventory, clusters, tmp_path / "split.yaml"
         )
+
+
+def test_unresolved_witness_does_not_name_an_already_merged_component(
+    tmp_path, monkeypatch
+):
+    project, inventory, clusters, rows, _ = _review(
+        tmp_path, monkeypatch, unresolved_second=True
+    )
+    with pytest.raises(ValueError, match=rows[2]["content_sha256"]) as failure:
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters, tmp_path / "split.yaml"
+        )
+    assert rows[0]["content_sha256"] not in str(failure.value)
 
 
 def test_reviewed_component_preserves_documents_and_coassigns_duplicates(

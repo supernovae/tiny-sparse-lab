@@ -145,7 +145,25 @@ def check_reviewed_merge_provenance(project, root, inventory, clusters, referenc
     if actual != declared or len(actual) != len(data["components"]):
         raise ValueError("reviewed components differ from exact-content connectivity")
     if clusters["merges"] != reviewed_component_merges(data["components"]):
-        witness = groups[0] if groups else {"content_sha256": "unknown", "members": []}
+        missing = next(
+            (
+                component
+                for component in data["components"]
+                if reviewed_component_merges([component])[0] not in clusters["merges"]
+            ),
+            None,
+        )
+        if missing is None:
+            raise ValueError("reviewed merges differ from exact-content components")
+        families = {(missing["stratum"], hint) for hint in missing["families"]}
+        witness = next(
+            group
+            for group in groups
+            if any(
+                (member["stratum"], member["family_hint"]) in families
+                for member in group["members"]
+            )
+        )
         locations = ", ".join(
             f"{r['source_id']} row {r['source_row_index']}"
             for r in witness["members"][:3]

@@ -48,6 +48,13 @@ is a completion proof. Acquisition and admission verification remain required
 before frozen splits publish. Historical timers and resource allowances are not
 execution policy for the adopting run.
 
+Adoption preserves output from the explicitly selected producer revision; it
+does not run that historical code or claim current-code production equivalence.
+Native completion reuse instead binds current producer and transitive corpus
+verifier authority, including normalization and row-family qualification. If a
+producer's final unchanged-input check fails, its output is not completed work
+and must be discarded rather than reused.
+
 The optional `merge_provenance: {path, sha256}` reference binds reviewed
 exact-content component evidence to the inventory, admission, source strata,
 seed, weights and merge membership. Missing known merges or stale review inputs
@@ -124,8 +131,9 @@ An interrupted budgeted attempt must retain its failure/accounting evidence;
 operator recovery does not replay or reset that attempt. Adding recovery to the
 attempt protocol requires a separately reviewed policy change.
 
-The operator command explicitly revalidates acquisition, admission,
-inventory and reviewed clusters, recomputes deterministic bytes, checks **every**
+The operator command revalidates acquisition, admission and reviewed clusters,
+reuses authenticated completed inventory or verifies it through native production,
+recomputes deterministic bytes, checks **every**
 existing member before writing, and exclusively publishes only missing members.
 Existing identical members are fsynced again without replacement; any conflicting
 file or symlink stops recovery. Ordinary retries still refuse existing outputs.

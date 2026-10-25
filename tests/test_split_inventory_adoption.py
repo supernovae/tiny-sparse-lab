@@ -196,6 +196,24 @@ def test_warm_adoption_skips_large_artifact_hashes(completed_inventory, monkeypa
     assert work["adopted"].provenance["mode"] == "adopted_execution"
 
 
+def test_adoption_refuses_current_project_normalizer_change(completed_inventory):
+    root, project, path, _ = completed_inventory
+    reference = _evidence(completed_inventory)
+    normalizer = (
+        "normalizer-structure-v3"
+        if project.release.normalizer != "normalizer-structure-v3"
+        else "normalizer-nfc-markdown-v1"
+    )
+    changed = project.model_copy(
+        update={
+            "release": project.release.model_copy(update={"normalizer": normalizer})
+        }
+    )
+    with pytest.raises(ValueError, match="current project differs"):
+        adopt_completed_inventory(changed, root, path, reference)
+    assert InventoryCache(root).completed(changed, path) is None
+
+
 @pytest.mark.parametrize(
     "case",
     [

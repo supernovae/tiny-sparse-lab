@@ -136,6 +136,45 @@ def test_changed_producer_authority_invalidates_completion(completed_inventory):
     assert cache.completed(project, path) is None
 
 
+def test_cold_regeneration_must_match_reviewed_inventory(completed_inventory):
+    root, project, path, report = completed_inventory
+    cache = InventoryCache(root)
+    cache._path("inventory", cache.request(project, path)).unlink()
+
+    def different_output(project, root, destination):
+        destination.write_bytes(path.read_bytes() + b"\n")
+        return {
+            **report,
+            "path": str(destination),
+            "sha256": split_inventory.sha256_file(destination),
+        }
+
+    with pytest.raises(ValueError, match="differs from verified snapshots"):
+        verified_inventory(project, root, path, report["sha256"], different_output)
+    assert InventoryCache(root).completed(project, path) is None
+
+
+def test_mid_production_snapshot_change_cannot_publish_completion(
+    completed_inventory, monkeypatch
+):
+    root, project, path, _ = completed_inventory
+    _, dependencies, _ = InventoryCache(root).completed(project, path)
+    snapshot = next(Path(p) for p in dependencies if Path(p).is_dir())
+    source = next(p for p in (snapshot / "files").rglob("*") if p.is_file())
+    output = root / "changed-during-production.jsonl"
+    original = split_inventory.os.link
+
+    def publish_then_mutate(temporary, destination, *args, **kwargs):
+        original(temporary, destination, *args, **kwargs)
+        if Path(destination) == output:
+            source.write_bytes(source.read_bytes() + b"\n")
+
+    monkeypatch.setattr(split_inventory.os, "link", publish_then_mutate)
+    with pytest.raises(ValueError, match="changed during execution"):
+        split_inventory.write_split_inventory(project, root, output)
+    assert InventoryCache(root).completed(project, output) is None
+
+
 @pytest.mark.parametrize("raw", ['{"dependencies": [], "payload": {}}', '{"payload":'])
 def test_corrupt_or_unsigned_cache_never_becomes_completion(completed_inventory, raw):
     root, project, path, _ = completed_inventory
