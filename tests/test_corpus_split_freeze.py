@@ -29,6 +29,7 @@ def _assignments(path):
 
 
 def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, family_count=10):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     sources = [SimpleNamespace(id=source) for source in ("books", "pages", "incidents")]
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -117,6 +118,10 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, family_count=10):
         lambda *_: {"sources": snapshots},
     )
     monkeypatch.setattr(split_freeze, "source_declaration_payload", lambda _: {})
+    monkeypatch.setattr(
+        "sparselab.corpus.split_inventory_cache.source_declaration_payload",
+        lambda _: {},
+    )
     monkeypatch.setattr(split_freeze, "verify_record_admission", lambda *_: decisions)
     return project, inventory, clusters_path, rows, decisions
 
