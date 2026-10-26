@@ -40,6 +40,9 @@ class MixtureDeclaration(BaseModel):
     target_quotas: dict[str, int]
     seed: int
     max_exposures: Literal[1, 2]
+    unique_train_content_floors: dict[str, int] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     order_policy: Literal["kml-card03-v1"] | None = None
     # Reuse an authenticated tokenizer fitted to an earlier frozen release.
     # Absent for legacy declarations, preserving their canonical identity.
@@ -52,6 +55,16 @@ class MixtureDeclaration(BaseModel):
     def strict_exposure_limit(cls, value: object) -> object:
         if type(value) is not int:
             raise ValueError("max_exposures must be integer 1 or 2")
+        return value
+
+    @field_validator("unique_train_content_floors", mode="before")
+    @classmethod
+    def strict_content_floors(cls, value):
+        if value is not None and (
+            not isinstance(value, dict)
+            or any(type(item) is not int for item in value.values())
+        ):
+            raise ValueError("unique TRAIN content floors must be integers")
         return value
 
     @model_validator(mode="after")
@@ -68,6 +81,16 @@ class MixtureDeclaration(BaseModel):
         ):
             raise ValueError(
                 "mixture requires positive quotas for exactly the mapped strata"
+            )
+        if self.unique_train_content_floors is not None and (
+            set(self.unique_train_content_floors) != set(self.target_quotas)
+            or any(
+                type(value) is not int or value <= 0
+                for value in self.unique_train_content_floors.values()
+            )
+        ):
+            raise ValueError(
+                "unique TRAIN content floors must cover the exact mixture strata"
             )
         return self
 
@@ -158,12 +181,31 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
             "target quotas disagree with verified release requested mixture"
         )
     tokenizer, tokenizer_sha = _tokenizer(spec, release, manifest["release_id"])
+    from sparselab.corpus.completed_preparation import local_scope
+
+    completed = local_scope(manifest)
     eos = tokenizer.token_to_id("<eos>")
     if eos is None:
         raise ValueError("verified tokenizer lacks EOS token")
     output = output.resolve()
     if output.exists():
         raise FileExistsError(f"mixture output already exists: {output}")
+    if completed is not None:
+        cache = _completed_mixture_cache(spec)
+        bound = [
+            output,
+            spec.family_inventory.resolve(),
+            spec.tokenizer_config.resolve(),
+            load_tokenizer_config(spec.tokenizer_config).output_dir.resolve(),
+        ]
+        if (
+            cache.proofs is None
+            or not cache.writable
+            or any(not p.is_relative_to(cache.root) for p in bound)
+        ):
+            raise ValueError(
+                "completed mixture requires existing trusted work-root completion storage"
+            )
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".mixture-", dir=output.parent))
     try:
@@ -195,6 +237,11 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
                 staging,
             )
             index.verify_inputs()
+        if completed is not None:
+            receipt["completed_preparation"] = {
+                "policy": completed["policy"],
+                "verification_scope": "native executed mixture schedule and unique-content counts; no later schedule replay",
+            }
         with (staging / "receipt.json").open("xb") as stream:
             stream.write(canonical_json(receipt) + b"\n")
             stream.flush()
@@ -202,6 +249,8 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
         _sync_dir(staging)
         _rename_noreplace(staging, output)
         _sync_dir(output.parent)
+        if completed is not None:
+            _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt)
         return receipt
     except BaseException:
         if staging.exists():
@@ -215,6 +264,7 @@ def _schedule(
     totals: Counter[str] = Counter()
     unique: Counter[str] = Counter()
     available_unique: Counter[str] = Counter()
+    available_content: Counter[str] = Counter()
     eligible_families: Counter[str] = Counter()
     source_totals: Counter[str] = Counter()
     records = 0
@@ -251,6 +301,17 @@ def _schedule(
                     }
                 )
                 available += len(ids) + 1
+                available_content[stratum] += len(ids)
+            if (
+                spec.unique_train_content_floors is not None
+                and available_content[stratum]
+                < spec.unique_train_content_floors[stratum]
+            ):
+                raise ValueError(
+                    f"unique TRAIN content supply below floor for {stratum}: "
+                    f"{available_content[stratum]} available, "
+                    f"{spec.unique_train_content_floors[stratum]} required (EOS excluded)"
+                )
             if available * spec.max_exposures < quota:
                 raise ValueError(
                     f"required quota impossible for {stratum}: {available} unique, "
@@ -320,13 +381,93 @@ def _schedule(
         "train_tokens_sha256": sha256_file(staging / "train.tokens.jsonl"),
         "train_tokens_bytes": (staging / "train.tokens.jsonl").stat().st_size,
     }
+    if spec.unique_train_content_floors is not None:
+        receipt["available_unique_content_tokens"] = dict(available_content)
+        receipt["unique_train_content_floors"] = spec.unique_train_content_floors
     if len(canonical_json(receipt)) + 1 > MAX_RECEIPT_BYTES:
         raise ValueError("mixture receipt-byte cap exceeded")
     return receipt
 
 
+def _completed_mixture_cache(spec):
+    from sparselab.corpus.admission_inspection_cache import InspectionCache
+    from sparselab.corpus.completed_preparation import corpus_work_root
+
+    cache = InspectionCache(corpus_work_root(spec.release_path.resolve()))
+    cache.authority = {
+        **cache.authority,
+        "mixture": {
+            name: sha256_file(Path(__file__).with_name(name))
+            for name in ("mixture.py", "mixture_index.py")
+        },
+    }
+    return cache
+
+
+def _completed_mixture_request(spec, raw, output, manifest, tokenizer_sha):
+    return {
+        "declaration_sha256": hashlib.sha256(raw).hexdigest(),
+        "release_id": manifest["release_id"],
+        "tokenizer_sha256": tokenizer_sha,
+        "release_path": str(spec.release_path.resolve()),
+        "output": str(output.resolve()),
+        "tokenizer_config": str(spec.tokenizer_config.resolve()),
+        "family_inventory": str(spec.family_inventory.resolve()),
+    }
+
+
+def _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt):
+    from sparselab.corpus.admission_inspection_cache import capture
+    from sparselab.corpus.completed_preparation import (
+        corpus_work_root,
+        local_dependencies,
+    )
+
+    release = spec.release_path.resolve()
+    cache = _completed_mixture_cache(spec)
+    cache.publish(
+        "completed-mixture",
+        _completed_mixture_request(spec, raw, output, manifest, tokenizer_sha),
+        receipt,
+        capture(
+            [
+                output,
+                spec.family_inventory,
+                spec.tokenizer_config,
+                load_tokenizer_config(spec.tokenizer_config).output_dir,
+                release,
+                *local_dependencies(manifest, work_root=corpus_work_root(release)),
+            ]
+        ),
+        limit=MAX_RECEIPT_BYTES,
+    )
+
+
+def _verify_completed_mixture(declaration, output, receipt):
+    raw = declaration.read_bytes()
+    spec = MixtureDeclaration.model_validate(yaml.safe_load(raw))
+    manifest = verify_release(spec.release_path.resolve())
+    from sparselab.corpus.completed_preparation import local_scope
+
+    if local_scope(manifest) is None:
+        raise ValueError("completed mixture has no matching local preparation scope")
+    _, tokenizer_sha = _tokenizer(
+        spec, spec.release_path.resolve(), manifest["release_id"]
+    )
+    cached = _completed_mixture_cache(spec).load(
+        "completed-mixture",
+        _completed_mixture_request(spec, raw, output, manifest, tokenizer_sha),
+        limit=MAX_RECEIPT_BYTES,
+    )
+    if cached is None or cached[0] != receipt:
+        raise ValueError(
+            "completed native mixture evidence unavailable; no automatic schedule replay"
+        )
+    return receipt
+
+
 def verify_mixture(declaration: Path, output: Path) -> dict:
-    """Cold replay catches changed inputs, schedule, rights and token arrays."""
+    """Verify the declared cold-replay or completed-local execution policy."""
     output = output.resolve()
     receipt_path = output / "receipt.json"
     with receipt_path.open("rb") as stream:
@@ -334,6 +475,11 @@ def verify_mixture(declaration: Path, output: Path) -> dict:
     if len(raw) > MAX_RECEIPT_BYTES:
         raise ValueError("mixture receipt-byte cap exceeded")
     receipt = json.loads(raw)
+    if (
+        receipt.get("completed_preparation", {}).get("policy")
+        == "completed_local_preparation"
+    ):
+        return _verify_completed_mixture(declaration, output, receipt)
     if sha256_file(output / "train.tokens.jsonl") != receipt["train_tokens_sha256"]:
         raise ValueError("mixture token export digest mismatch")
     with tempfile.TemporaryDirectory(

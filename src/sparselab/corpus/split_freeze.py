@@ -800,5 +800,43 @@ def freeze_splits(
 def finalize_family_inventory(
     release: Path, frozen_splits: Path, output: Path
 ) -> dict[str, Any]:
+    from sparselab.corpus.completed_preparation import local_scope
+
+    manifest = verify_release(release)
+    scope = local_scope(manifest)
+    if scope is not None:
+        from sparselab.corpus.project import SplitDeclaration
+
+        # The executed local build already joined the frozen candidates to each
+        # rendered document, checked family isolation, and filtered native dedup.
+        # Export that authenticated result instead of reconstructing a RowIndex.
+        frozen_splits = frozen_splits.resolve()
+        receipt_path = frozen_splits.with_name(frozen_splits.stem + ".receipt.json")
+        if any(
+            str(p) not in scope["request"]["inputs"]
+            for p in (frozen_splits, receipt_path)
+        ):
+            raise ValueError("family export is not bound to the completed build split")
+        receipt = json.loads(receipt_path.read_bytes())
+        split = SplitDeclaration.model_validate(
+            yaml.safe_load(frozen_splits.read_text(encoding="utf-8"))
+        )
+        if manifest["build_identity"]["split"] != split.model_dump(mode="json"):
+            raise ValueError("family export split differs from completed build")
+        if output.exists() or output.is_symlink():
+            raise ValueError("final family inventory already exists")
+        _publish_new(output, release / "family-inventory.jsonl")
+        report = json.loads((release / "report.json").read_bytes())
+        return {
+            "schema_version": 1,
+            "release_id": manifest["release_id"],
+            "output": str(output),
+            "sha256": manifest["files"]["family-inventory.jsonl"]["sha256"],
+            "kept_documents": report["kept_document_count"],
+            "duplicate_documents_removed": report["document_count"]
+            - report["kept_document_count"],
+            "split_sha256": receipt["split_sha256"],
+            "family_candidate_sha256": receipt["family_candidate_sha256"],
+        }
     with metadata_operation(output.parent, max_database_bytes=None):
         return _finalize_family_inventory(release, frozen_splits, output)
