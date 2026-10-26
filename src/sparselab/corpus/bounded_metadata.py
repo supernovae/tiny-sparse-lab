@@ -202,6 +202,7 @@ class MetadataStore:
         self.max_database_bytes = max_database_bytes
         self._loaded = OrderedDict()
         self._loaded_header_bytes = 0
+        self._assignment_lookups = {}
         try:
             self.connection.execute("PRAGMA page_size=4096")
             if max_database_bytes is not None:
@@ -227,6 +228,9 @@ class MetadataStore:
         self.close()
 
     def close(self):
+        for lookup in self._assignment_lookups.values():
+            lookup.close()
+        self._assignment_lookups.clear()
         self._loaded.clear()
         self.connection.close()
         self.temporary.cleanup()

@@ -13,6 +13,34 @@ from sparselab.corpus.split_assignments import (
 from sparselab.training.manifest import canonical_json
 
 
+def test_compact_lookup_reuses_parsing_and_closes_owned_maps(tmp_path, monkeypatch):
+    from sparselab.corpus import split_lookup
+
+    path, ref = _bound(
+        tmp_path,
+        [
+            {"document_id": "alpha", "split": "train"},
+            {"document_id": "\u03b2eta", "split": "validation"},
+        ],
+    )
+    original, calls = split_lookup.records_from_path, []
+
+    def counted(*args, **kwargs):
+        calls.append(args[0])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(split_lookup, "records_from_path", counted)
+    with metadata_operation(tmp_path):
+        first = Assignments(path, ref)
+        second = Assignments(path, ref)
+        assert (
+            dict(first) == dict(second) == {"alpha": "train", "\u03b2eta": "validation"}
+        )
+        assert len(calls) == 1
+        owned = first.index
+    assert owned.maps == []
+
+
 def _bound(tmp_path, rows, count=None):
     raw = b"".join(canonical_json(row) + b"\n" for row in rows)
     digest = hashlib.sha256(raw).hexdigest()

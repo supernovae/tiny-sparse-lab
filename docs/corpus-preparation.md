@@ -1,5 +1,47 @@
 # Corpus-to-prepared-bundle public surface
 
+## Reusing completed local preparation
+
+`corpus freeze-splits PROJECT --inventory INVENTORY --clusters CLUSTERS
+--output SPLITS --reuse-completed-preparation` selects bounded external sorting
+and streaming joins for an already completed, parentless inventory. It requires
+the existing completed-execution adoption evidence and the exact reviewed v2
+admission digest. Source revisions, inventory-to-admission snapshot bindings,
+basic source-level rights eligibility and every qualify/exclude/quarantine
+decision remain enforced. Reviewed family
+merges, seeded integer split assignment and cross-split exact-content isolation
+are unchanged; no documents or categories are removed or reassigned.
+
+This explicit local reuse policy defers acquisition-lock/snapshot verification,
+detailed row/file admission verification (coverage, source hashes, per-file
+rights exceptions and manual-review requirements), repeated source-body hashing
+and per-record provenance-envelope reconstruction during freezing. It checks
+snapshot agreement between the retained inventory and admission, rather than
+revalidating those identities against the acquisition lock. The receipt
+records that scope and retains the original completed-execution references. It
+does not claim those checks ran again, prove original-seed independence, grant
+redistribution rights or certify a public release. The ordinary verification
+policy remains available without this selection. The ordinary downstream build
+still invokes acquisition and detailed admission verification and creates its
+own document index; this freeze selection does not suppress those later costs.
+
+The producer commits immutable sort runs and phase completion before proceeding.
+Native verification proofs authenticate resumable completion against exact
+producer/input/output identities, retaining the existing transitive verifier
+authority as well as the streaming producer files; a checksum chain alone is
+not authority.
+Changed/incomplete work is recomputed, preserving prior artifacts. Export chunks
+record source byte offsets so a restart resumes after completed chunks. State
+lives under the corpus work root rather than in an uncommitted SQLite transaction;
+the old failed scratch is never imported. The 32 MiB sort buffer bounds working
+buffers, not dataset size or run time. Phase records retain measured work and
+elapsed time; no corpus-scale speed claim follows from fixture tests.
+
+Frozen assignments retain their canonical JSONL format. Consumers use an
+operation-owned compact key/offset/split lookup instead of copying assignment
+JSON payloads into a relational index. Lookup maps close before scratch cleanup,
+and repeated consumers in one operation share the same validated lookup.
+
 New retained-corpus preparation uses the [current packet](../experiments/research/kernel-memory-lab/card05-base-50m/current/README.md).
 Use one `preparation.json` with native `attempt phase-command` for inspection and
 `attempt run-phase` for one supervised zero-model phase. Public `corpus
