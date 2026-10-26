@@ -427,6 +427,17 @@ def _fingerprint(path: Path) -> tuple[tuple[str, int, int, int, int, int, int], 
 
 def _snapshot_dependencies(path: Path, manifest_name: str) -> tuple[Path, ...]:
     manifest = _json_file(path / manifest_name)
+    from sparselab.corpus.preparation_inputs import (
+        corpus_work_root,
+        local_dependencies,
+        local_scope,
+    )
+
+    if local_scope(manifest) is not None:
+        dependencies = local_dependencies(manifest, work_root=corpus_work_root(path))
+        if manifest_name == "manifest.json":
+            return (*dependencies, path.parent.parent / "builds" / manifest["build_id"])
+        return dependencies
     _check_snapshot_paths(path, manifest)
     return tuple(
         path.parent.parent / "snapshots" / item["source_id"] / item["sha256"]

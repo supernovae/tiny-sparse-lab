@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class _VerifiedRelease:
-    """Full-verifier proof valid only while its typed closure remains unchanged."""
+    """Declared-policy proof valid only while its typed closure is unchanged."""
 
     manifest: dict[str, Any]
     closure_key: tuple[object, ...]
@@ -1653,6 +1653,13 @@ def _verify_build_cold(
     """Verify all staged outputs and their claimed immutable input snapshots."""
     path = Path(path).resolve()
     manifest = _load(path / "build.json")
+    from sparselab.corpus.completed_preparation import (
+        local_scope,
+        verify_completed_build,
+    )
+
+    if local_scope(manifest) is not None:
+        return verify_completed_build(path, manifest)
     if (
         manifest["schema_version"] != 1
         or manifest["build_id"] != path.name
@@ -1872,6 +1879,18 @@ def _verify_release_cold(
             raise ValueError("release changed within verification operation")
         return proof.manifest
     manifest = _load(path / "manifest.json")
+    from sparselab.corpus.completed_preparation import (
+        local_scope,
+        verify_completed_release,
+    )
+
+    if local_scope(manifest) is not None:
+        manifest = verify_completed_release(path, manifest, expected_id=expected_id)
+        if proofs is not None:
+            proofs[path] = _VerifiedRelease(
+                manifest, _release_closure_key(path, manifest)
+            )
+        return manifest
     release_id = manifest.get("release_id")
     if release_id != (expected_id or path.name) or len(release_id) != 64:
         raise ValueError("release directory identity mismatch")

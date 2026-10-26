@@ -240,9 +240,22 @@ def _handle(args: argparse.Namespace) -> None:
         print(json.dumps(result, sort_keys=True))
         return
     if command in {"acquire", "build"}:
-        project = load_project(Path(args.project))
+        reuse = command == "build" and getattr(
+            args, "reuse_completed_preparation", False
+        )
+        project = load_project(Path(args.project), verify_inputs=not reuse)
         if command == "build":
-            print(build(project, root, offline=args.offline, **verification))
+            print(
+                build(
+                    project,
+                    root,
+                    offline=args.offline,
+                    reuse_completed_preparation=getattr(
+                        args, "reuse_completed_preparation", False
+                    ),
+                    **verification,
+                )
+            )
             return
         from sparselab.corpus.bounded_metadata import metadata_operation
 
@@ -401,6 +414,12 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command = sub.add_parser(name)
         command.add_argument("project")
         command.add_argument("--offline", action="store_true")
+        if name == "build":
+            command.add_argument(
+                "--reuse-completed-preparation",
+                action="store_true",
+                help="Reuse completed local preparation and record deferred source re-audit",
+            )
         if name == "acquire":
             command.add_argument(
                 "--source-id", help="Acquire one exact bounded-HF source declaration"

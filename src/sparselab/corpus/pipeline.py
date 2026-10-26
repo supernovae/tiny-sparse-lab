@@ -1516,8 +1516,13 @@ def build(
     *,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
+    reuse_completed_preparation: bool = False,
 ) -> Path:
     """Keep bounded metadata alive through native admission and build consumers."""
+    if reuse_completed_preparation:
+        from sparselab.corpus.completed_preparation import build_completed
+
+        return build_completed(project, work_root)
     from sparselab.corpus.bounded_metadata import metadata_operation
 
     with metadata_operation(

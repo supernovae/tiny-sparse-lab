@@ -966,6 +966,40 @@ def _write_rejected(target: Path, source_events: list[Path | dict[str, Any]]) ->
         os.fsync(output.fileno())
 
 
+class _SQLBuildRows:
+    """The ordinary builder's ordered inputs to the shared release writer."""
+
+    def __init__(self, connection):
+        self.connection = connection
+
+    def spans(self):
+        for (span,) in self.connection.execute(
+            "SELECT span FROM documents ORDER BY rowid"
+        ):
+            yield span
+
+    def documents(self):
+        yield from self.connection.execute(
+            "SELECT payload,split,representative_id,drop_reason FROM documents ORDER BY document_id"
+        )
+
+    def family_splits(self):
+        for (family,) in self.connection.execute(
+            "SELECT source_family FROM documents "
+            "GROUP BY source_family HAVING COUNT(DISTINCT split)>1 ORDER BY source_family"
+        ):
+            yield (
+                family,
+                [
+                    row[0]
+                    for row in self.connection.execute(
+                        "SELECT DISTINCT split FROM documents WHERE source_family=? ORDER BY split",
+                        (family,),
+                    )
+                ],
+            )
+
+
 def _emit_build(
     *,
     connection: sqlite3.Connection,
@@ -982,10 +1016,13 @@ def _emit_build(
     group_count: int,
     dropped: int,
     progress: BuildProgress,
+    ordered_rows=None,
+    descriptive_census=True,
 ) -> None:
     from sparselab.corpus.measurement import summarize_release
     from sparselab.corpus.pipeline import _model
 
+    ordered_rows = ordered_rows or _SQLBuildRows(connection)
     sources, rights_report = _sources_and_rights(project, lock, rights_files)
     source_origins = {source.id: source.origin for source in project.sources}
     release_spec = _model(project.release)
@@ -1033,11 +1070,9 @@ def _emit_build(
             writer(f"chat/{split}.lineage.jsonl")
 
         # Source spans retain acquisition order; documents and views use ID order.
-        for (span,) in connection.execute("SELECT span FROM documents ORDER BY rowid"):
+        for span in ordered_rows.spans():
             spans.write(span + b"\n")
-        for raw_doc, split, representative, reason in connection.execute(
-            "SELECT payload,split,representative_id,drop_reason FROM documents ORDER BY document_id"
-        ):
+        for raw_doc, split, representative, reason in ordered_rows.documents():
             doc = json.loads(raw_doc)
             doc["split"] = split
             doc["representative_id"] = representative
@@ -1133,17 +1168,7 @@ def _emit_build(
     if project.release.schema_version == 2:
         # LM-only lineages have no generated families. Source-family overlap is
         # descriptive unless that family is the declared split policy unit.
-        for (family,) in connection.execute(
-            "SELECT source_family FROM documents "
-            "GROUP BY source_family HAVING COUNT(DISTINCT split)>1 ORDER BY source_family"
-        ):
-            splits = [
-                row[0]
-                for row in connection.execute(
-                    "SELECT DISTINCT split FROM documents WHERE source_family=? ORDER BY split",
-                    (family,),
-                )
-            ]
+        for family, splits in ordered_rows.family_splits():
             leakage.append(
                 {
                     "family_type": "source_family_ids",
@@ -1246,8 +1271,14 @@ def _emit_build(
         report.pop("source_scale")
         report.pop("train_source_scale")
     progress.update(phase="measuring")
-    report["measurement"] = summarize_release(
-        staging, release_spec=release_spec, tokenizer=None
+    report["measurement"] = (
+        summarize_release(staging, release_spec=release_spec, tokenizer=None)
+        if descriptive_census
+        else {
+            "status": "deferred",
+            "reason": "Descriptive lineage census is outside the selected completed local preparation scope",
+            "token_count_reason": "tokenizer_not_declared",
+        }
     )
     _write_json(staging / "report.json", report)
     (staging / "report.md").write_text(

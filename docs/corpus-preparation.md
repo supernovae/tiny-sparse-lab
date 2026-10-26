@@ -1063,3 +1063,56 @@ name as the tie-breaker, and assigns deterministic integer split counts. Keep
 the frozen YAML, digest-bound assignment companion, family inventory and commit
 receipt together. A clean clone can verify those artifacts and regenerate the
 same memberships from the same bytes; mutable upstream availability is separate.
+
+### Local build from completed preparation
+
+For an explicitly approved local continuation after completed acquisition,
+admission, inspection and inventory, use the streaming freeze's completed evidence
+and opt into its matching native build path:
+
+```sh
+sparselab --work-dir WORK corpus build PROJECT --reuse-completed-preparation
+sparselab --work-dir WORK corpus freeze BUILD_DIRECTORY
+```
+
+The build requires the frozen split receipt's explicit completed-inventory
+declaration. It authenticates that historical execution through the existing
+adoption path, requires unchanged source declarations and reviewed admission, and
+records this policy in the build/release identity. It renders each admitted HF
+JSONL shard with the native renderer and checks the acquired sample hash during
+that necessary read. It does **not** replay the acquisition/snapshot audit or
+reconstruct every row-admission/provenance envelope. Those deferred checks are
+listed in the identity; this local continuation is not a new full source audit or
+a redistribution grant. Ordinary builds retain their existing verification.
+
+Compact references, external sorts and an eight-byte-per-document parent array
+apply the same native v2 transitive duplicate policy and minimum-ID representative.
+Cross-split exact-content and incompatible-rights duplicates still refuse.
+Frozen candidate identities/content/strata are joined to rendered documents and
+family isolation is checked before native output publication. The final kept
+family inventory is included in the build; `finalize-family-inventory` can export
+it without reconstructing the document index. The descriptive lineage census is
+explicitly deferred, not reported as performed. Documents, spans, lineage, LM
+views and rights/audit formats remain native.
+
+Completed source rendering, compact-index phases and final publication use the
+existing native completion store plus append-only phase records. Unchanged
+authenticated phases are reused after interruption. Changed inputs, producer
+code, configuration or outputs invalidate reuse; a hash alone does not establish
+execution. Local build/release consumers require the recorded completion and
+its trusted work-root dependencies. Missing completion authority refuses instead
+of silently starting a full audit. Keep the work root and its completion records
+with the outputs. This is local resumability, not a portable execution attestation.
+Unfinished phases can still require recomputation. Native output/copy hashing and
+actual free-space monitoring remain; tiny tests make no full-corpus throughput or
+capacity claim.
+
+For a mixture from this release, normal materialization executes the schedule
+once and seals its actual completion. Later packing/verification consumers check
+that completion, exact declaration/tokenizer/family/release paths and unchanged
+outputs instead of tokenizing the whole corpus again. Other mixtures keep their
+ordinary cold replay. The optional `unique_train_content_floors` map requires
+positive counts for exactly the declared strata; it counts all eligible unique
+TRAIN content IDs **excluding EOS**, during the same encoding pass. It does not
+change target quotas, ordering, exposure limits or the training stop. Supply
+counts and floors are recorded separately from scheduled supervised targets.

@@ -168,7 +168,8 @@ class SplitStages:
                 self.authenticated.discard(key)
         self.completed[name] = result
 
-    def phase(self, name, produce):
+    def completed_phase(self, name):
+        """Read an authenticated unchanged phase without starting any work."""
         prior = self.completed.get(name)
         if prior is not None:
             try:
@@ -178,8 +179,14 @@ class SplitStages:
             except OSError, ValueError:
                 valid = False
             if valid and name in self.authenticated:
-                self.reused.append(name)
                 return prior
+        return None
+
+    def phase(self, name, produce):
+        prior = self.completed_phase(name)
+        if prior is not None:
+            self.reused.append(name)
+            return prior
         directory = self.root / (name + "-" + uuid4().hex)
         directory.mkdir()
         started = time.monotonic()
