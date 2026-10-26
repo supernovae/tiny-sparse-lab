@@ -98,7 +98,10 @@ def fixture(tmp_path, monkeypatch, *, states=None, merges=None):
     monkeypatch.setattr(old, "source_declaration_payload", lambda _: declaration)
     adopted = SimpleNamespace(
         report={"documents": len(records), "sha256": sha256_file(inventory)},
-        provenance={"mode": "fixture_closed_execution"},
+        provenance={
+            "mode": "fixture_closed_execution",
+            "source_validation": "native acquisition and admission checks remain required before split publication",
+        },
         check=lambda *_: None,
     )
     monkeypatch.setattr(
@@ -160,6 +163,13 @@ def test_native_equivalence_with_quarantined_rows_and_approved_merge(
     assert result["eligible_documents"] == 118
     assert result["placeholder_documents"] == 2
     assert result["deferred_verification"]
+    receipt = json.loads(after.with_suffix(".receipt.json").read_bytes())
+    assert (
+        "acquisition-lock and snapshot-manifest verification"
+        in receipt["deferred_verification"]
+    )
+    assert "were not rerun" in receipt["preparation_reuse"]["source_validation"]
+    assert "inventory-to-admission" in receipt["verification_scope"]
     assert not list((tmp_path / "corpora").rglob("*.sqlite"))
 
 
@@ -249,6 +259,8 @@ def test_changed_stage_output_recomputes_only_invalidated_suffix(tmp_path, monke
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     request = {"producer": "fixture", "input": "fixed"}
     stages = SplitStages(tmp_path, request)
+    assert "corpus" in stages.cache.authority
+    assert "inspection" in stages.cache.authority
     calls = []
 
     def produce(name):

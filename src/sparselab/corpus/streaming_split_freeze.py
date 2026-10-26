@@ -571,6 +571,10 @@ def freeze_completed_preparation(
             key: list(value) for key, value in sorted(overrides.items())
         }
     payload = _FREEZE_MARKER + yaml.safe_dump(declaration, sort_keys=False).encode()
+    reuse_evidence = {
+        **adopted.provenance,
+        "source_validation": "This invocation reuses completed producer evidence; acquisition/snapshot verification and detailed row/file admission verification were not rerun.",
+    }
     receipt = {
         "schema_version": 1,
         "split_sha256": hashlib.sha256(payload).hexdigest(),
@@ -579,12 +583,14 @@ def freeze_completed_preparation(
         "admission_sha256": reference.sha256,
         "cluster_sha256": cluster_sha,
         "family_counts": allocated["family_counts"],
-        "preparation_reuse": adopted.provenance,
+        "preparation_reuse": reuse_evidence,
         "deferred_verification": [
+            "acquisition-lock and snapshot-manifest verification",
+            "detailed row/file admission verification (coverage, source hashes, per-file rights exceptions and manual-review requirements)",
             "source-body hash reread",
             "per-record provenance-envelope reconstruction",
         ],
-        "verification_scope": "completed inventory execution, reviewed admission decisions, source/snapshot bindings, family and exact-content split isolation",
+        "verification_scope": "completed inventory execution evidence, reviewed admission digest and decisions, source revision, inventory-to-admission snapshot bindings, basic source-level rights eligibility, family and exact-content split isolation",
         "checkpoint_chain": stages.previous,
         "checkpoint_cache": {
             "available": stages.cache.proofs is not None and stages.cache.writable,

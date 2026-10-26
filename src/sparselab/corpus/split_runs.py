@@ -131,7 +131,10 @@ class SplitStages:
         self.authenticated = set()
         self.cache = InspectionCache(work_root or self.root)
         self.cache.directory = self.root / "sealed"
-        self.cache.authority = {"streaming_producer": request.get("producer")}
+        self.cache.authority = {
+            **self.cache.authority,
+            "streaming_producer": request.get("producer"),
+        }
         self.sequence = 0
         # One atomic immutable record per commit survives an interrupted append.
         # The JSONL journal is a readable mirror, never the recovery authority.

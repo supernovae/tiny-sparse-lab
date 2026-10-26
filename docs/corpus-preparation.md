@@ -6,21 +6,30 @@
 --output SPLITS --reuse-completed-preparation` selects bounded external sorting
 and streaming joins for an already completed, parentless inventory. It requires
 the existing completed-execution adoption evidence and the exact reviewed v2
-admission digest. Source revisions, snapshot bindings, rights eligibility and
-every qualify/exclude/quarantine decision remain enforced. Reviewed family
+admission digest. Source revisions, inventory-to-admission snapshot bindings,
+basic source-level rights eligibility and every qualify/exclude/quarantine
+decision remain enforced. Reviewed family
 merges, seeded integer split assignment and cross-split exact-content isolation
 are unchanged; no documents or categories are removed or reassigned.
 
-This explicit local reuse policy defers repeated source-body hashing and
-per-record provenance-envelope reconstruction during freezing. The receipt
+This explicit local reuse policy defers acquisition-lock/snapshot verification,
+detailed row/file admission verification (coverage, source hashes, per-file
+rights exceptions and manual-review requirements), repeated source-body hashing
+and per-record provenance-envelope reconstruction during freezing. It checks
+snapshot agreement between the retained inventory and admission, rather than
+revalidating those identities against the acquisition lock. The receipt
 records that scope and retains the original completed-execution references. It
 does not claim those checks ran again, prove original-seed independence, grant
 redistribution rights or certify a public release. The ordinary verification
-policy remains available without this selection.
+policy remains available without this selection. The ordinary downstream build
+still invokes acquisition and detailed admission verification and creates its
+own document index; this freeze selection does not suppress those later costs.
 
 The producer commits immutable sort runs and phase completion before proceeding.
 Native verification proofs authenticate resumable completion against exact
-producer/input/output identities; a checksum chain alone is not authority.
+producer/input/output identities, retaining the existing transitive verifier
+authority as well as the streaming producer files; a checksum chain alone is
+not authority.
 Changed/incomplete work is recomputed, preserving prior artifacts. Export chunks
 record source byte offsets so a restart resumes after completed chunks. State
 lives under the corpus work root rather than in an uncommitted SQLite transaction;
