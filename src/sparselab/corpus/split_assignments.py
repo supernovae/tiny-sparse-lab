@@ -5,8 +5,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from sparselab.corpus.bounded_metadata import current_metadata_store
-from sparselab.corpus.jsonl_records import records_from_path
-from sparselab.corpus.row_index import RowIndex
+from sparselab.corpus.split_lookup import AssignmentLookup, stamp
 from sparselab.training.manifest import sha256_file
 
 
@@ -26,35 +25,18 @@ def assignment_path(directory, reference):
 
 class Assignments(Mapping):
     def __init__(self, path, reference):
-        def rows():
-            previous = None
-            count = 0
-            for record in records_from_path(path, max_record_bytes=8 * 1024**2):
-                row = record.value
-                if (
-                    not isinstance(row, dict)
-                    or set(row) != {"document_id", "split"}
-                    or not isinstance(row["document_id"], str)
-                    or not row["document_id"]
-                    or row["split"] not in ("train", "validation", "test")
-                    or previous is not None
-                    and row["document_id"] <= previous
-                ):
-                    raise ValueError("invalid or unordered split assignment")
-                previous = row["document_id"]
-                count += 1
-                yield row
-            if count != reference["rows"]:
-                raise ValueError("split assignment count mismatch")
-            if sha256_file(path) != reference["sha256"]:
-                raise ValueError("split assignments changed during lookup")
-
-        self.index = RowIndex(
-            current_metadata_store().connection, rows(), lambda row: row["document_id"]
-        )
+        store = current_metadata_store()
+        key = (str(path), reference["sha256"], reference["rows"])
+        lookup = store._assignment_lookups.get(key)
+        if lookup is not None and lookup.source_stamp != stamp(path):
+            raise ValueError("split assignments changed during lookup")
+        if lookup is None:
+            lookup = AssignmentLookup(Path(store.temporary.name), path, reference)
+            store._assignment_lookups[key] = lookup
+        self.index = lookup
 
     def __getitem__(self, key):
-        return self.index[key]["split"]
+        return self.index[key]
 
     def __iter__(self):
         return iter(self.index)

@@ -236,7 +236,7 @@ def _prior_family_splits(
     return families, strata, content
 
 
-def _freeze_splits(
+def _split_inputs(
     project: Project,
     work_root: Path,
     inventory_path: Path,
@@ -340,6 +340,44 @@ def _freeze_splits(
         adopted = adopt_completed_inventory(
             project, root, inventory_path, raw_clusters["inventory_completion"]
         )
+    return (
+        root,
+        configuration,
+        raw_clusters,
+        weights,
+        clusters_sha256,
+        prior_families,
+        prior_strata,
+        prior_content,
+        adopted,
+    )
+
+
+def _freeze_splits(
+    project: Project,
+    work_root: Path,
+    inventory_path: Path,
+    clusters_path: Path,
+    output: Path,
+    *,
+    recover: bool = False,
+) -> dict[str, Any]:
+    """Assign eligible document families; excluded rows get held-out placeholders."""
+    from sparselab.corpus.admission_inspection_cache import unchanged
+
+    (
+        root,
+        configuration,
+        raw_clusters,
+        weights,
+        clusters_sha256,
+        prior_families,
+        prior_strata,
+        prior_content,
+        adopted,
+    ) = _split_inputs(
+        project, work_root, inventory_path, clusters_path, output, recover=recover
+    )
     inventory_work = {}
     report, inventory_reused = verified_inventory(
         project,
@@ -740,7 +778,14 @@ def freeze_splits(
     output: Path,
     *,
     recover: bool = False,
+    reuse_completed_preparation: bool = False,
 ) -> dict[str, Any]:
+    if reuse_completed_preparation:
+        from sparselab.corpus.streaming_split_freeze import freeze_completed_preparation
+
+        return freeze_completed_preparation(
+            project, work_root, inventory_path, clusters_path, output, recover=recover
+        )
     # Keep verified row decisions alive through assignment and recovery checks.
     # All inventory/family/assignment joins share the owned operation database.
     with metadata_operation(
