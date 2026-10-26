@@ -5,6 +5,7 @@ does not pretend to be a previously executed production job. Rendering, frozen
 family joins, deduplication, publication and native completion storage are real.
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -225,6 +226,14 @@ def test_public_completed_build_release_and_family_export_match_native(
     report = finalize_family_inventory(release, recipe / "splits.yaml", exported)
     assert exported.read_bytes() == (release / "family-inventory.jsonl").read_bytes()
     assert report["kept_documents"] == 11
+    manifest_path = release / "manifest.json"
+    original_manifest = manifest_path.read_bytes()
+    altered = json.loads(original_manifest)
+    altered["release_id"] = "0" * 64
+    manifest_path.write_bytes(canonical_json(altered) + b"\n")
+    with pytest.raises(ValueError, match="invalid completed local release identity"):
+        verify_release(release)
+    manifest_path.write_bytes(original_manifest)
     (release / "lm/train.jsonl").write_bytes(b"corrupted\n")
     with pytest.raises(ValueError, match="tampered artifact"):
         verify_release(release)

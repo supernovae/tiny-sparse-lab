@@ -427,7 +427,7 @@ def _fingerprint(path: Path) -> tuple[tuple[str, int, int, int, int, int, int], 
 
 def _snapshot_dependencies(path: Path, manifest_name: str) -> tuple[Path, ...]:
     manifest = _json_file(path / manifest_name)
-    from sparselab.corpus.completed_preparation import (
+    from sparselab.corpus.preparation_inputs import (
         corpus_work_root,
         local_dependencies,
         local_scope,

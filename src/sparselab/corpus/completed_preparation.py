@@ -24,6 +24,11 @@ from sparselab.corpus.admission_inspection_cache import (
     unchanged,
 )
 from sparselab.corpus.bounded_metadata import _HashedInput, _Reader
+from sparselab.corpus.preparation_inputs import (
+    corpus_work_root,
+    local_dependencies,
+    local_scope,
+)
 from sparselab.corpus.project import (
     load_project,
     project_path,
@@ -51,6 +56,7 @@ def _producer():
         name: sha256_file(Path(__file__).with_name(name))
         for name in (
             "completed_preparation.py",
+            "preparation_inputs.py",
             "streaming_build_rows.py",
             "split_runs.py",
             "large_build.py",
@@ -618,12 +624,6 @@ def build_completed(project, work_root):
     return target
 
 
-def local_scope(manifest):
-    identity = manifest.get("identity", manifest.get("build_identity", {}))
-    scope = identity.get("completed_preparation")
-    return scope if isinstance(scope, dict) and scope.get("policy") == _POLICY else None
-
-
 def verify_completed_build(path, manifest=None):
     path = Path(path).resolve()
     manifest = manifest or _small(path / "build.json")
@@ -660,8 +660,10 @@ def verify_completed_release(path, manifest, *, expected_id=None):
 
     path = Path(path).resolve()
     payload = {key: value for key, value in manifest.items() if key != "release_id"}
-    if hashlib.sha256(canonical_json(payload)).hexdigest() != (
-        expected_id or path.name
+    expected = expected_id or path.name
+    if (
+        manifest.get("release_id") != expected
+        or hashlib.sha256(canonical_json(payload)).hexdigest() != expected
     ):
         raise ValueError("invalid completed local release identity")
     build_path = path.parent.parent / "builds" / manifest["build_id"]
@@ -698,38 +700,3 @@ def verify_completed_release(path, manifest, *, expected_id=None):
         limit=4 * 1024**2,
     )
     return manifest
-
-
-def corpus_work_root(path):
-    from sparselab.verification_proofs import _trusted
-
-    if (
-        path.parent.name not in {"builds", "releases"}
-        or path.parents[2].name != "corpora"
-    ):
-        raise ValueError(
-            "completed preparation artifact is outside its corpus work root"
-        )
-    root = path.parents[3]
-    if not _trusted(root, root):
-        raise ValueError("completed preparation work root is not owned and trusted")
-    return root
-
-
-def local_dependencies(manifest, *, work_root):
-    scope = local_scope(manifest)
-    if scope is None:
-        return None
-    result = tuple(
-        Path(value)
-        for value in {*scope["request"]["inputs"], *scope["source_bindings"]}
-    )
-    if any(
-        not p.is_absolute()
-        or ".." in p.parts
-        or not p.is_relative_to(work_root)
-        or any(q.is_symlink() for q in (p, *p.parents))
-        for p in result
-    ):
-        raise ValueError("completed preparation dependency escapes its owned work root")
-    return result
