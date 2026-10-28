@@ -1107,6 +1107,23 @@ Unfinished phases can still require recomputation. Native output/copy hashing an
 actual free-space monitoring remain; tiny tests make no full-corpus throughput or
 capacity claim.
 
+Within a private owner-only work root, owner-group-writable declarations are
+mutable inputs, not immutable artifact members. Inspection cache proofs bind
+their captured fingerprints in the signed
+closure and recheck them on load, without changing filesystem permissions. A
+same-size input change still invalidates reuse. World-writable, foreign-owned,
+linked or unsafe mutable dependencies remain ineligible.
+
+For native split/build phases, an owned atomic completion record can also recover
+a checkpoint whose optional cache proof was never published. The current request
+identity, completion digest and cached result must agree; all outputs must retain
+their recorded stamps and owned paths without group or world write access. This is local native
+completion evidence, reported as `owned_native_completion`, not a newly invented
+execution signature. Corrupt present proofs and incomplete or changed native
+records refuse reuse. A present proof rejected for changed verifier authority is
+not adopted by this fallback; it requires recomputation under the new authority.
+Historical records and proofs are never rewritten.
+
 For a mixture from this release, normal materialization executes the schedule
 once and seals its actual completion. Later packing/verification consumers check
 that completion, exact declaration/tokenizer/family/release paths and unchanged

@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import tempfile
 from pathlib import Path
 
@@ -114,15 +115,112 @@ class InspectionCache:
         return self.directory / f"{kind}-{key}.json"
 
     def _binding(self, path, raw, request, dependencies):
+        # Declarations may be edited by the owner's group. Their exact captured
+        # fingerprints belong in the signed closure, rather than pretending
+        # they are immutable artifact members in ProofStore's trust walk.
+        immutable, mutable = {}, {}
+        for name, members in dependencies.items():
+            if any(row[3] & 0o020 for row in members):
+                root = Path(name)
+                for row in members:
+                    member = root if row[0] == "." else root / row[0]
+                    info = member.lstat()
+                    if (
+                        not stat.S_ISREG(info.st_mode)
+                        or info.st_uid != os.getuid()
+                        or info.st_gid != os.getgid()
+                        or info.st_nlink != 1
+                        or info.st_mode & 0o002
+                        or not _trusted(self.root, self.root, private=True)
+                        or any(
+                            parent.stat().st_uid != os.getuid()
+                            or parent.stat().st_mode & 0o002
+                            for parent in member.parents
+                            if parent == self.root or self.root in parent.parents
+                        )
+                    ):
+                        raise ValueError("unsafe mutable inspection dependency")
+                mutable[name] = members
+            else:
+                immutable[name] = members
         binding = file_binding(
             path,
             hashlib.sha256(raw).hexdigest(),
-            closure={"request": request, "authority": self.authority},
+            closure={
+                "request": request,
+                "authority": self.authority,
+                "mutable_dependencies": mutable,
+            },
         )
         binding["dependencies"] = [
-            [path, rows] for path, rows in sorted(dependencies.items())
+            [path, rows] for path, rows in sorted(immutable.items())
         ]
         return binding
+
+    def _native_phase(self, request, payload, dependencies, binding, *, limit):
+        """Read an owned atomic native completion, never manufacture a proof.
+
+        SplitStages already checks its chain and recomputes the request identity
+        (including input fingerprints). This covers native commits whose old
+        optional proof could not publish because declarations were group writable.
+        """
+        if set(request) != {"request", "completion"} or not self.authority.get(
+            "streaming_producer"
+        ):
+            return None
+        root = self.directory.parent
+        if root.name != request["request"] or any(
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(c not in "0123456789abcdef" for c in value)
+            for value in request.values()
+        ):
+            return None
+        events = self.proofs.diagnostics()["events"]
+        reason = events[-1]["reason"] if events else None
+        receipt = self.proofs._receipt(binding)
+        if (
+            receipt.exists()
+            or receipt.is_symlink()
+            or reason not in ("no_receipt", "untrusted_store")
+        ):
+            return None
+        matches = list(root.glob("completion-*-" + request["completion"] + ".json"))
+        if len(matches) != 1:
+            return None
+        completion = matches[0]
+        if (
+            not _trusted(self.root, completion)
+            or completion.stat().st_nlink != 1
+            or completion.stat().st_size > limit
+        ):
+            return None
+        event = json.loads(completion.read_bytes())
+        body = event["record"]
+        if (
+            event["sha256"] != request["completion"]
+            or hashlib.sha256(canonical_json(body)).hexdigest() != event["sha256"]
+            or body["request"] != request["request"]
+            or body["result"] != payload
+            or not payload.get("files")
+        ):
+            return None
+        for item in payload["files"]:
+            path = Path(item["path"])
+            if not path.is_relative_to(root) or not _trusted(self.root, path):
+                return None
+            info = path.stat()
+            if info.st_nlink != 1 or item["stamp"] != [
+                info.st_dev,
+                info.st_ino,
+                info.st_size,
+                info.st_mtime_ns,
+                info.st_ctime_ns,
+            ]:
+                return None
+        unchanged(dependencies)
+        self.proofs._event(binding, "owned_native_completion")
+        return payload, dependencies
 
     def load(self, kind, request, *, limit):
         if self.proofs is None:
@@ -147,7 +245,12 @@ class InspectionCache:
             dependencies = capture(paths)
             binding = self._binding(path, raw, request, dependencies)
             if not self.proofs.lookup(binding):
+                if kind == "split-phase":
+                    return self._native_phase(
+                        request, value["payload"], dependencies, binding, limit=limit
+                    )
                 return None
+            unchanged(dependencies)
             return value["payload"], dependencies
         except OSError, ValueError, TypeError, KeyError, json.JSONDecodeError:
             return None
