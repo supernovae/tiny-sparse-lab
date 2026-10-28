@@ -239,23 +239,56 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(result, sort_keys=True))
         return
+    if command == "adopt-retained-renders":
+        from sparselab.corpus.completed_preparation import _producer
+        from sparselab.corpus.retained_render_adoption import write_adoption
+
+        project = load_project(Path(args.project), verify_inputs=False)
+        print(
+            json.dumps(
+                write_adoption(
+                    root,
+                    Path(args.source_stages),
+                    [source.id for source in project.sources],
+                    project.model_dump(mode="json"),
+                    _producer(),
+                    Path(args.output),
+                    from_source=args.from_source,
+                    to_source=args.to_source,
+                    rationale=args.rationale,
+                ),
+                sort_keys=True,
+            )
+        )
+        return
     if command in {"acquire", "build"}:
         reuse = command == "build" and getattr(
             args, "reuse_completed_preparation", False
         )
         project = load_project(Path(args.project), verify_inputs=not reuse)
         if command == "build":
-            print(
-                build(
-                    project,
-                    root,
-                    offline=args.offline,
-                    reuse_completed_preparation=getattr(
-                        args, "reuse_completed_preparation", False
-                    ),
-                    **verification,
+            from sparselab.corpus.retained_render_adoption import retained_renders
+
+            adoption = getattr(args, "retained_render_adoption", None)
+            adoption_sha = getattr(args, "retained_render_adoption_sha256", None)
+            if bool(adoption) != bool(adoption_sha) or (adoption and not reuse):
+                raise ValueError(
+                    "retained render adoption requires its digest and completed preparation"
                 )
-            )
+            with retained_renders(
+                root, adoption, adoption_sha, project.model_dump(mode="json")
+            ):
+                print(
+                    build(
+                        project,
+                        root,
+                        offline=args.offline,
+                        reuse_completed_preparation=getattr(
+                            args, "reuse_completed_preparation", False
+                        ),
+                        **verification,
+                    )
+                )
             return
         from sparselab.corpus.bounded_metadata import metadata_operation
 
@@ -420,6 +453,8 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
                 action="store_true",
                 help="Reuse completed local preparation and record deferred source re-audit",
             )
+            command.add_argument("--retained-render-adoption")
+            command.add_argument("--retained-render-adoption-sha256")
         if name == "acquire":
             command.add_argument(
                 "--source-id", help="Acquire one exact bounded-HF source declaration"
@@ -566,6 +601,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     )
     command.add_argument("--output", required=True)
     command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "adopt-retained-renders",
+        help="Explicitly bind retained render execution across an assessed verifier transition",
+    )
+    command.add_argument("project")
+    for field in ("source-stages", "from-source", "to-source", "rationale", "output"):
+        command.add_argument("--" + field, required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser("freeze")
     command.add_argument("build")

@@ -99,6 +99,18 @@ class InspectionCache:
             self.proofs = None
             self._unavailable("verification_store_unavailable")
 
+    @property
+    def directory(self):
+        return self._directory
+
+    @directory.setter
+    def directory(self, value):
+        from sparselab.corpus.retained_render_adoption import check_render_directory
+
+        value = Path(value)
+        check_render_directory(self.root, value)
+        self._directory = value
+
     def _unavailable(self, reason):
         self.writable = False
         self.unavailable_reason = reason
@@ -223,16 +235,32 @@ class InspectionCache:
         return payload, dependencies
 
     def load(self, kind, request, *, limit):
+        from sparselab.corpus.retained_render_adoption import (
+            adopt_render,
+            requires_adoption,
+        )
+
+        explicit = kind == "split-phase" and requires_adoption(
+            self.root, self.directory
+        )
         if self.proofs is None:
+            if explicit:
+                raise RuntimeError(
+                    "retained render proof store unavailable; refusing replay"
+                )
             return None
         path = self._path(kind, request)
         try:
             if not self.proofs.trusted(path) or path.stat().st_size > limit:
+                if explicit:
+                    raise RuntimeError(
+                        "retained render cache unavailable; refusing replay"
+                    )
                 return None
             raw = path.read_bytes()
             value = json.loads(raw)
             if set(value) != {"dependencies", "payload"}:
-                return None
+                raise ValueError("invalid inspection cache fields")
             paths = value["dependencies"]
             if not isinstance(paths, list) or any(
                 not isinstance(p, str)
@@ -241,18 +269,28 @@ class InspectionCache:
                 or not Path(p).is_relative_to(self.root)
                 for p in paths
             ):
-                return None
+                raise ValueError("invalid inspection cache dependencies")
             dependencies = capture(paths)
             binding = self._binding(path, raw, request, dependencies)
+            if explicit:
+                return adopt_render(
+                    self, request, value["payload"], dependencies, binding
+                )
             if not self.proofs.lookup(binding):
                 if kind == "split-phase":
-                    return self._native_phase(
+                    completed = self._native_phase(
                         request, value["payload"], dependencies, binding, limit=limit
                     )
+                    if completed is not None:
+                        return completed
                 return None
             unchanged(dependencies)
             return value["payload"], dependencies
         except OSError, ValueError, TypeError, KeyError, json.JSONDecodeError:
+            if explicit:
+                raise RuntimeError(
+                    "retained render metadata changed; refusing replay"
+                ) from None
             return None
 
     def publish(self, kind, request, payload, dependencies, *, limit):

@@ -1133,3 +1133,36 @@ positive counts for exactly the declared strata; it counts all eligible unique
 TRAIN content IDs **excluding EOS**, during the same encoding pass. It does not
 change target quotas, ordering, exposure limits or the training stop. Supply
 counts and floors are recorded separately from scheduled supervised targets.
+
+
+### Explicit retained-render adoption after an assessed verifier change
+
+Ordinary resume still refuses every present proof rejected by current authority.
+If a reviewed bookkeeping-only correction prevents reuse of exact retained
+renders, an operator can bind a one-invocation adoption decision. Assess the
+specific old/new code first: matching partial producer identities alone cannot
+establish equivalence of arbitrary transitive changes.
+
+```sh
+sparselab --work-dir WORK corpus adopt-retained-renders PROJECT \
+  --source-stages WORK/corpora/ID/source-build-stages \
+  --from-source OLD_COMMIT --to-source REVIEWED_COMMIT \
+  --rationale 'Reviewed cache bookkeeping change; retain exact prior execution' \
+  --output WORK/retained-renders.json
+sparselab --work-dir WORK corpus build PROJECT --offline \
+  --reuse-completed-preparation \
+  --retained-render-adoption WORK/retained-renders.json \
+  --retained-render-adoption-sha256 PRINTED_SHA256
+```
+
+Declaration creation reads only bounded completion/cache/proof metadata and
+fingerprints. It authenticates each historical proof using the existing store,
+requires an unchanged native producer and every non-authority binding, and
+records the exact old proof, old/current binding and authority hashes. It does
+not re-sign old execution, claim a new cold render, or read corpus bodies.
+The decision binds the parsed project and a fixed set of source-stage requests.
+Changed requests, inputs, outputs, proofs or current authority refuse continuation
+instead of silently rerendering. Original proofs and completion records remain
+untouched. Each adopted render appends a durable `retained-renders.uses-*.jsonl`
+entry next to the declaration; keep it with the run evidence. The option applies
+only to that build invocation and does not change future default cache behavior.
