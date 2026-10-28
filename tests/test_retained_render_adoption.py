@@ -110,7 +110,17 @@ def test_explicit_transition_reuses_and_records_old_execution_without_resealing(
 
 
 @pytest.mark.parametrize(
-    "damage", ["output", "source", "proof", "cache", "authority", "request"]
+    "damage",
+    [
+        "output",
+        "source",
+        "proof",
+        "cache",
+        "authority",
+        "request",
+        "completion",
+        "missing_completion",
+    ],
 )
 def test_explicit_transition_refuses_changed_state_without_replay(
     retained, monkeypatch, damage
@@ -134,6 +144,14 @@ def test_explicit_transition_refuses_changed_state_without_replay(
             "verifier_authority",
             lambda *a: {**authority(*a), "unassessed_change": True},
         )
+    elif damage in {"completion", "missing_completion"}:
+        completion = next(directory.glob("*/*/completion-*.json"))
+        if damage == "missing_completion":
+            completion.unlink()
+        else:
+            value = json.loads(completion.read_bytes())
+            value["record"]["elapsed_seconds"] = -1
+            completion.write_text(json.dumps(value))
     else:
         request = {**request, "normalizer": "changed"}
     with (

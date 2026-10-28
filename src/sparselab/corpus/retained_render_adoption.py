@@ -206,6 +206,8 @@ def retained_renders(root, path, expected_sha256, project):
     if len(entries) != len(value["renders"]):
         raise ValueError("duplicate retained-render decision")
     roots = {str(Path(name).parent.parent) for name in entries}
+    if len(roots) != len(entries):
+        raise ValueError("ambiguous retained-render completion")
     source_root = Path(value["source_root"])
     if any(not Path(name).is_relative_to(source_root) for name in entries):
         raise ValueError("retained render escapes source stage root")
@@ -233,6 +235,35 @@ def check_render_directory(root, directory):
         and (directory.name != "sealed" or str(directory.parent) not in state["roots"])
     ):
         raise RuntimeError("retained render request changed; refusing unlisted replay")
+    if (
+        state is not None
+        and state["root"] == root
+        and directory.is_relative_to(state["source_root"])
+    ):
+        try:
+            item = next(
+                item
+                for name, item in state["entries"].items()
+                if Path(name).parent == directory
+            )
+            request = item["request"]
+            paths = list(
+                directory.parent.glob("completion-*-" + request["completion"] + ".json")
+            )
+            if len(paths) != 1:
+                raise ValueError("retained render completion missing")
+            event = json.loads(_small(paths[0], root))
+            if (
+                event["sha256"] != request["completion"]
+                or _sha(event["record"]) != request["completion"]
+                or event["record"]["phase"] != "native-shard-render"
+                or event["record"]["request"] != directory.parent.name
+            ):
+                raise ValueError("retained render completion changed")
+        except (OSError, ValueError, TypeError, KeyError, StopIteration) as error:
+            raise RuntimeError(
+                "retained render completion unavailable; refusing replay"
+            ) from error
 
 
 def requires_adoption(root, directory):
