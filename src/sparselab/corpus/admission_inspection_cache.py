@@ -178,12 +178,11 @@ class InspectionCache:
             return None
         events = self.proofs.diagnostics()["events"]
         reason = events[-1]["reason"] if events else None
-        present = self.proofs._receipt(binding).exists()
-        if not (
-            not present
-            and reason in ("no_receipt", "untrusted_store")
-            or present
-            and reason in ("verifier_authority_changed", "changed_manifest_binding")
+        receipt = self.proofs._receipt(binding)
+        if (
+            receipt.exists()
+            or receipt.is_symlink()
+            or reason not in ("no_receipt", "untrusted_store")
         ):
             return None
         matches = list(root.glob("completion-*-" + request["completion"] + ".json"))

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sparselab.corpus import admission_inspection_cache as cache_module
 from sparselab.corpus.admission_inspection_cache import InspectionCache, capture
 from sparselab.corpus.split_runs import SplitStages, write_rows
 from sparselab.verification_proofs import ProofStore
@@ -145,3 +146,41 @@ def test_changed_input_gets_a_new_native_request(owned, monkeypatch):
     resumed = SplitStages(root / "stages", changed, work_root=root)
     assert resumed.identity != first.identity
     assert resumed.completed_phase("render") is None
+
+
+@pytest.mark.parametrize("group_writable", [False, True])
+def test_present_proof_authority_change_recomputes_native_phase(
+    owned, monkeypatch, group_writable
+):
+    root, declaration = owned
+    declaration.parent.chmod(0o755)  # Both cases must start with a sealable proof.
+    if not group_writable:
+        declaration.chmod(0o644)
+    request = {
+        "producer": "unchanged-partial-producer",
+        "inputs": capture([declaration]),
+    }
+    calls = []
+
+    def produce(directory):
+        calls.append(1)
+        return {"files": [write_rows(directory / "rows", [[len(calls)]])]}
+
+    first = SplitStages(root / "stages", request, work_root=root)
+    original_result = first.phase("render", produce)
+    assert first.cache.proofs.recorded == 1
+    original_authority = cache_module.verifier_authority
+    monkeypatch.setattr(
+        cache_module,
+        "verifier_authority",
+        lambda *args: {**original_authority(*args), "changed_transitive_module": True},
+    )
+    resumed = SplitStages(root / "stages", request, work_root=root)
+    assert resumed.completed_phase("render") is None
+    result = resumed.phase("render", produce)
+    assert len(calls) == 2
+    assert result != original_result
+    assert resumed.reused == []
+    assert (
+        "owned_native_completion" not in resumed.cache.proofs.diagnostics()["reasons"]
+    )

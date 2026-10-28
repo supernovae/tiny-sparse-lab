@@ -1120,7 +1120,9 @@ identity, completion digest and cached result must agree; all outputs must retai
 their recorded stamps and owned paths without group or world write access. This is local native
 completion evidence, reported as `owned_native_completion`, not a newly invented
 execution signature. Corrupt present proofs and incomplete or changed native
-records refuse reuse. Historical records and proofs are never rewritten.
+records refuse reuse. A present proof rejected for changed verifier authority is
+not adopted by this fallback; it requires recomputation under the new authority.
+Historical records and proofs are never rewritten.
 
 For a mixture from this release, normal materialization executes the schedule
 once and seals its actual completion. Later packing/verification consumers check
