@@ -64,7 +64,8 @@ def _receipt_identity(
     build_id: str, source: Any, snapshot_sha: str, file: dict[str, Any]
 ) -> dict[str, Any]:
     return {
-        "build_id": build_id,
+        "stage_version": "normalized-source-v2",
+        "source": source.model_dump(mode="json"),
         "source_id": source.id,
         "revision": source.revision,
         "snapshot_sha256": snapshot_sha,
@@ -239,8 +240,23 @@ def _prepare_file(
         if decision != record_admission["rights"]:
             raise ValueError("admitted shard file rights differ from verified policy")
     identity = _receipt_identity(build_id, source, snapshot_sha, file)
+    identity["normalizer_version"] = normalizer_version
+    identity["rights"] = decision.model_dump(mode="json")
     if record_admission is not None:
-        identity["admission_sha256"] = admission_sha256
+        # Bind only this verified file's decisions, not the admission plan for
+        # unrelated sources. Stream disk-backed decisions without materializing.
+        digest = hashlib.sha256()
+        for key in sorted(record_admission):
+            value = record_admission[key]
+            digest.update(canonical_json(key))
+            if key == "decisions":
+                for row_index, row in value.items():
+                    digest.update(canonical_json([row_index, row]))
+            else:
+                if hasattr(value, "model_dump"):
+                    value = value.model_dump(mode="json")
+                digest.update(canonical_json(value))
+        identity["file_admission_sha256"] = digest.hexdigest()
     parent = prepared_root / source.id
     destination = parent / _digest(identity)
     if destination.exists():
@@ -367,6 +383,7 @@ def _prepare_file(
         receipt = {
             "schema_version": 1,
             "identity": identity,
+            "provenance": {"build_id": build_id, "admission_sha256": admission_sha256},
             "counts": counts,
             "files": {
                 name: {
@@ -1353,7 +1370,7 @@ def build_large(
 
     root = workspace / "builds"
     root.mkdir(parents=True, exist_ok=True)
-    prepared_root = root / "prepared" / build_id
+    prepared_root = root / "prepared" / "normalized-source-v2"
     prepared_root.mkdir(parents=True, exist_ok=True)
     sources = sorted(project.sources, key=lambda source: source.id)
     transform = project.transforms[0]
@@ -1406,13 +1423,9 @@ def build_large(
         and file["path"].endswith(".jsonl")
         and file["size"] >= _PROCESS_SHARD_MIN_BYTES
         and file["path"] not in nested_metadata
-        and not (
-            prepared_root
-            / source.id
-            / _digest(
-                _receipt_identity(build_id, source, lock_row["snapshot_sha256"], file)
-            )
-        ).exists()
+        # Cached sources reach exact identity/rights checking in _prepare_file.
+        # Do not pre-scan their bodies merely to choose parallel workers.
+        and not (prepared_root / source.id).exists()
     }
     if record_admission:
         # Operation-local SQLite decisions must stay in their owning process.

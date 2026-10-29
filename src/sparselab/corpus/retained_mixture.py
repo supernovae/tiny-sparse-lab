@@ -130,10 +130,10 @@ def prepared_release(root, release):
     dedupe, dedupe_proof = _phase(root, stage_root, "build-deduplicate")
     origins, origins_proof = _phase(root, stage_root, "build-duplicate-keys")
     sources, source_proofs = [], {}
-    admission = identity["release"]["record_admission"]["sha256"]
     for source_id in sorted(identity["lock"]):
         source_root = workspace / "source-build-stages" / source_id
-        events = list(source_root.glob("*/completion-*.json"))
+        stage_id = identity["completed_preparation"]["source_stage_ids"][source_id]
+        events = list((source_root / stage_id).glob("completion-*.json"))
         if len(events) != 1:
             raise ValueError("retained source render is missing or ambiguous")
         payload, proof = _phase(root, events[0].parent, "native-shard-render")
@@ -142,9 +142,8 @@ def prepared_release(root, release):
         row = receipt["identity"]
         if (
             row["source_id"] != source_id
-            or row["build_id"] != events[0].parent.name
+            or receipt["provenance"]["build_id"] != events[0].parent.name
             or row["snapshot_sha256"] != identity["lock"][source_id]["snapshot_sha256"]
-            or row["admission_sha256"] != admission
         ):
             raise ValueError("retained source render identity differs")
         docs = prepared / "docs.jsonl"
@@ -306,6 +305,13 @@ def _ranked(directory, cohorts, seed, strata, order_policy=None):
 
 class RetainedMixtureIndex(MixtureIndex):
     """Use signed source offsets and a bounded file-handle cache."""
+
+    def record_family(self, stratum, family):
+        """Count an eligible family without retaining a second token copy."""
+        self.db.execute(
+            "INSERT INTO encoded(offset,family,stratum) VALUES(NULL,?,?)",
+            (family, stratum),
+        )
 
     def __init__(self, scratch, work_root, cohorts, seed, strata, order_policy=None):
         if not 1 <= len(cohorts) <= 2:

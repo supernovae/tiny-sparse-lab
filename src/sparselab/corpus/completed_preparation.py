@@ -260,6 +260,11 @@ def _prepared_source(directory, source, header, path, build_id, progress, normal
     from sparselab.corpus.rights import FileRights
 
     rights = FileRights.model_validate(header["rights"])
+    decision_paths = [Path(header["decisions"][name]) for name in ("data", "keys")]
+    decision_dependencies = capture(decision_paths)
+    for name, decision_path in zip(("data", "keys"), decision_paths, strict=True):
+        if sha256_file(decision_path) != header["decision_digests"][name + "_sha256"]:
+            raise ValueError("source admission decisions changed before rendering")
     lookup = _DecisionLookup(header["decisions"])
     try:
         admitted = {
@@ -290,6 +295,7 @@ def _prepared_source(directory, source, header, path, build_id, progress, normal
         )
     finally:
         lookup.close()
+    unchanged(decision_dependencies)
     receipt = _small(prepared / "receipt.json")
     if receipt["counts"]["documents"] != header["decisions"]["qualified"]:
         raise ValueError("admitted source row inventory differs from documents")
@@ -452,7 +458,34 @@ def build_completed(project, work_root):
         "inputs": {**base_request["inputs"], **source_configuration},
     }
     stages = SplitStages(workspace / "build-stages", request, work_root=root)
+    source_stages_by_id = {}
+    for source in project.sources:
+        header = admission["sources"][source.id]
+        decisions = header["decisions"]
+        source_request = {
+            "producer": _producer(),
+            "source": declarations[source.id],
+            "normalizer": project.release.normalizer,
+            "admission": {
+                **{key: value for key, value in header.items() if key != "decisions"},
+                "decisions": {
+                    "rows": decisions["rows"],
+                    "qualified": decisions["qualified"],
+                    "data_sha256": sha256_file(Path(decisions["data"])),
+                    "keys_sha256": sha256_file(Path(decisions["keys"])),
+                },
+            },
+            "inputs": capture([source_paths[source.id]]),
+        }
+        source_stages_by_id[source.id] = SplitStages(
+            workspace / "source-build-stages" / source.id,
+            source_request,
+            work_root=root,
+        )
     scope = {
+        "source_stage_ids": {
+            key: value.identity for key, value in source_stages_by_id.items()
+        },
         "policy": _POLICY,
         "request": request,
         "source_bindings": source_configuration,
@@ -503,18 +536,8 @@ def build_completed(project, work_root):
             **admission["sources"][source.id],
             "admission_sha256": project.release.record_admission.sha256,
         }
-        source_request = {
-            "producer": _producer(),
-            "source": declarations[source.id],
-            "normalizer": project.release.normalizer,
-            "admission": header,
-            "inputs": capture([source_paths[source.id], admission_path]),
-        }
-        source_stages = SplitStages(
-            workspace / "source-build-stages" / source.id,
-            source_request,
-            work_root=root,
-        )
+        source_stages = source_stages_by_id[source.id]
+        header["decision_digests"] = source_stages.request["admission"]["decisions"]
         result = source_stages.phase(
             "native-shard-render",
             lambda d, source=source, header=header, source_identity=source_stages.identity: (

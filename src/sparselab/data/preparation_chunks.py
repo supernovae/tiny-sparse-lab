@@ -94,9 +94,13 @@ class PreparationChunks:
         raw_byte_limit: int = 16_777_216,
         telemetry: object | None = None,
     ) -> None:
-        if not arrays or set(arrays) - {"ids", "byte_addresses"} or "ids" not in arrays:
+        if (
+            not arrays
+            or set(arrays) - {"ids", "byte_addresses", "supervision"}
+            or "ids" not in arrays
+        ):
             raise ValueError(
-                "chunk arrays must contain ids and optional byte_addresses"
+                "chunk arrays must contain ids and optional byte_addresses/supervision"
             )
         if (
             type(record_limit) is not int
@@ -328,7 +332,7 @@ class PreparationChunks:
         files = cleanup["files"]
         for name, metadata in files.items():
             match = re.fullmatch(
-                r"(train|validation)-[0-9]{6}\.(receipt\.json|ids\.raw|byte_addresses\.raw)",
+                r"(train|validation)-[0-9]{6}\.(receipt\.json|ids\.raw|byte_addresses\.raw|supervision\.raw)",
                 name,
             )
             if not match or (

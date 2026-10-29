@@ -23,7 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import DatasetConfig
 from sparselab.corpus.acquisition import _sync_dir
-from sparselab.corpus.mixture_index import MAX_RECEIPT_BYTES, MixtureIndex, rows
+from sparselab.corpus.mixture_index import (
+    MAX_RECEIPT_BYTES,
+    MAX_ROW_BYTES,
+    MixtureIndex,
+    rows,
+)
 from sparselab.corpus.release import _verification_operation, verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
@@ -305,7 +310,7 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
         raise ValueError("verified tokenizer lacks EOS token")
     output = output.resolve()
     if output.exists():
-        raise FileExistsError(f"mixture output already exists: {output}")
+        return verify_mixture(declaration, output)
     if completed is not None:
         cache = _completed_mixture_cache(spec)
         bound = [
@@ -408,6 +413,19 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
         _sync_dir(output.parent)
         if completed is not None:
             _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt)
+        else:
+            cache, request = _native_mixture_completion(
+                spec, raw, output, manifest, tokenizer_sha
+            )
+            from sparselab.corpus.admission_inspection_cache import capture
+
+            cache.publish(
+                "native-mixture",
+                request,
+                receipt,
+                capture([output]),
+                limit=MAX_RECEIPT_BYTES,
+            )
         return receipt
     except BaseException:
         if staging.exists():
@@ -437,7 +455,48 @@ def _schedule(
             raise ValueError("mixture exclusion receipt-byte cap exceeded")
         excluded.append(row)
 
-    with (staging / "train.tokens.jsonl").open("wb") as stream:
+    from sparselab.corpus.preparation_inputs import corpus_work_root
+    from sparselab.corpus.token_cache import TokenCache
+
+    try:
+        token_root = corpus_work_root(release) / "cache" / "source-tokens"
+    except ValueError:
+        token_root = staging.parent / ".source-tokens"
+    with (
+        TokenCache(token_root, tokenizer_sha) as tokens,
+        (staging / "train.tokens.jsonl").open("wb") as stream,
+    ):
+        direct = spec.max_exposures == 1 and callable(
+            getattr(index, "record_family", None)
+        )
+
+        def emit(doc, stratum, quota, exposure):
+            nonlocal records
+            ids = doc["token_ids"]
+            remaining = quota - totals[stratum]
+            if remaining <= 0:
+                return
+            take = min(len(ids), remaining)
+            targets = ids[:take] if take == len(ids) else ids[: take - 1] + [eos]
+            row = {
+                "document_id": doc["document_id"],
+                "family_id": doc["family_id"],
+                "source_id": doc["source_id"],
+                "stratum": stratum,
+                "exposure": exposure,
+                "content_token_start": 0,
+                "content_token_end": take - 1,
+                "token_ids": targets,
+            }
+            encoded_row = canonical_json(row) + b"\n"
+            stream.write(encoded_row)
+            token_digest.update(encoded_row)
+            totals[stratum] += take
+            source_totals[doc["source_id"]] += take
+            if exposure == 1:
+                unique[stratum] += take
+            records += 1
+
         for stratum, quota in sorted(spec.target_quotas.items()):
             available = 0
             for doc, family in index.candidates(stratum):
@@ -445,19 +504,24 @@ def _schedule(
                 if index.seen(digest):
                     exclude(doc, "duplicate_train_content")
                     continue
-                ids = tokenizer.encode(doc["text"], add_special_tokens=False).ids
+                ids = tokens.encode(tokenizer, doc["text"])
                 if not ids:
                     exclude(doc, "zero_encoded_targets")
                     continue
-                index.append(
-                    {
-                        "document_id": doc["document_id"],
-                        "source_id": doc["source_id"],
-                        "family_id": family,
-                        "token_ids": ids + [eos],
-                        "stratum": stratum,
-                    }
-                )
+                encoded_doc = {
+                    "document_id": doc["document_id"],
+                    "source_id": doc["source_id"],
+                    "family_id": family,
+                    "token_ids": ids + [eos],
+                    "stratum": stratum,
+                }
+                if direct:
+                    if len(canonical_json(encoded_doc)) + 1 > MAX_ROW_BYTES:
+                        raise ValueError("mixture encoded record-byte cap exceeded")
+                    index.record_family(stratum, family)
+                    emit(encoded_doc, stratum, quota, 1)
+                else:
+                    index.append(encoded_doc)
                 available += len(ids) + 1
                 available_content[stratum] += len(ids)
             if (
@@ -478,38 +542,14 @@ def _schedule(
                 )
             available_unique[stratum] = available
             eligible_families[stratum] = index.family_count(stratum)
-            for exposure in range(1, spec.max_exposures + 1):
-                for doc in index.encoded(stratum):
-                    ids = doc["token_ids"]
-                    remaining = quota - totals[stratum]
-                    if remaining <= 0:
+            if not direct:
+                for exposure in range(1, spec.max_exposures + 1):
+                    for doc in index.encoded(stratum):
+                        if totals[stratum] >= quota:
+                            break
+                        emit(doc, stratum, quota, exposure)
+                    if totals[stratum] == quota:
                         break
-                    take = min(len(ids), remaining)
-                    # Every segment has an explicit end boundary. A final
-                    # truncated document uses its reserved EOS position.
-                    targets = (
-                        ids[:take] if take == len(ids) else ids[: take - 1] + [eos]
-                    )
-                    row = {
-                        "document_id": doc["document_id"],
-                        "family_id": doc["family_id"],
-                        "source_id": doc["source_id"],
-                        "stratum": stratum,
-                        "exposure": exposure,
-                        "content_token_start": 0,
-                        "content_token_end": take - 1,
-                        "token_ids": targets,
-                    }
-                    encoded_row = canonical_json(row) + b"\n"
-                    stream.write(encoded_row)
-                    token_digest.update(encoded_row)
-                    totals[stratum] += take
-                    source_totals[doc["source_id"]] += take
-                    if exposure == 1:
-                        unique[stratum] += take
-                    records += 1
-                if totals[stratum] == quota:
-                    break
             if totals[stratum] != quota:
                 raise ValueError(f"unfilled quota for {stratum}")
         stream.flush()
@@ -642,8 +682,24 @@ def _verify_completed_mixture(declaration, output, receipt):
     return receipt
 
 
-def verify_mixture(declaration: Path, output: Path) -> dict:
-    """Verify the declared cold-replay or completed-local execution policy."""
+def _native_mixture_completion(spec, raw, output, manifest, tokenizer_sha):
+    from sparselab.corpus.admission_inspection_cache import InspectionCache
+
+    cache = InspectionCache(output.parent)
+    cache.authority = {"mixture_execution": "v1"}
+    request = {
+        "declaration_sha256": hashlib.sha256(raw).hexdigest(),
+        "release_id": manifest["release_id"],
+        "release_manifest_sha256": sha256_file(spec.release_path / "manifest.json"),
+        "family_inventory_sha256": sha256_file(spec.family_inventory),
+        "tokenizer_sha256": tokenizer_sha,
+        "output": str(output),
+    }
+    return cache, request
+
+
+def verify_mixture(declaration: Path, output: Path, *, audit: bool = False) -> dict:
+    """Authenticate completed execution; replay only for an explicit audit."""
     output = output.resolve()
     receipt_path = output / "receipt.json"
     with receipt_path.open("rb") as stream:
@@ -654,10 +710,27 @@ def verify_mixture(declaration: Path, output: Path) -> dict:
     if (
         receipt.get("completed_preparation", {}).get("policy")
         == "completed_local_preparation"
+        and not audit
     ):
         return _verify_completed_mixture(declaration, output, receipt)
     if sha256_file(output / "train.tokens.jsonl") != receipt["train_tokens_sha256"]:
         raise ValueError("mixture token export digest mismatch")
+    if not audit:
+        raw = declaration.read_bytes()
+        spec = MixtureDeclaration.model_validate(yaml.safe_load(raw))
+        manifest = verify_release(spec.release_path.resolve())
+        _, tokenizer_sha = _tokenizer(
+            spec, spec.release_path.resolve(), manifest["release_id"]
+        )
+        cache, request = _native_mixture_completion(
+            spec, raw, output, manifest, tokenizer_sha
+        )
+        cached = cache.load("native-mixture", request, limit=MAX_RECEIPT_BYTES)
+        if cached is None or cached[0] != receipt:
+            raise ValueError(
+                "native mixture completion unavailable or changed; explicit audit replay required"
+            )
+        return receipt
     with tempfile.TemporaryDirectory(
         prefix=".verify-mixture-", dir=output.parent
     ) as temp:

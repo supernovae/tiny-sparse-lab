@@ -190,6 +190,9 @@ def test_hf_rows_are_streamed_with_original_ids_and_verified_resume(
     assert list(zip(docs, spans, strict=True)) == expected
     assert len(docs) == 3
     assert _prepare_file(**kwargs) == prepared
+    # An edited global build plan must not invalidate unchanged normalization.
+    changed_plan = {**kwargs, "build_id": "added-source-plan"}
+    assert _prepare_file(**changed_plan) == prepared
     assert any(
         json.loads(line)["event"] == "reused_verified_shard"
         for line in (tmp_path / "progress.jsonl").read_text().splitlines()

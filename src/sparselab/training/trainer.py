@@ -312,15 +312,12 @@ def _copy_artifacts(
             )
             if sha256_file(corpus_dir / "export.json") != binding["export_sha256"]:
                 raise ValueError("corpus export changed while copying run evidence")
-    if source_run is not None and current_pilot_progress() is not None:
-        # Run-owned copy with bounded, meaningful byte progress during pilots.
-        from sparselab.staging import _copy_tree
+    # Keep run ownership while using native reflink/clone support where available.
+    from sparselab.staging import _copy_tree
 
-        copied_data = _copy_tree(
-            data.root, run / "data", verified=dict(data.receipt.proofs)
-        )
-    else:
-        shutil.copytree(data.root, run / "data")
+    copied_data = _copy_tree(
+        data.root, run / "data", verified=dict(data.receipt.proofs)
+    )
     copy_fixed_panels(
         config, run, inputs_root=source_run, training_manifest=data.manifest
     )

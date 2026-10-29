@@ -1,5 +1,44 @@
 # Corpus-to-prepared-bundle public surface
 
+## Iterating on a mixture
+
+Existing-snapshot acquisition finalization (`corpus acquire PROJECT
+--require-existing`) prints a bounded result with `lock_path`, `project_id`,
+`source_count` and `complete`. The acquisition lock remains the artifact. The
+optional `--summary` spelling is also accepted. Finalization rebuilds a stale
+project lock from verified saved snapshots, without fetching missing sources.
+
+Source normalization is cached by the source definition, snapshot/file identity,
+normalizer, resolved rights and that file's verified admission decisions. The
+build and complete admission identities remain provenance; adding an unrelated
+source does not invalidate an unchanged normalized shard. Family assignment,
+rights verification and held-out isolation still run under the current plan.
+
+Mixture encoding uses a persistent tokenizer/content cache, independent of
+quotas, ordering and output names. Completed batches survive interruption; valid
+encodings are committed even when a supply floor cannot be met. No mixture is
+published until all declared quotas and unique-content floors pass. Retained
+single-exposure schedules avoid the additional temporary encoded spool.
+
+Ordinary `corpus verify-mixture DECLARATION --output OUTPUT` authenticates native
+completion and current inputs without re-running the schedule. An unchanged
+materialization request returns that verified completion. Missing or changed
+completion evidence fails closed; `--audit` explicitly reproduces the schedule.
+An audit does not convert historical output into a new execution receipt.
+Mixture commands print bounded status/counts and artifact paths; the complete
+receipt remains in `receipt.json`. Completion uses Lab's owned verification
+storage, independently of supervisor logs. Preserve the work root and its verification key with local artifacts.
+
+Packed data depends on preparation implementation rather than unrelated package
+code or documentation. Run provenance still records the package revision.
+Token-mixture target packing commits native chunks containing both target IDs
+and supervision masks. Restart verifies the chunks and input stream, skips
+committed output records, and rebuilds only unfinished packing. Raw chunks are
+retained until the complete prepared bundle publishes; validation preparation
+still restarts if interrupted. Run-owned data uses the existing authenticated
+copy path, allowing reflink/clone support where available and falling back to
+independent copies elsewhere.
+
 ## Reusing completed local preparation
 
 `corpus freeze-splits PROJECT --inventory INVENTORY --clusters CLUSTERS

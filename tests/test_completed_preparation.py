@@ -339,3 +339,32 @@ def test_completed_mixture_counts_content_once_and_reuses_execution(
         ValueError, match="completed native mixture evidence unavailable"
     ):
         mixture.verify_mixture(declaration, output)
+
+
+def test_edited_admission_preserves_unchanged_source_stage(tmp_path, monkeypatch):
+    root, recipe, project = fixture(tmp_path, monkeypatch)
+    first = pipeline.build(
+        project, root, offline=True, reuse_completed_preparation=True
+    )
+    admission = recipe / "admission.json"
+    admission.write_bytes(admission.read_bytes() + b"\n")
+    release = yaml.safe_load((recipe / "release.yaml").read_text())
+    release["record_admission"]["sha256"] = sha256_file(admission)
+    (recipe / "release.yaml").write_text(yaml.safe_dump(release))
+    frozen = json.loads((recipe / "splits.receipt.json").read_bytes())
+    frozen["admission_sha256"] = sha256_file(admission)
+    (recipe / "splits.receipt.json").write_bytes(canonical_json(frozen) + b"\n")
+
+    def replay(*args, **kwargs):
+        pytest.fail("unchanged source was normalized again after admission edit")
+
+    monkeypatch.setattr(completed, "_prepared_source", replay)
+    second = pipeline.build(
+        load_project(recipe / "project.yaml"),
+        root,
+        offline=True,
+        reuse_completed_preparation=True,
+    )
+    assert first != second
+    for name in ("documents.jsonl", "splits.json", "family-inventory.jsonl"):
+        assert (first / name).read_bytes() == (second / name).read_bytes()
