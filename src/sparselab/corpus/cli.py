@@ -302,6 +302,8 @@ def _handle(args: argparse.Namespace) -> None:
             if args.source_id is None
             else nullcontext()
         )
+        if args.summary and not args.require_existing:
+            raise ValueError("compact acquisition summary requires --require-existing")
         with operation:
             result = acquire(
                 project,
@@ -314,6 +316,16 @@ def _handle(args: argparse.Namespace) -> None:
                 require_existing=args.require_existing,
                 **verification,
             )
+            if args.summary:
+                result = {
+                    "status": "existing_snapshots_verified",
+                    "complete": True,
+                    "project_id": result["project_id"],
+                    "source_count": len(result["sources"]),
+                    "lock_path": str(
+                        root / "corpora" / project.config.id / "acquisition.json"
+                    ),
+                }
             encoder = json.JSONEncoder(sort_keys=True, default=str)
             for part in encoder.iterencode(result):
                 sys.stdout.write(part)
@@ -464,6 +476,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--retained-render-adoption")
             command.add_argument("--retained-render-adoption-sha256")
         if name == "acquire":
+            command.add_argument(
+                "--summary",
+                action="store_true",
+                help="Print a compact result for existing-snapshot finalization",
+            )
             command.add_argument(
                 "--require-existing",
                 action="store_true",

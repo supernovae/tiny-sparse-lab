@@ -135,6 +135,35 @@ def test_finalize_existing_snapshots_never_fetches_and_publishes_lock(
     )
     assert calls == before
     assert verify_acquisition(project, root) == complete
+    lock_path = root / "corpora/example/acquisition.json"
+    lock_before = lock_path.read_bytes()
+    original_verify = acquisition.verify_acquisition
+    verifications = []
+
+    def counted_verify(*args, **kwargs):
+        verifications.append(1)
+        return original_verify(*args, **kwargs)
+
+    monkeypatch.setattr(acquisition, "verify_acquisition", counted_verify)
+    summary = _cli(monkeypatch, root, recipe, "--require-existing", "--summary")
+    assert summary == {
+        "status": "existing_snapshots_verified",
+        "complete": True,
+        "project_id": "example",
+        "source_count": 2,
+        "lock_path": str(lock_path),
+    }
+    assert len(verifications) == 1 and lock_path.read_bytes() == lock_before
+    assert calls == before
+
+
+def test_acquisition_summary_refuses_other_modes_before_any_fetch(
+    tmp_path, monkeypatch
+):
+    recipe, _project, root, _ledger, calls, _content = fixture(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="summary requires --require-existing"):
+        _cli(monkeypatch, root, recipe, "--summary")
+    assert not calls and not (root / "corpora/example/acquisition.json").exists()
 
 
 def test_finalize_existing_refuses_missing_or_changed_snapshot_without_fetch(

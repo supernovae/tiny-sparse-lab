@@ -1962,7 +1962,12 @@ def acquire(
         raise ValueError(
             "retained subset project must be offline-only within aggregate selection caps"
         )
-    if offline or (selected and (base / "acquisition.json").exists()):
+    existing_lock = base / "acquisition.json"
+    if (
+        offline
+        or (selected and existing_lock.exists())
+        or (require_existing and (existing_lock.exists() or existing_lock.is_symlink()))
+    ):
         return verify_acquisition(
             project,
             work_root,
