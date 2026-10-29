@@ -429,6 +429,37 @@ def test_native_packing_rejects_malformed_target_row(tmp_path: Path) -> None:
         )
 
 
+def test_tokenizer_accepts_retained_release_path_but_not_a_different_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    release_id = "a" * 64
+    release = tmp_path / ("b" * 64)
+    dataset = SimpleNamespace(
+        source="local_text", corpus_release_path=release, revision=release_id
+    )
+    config = SimpleNamespace(
+        dataset=dataset, output_dir=tmp_path / "fit", vocab_size=260
+    )
+    spec = SimpleNamespace(
+        tokenizer_config=tmp_path / "config", tokenizer_origin_release_id=release_id
+    )
+    monkeypatch.setattr(mixture, "load_tokenizer_config", lambda path: config)
+    monkeypatch.setattr(
+        mixture,
+        "verify_tokenizer_artifact",
+        lambda *args, **kwargs: {"sha256": "t" * 64},
+    )
+    monkeypatch.setattr(mixture, "load_tokenizer", lambda path: "tokenizer")
+    assert mixture._tokenizer(spec, release, release_id) == ("tokenizer", "t" * 64)
+    dataset.revision = "c" * 64
+    with pytest.raises(ValueError, match="not bound to this release"):
+        mixture._tokenizer(spec, release, release_id)
+    dataset.revision = release_id
+    dataset.corpus_release_path = tmp_path / ("d" * 64)
+    with pytest.raises(ValueError, match="not bound to this release"):
+        mixture._tokenizer(spec, release, release_id)
+
+
 def test_mixture_dataset_binds_train_validation_and_tokenizer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
