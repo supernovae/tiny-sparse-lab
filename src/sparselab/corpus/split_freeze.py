@@ -242,6 +242,7 @@ def _split_inputs(
     output: Path,
     *,
     recover: bool = False,
+    load_prior: bool = True,
 ) -> dict[str, Any]:
     """Assign eligible document families; excluded rows get held-out placeholders."""
     root = work_root.resolve()
@@ -328,7 +329,7 @@ def _split_inputs(
         )
     prior_families, prior_strata, prior_content = (
         _prior_family_splits(raw_clusters["prior_family_inventory"], root)
-        if "prior_family_inventory" in raw_clusters
+        if load_prior and "prior_family_inventory" in raw_clusters
         else ({}, {}, {})
     )
     adopted = None
