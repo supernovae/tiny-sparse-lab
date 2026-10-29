@@ -245,7 +245,14 @@ def training_storage_checks(
 def tokenizer_storage_checks(config: TokenizerTrainConfig) -> list[StorageCheck]:
     # Input text is bounded, but a remote source's download cache is not. Keep
     # that uncertainty visible in documentation; this checks known local growth.
-    known_bytes = max(64 * 1024 * 1024, config.dataset.train_max_tokens * 2)
+    # Match the trainer's fitting budget: a stratified sample does not fit the
+    # whole release merely because its dataset retains the full corpus bound.
+    input_bytes = (
+        config.sampling.max_fit_bytes
+        if config.sampling is not None
+        else config.dataset.train_max_tokens
+    )
+    known_bytes = max(64 * 1024 * 1024, input_bytes * 2)
     if (
         _existing_ancestor(config.output_dir).stat().st_dev
         == _existing_ancestor(config.dataset.cache_dir).stat().st_dev
