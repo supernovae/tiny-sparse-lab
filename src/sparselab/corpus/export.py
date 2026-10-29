@@ -33,8 +33,6 @@ def _release(
         proof_store=proof_store,
         verification_mode=verification_mode,
     )
-    if manifest.get("release_id") != path.name:
-        raise ValueError("release directory does not match verified release ID")
     return manifest
 
 

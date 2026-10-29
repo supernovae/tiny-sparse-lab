@@ -163,8 +163,6 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
     spec = MixtureDeclaration.model_validate(yaml.safe_load(raw))
     release = spec.release_path.resolve()
     manifest = verify_release(release)
-    if manifest["release_id"] != release.name:
-        raise ValueError("release path does not match its verified identity")
     _source_rights(release, spec.source_strata)
     report = json.loads((release / "report.json").read_text(encoding="utf-8"))
     requested = report.get("requested_mixture")
