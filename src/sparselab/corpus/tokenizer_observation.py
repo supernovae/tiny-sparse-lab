@@ -80,6 +80,8 @@ def verify_observed_tokenizer(
         or job_spec.get("required_files", {}).get(str(config_path))
         != hashlib.sha256(config_raw).hexdigest()
         or job_spec.get("job_id") != job.get("job_id")
+        or job_spec.get("source", {}).get("path")
+        not in session_spec.get("source_paths", [])
         or not job_root.is_absolute()
         or job_root.resolve()
         != (
@@ -126,6 +128,7 @@ def verify_observed_tokenizer(
         or observation.observed_at_utc.timestamp() < outer["ended_at_unix"]
         or job.get("returncode") != 0
         or job.get("reason") != "exit"
+        or job.get("launched") is not True
         or not all(
             job.get(key)
             for key in (
@@ -136,6 +139,7 @@ def verify_observed_tokenizer(
             )
         )
         or job.get("errors") != []
+        or job.get("artifacts", {}).get("files") != []
     ):
         raise ValueError("tokenizer observation lacks successful closed execution")
 

@@ -125,12 +125,13 @@ def _case(tmp_path, monkeypatch):
     session_spec = {
         "session_id": session_id,
         "receipt_root": str(tmp_path / "receipts"),
+        "source_paths": [str(tmp_path / "source")],
         "slots": [{"id": "slot", "root": "A", "argv": argv}],
     }
     session_spec_entry = _put(tmp_path / "session.json", session_spec)
     job_spec = {
         "job_id": job_id,
-        "source": {"commit": "c" * 40},
+        "source": {"commit": "c" * 40, "path": str(tmp_path / "source")},
         "output_root": str(job_root),
         "argv": argv,
         "required_files": {str(config_path): config_entry["sha256"]},
@@ -143,6 +144,8 @@ def _case(tmp_path, monkeypatch):
         "reason": "exit",
         "returncode": 0,
         "process_success": True,
+        "launched": True,
+        "artifacts": {"files": []},
         "cleanup_verified": True,
         "evidence_complete": True,
         "logs_complete": True,
