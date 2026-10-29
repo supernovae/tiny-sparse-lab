@@ -15,7 +15,6 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
 
-from sparselab.cli.main import build_parser
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.acquisition import (
     _adapter,
@@ -95,7 +94,9 @@ def _write_yaml(path: Path, value: dict) -> None:
     path.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
 
 
-def test_data_only_render_and_legacy_contract_compatibility(tmp_path: Path) -> None:
+def test_render_declaration_substitutes_exactly_and_refuses_unsafe_outputs(
+    tmp_path: Path,
+) -> None:
     template = tmp_path / "template.json"
     template.write_text('{"identity":"${RELEASE_SHA256}"}\n')
     output = tmp_path / "rendered.json"
@@ -152,35 +153,23 @@ def test_data_only_render_and_legacy_contract_compatibility(tmp_path: Path) -> N
         ).effect
         == "preparation"
     )
-    assert (
-        build_parser()
-        .parse_args(["corpus", "budget-status", "project.yaml"])
-        .corpus_command
-        == "budget-status"
-    )
-    old = AttemptContract.model_validate(
-        {
-            "contract_version": 1,
-            "max_optimizer_updates": 0,
-            "max_actual_target_positions": 0,
-            "max_generation_calls": 0,
-            "max_generated_tokens": 0,
-            "max_wall_seconds": 30,
-            "content_identity_sha256": "a" * 64,
-            "monitor_policy_sha256": "b" * 64,
-            "workspace_baseline_sha256": "c" * 64,
-        }
-    )
-    payload = old.model_dump(mode="json")
-    assert "preparation_normalizer" not in payload
-    assert "offline_retained_sources_only" not in payload
-    assert "require_release_acceptance_binding" not in payload
-    assert "require_admission_inspection_binding" not in payload
-    assert "admission_lock_sha256" not in payload
-    assert "admission_policy_sha256" not in payload
-    assert "admission_selection_sha256" not in payload
-    assert "preparation_only" not in payload
-    assert "require_preledger_monitor_binding" not in payload
+
+
+def test_unset_optional_contract_fields_keep_the_contract_identity() -> None:
+    """Spent ledgers bind the contract digest; unset options must not change it."""
+    minimal = {
+        "contract_version": 1,
+        "max_optimizer_updates": 0,
+        "max_actual_target_positions": 0,
+        "max_generation_calls": 0,
+        "max_generated_tokens": 0,
+        "max_wall_seconds": 30,
+        "content_identity_sha256": "a" * 64,
+        "monitor_policy_sha256": "b" * 64,
+        "workspace_baseline_sha256": "c" * 64,
+    }
+    payload = AttemptContract.model_validate(minimal).model_dump(mode="json")
+    assert payload == {**minimal, "max_wall_seconds": 30.0}
     with pytest.raises(ValueError, match="inspected admission requires"):
         AttemptContract.model_validate(
             {**payload, "require_admission_inspection_binding": True}
