@@ -438,6 +438,37 @@ def _schedule(
         excluded.append(row)
 
     with (staging / "train.tokens.jsonl").open("wb") as stream:
+        direct = spec.max_exposures == 1 and callable(
+            getattr(index, "record_family", None)
+        )
+
+        def emit(doc, stratum, quota, exposure):
+            nonlocal records
+            ids = doc["token_ids"]
+            remaining = quota - totals[stratum]
+            if remaining <= 0:
+                return
+            take = min(len(ids), remaining)
+            targets = ids[:take] if take == len(ids) else ids[: take - 1] + [eos]
+            row = {
+                "document_id": doc["document_id"],
+                "family_id": doc["family_id"],
+                "source_id": doc["source_id"],
+                "stratum": stratum,
+                "exposure": exposure,
+                "content_token_start": 0,
+                "content_token_end": take - 1,
+                "token_ids": targets,
+            }
+            encoded_row = canonical_json(row) + b"\n"
+            stream.write(encoded_row)
+            token_digest.update(encoded_row)
+            totals[stratum] += take
+            source_totals[doc["source_id"]] += take
+            if exposure == 1:
+                unique[stratum] += take
+            records += 1
+
         for stratum, quota in sorted(spec.target_quotas.items()):
             available = 0
             for doc, family in index.candidates(stratum):
@@ -449,15 +480,18 @@ def _schedule(
                 if not ids:
                     exclude(doc, "zero_encoded_targets")
                     continue
-                index.append(
-                    {
-                        "document_id": doc["document_id"],
-                        "source_id": doc["source_id"],
-                        "family_id": family,
-                        "token_ids": ids + [eos],
-                        "stratum": stratum,
-                    }
-                )
+                encoded_doc = {
+                    "document_id": doc["document_id"],
+                    "source_id": doc["source_id"],
+                    "family_id": family,
+                    "token_ids": ids + [eos],
+                    "stratum": stratum,
+                }
+                if direct:
+                    index.record_family(stratum, family)
+                    emit(encoded_doc, stratum, quota, 1)
+                else:
+                    index.append(encoded_doc)
                 available += len(ids) + 1
                 available_content[stratum] += len(ids)
             if (
@@ -478,38 +512,14 @@ def _schedule(
                 )
             available_unique[stratum] = available
             eligible_families[stratum] = index.family_count(stratum)
-            for exposure in range(1, spec.max_exposures + 1):
-                for doc in index.encoded(stratum):
-                    ids = doc["token_ids"]
-                    remaining = quota - totals[stratum]
-                    if remaining <= 0:
+            if not direct:
+                for exposure in range(1, spec.max_exposures + 1):
+                    for doc in index.encoded(stratum):
+                        if totals[stratum] >= quota:
+                            break
+                        emit(doc, stratum, quota, exposure)
+                    if totals[stratum] == quota:
                         break
-                    take = min(len(ids), remaining)
-                    # Every segment has an explicit end boundary. A final
-                    # truncated document uses its reserved EOS position.
-                    targets = (
-                        ids[:take] if take == len(ids) else ids[: take - 1] + [eos]
-                    )
-                    row = {
-                        "document_id": doc["document_id"],
-                        "family_id": doc["family_id"],
-                        "source_id": doc["source_id"],
-                        "stratum": stratum,
-                        "exposure": exposure,
-                        "content_token_start": 0,
-                        "content_token_end": take - 1,
-                        "token_ids": targets,
-                    }
-                    encoded_row = canonical_json(row) + b"\n"
-                    stream.write(encoded_row)
-                    token_digest.update(encoded_row)
-                    totals[stratum] += take
-                    source_totals[doc["source_id"]] += take
-                    if exposure == 1:
-                        unique[stratum] += take
-                    records += 1
-                if totals[stratum] == quota:
-                    break
             if totals[stratum] != quota:
                 raise ValueError(f"unfilled quota for {stratum}")
         stream.flush()

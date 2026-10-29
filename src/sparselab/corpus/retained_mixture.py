@@ -307,6 +307,13 @@ def _ranked(directory, cohorts, seed, strata, order_policy=None):
 class RetainedMixtureIndex(MixtureIndex):
     """Use signed source offsets and a bounded file-handle cache."""
 
+    def record_family(self, stratum, family):
+        """Count an eligible family without retaining a second token copy."""
+        self.db.execute(
+            "INSERT INTO encoded(offset,family,stratum) VALUES(NULL,?,?)",
+            (family, stratum),
+        )
+
     def __init__(self, scratch, work_root, cohorts, seed, strata, order_policy=None):
         if not 1 <= len(cohorts) <= 2:
             raise ValueError("at most one additional release is supported")
