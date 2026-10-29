@@ -123,7 +123,13 @@ def _tokenizer(spec: MixtureDeclaration, release: Path, release_id: str):
     if (
         dataset.source != "local_text"
         or dataset.corpus_release_path is None
-        or dataset.corpus_release_path.resolve().name != origin
+        or (
+            dataset.corpus_release_path.resolve().name != origin
+            and not (
+                dataset.corpus_release_path.resolve() == release
+                and origin == release_id
+            )
+        )
         or dataset.revision != origin
         or (
             spec.tokenizer_origin_release_id is None
