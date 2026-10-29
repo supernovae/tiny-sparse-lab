@@ -592,13 +592,23 @@ def verify_mixture_dataset(
         or vocab_size != fit.vocab_size
     ):
         raise ValueError("token mixture dataset or tokenizer identity mismatch")
-    from sparselab.corpus.export import _licenses, _split_stats
+    if spec.tokenizer_observation is not None:
+        # verify_mixture has just checked the observed export and its generated
+        # dataset against the retained release. Reuse those recorded validation
+        # bounds rather than scanning the same release and held-out view again.
+        expected_license = fit.dataset.license
+        records = fit.dataset.validation_max_documents
+        token_budget = fit.dataset.validation_max_tokens
+    else:
+        from sparselab.corpus.export import _licenses, _split_stats
 
-    records, rendered_bytes = _split_stats(dataset.validation_path, "lm")
+        records, rendered_bytes = _split_stats(dataset.validation_path, "lm")
+        token_budget = rendered_bytes + records + 1
+        expected_license = _licenses(release)
     if (
-        dataset.license != _licenses(release)
+        dataset.license != expected_license
         or records != dataset.validation_max_documents
-        or dataset.validation_max_tokens != rendered_bytes + records + 1
+        or dataset.validation_max_tokens != token_budget
     ):
         raise ValueError("token mixture validation split count or budget mismatch")
     return receipt

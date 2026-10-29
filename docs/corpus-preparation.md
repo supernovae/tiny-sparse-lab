@@ -1175,6 +1175,9 @@ are not claimed to have been attested by the earlier job. The tokenizer sample
 selection, disjoint audit, and export split/license recomputation are not
 replayed. This explicit choice relies on the owner's local observation and the
 existing retained-release trust boundary. It is not a cold-verification proof.
+Keep all observed files at their recorded paths, unchanged, for the life of the
+mixture; later consumers check them again and use the bound export's recorded
+validation bounds and license rather than repeating those corpus scans.
 Omit the field for the ordinary cold tokenizer verification path.
 
 

@@ -585,6 +585,84 @@ def test_mixture_dataset_binds_train_validation_and_tokenizer(
         mixture.verify_mixture_dataset(wrong, fit_dir / "tokenizer.json", 260)
 
 
+def test_observed_mixture_consumer_reuses_export_validation_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    declaration, _, release = _fixture(tmp_path, monkeypatch)
+    raw = yaml.safe_load(declaration.read_text())
+    names = (
+        "job_spec",
+        "session_spec",
+        "job_report",
+        "session_report",
+        "container_report",
+        "stdout",
+        "stderr",
+        "tokenizer_config",
+        "tokenizer",
+        "tokenizer_manifest",
+        "export",
+    )
+    raw["tokenizer_observation"] = {
+        "method": "post_run_observation",
+        "observed_at_utc": "2026-10-29T05:00:00Z",
+        "files": {
+            name: {"path": str(tmp_path / name), "sha256": "a" * 64} for name in names
+        },
+    }
+    declaration.write_text(yaml.safe_dump(raw))
+    output = tmp_path / "output"
+    fit_dir = tmp_path / "fit"
+    source = SimpleNamespace(
+        license="local research", validation_max_documents=1, validation_max_tokens=9
+    )
+    monkeypatch.setattr(
+        mixture,
+        "verify_mixture",
+        lambda *args: {
+            "release_id": release.name,
+            "actual_target_tokens": {"x": 20},
+            "records": 3,
+        },
+    )
+    monkeypatch.setattr(
+        mixture,
+        "load_tokenizer_config",
+        lambda *args: SimpleNamespace(
+            output_dir=fit_dir, vocab_size=260, dataset=source
+        ),
+    )
+    from sparselab.corpus import export
+
+    monkeypatch.setattr(export, "_licenses", lambda *args: pytest.fail("license scan"))
+    monkeypatch.setattr(
+        export, "_split_stats", lambda *args: pytest.fail("validation scan")
+    )
+    dataset = DatasetConfig(
+        source="local_token_mixture",
+        revision=release.name,
+        cache_dir=tmp_path / "cache",
+        train_path=output / "train.tokens.jsonl",
+        validation_path=release / "lm/validation.jsonl",
+        train_max_documents=3,
+        validation_max_documents=1,
+        train_max_tokens=20,
+        validation_max_tokens=9,
+        license="local research",
+        mixture_declaration_path=declaration,
+        mixture_output_path=output,
+    )
+    assert (
+        mixture.verify_mixture_dataset(dataset, fit_dir / "tokenizer.json", 260)[
+            "records"
+        ]
+        == 3
+    )
+    wrong = dataset.model_copy(update={"validation_max_tokens": 10})
+    with pytest.raises(ValueError, match="validation split count or budget mismatch"):
+        mixture.verify_mixture_dataset(wrong, fit_dir / "tokenizer.json", 260)
+
+
 def test_native_prepared_cache_preserves_exact_mixture_supervision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
