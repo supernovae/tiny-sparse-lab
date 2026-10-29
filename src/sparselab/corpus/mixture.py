@@ -23,7 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import DatasetConfig
 from sparselab.corpus.acquisition import _sync_dir
-from sparselab.corpus.mixture_index import MAX_RECEIPT_BYTES, MixtureIndex, rows
+from sparselab.corpus.mixture_index import (
+    MAX_RECEIPT_BYTES,
+    MAX_ROW_BYTES,
+    MixtureIndex,
+    rows,
+)
 from sparselab.corpus.release import _verification_operation, verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
@@ -488,6 +493,8 @@ def _schedule(
                     "stratum": stratum,
                 }
                 if direct:
+                    if len(canonical_json(encoded_doc)) + 1 > MAX_ROW_BYTES:
+                        raise ValueError("mixture encoded record-byte cap exceeded")
                     index.record_family(stratum, family)
                     emit(encoded_doc, stratum, quota, 1)
                 else:

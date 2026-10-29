@@ -481,8 +481,12 @@ def test_retained_offsets_match_existing_mixture_schedule(
     assert before == after
 
 
-@pytest.mark.parametrize("floor", [3, 99])
-def test_direct_schedule_matches_duplicate_empty_and_floor_behavior(tmp_path, floor):
+@pytest.mark.parametrize("floor,cap", [(3, None), (99, None), (3, 32)])
+def test_direct_schedule_matches_duplicate_empty_and_floor_behavior(
+    tmp_path, monkeypatch, floor, cap
+):
+    if cap is not None:
+        monkeypatch.setattr(mixture, "MAX_ROW_BYTES", cap)
     release = tmp_path / "release"
     release.mkdir()
     (release / "manifest.json").write_text("{}")
@@ -551,6 +555,8 @@ def test_direct_schedule_matches_duplicate_empty_and_floor_behavior(tmp_path, fl
             return old
 
         def append(self, row):
+            if cap is not None and len(mixture.canonical_json(row)) + 1 > cap:
+                raise ValueError("mixture encoded record-byte cap exceeded")
             self.rows.append(row)
             self.families.add(row["family_id"])
 
@@ -589,7 +595,11 @@ def test_direct_schedule_matches_duplicate_empty_and_floor_behavior(tmp_path, fl
         except ValueError as exc:
             receipt = str(exc)
         results.append((receipt, (staging / "train.tokens.jsonl").read_bytes()))
-    if floor == 99:
+    if cap is not None:
+        assert (
+            results[0][0] == results[1][0] == "mixture encoded record-byte cap exceeded"
+        )
+    elif floor == 99:
         assert "unique TRAIN content supply below floor" in results[0][0]
         # Failed staging is discarded by the caller; direct scheduling may have
         # written it before discovering the shortfall.
