@@ -14,8 +14,8 @@ from contextvars import ContextVar
 from pathlib import Path
 from uuid import uuid4
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.result_publication import sync_directory
-from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.verification_proofs import _trusted
 
 _ACTIVE = ContextVar("retained_render_adoption", default=None)

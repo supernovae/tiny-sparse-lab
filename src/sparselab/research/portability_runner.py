@@ -13,6 +13,7 @@ from typing import Any
 import torch
 from safetensors.torch import load_file
 
+from sparselab.canonical import canonical_digest
 from sparselab.data.toy_worlds import StructuredKey, frozen_encoders
 from sparselab.engram.semantic import SemanticQueryBatch, SemanticRetriever
 from sparselab.evaluation.chat import format_chat_prompt
@@ -31,7 +32,6 @@ from sparselab.research.portability_campaign import (
 )
 from sparselab.runtime import seed_everything
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest
 
 _SYMBOLS = "ABCDEFGHIJKLMNOP"
 

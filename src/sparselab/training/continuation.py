@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import RunConfig
 from sparselab.runtime import RuntimeInfo
 from sparselab.training.checkpoints import (
@@ -15,7 +16,6 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     architecture_sha256,
-    canonical_digest,
     config_sha256,
     read_manifest,
     sha256_file,

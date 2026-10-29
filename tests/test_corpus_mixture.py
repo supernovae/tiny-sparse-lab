@@ -10,11 +10,11 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from sparselab.canonical import canonical_json
 from sparselab.config.loading import load_config
 from sparselab.config.models import DatasetConfig
 from sparselab.corpus import mixture
 from sparselab.data.packing import TokenBlockDataset, _collect_token_mixture
-from sparselab.training.manifest import canonical_json
 
 
 def _fixture(

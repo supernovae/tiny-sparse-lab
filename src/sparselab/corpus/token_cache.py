@@ -11,8 +11,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from sparselab.canonical import canonical_json
 from sparselab.corpus.mixture_index import MAX_ROW_BYTES
-from sparselab.training.manifest import canonical_json
 
 
 class TokenCache:

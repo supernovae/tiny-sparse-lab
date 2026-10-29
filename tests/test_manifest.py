@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config
 from sparselab.runtime import RuntimeInfo
 from sparselab.training import manifest
@@ -14,8 +15,6 @@ from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
     architecture_sha256,
-    canonical_digest,
-    canonical_json,
     config_sha256,
     read_manifest,
     write_manifest,

@@ -14,8 +14,9 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.corpus.release import verify_release
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 LANGUAGE_CATEGORIES = (
     "paraphrase",
@@ -67,19 +68,10 @@ _ITEM_FIELDS = {
 _CHUNK_FIELDS = {"id", "document_id", "start", "end", "text_sha256"}
 
 
-def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON field: {key}")
-        result[key] = value
-    return result
-
-
 def _rows(path: Path) -> list[dict[str, Any]]:
     with path.open(encoding="utf-8") as stream:
         return [
-            json.loads(line, object_pairs_hook=_unique)
+            json.loads(line, object_pairs_hook=reject_duplicate_keys)
             for line in stream
             if line.strip()
         ]
@@ -342,7 +334,9 @@ def freeze_card03_items(
     }
     spans = {row["record_id"]: row for row in _rows(release / "spans.jsonl")}
     families = _families(family_inventory, docs)
-    candidate = json.loads(draft.read_text(encoding="utf-8"), object_pairs_hook=_unique)
+    candidate = json.loads(
+        draft.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys
+    )
     if set(candidate) != {
         "schema_version",
         "protocol",

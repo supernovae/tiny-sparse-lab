@@ -16,16 +16,11 @@ import torch
 from safetensors.torch import load_file
 
 from sparselab.address_hash import byte_scheme, token_addressing_marker
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.engram.packs import verify_pack
 from sparselab.model.inspection import named_tensor_inventory
-from sparselab.training.manifest import (
-    architecture_sha256,
-    canonical_digest,
-    canonical_json,
-    read_manifest,
-    sha256_file,
-)
+from sparselab.training.manifest import architecture_sha256, read_manifest, sha256_file
 
 _FORMAT = "sparselab-portability-run"
 _VERSION = 1

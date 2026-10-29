@@ -6,7 +6,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.canonical import canonical_json
+from sparselab.training.manifest import sha256_file
 from sparselab.training.metrics import ExperimentStore
 from sparselab.workers.relay import RelayStore, read_attempt_key
 from sparselab.workers.relay_models import (

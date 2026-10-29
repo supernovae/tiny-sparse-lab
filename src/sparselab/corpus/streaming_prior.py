@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.split_runs import SplitStages, external_sort, rows
-from sparselab.training.manifest import canonical_digest, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _index(directory, inventory, expected_sha256):

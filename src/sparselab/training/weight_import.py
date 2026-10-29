@@ -25,6 +25,7 @@ from safetensors import SafetensorError
 from safetensors.torch import load_file
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import RunConfig
 from sparselab.data.tokenizer import SPECIAL_TOKENS
@@ -35,8 +36,6 @@ from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
     architecture_sha256,
-    canonical_digest,
-    canonical_json,
     config_sha256,
     sha256_file,
     source_identity,
@@ -69,15 +68,6 @@ class LegacyWeights:
     metadata: dict[str, object]
 
 
-def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    output: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in output:
-            raise ValueError(f"duplicate JSON object key: {key!r}")
-        output[key] = value
-    return output
-
-
 def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-finite JSON value: {value}")
 
@@ -86,7 +76,7 @@ def _json(path: Path) -> dict[str, Any]:
     try:
         raw = json.loads(
             path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:

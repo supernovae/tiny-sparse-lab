@@ -19,8 +19,8 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.canonical import canonical_json, reject_duplicate_keys
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_json
 
 MAX_RECORD_BYTES = 1024 * 1024
 _RECORD_FIELDS = frozenset(
@@ -91,15 +91,6 @@ def _time_instant(value: str | None) -> datetime | None:
     if _DATE_RE.fullmatch(value):
         return datetime.combine(date.fromisoformat(value), datetime.min.time(), UTC)
     return datetime.fromisoformat(value)
-
-
-def _object_without_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
 
 
 def _reject_constant(value: str) -> object:
@@ -252,7 +243,7 @@ def _rows_jsonl(path: Path) -> Iterator[tuple[int, object]]:
                         raise ValueError("blank JSONL line")
                     record = json.loads(
                         line,
-                        object_pairs_hook=_object_without_duplicates,
+                        object_pairs_hook=reject_duplicate_keys,
                         parse_constant=_reject_constant,
                     )
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:

@@ -13,9 +13,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sparselab.address_hash import memory_addressing_identity, memory_schemes
+from sparselab.canonical import canonical_digest, canonical_json
 
 if TYPE_CHECKING:
     from sparselab.runtime import RuntimeInfo
+
+from sparselab.canonical import reject_duplicate_keys
 
 MANIFEST_VERSION = 1
 IDENTITY_VERSION = "run-identity-v2"
@@ -35,22 +38,6 @@ _MACHINE_LOCAL_PATH_KEYS = frozenset(
         "corpus_export_path",
     }
 )
-
-
-def canonical_json(value: object) -> bytes:
-    """Encode only JSON-native data in a canonical, finite representation."""
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8")
-
-
-def canonical_digest(value: object) -> str:
-    """Return the SHA-256 hex digest of ``canonical_json(value)``."""
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _without_machine_local_paths(value: object) -> object:
@@ -286,15 +273,6 @@ def write_manifest(path: Path, manifest: RunManifest) -> str:
     return str(data["sha256"])
 
 
-def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON object key: {key!r}")
-        result[key] = value
-    return result
-
-
 def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-finite JSON value: {value}")
 
@@ -355,7 +333,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(
             path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:

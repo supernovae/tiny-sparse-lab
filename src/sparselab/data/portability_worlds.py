@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
@@ -28,7 +29,7 @@ from sparselab.engram.packs import (
     compile_pack,
     verify_pack,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _SYMBOLS = tuple("ABCDEFGHIJKLMNOP")
 _RELATIONS = ("next", "label")

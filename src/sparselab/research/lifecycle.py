@@ -20,6 +20,7 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.canonical import reject_duplicate_keys
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import StrictModel
 from sparselab.experiments.reporting import load_report_bundle
@@ -571,15 +572,6 @@ def _validate_entry_reference(value: str) -> None:
         _valid_id(value, "research entry")
 
 
-def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
 def _reject_nonfinite(value: object) -> None:
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError("nonfinite JSON number")
@@ -598,7 +590,7 @@ def _strict_json(path: Path, *, limit: int | None = None) -> tuple[object, bytes
     try:
         value = json.loads(
             raw,
-            object_pairs_hook=_reject_duplicate_pairs,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=lambda token: (_ for _ in ()).throw(
                 ValueError(f"nonfinite JSON number: {token}")
             ),

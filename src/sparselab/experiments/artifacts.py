@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from sparselab.canonical import canonical_json
 from sparselab.experiments.artifact_paths import artifact_path
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import (
     ProofStore,
     VerificationMode,

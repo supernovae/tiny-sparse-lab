@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from sparselab.training.manifest import canonical_digest, canonical_json, read_manifest
+from sparselab.canonical import canonical_digest, canonical_json
+from sparselab.training.manifest import read_manifest
 
 NativeReceiptKind = Literal[
     "train", "panel", "campaign_run", "campaign_panel", "campaign_evaluation", "none"

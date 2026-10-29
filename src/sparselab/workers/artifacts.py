@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Protocol
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.training.checkpoints import (
     CheckpointManager,
@@ -17,8 +18,6 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     ArtifactIdentity,
-    canonical_digest,
-    canonical_json,
     config_sha256,
     read_manifest,
     sha256_file,

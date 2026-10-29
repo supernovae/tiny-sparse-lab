@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig, StrictModel
 from sparselab.data.encoding import (
     TOKENIZER_BATCH_DOCUMENTS,
@@ -19,7 +20,6 @@ from sparselab.data.encoding import (
 )
 from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime import RuntimeInfo
-from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.workers.relay_models import RelayBinding
 
 PROTOCOL_VERSION = 1

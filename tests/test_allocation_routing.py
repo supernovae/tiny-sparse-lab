@@ -9,6 +9,7 @@ import pytest
 import torch
 from test_training import config
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config
 from sparselab.config.models import AttentionConfig, DatasetConfig, ModelConfig
 from sparselab.data.allocation import build_allocation_manifest
@@ -22,12 +23,7 @@ from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.model.transformer import DenseLM
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    sha256_file,
-    source_identity,
-)
+from sparselab.training.manifest import sha256_file, source_identity
 
 
 def _allocation_config(tmp_path: Path, *, weight: float, memory: bool = True):

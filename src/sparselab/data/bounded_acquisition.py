@@ -18,17 +18,17 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, urljoin, urlsplit
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.acquisition import (
     _ManualRedirect,
     _read_metadata_body,
     _read_with_deadline,
     _response_length,
-    _sync_dir,
 )
 from sparselab.corpus.transport_budget import TransportBudget
 from sparselab.data.acquisition_scope import current_transport
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.training.manifest import canonical_digest, canonical_json
+from sparselab.result_publication import sync_directory
 
 
 class AcquisitionInterrupted(RuntimeError):
@@ -168,7 +168,7 @@ class DatasetTransport(TransportBudget):
                 handle.write(self.binding)
                 handle.flush()
                 os.fsync(handle.fileno())
-            _sync_dir(self.cache)
+            sync_directory(self.cache)
         if not self.path.exists():
             # Existing payloads without their ledger cannot reset spent authority.
             if (
@@ -422,7 +422,7 @@ class DatasetTransport(TransportBudget):
                     os.fsync(output.fileno())
             self._authenticate(partial, row)
             _rename_noreplace(partial, target)
-            _sync_dir(self.cache)
+            sync_directory(self.cache)
             self.finish_transfer(index, success=True)
         except (
             OSError,

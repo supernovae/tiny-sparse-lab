@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from sparselab.training.manifest import canonical_digest
+from sparselab.canonical import canonical_digest
 
 AUTHORITY_SCHEMA = 2
 _COMMON = ("__init__", "verification_proofs", "verifier_authority", "training.manifest")

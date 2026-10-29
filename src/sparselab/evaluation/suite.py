@@ -10,6 +10,7 @@ from typing import Any
 
 from sparselab.campaign.plan import safe_path
 from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.documents import read_document
 from sparselab.engines.base import EngineCapabilityError
 from sparselab.evaluation.suite_models import (  # noqa: F401
@@ -18,12 +19,7 @@ from sparselab.evaluation.suite_models import (  # noqa: F401
 )
 from sparselab.runtime_profile import RuntimeAuthorization, RuntimeAuthorizationRequired
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    read_manifest,
-    sha256_file,
-)
+from sparselab.training.manifest import read_manifest, sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
 
 _SHA = re.compile(r"[0-9a-f]{64}\Z")

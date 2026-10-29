@@ -11,7 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sparselab.training.manifest import ArtifactIdentity, canonical_json, read_manifest
+from sparselab.canonical import canonical_json
+from sparselab.training.manifest import ArtifactIdentity, read_manifest
 from sparselab.training.metrics import _strict_json_loads
 from sparselab.workers.relay import RelayStore, read_attempt_key
 from sparselab.workers.relay_models import RelayBinding, RelayProfile

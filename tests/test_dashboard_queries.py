@@ -109,7 +109,7 @@ def test_training_triage_panel_rejects_forged_and_symlinked_artifacts(
 def test_imported_manifest_is_explicitly_pending_until_collection(tmp_path, assigned):
     import json
 
-    from sparselab.training.manifest import canonical_digest
+    from sparselab.canonical import canonical_digest
     from sparselab.workers.artifacts import _restore_crash_projection
 
     source = ExperimentStore(tmp_path / "worker")

@@ -5,7 +5,7 @@ import sqlite3
 from collections.abc import Mapping, MutableMapping
 from uuid import uuid4
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_json
 
 
 class RowIndex(Mapping):

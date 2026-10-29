@@ -152,11 +152,8 @@ def _triage_shape_fixture(tmp_path: Path) -> dict:
 
 
 def _write_triage_shape(tmp_path: Path, payload: object) -> Path:
-    from sparselab.training.manifest import (
-        canonical_digest,
-        canonical_json,
-        sha256_file,
-    )
+    from sparselab.canonical import canonical_digest, canonical_json
+    from sparselab.training.manifest import sha256_file
 
     if isinstance(payload, dict):
         payload["identity"] = {
@@ -265,11 +262,11 @@ def test_nonobject_manifest_is_local_value_error(tmp_path, value):
     ],
 )
 def test_manifest_nested_shape_errors_are_local_value_error(tmp_path, field, value):
+    from sparselab.canonical import canonical_digest
     from sparselab.training.manifest import (
         ARCHITECTURE_VERSION,
         IDENTITY_VERSION,
         architecture_sha256,
-        canonical_digest,
         config_sha256,
         read_manifest,
     )
@@ -308,7 +305,7 @@ def test_manifest_nested_shape_errors_are_local_value_error(tmp_path, field, val
 
 
 def _triage_pass_fixture(tmp_path):
-    from sparselab.training.manifest import canonical_digest, canonical_json
+    from sparselab.canonical import canonical_digest, canonical_json
 
     manifest = {"manifest_version": 1, "run_id": "run"}
     manifest["sha256"] = canonical_digest(manifest)
@@ -379,7 +376,7 @@ def _triage_pass_fixture(tmp_path):
     ],
 )
 def test_pass_binding_rejects_malformed_checkpoint_and_progress(tmp_path, broken):
-    from sparselab.training.manifest import canonical_digest, canonical_json
+    from sparselab.canonical import canonical_digest, canonical_json
 
     path, checkpoint, progress = _triage_pass_fixture(tmp_path)
     assert read_triage("run", tmp_path)["core"]["integrity"]["status"] == "PASS"

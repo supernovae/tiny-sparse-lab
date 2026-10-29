@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.corpus.project import (
     RETAINED_MAX_BYTES,
@@ -45,7 +46,8 @@ from sparselab.corpus.project import (
 from sparselab.corpus.transport_budget import TransportBudget
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -158,7 +160,7 @@ class _AcquisitionResources:
                     },
                 )
                 os.replace(temporary, self.journal)
-                _sync_dir(self.journal.parent)
+                sync_directory(self.journal.parent)
             finally:
                 temporary.unlink(missing_ok=True)
 
@@ -226,14 +228,6 @@ def _write_json(path: Path, value: object, *, max_bytes: int | None = None) -> N
         handle.write(body)
         handle.flush()
         os.fsync(handle.fileno())
-
-
-def _sync_dir(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def _copy_stream(
@@ -2022,10 +2016,10 @@ def acquire(
                             with member.open("rb") as stream:
                                 os.fsync(stream.fileno())
                         elif member.is_dir():
-                            _sync_dir(member)
-                    _sync_dir(staging)
+                            sync_directory(member)
+                    sync_directory(staging)
                     _rename_noreplace(staging, destination)
-                    _sync_dir(destination.parent)
+                    sync_directory(destination.parent)
                 finally:
                     if staging.exists():
                         shutil.rmtree(staging)
@@ -2186,11 +2180,11 @@ def acquire(
             else:
                 for directory in sorted((staging / "files").rglob("*"), reverse=True):
                     if directory.is_dir():
-                        _sync_dir(directory)
-                _sync_dir(staging / "files")
-                _sync_dir(staging)
+                        sync_directory(directory)
+                sync_directory(staging / "files")
+                sync_directory(staging)
                 _rename_noreplace(staging, destination)
-                _sync_dir(parent)
+                sync_directory(parent)
                 verify_snapshot(
                     destination,
                     proof_store=proof_store,
@@ -2275,7 +2269,7 @@ def acquire(
             output.flush()
             os.fsync(output.fileno())
         os.replace(name, base / "acquisition.json")
-        _sync_dir(base)
+        sync_directory(base)
     finally:
         if os.path.exists(name):
             os.unlink(name)

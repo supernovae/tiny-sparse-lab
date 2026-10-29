@@ -14,8 +14,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Literal
 
 from sparselab.campaign.state import read_canonical
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.recovery.manifest import load_manifest
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.workdir import resolve_work_dir
 
 _CHUNK = 1024 * 1024
@@ -926,18 +927,9 @@ def _verify_domain_inventory(
     """Check archived release, checkpoint and prepared manifests against byte inventory."""
     present = {entry["path"]: entry for entry in index["entries"]}
     for name, raw in manifests.items():
-
-        def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-            value: dict[str, Any] = {}
-            for key, item in pairs:
-                if key in value:
-                    raise ValueError("duplicate domain manifest key")
-                value[key] = item
-            return value
-
         record = json.loads(
             raw,
-            object_pairs_hook=unique,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=lambda value: (_ for _ in ()).throw(
                 ValueError("nonfinite domain manifest")
             ),
@@ -1056,7 +1048,9 @@ def _verify_domain_inventory(
                 expected_snapshots.add(member)
                 if member not in manifests or member not in present:
                     raise ValueError("portable archive missing release-pinned snapshot")
-                pinned = json.loads(manifests[member], object_pairs_hook=unique)
+                pinned = json.loads(
+                    manifests[member], object_pairs_hook=reject_duplicate_keys
+                )
                 if (
                     pinned.get("source_id") != source_id
                     or pinned.get("snapshot_sha256") != snapshot_sha
@@ -1733,17 +1727,9 @@ def verify_archive(path: Path) -> dict[str, Any]:
                 if len(raw) != member.size:
                     raise ValueError("archive index size mismatch")
 
-                def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-                    result: dict[str, Any] = {}
-                    for key, value in pairs:
-                        if key in result:
-                            raise ValueError("duplicate archive index key")
-                        result[key] = value
-                    return result
-
                 index = json.loads(
                     raw,
-                    object_pairs_hook=unique,
+                    object_pairs_hook=reject_duplicate_keys,
                     parse_constant=lambda value: (_ for _ in ()).throw(
                         ValueError("nonfinite archive index")
                     ),

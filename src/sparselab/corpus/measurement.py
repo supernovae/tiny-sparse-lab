@@ -15,7 +15,8 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any
 
-from sparselab.training.manifest import canonical_digest, sha256_file
+from sparselab.canonical import canonical_digest
+from sparselab.training.manifest import sha256_file
 
 SPLITS = ("train", "validation", "test")
 DIMENSIONS = ("origin", "verification_status", "shape")

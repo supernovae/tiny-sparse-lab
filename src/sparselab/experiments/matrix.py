@@ -9,6 +9,7 @@ from pathlib import Path
 
 import yaml
 
+from sparselab.canonical import canonical_json
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.experiments.compiler import (
@@ -18,7 +19,7 @@ from sparselab.experiments.compiler import (
     axis_options,
     expand_axes,
 )
-from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.training.manifest import config_sha256
 from sparselab.workers.models import SchedulingRequirements
 
 

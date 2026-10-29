@@ -21,16 +21,13 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.config.models import RunConfig
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
 from sparselab.resource_envelope import check_envelope, current_process_rss_bytes
 from sparselab.runtime import discover_runtimes, validate_runtime
 from sparselab.runtime_profile import authorize_worker, require_authorization
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    source_identity,
-)
+from sparselab.training.manifest import source_identity
 from sparselab.verification_proofs import verification_options
 
 from .leases import acquire_lease, boot_identity, process_matches, process_start
@@ -76,15 +73,8 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def _strict_json(path: Path) -> dict[str, Any]:
-    def no_duplicates(items: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in items:
-            if key in result:
-                raise ValueError("duplicate receipt JSON key")
-            result[key] = value
-        return result
 
-    payload = json.loads(path.read_bytes(), object_pairs_hook=no_duplicates)
+    payload = json.loads(path.read_bytes(), object_pairs_hook=reject_duplicate_keys)
     if not isinstance(payload, dict):
         raise TypeError("receipt must be an object")
     canonical_json(payload)

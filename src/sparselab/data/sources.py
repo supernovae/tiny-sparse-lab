@@ -28,12 +28,14 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus import acquisition as forge
 from sparselab.corpus.project import safe_name
 from sparselab.documents import read_document
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import VerificationMode
 
 
@@ -430,7 +432,7 @@ def lock_source(
         handle.flush()
         os.fsync(handle.fileno())
     _rename_noreplace(temporary, output)
-    forge._sync_dir(output.parent)
+    sync_directory(output.parent)
     return output
 
 
@@ -931,9 +933,9 @@ def _snapshot_locked(
         forge._write_json(publication / "manifest.json", manifest)
         _admit(work, cache, source)
         verify_snapshot(publication / "manifest.json", verification_mode="cold")
-        forge._sync_dir(publication)
+        sync_directory(publication)
         _rename_noreplace(publication, output)
-        forge._sync_dir(output.parent)
+        sync_directory(output.parent)
         return output / "manifest.json"
     finally:
         db.close()

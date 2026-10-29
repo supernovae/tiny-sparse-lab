@@ -433,11 +433,8 @@ class CampaignEngine:
         import yaml
 
         from sparselab.campaign.state import read_canonical
-        from sparselab.documents import (
-            _reject_constant,
-            _unique_json_pairs,
-            _UniqueLoader,
-        )
+        from sparselab.canonical import reject_duplicate_keys
+        from sparselab.documents import _reject_constant, _UniqueLoader
         from sparselab.recovery.engine import inspect_manifest
         from sparselab.recovery.evidence import export_evidence
         from sparselab.recovery.manifest import RecoveryManifest, load_manifest
@@ -463,7 +460,7 @@ class CampaignEngine:
             payload = (
                 json.loads(
                     text,
-                    object_pairs_hook=_unique_json_pairs,
+                    object_pairs_hook=reject_duplicate_keys,
                     parse_constant=_reject_constant,
                 )
                 if manifest_path.suffix == ".json"
@@ -1927,7 +1924,8 @@ class CampaignEngine:
     @staticmethod
     def _check_continuation_parent(parent: Path, continuation: Any) -> None:
         """Bind a previously verified generation to its authenticated run manifest."""
-        from sparselab.training.manifest import canonical_digest, read_manifest
+        from sparselab.canonical import canonical_digest
+        from sparselab.training.manifest import read_manifest
 
         run_manifest_path = parent.parent.parent / "manifest.json"
         run_manifest = read_manifest(run_manifest_path)
@@ -2100,10 +2098,10 @@ class CampaignEngine:
                 ),
             )
         if kind == "experiment_plan":
+            from sparselab.canonical import canonical_json
             from sparselab.experiments.lock import open_lock, publish_lock, resolve_plan
             from sparselab.experiments.plan import load_plan
             from sparselab.experiments.prepare import prepare_plan
-            from sparselab.training.manifest import canonical_json
 
             source = self._path(stage.source)
             if not source.exists():

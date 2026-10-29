@@ -116,6 +116,9 @@ if TYPE_CHECKING:
     from sparselab.research.lifecycle import LifecycleRegistry
 
 
+from sparselab.canonical import reject_duplicate_keys
+
+
 def _dashboard(args: argparse.Namespace) -> None:
     app_path = Path(__file__).resolve().parents[1] / "dashboard" / "app.py"
 
@@ -976,7 +979,7 @@ def _triage_summary(
             f"  Checkpoint integrity: {integrity.get('reason') or 'unknown reason'}"
         )
     if run_id is not None and runs_dir is not None:
-        from sparselab.training.manifest import canonical_json
+        from sparselab.canonical import canonical_json
 
         digest = hashlib.sha256(canonical_json(report) + b"\n").hexdigest()
         lines.append(
@@ -1232,15 +1235,6 @@ def _capability_suite(args: argparse.Namespace) -> None:
     print(json.dumps(phase_e_behavior_suite(), indent=2, sort_keys=True))
 
 
-def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
 def _reject_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON constant: {value}")
 
@@ -1262,7 +1256,7 @@ def _read_strict_json(path: Path, *, max_bytes: int = 2 * 1024 * 1024) -> object
     try:
         return json.loads(
             content.decode("utf-8"),
-            object_pairs_hook=_strict_json_object,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_json_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as error:

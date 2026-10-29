@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sparselab.training.manifest import canonical_digest
+from sparselab.canonical import canonical_digest
 
 if TYPE_CHECKING:
     from sparselab.data.packing import BatchCursor, TokenBlockDataset

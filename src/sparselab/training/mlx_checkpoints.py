@@ -18,7 +18,8 @@ import numpy as np
 from safetensors import SafetensorError
 from safetensors.numpy import load_file, save_file
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.canonical import canonical_json, reject_duplicate_keys
+from sparselab.training.manifest import sha256_file
 
 CODEC = "mlx_native"
 CODEC_VERSION = 1
@@ -62,17 +63,9 @@ def _no_constant(value: str) -> None:
 def strict_json(path: Path) -> dict[str, Any]:
     """Read a JSON object while rejecting duplicate keys and non-finite values."""
 
-    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"duplicate JSON key: {key}")
-            result[key] = value
-        return result
-
     value = json.loads(
         path.read_text(encoding="utf-8"),
-        object_pairs_hook=object_pairs,
+        object_pairs_hook=reject_duplicate_keys,
         parse_constant=_no_constant,
     )
     if not isinstance(value, dict):

@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from sparselab import runner_control as runner
 from sparselab.campaign.state import digest, publish_immutable, read_canonical
+from sparselab.canonical import canonical_json
 from sparselab.lab_job_workload import (
     TryWorkload,
     declarations,
@@ -24,7 +25,7 @@ from sparselab.lab_job_workload import (
     verify_native_result,
 )
 from sparselab.operational_monitor import MonitorCompletion, MonitorPolicy
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.workdir import ensure_scratch_dir
 from sparselab.workers.transport import _strict_json
 

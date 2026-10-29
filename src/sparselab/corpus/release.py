@@ -16,8 +16,9 @@ from itertools import zip_longest
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -1777,19 +1778,19 @@ def freeze(
             verification_mode=verification_mode,
             _domain_cold=True,
         )
-        from sparselab.corpus.acquisition import _sync_dir
         from sparselab.engram.packs import _rename_noreplace
+        from sparselab.result_publication import sync_directory
 
         for entry in sorted(staging.rglob("*"), reverse=True):
             if entry.is_file():
                 with entry.open("rb") as handle:
                     os.fsync(handle.fileno())
             elif entry.is_dir():
-                _sync_dir(entry)
-        _sync_dir(staging)
+                sync_directory(entry)
+        sync_directory(staging)
         try:
             _rename_noreplace(staging, destination)
-            _sync_dir(destination.parent)
+            sync_directory(destination.parent)
         except FileExistsError:
             verify_release(
                 destination,

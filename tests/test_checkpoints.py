@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import torch
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.engines.base import CanonicalTensor
@@ -23,7 +24,7 @@ from sparselab.training.checkpoints import (
     load_legacy_checkpoint,
     verify_legacy_checkpoint,
 )
-from sparselab.training.manifest import canonical_digest, config_sha256
+from sparselab.training.manifest import config_sha256
 from sparselab.training.optimizer import (
     learning_rate_for_step,
     make_optimizer,

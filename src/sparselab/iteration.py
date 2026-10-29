@@ -89,11 +89,8 @@ def _parent(path: Path, options: dict[str, Any]) -> tuple[dict[str, Any], Any | 
             }
         ]
         return result, None
-    from sparselab.training.manifest import (
-        canonical_digest,
-        config_sha256,
-        read_manifest,
-    )
+    from sparselab.canonical import canonical_digest
+    from sparselab.training.manifest import config_sha256, read_manifest
 
     root = path.parent.parent
     run_manifest = read_manifest(root / "manifest.json")

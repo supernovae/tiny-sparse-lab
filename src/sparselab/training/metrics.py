@@ -10,6 +10,8 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import reject_duplicate_keys
+
 SCHEMA_VERSION = 4
 ENVELOPE_SCHEMA_VERSION = 1
 MAX_ENVELOPE_BYTES = 65_536
@@ -26,18 +28,9 @@ def _canonical_json(value: object) -> str:
     )
 
 
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
 def _strict_json_loads(value: str | bytes) -> object:
     try:
-        parsed = json.loads(value, object_pairs_hook=_reject_duplicate_keys)
+        parsed = json.loads(value, object_pairs_hook=reject_duplicate_keys)
     except (TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("invalid canonical JSON") from error
     try:

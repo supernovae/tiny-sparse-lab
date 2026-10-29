@@ -13,6 +13,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from sparselab.canonical import canonical_digest, reject_duplicate_keys
 from sparselab.config.models import RunConfig
 from sparselab.data.allocation import (
     copy_allocation_bundle,
@@ -70,12 +71,7 @@ from sparselab.runtime_forecasting import (
 )
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import _atomic_json, _fsync_directory, _safe_member
-from sparselab.training.manifest import (
-    canonical_digest,
-    config_sha256,
-    sha256_file,
-    source_identity,
-)
+from sparselab.training.manifest import config_sha256, sha256_file, source_identity
 from sparselab.training.metrics import SCHEMA_VERSION, ExperimentStore
 from sparselab.training.pilot_deadline import (
     PilotCancelled,
@@ -149,15 +145,9 @@ def _read_sealed(path: Path) -> dict[str, Any]:
     ):
         raise ValueError(f"invalid or oversized stage manifest: {path}")
 
-    def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in items:
-            if key in result:
-                raise ValueError(f"duplicate stage key: {key}")
-            result[key] = value
-        return result
-
-    payload = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=pairs)
+    payload = json.loads(
+        path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys
+    )
     if not isinstance(payload, dict):
         raise TypeError("stage manifest must be an object")
     body = {key: value for key, value in payload.items() if key != "sha256"}

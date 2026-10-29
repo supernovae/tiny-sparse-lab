@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.training.metrics import ExperimentStore
 from sparselab.workspace_cleanup import (
     apply_cleanup,

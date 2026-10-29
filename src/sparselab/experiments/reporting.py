@@ -20,6 +20,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.config.loading import load_config
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.evaluation.capabilities import _passes
@@ -27,11 +28,7 @@ from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
 from sparselab.experiments.matrix import _load_matrix
-from sparselab.experiments.study import (
-    _comparison_report,
-    _reject_duplicate_pairs,
-    plan_study,
-)
+from sparselab.experiments.study import _comparison_report, plan_study
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.research.catalog import (
     DatasetProfile,
@@ -41,13 +38,7 @@ from sparselab.research.catalog import (
     ResearchRecipe,
     ScaleProfile,
 )
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    config_sha256,
-    read_manifest,
-    sha256_file,
-)
+from sparselab.training.manifest import config_sha256, read_manifest, sha256_file
 
 _REPORT_FORMAT = "sparselab-static-study-report"
 _BUNDLE_FORMAT = "sparselab-study-report-bundle"
@@ -68,7 +59,7 @@ def _read_json(path: Path, description: str) -> tuple[dict[str, object], bytes]:
     try:
         value = json.loads(
             data,
-            object_pairs_hook=_reject_duplicate_pairs,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=lambda token: (_ for _ in ()).throw(
                 ValueError(f"non-finite JSON value: {token}")
             ),

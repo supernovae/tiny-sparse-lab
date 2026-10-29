@@ -16,6 +16,7 @@ from test_surface_review import cells
 from test_training import config
 
 from sparselab.campaign.state import publish_immutable
+from sparselab.canonical import canonical_json
 from sparselab.evaluation import inference
 from sparselab.evaluation.capabilities import describe_capability_card
 from sparselab.evaluation.suite import (
@@ -31,7 +32,6 @@ from sparselab.evaluation.surface_review import (
     reveal_surface_review,
 )
 from sparselab.runtime_profile import _seal
-from sparselab.training.manifest import canonical_json
 from sparselab.training.trainer import train
 
 

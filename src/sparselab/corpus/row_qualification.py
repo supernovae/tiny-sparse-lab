@@ -8,8 +8,8 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_digest, canonical_json
 
 LEGACY_HF_ROW_URIS = {
     "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered",

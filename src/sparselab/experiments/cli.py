@@ -220,9 +220,9 @@ def _inspect_declaration(args: argparse.Namespace) -> None:
 
 
 def _prepare(args: argparse.Namespace) -> None:
+    from sparselab.canonical import canonical_json
     from sparselab.data.legacy import require_current_dataset
     from sparselab.experiments.prepare import prepare_plan
-    from sparselab.training.manifest import canonical_json
 
     plan, source = _declaration(args)
     require_current_dataset(base_run_config(plan, source).dataset)

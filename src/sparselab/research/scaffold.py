@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.engram.packs import _rename_noreplace
@@ -33,12 +34,7 @@ from sparselab.research.catalog import (
     resource_root,
     resource_sha256,
 )
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    config_sha256,
-    sha256_file,
-)
+from sparselab.training.manifest import config_sha256, sha256_file
 
 
 def _dataset_names(*, root: Path | None = None) -> tuple[str, ...]:

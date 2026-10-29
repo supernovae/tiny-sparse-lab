@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_json
 
 _MAX_INPUT_BYTES = 256 * 1024**2
 _STRING_SPECIAL = re.compile(rb'["\\]')

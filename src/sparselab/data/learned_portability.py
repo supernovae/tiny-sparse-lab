@@ -19,12 +19,13 @@ from pathlib import Path
 import numpy as np
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.evaluation.chat import format_chat_prompt
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _FORMAT = "sparselab-learned-portability-data"
 _VERSION = 1

@@ -9,12 +9,13 @@ import json
 import os
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.admission_inspection_cache import capture, unchanged
 from sparselab.corpus.preparation_inputs import corpus_work_root, local_scope
 from sparselab.corpus.retained_render_adoption import _small
 from sparselab.corpus.split_runs import SplitStages, _stamp, write_rows
 from sparselab.result_publication import sync_directory
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _NOTE = "release-publication.json"
 

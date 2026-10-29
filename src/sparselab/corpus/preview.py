@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from sparselab.training.manifest import canonical_digest, canonical_json
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 
 
 class Pin(BaseModel):
@@ -225,15 +225,9 @@ def preview(declaration: Path, input_root: Path, output: Path) -> dict:
     if len(raw) > 65536:
         raise ValueError("preview declaration exceeds 64 KiB")
 
-    def unique(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError("duplicate preview field")
-            result[key] = value
-        return result
-
-    spec = Preview.model_validate(json.loads(raw, object_pairs_hook=unique))
+    spec = Preview.model_validate(
+        json.loads(raw, object_pairs_hook=reject_duplicate_keys)
+    )
     reader = Reader(spec.max_read_bytes, started + spec.max_wall_seconds, len(raw))
     reader.check()
     # Refuse before scanning when even one complete pass cannot fit.

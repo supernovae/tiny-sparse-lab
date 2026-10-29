@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_json
 from sparselab.workdir import ensure_scratch_dir, ensure_work_dir
 from sparselab.workers.models import (
     PROTOCOL_VERSION,

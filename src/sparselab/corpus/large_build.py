@@ -21,6 +21,7 @@ from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.progress import BuildProgress
 from sparselab.corpus.provenance import (
     HUMAN_ORIGIN,
@@ -31,7 +32,7 @@ from sparselab.corpus.provenance import (
     verification,
 )
 from sparselab.corpus.rights import reported_spdx_expression, resolve_file_rights
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode

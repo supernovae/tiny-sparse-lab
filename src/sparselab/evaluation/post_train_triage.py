@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 import torch
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset, supervision_requires_mask
 from sparselab.evaluation.evidence import validate_held_out_report
@@ -28,13 +29,7 @@ from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.model.inspection import parameter_inventory
 from sparselab.runtime_profile import RuntimeAuthorization
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import (
-    IDENTITY_VERSION,
-    canonical_digest,
-    canonical_json,
-    read_manifest,
-    sha256_file,
-)
+from sparselab.training.manifest import IDENTITY_VERSION, read_manifest, sha256_file
 
 FORMAT = "sparselab_post_train_triage_v1"
 MAX_BYTES = 256 * 1024

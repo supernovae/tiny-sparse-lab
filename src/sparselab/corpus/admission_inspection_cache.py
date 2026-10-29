@@ -14,11 +14,12 @@ import stat
 import tempfile
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import current_metadata_store
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import (
     _fingerprint,
-    _sync,
     _trusted,
     file_binding,
     verification_options,
@@ -350,7 +351,7 @@ class InspectionCache:
             unchanged(dependencies)
             try:
                 os.replace(temporary, path)
-                _sync(self.directory)
+                sync_directory(self.directory)
                 binding = self._binding(path, raw, request, dependencies)
                 verify_file(
                     path,

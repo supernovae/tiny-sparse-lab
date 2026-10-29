@@ -442,7 +442,7 @@ def test_complete_worker_inventory_preserves_verified_triage_through_ingestion(
 def test_receipt_includes_manifest_declared_hidden_cache_owner(tmp_path: Path) -> None:
     import json
 
-    from sparselab.training.manifest import canonical_digest
+    from sparselab.canonical import canonical_digest
     from sparselab.workers.execution import _final_artifacts
 
     run = tmp_path / "runs" / "run"
@@ -476,7 +476,7 @@ def test_same_attempt_cold_request_is_sticky_and_outside_scientific_spec(
 
     from test_training import config
 
-    from sparselab.training.manifest import canonical_json
+    from sparselab.canonical import canonical_json
     from sparselab.workers import execution
     from sparselab.workers.controller import Controller
     from sparselab.workers.models import WorkerDefinition

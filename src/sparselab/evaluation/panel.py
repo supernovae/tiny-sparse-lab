@@ -17,13 +17,14 @@ from pydantic import (
 )
 
 from sparselab.campaign.state import publish_immutable, read_canonical
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import StrictModel
 from sparselab.documents import read_document
 from sparselab.evaluation.generation import generate_with_token_ids
 from sparselab.evaluation.inference import load_run
 from sparselab.evaluation.suite import verify_evaluation_index
 from sparselab.runtime_profile import RuntimeAuthorization
-from sparselab.training.manifest import canonical_digest, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode
 from sparselab.workspace_cleanup import campaign_lock
 

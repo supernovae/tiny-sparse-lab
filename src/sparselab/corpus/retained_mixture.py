@@ -16,6 +16,7 @@ import struct
 from collections import OrderedDict
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.admission_inspection_cache import (
     InspectionCache,
     capture,
@@ -32,7 +33,7 @@ from sparselab.corpus.split_runs import (
     rows,
     write_rows,
 )
-from sparselab.training.manifest import canonical_digest, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _phase(root, stage_root, name, *, expected_producer=None):

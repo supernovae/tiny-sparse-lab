@@ -11,6 +11,7 @@ import pytest
 import torch
 from safetensors.numpy import load_file, save_file
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.cli.main import main
 from sparselab.engram import packs
 from sparselab.engram.packs import (
@@ -25,7 +26,6 @@ from sparselab.model.portable_engram import (
     export_portable_engram,
     load_portable_engram,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json
 
 CREATED_AT = "2026-09-23T00:00:00Z"
 

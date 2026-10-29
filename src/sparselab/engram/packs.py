@@ -29,22 +29,18 @@ from pydantic import (
 from safetensors import SafetensorError
 
 from sparselab.address_hash import byte_scheme
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.config.models import StrictModel
 from sparselab.engram.records import (
     MAX_RECORD_BYTES,
     KnowledgeRecord,
-    _object_without_duplicates,
     _reject_constant,
     canonical_record_bytes,
     iter_knowledge_records,
 )
 from sparselab.model.portable_engram import load_portable_engram
-from sparselab.training.manifest import (
-    ArtifactIdentity,
-    canonical_digest,
-    canonical_json,
-    sha256_file,
-)
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import ArtifactIdentity, sha256_file
 
 
 def _validate_model[T: StrictModel](model_type: type[T], value: object) -> T:
@@ -340,7 +336,7 @@ def _strict_json(data: bytes, label: str) -> object:
     try:
         return json.loads(
             data.decode("utf-8", errors="strict"),
-            object_pairs_hook=_object_without_duplicates,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
@@ -532,14 +528,6 @@ def _write_file(path: Path, data: bytes) -> None:
         handle.write(data)
         handle.flush()
         os.fsync(handle.fileno())
-
-
-def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def _fsync_parent_if_supported(path: Path) -> None:
@@ -753,7 +741,7 @@ def compile_pack(
         _write_file(
             manifest_path, canonical_json(manifest.model_dump(mode="json")) + b"\n"
         )
-        _fsync_directory(temporary)
+        sync_directory(temporary)
 
         report = verify_pack(temporary, expected_pack_id=manifest.pack_id)
         if not report.valid:

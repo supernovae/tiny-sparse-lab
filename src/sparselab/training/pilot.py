@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Literal
 
 import torch
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import RunConfig
 from sparselab.data.encoding import (
     TOKENIZER_BATCH_DOCUMENTS,
@@ -26,7 +27,7 @@ from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime_profile import rederive_authorization, require_authorization
 from sparselab.staging import _read_sealed, _seal, pilot_config
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest, read_manifest, source_identity
+from sparselab.training.manifest import read_manifest, source_identity
 from sparselab.training.pilot_progress import (
     activate_pilot_progress,
     pilot_phase,

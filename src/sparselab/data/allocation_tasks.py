@@ -14,6 +14,7 @@ import numpy as np
 from safetensors.numpy import save_file
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig
 from sparselab.data.allocation import (
     ALLOCATION_REGIMES,
@@ -37,12 +38,7 @@ from sparselab.engram.packs import (
     compile_pack,
 )
 from sparselab.evaluation.capabilities import _card_from_mapping, load_capability_card
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    sha256_file,
-    source_identity,
-)
+from sparselab.training.manifest import sha256_file, source_identity
 
 _LICENSE = "MIT; original synthetic path_domain_v1 corpus; see data/path_domain_v1/provenance.json"
 _PACK_CREATED_AT = "2026-09-23T00:00:00Z"

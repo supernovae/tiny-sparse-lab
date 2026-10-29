@@ -16,9 +16,9 @@ from array import array
 from contextlib import ExitStack
 from pathlib import Path
 
+from sparselab.canonical import canonical_json
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.split_runs import _stamp, external_sort, rows, write_rows
-from sparselab.training.manifest import canonical_json
 
 
 class _Writer:

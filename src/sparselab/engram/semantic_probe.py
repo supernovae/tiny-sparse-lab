@@ -22,6 +22,7 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import AttentionConfig, ModelConfig, StrictModel
 from sparselab.documents import read_document
 from sparselab.engram.packs import EncoderIdentity
@@ -32,7 +33,7 @@ from sparselab.engram.semantic import (
 )
 from sparselab.evaluation.inference import load_run
 from sparselab.model.transformer import DenseLM
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _MAX_INPUT_BYTES = 2 * 1024 * 1024
 _MAX_ITEMS = 16

@@ -12,8 +12,8 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.project import Project
-from sparselab.training.manifest import canonical_digest
 
 HTTP_OPERATION_TIMEOUT_SECONDS = 30.0
 

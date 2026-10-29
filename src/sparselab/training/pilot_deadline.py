@@ -17,6 +17,7 @@ import psutil
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.operational_monitor import (
     MonitorPolicy,
     ProcessIdentity,
@@ -25,7 +26,7 @@ from sparselab.operational_monitor import (
     _signal_owned,
     sample,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json
+from sparselab.result_publication import sync_directory
 from sparselab.training.pilot_progress import validate_event
 
 _MAX_FRAME = 2048
@@ -365,19 +366,11 @@ def _record(stream: object, payload: dict[str, object]) -> None:
     os.fsync(stream.fileno())  # type: ignore[attr-defined]
 
 
-def _fsync_directory(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-
-
 def _seal(path: Path, payload: dict[str, object]) -> dict[str, object]:
     sealed = {**payload, "sha256": canonical_digest(payload)}
     with path.open("xb") as stream:
         _record(stream, sealed)
-    _fsync_directory(path.parent)
+    sync_directory(path.parent)
     return sealed
 
 
@@ -496,7 +489,7 @@ def supervise_pilot(
                     "expected_steps": expected_steps,
                 },
             )
-            _fsync_directory(directory)
+            sync_directory(directory)
             selector.register(read_fd, selectors.EVENT_READ)
             assert process.stdout is not None
             os.set_blocking(process.stdout.fileno(), False)

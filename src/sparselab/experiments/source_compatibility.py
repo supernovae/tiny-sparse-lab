@@ -14,13 +14,10 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import StrictModel
 from sparselab.documents import read_document
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    source_identity,
-)
+from sparselab.training.manifest import source_identity
 
 _ENV = (
     "SPARSELAB_SOURCE_COMPATIBILITY",

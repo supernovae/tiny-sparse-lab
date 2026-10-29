@@ -11,10 +11,10 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import WhitespaceSplit
 
+from sparselab.canonical import canonical_digest
 from sparselab.data import lexical_mining
 from sparselab.data.lexical_mining import analyze_training_corpus
 from sparselab.model.memory import TokenNgramMemory
-from sparselab.training.manifest import canonical_digest
 
 
 def _write_conversations(path: Path, pairs: list[tuple[str, str]]) -> None:

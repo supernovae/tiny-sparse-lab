@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 import yaml
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import (
@@ -24,7 +25,7 @@ from sparselab.data.packing import (
     load_prepared_data,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_digest, source_identity
+from sparselab.training.manifest import source_identity
 
 _CHUNK_TOKENS = 1 << 20
 _LOCATION_KEYS = {

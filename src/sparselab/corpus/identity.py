@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.campaign.state import read_canonical
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.project import Project, safe_name
-from sparselab.training.manifest import canonical_digest
 
 _SCOPE = "declared_digest_payloads_only"
 

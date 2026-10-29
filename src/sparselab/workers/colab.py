@@ -20,8 +20,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_json
 from sparselab.hosted.transport import ColabFileTransport
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.workdir import ensure_scratch_dir
 from sparselab.workers.models import (
     PROTOCOL_VERSION,

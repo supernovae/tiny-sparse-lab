@@ -11,6 +11,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.corpus.release import verify_release
 from sparselab.data.tokenizer import (
@@ -19,7 +20,7 @@ from sparselab.data.tokenizer import (
     train_tokenizer,
     verify_tokenizer_artifact,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 GROUPS = ("prose", "python", "go", "rust", "shell", "yaml", "json", "toml", "logs")
 VOCABS = (16384, 24576, 32768)

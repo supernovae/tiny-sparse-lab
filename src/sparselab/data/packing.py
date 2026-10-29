@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import DatasetConfig, RunConfig
 from sparselab.corpus.export import verify_release_export
 from sparselab.data.allocation import AllocationManifest, load_allocation_manifest
@@ -57,7 +58,7 @@ from sparselab.resource_envelope import (
     current_process_rss_bytes,
 )
 from sparselab.training import manifest as manifest_module
-from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.training.manifest import source_identity
 from sparselab.verification_proofs import ProofStore, VerificationMode, file_binding
 from sparselab.workdir import ensure_work_dir
 from sparselab.workspace_cleanup import campaign_lock, mark_prepared_cache

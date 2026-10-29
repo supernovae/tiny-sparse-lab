@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import _publish_prepared_directory, load_prepared_data
 from sparselab.data.tokenizer import load_tokenizer
@@ -36,8 +37,6 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     ArtifactIdentity,
-    canonical_digest,
-    canonical_json,
     config_sha256,
     read_manifest,
     sha256_file,
@@ -154,12 +153,13 @@ def _write_bundle_manifest(path: Path, manifest: Any) -> None:
 def _read_bundle_manifest(path: Path) -> Any:
     import json
 
-    from sparselab.training.manifest import _reject_duplicate_keys, _reject_nonfinite
+    from sparselab.canonical import reject_duplicate_keys
+    from sparselab.training.manifest import _reject_nonfinite
 
     try:
         raw = json.loads(
             path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
     except (OSError, ValueError) as error:

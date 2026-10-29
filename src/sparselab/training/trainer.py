@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.corpus.export import verify_release_export
 from sparselab.data.allocation import (
@@ -90,8 +91,6 @@ from sparselab.training.manifest import (
     RunManifest,
     _is_sha256,
     architecture_sha256,
-    canonical_digest,
-    canonical_json,
     config_sha256,
     sha256_file,
     source_identity,

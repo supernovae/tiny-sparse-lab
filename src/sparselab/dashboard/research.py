@@ -16,9 +16,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from sparselab.canonical import canonical_digest
 from sparselab.experiments.reporting import load_report_bundle
 from sparselab.research.catalog import list_lessons, list_research
-from sparselab.training.manifest import canonical_digest
 
 _BUNDLE_NAME = re.compile(r"^[0-9a-f]{64}$")
 _MAX_BUNDLES = 200

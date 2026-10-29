@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field, PrivateAttr, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig, RunConfig, StrictModel
 from sparselab.declaration_context import RecipeContext
 from sparselab.experiments.artifacts import (
@@ -39,12 +40,7 @@ from sparselab.experiments.plan import (
     recipe_run_config,
 )
 from sparselab.experiments.source_compatibility import locked_source_identity
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    config_sha256,
-    sha256_file,
-)
+from sparselab.training.manifest import config_sha256, sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode
 
 if TYPE_CHECKING:

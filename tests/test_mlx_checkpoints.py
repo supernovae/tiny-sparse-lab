@@ -10,12 +10,12 @@ import numpy as np
 import pytest
 import torch
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.model.inspection import named_tensor_inventory
 from sparselab.model.transformer import DenseLM
 from sparselab.training.checkpoints import CheckpointManager, TrainingSnapshot
-from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.training.mlx_checkpoints import validate_optimizer_state
 
 

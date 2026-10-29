@@ -315,7 +315,7 @@ def _receipt_from_proofs(
     root: Path, manifest: dict[str, object], proofs: dict[str, VerifiedFile]
 ) -> VerifiedPreparedData:
     """Validate file proofs against signed manifest, NPY headers, and exact inventory."""
-    from sparselab.training.manifest import canonical_digest
+    from sparselab.canonical import canonical_digest
 
     if root.is_symlink():
         raise ValueError("prepared root is a symlink")

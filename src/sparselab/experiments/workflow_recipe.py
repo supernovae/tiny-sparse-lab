@@ -13,6 +13,7 @@ from typing import Literal
 
 from pydantic import Field, StrictInt, StrictStr, field_validator, model_validator
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig, StrictModel
 from sparselab.config.recipe_paths import _INPUT_FIELDS, _OUTPUT_FIELDS, _paths
 from sparselab.declaration_context import RecipeContext, canonical_reference
@@ -25,7 +26,6 @@ from sparselab.experiments.recipe import (
     _metadata_bytes,
     snapshot_inventory,
 )
-from sparselab.training.manifest import canonical_json
 
 
 class ArtifactIdentity(StrictModel):

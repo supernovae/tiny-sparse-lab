@@ -16,6 +16,7 @@ from pathlib import Path
 
 import yaml
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import _HashedInput, _Reader
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import project_path, source_declaration_payload
@@ -28,7 +29,7 @@ from sparselab.corpus.split_runs import (
     rows,
     write_rows,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _STATES = {"qualify", "exclude", "quarantine"}

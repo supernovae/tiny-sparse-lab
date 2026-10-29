@@ -19,7 +19,8 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from sparselab.campaign.plan import CampaignPlan, Stage
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_json, reject_duplicate_keys
+from sparselab.result_publication import sync_directory
 
 _STATES = frozenset(
     {
@@ -90,32 +91,18 @@ def read_canonical(path: Path) -> dict[str, Any]:
         raise ValueError(f"symlinked campaign record: {path}")
     raw = path.read_bytes()
 
-    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"duplicate campaign record key: {key}")
-            result[key] = value
-        return result
-
     def nonfinite(value: str) -> None:
         raise ValueError(f"nonfinite campaign record value: {value}")
 
     try:
-        data = json.loads(raw, object_pairs_hook=unique, parse_constant=nonfinite)
+        data = json.loads(
+            raw, object_pairs_hook=reject_duplicate_keys, parse_constant=nonfinite
+        )
         if raw != _canonical(data):
             raise ValueError(f"noncanonical campaign record: {path}")
     except (UnicodeError, json.JSONDecodeError, TypeError, OverflowError) as exc:
         raise ValueError(f"invalid campaign record: {path}") from exc
     return _object(data, "campaign record")
-
-
-def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
 
 
 def _atomic(path: Path, data: bytes) -> None:
@@ -127,7 +114,7 @@ def _atomic(path: Path, data: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(name, path)
-        _fsync_dir(path.parent)
+        sync_directory(path.parent)
     finally:
         if os.path.exists(name):
             os.unlink(name)
@@ -145,7 +132,7 @@ def publish_immutable(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
             os.fsync(stream.fileno())
         try:
             os.link(name, path)
-            _fsync_dir(path.parent)
+            sync_directory(path.parent)
         except FileExistsError:
             previous = read_canonical(path)
             if previous != payload:

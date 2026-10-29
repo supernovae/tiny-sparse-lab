@@ -21,10 +21,11 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import StrictModel
 from sparselab.documents import read_document
 from sparselab.experiments.lock import _exclusive_bytes
-from sparselab.training.manifest import canonical_json, sha256_file, source_identity
+from sparselab.training.manifest import sha256_file, source_identity
 from sparselab.workspace_preflight import check_storage, require_storage
 
 MIB = 1024 * 1024

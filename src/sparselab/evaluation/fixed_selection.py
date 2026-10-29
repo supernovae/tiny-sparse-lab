@@ -12,10 +12,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from sparselab.campaign.state import publish_immutable
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest, read_manifest, sha256_file
+from sparselab.training.manifest import read_manifest, sha256_file
 
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")

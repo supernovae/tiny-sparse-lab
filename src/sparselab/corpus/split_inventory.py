@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.acquisition import verify_acquisition
 from sparselab.corpus.bounded_metadata import (
     decision_index,
@@ -22,7 +23,7 @@ from sparselab.corpus.jsonl_records import records_from_bytes, records_from_path
 from sparselab.corpus.pipeline import _records_for_file
 from sparselab.corpus.project import Project
 from sparselab.corpus.rights import resolve_file_rights
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 _MAX_FILE_BYTES = 8 * 1024**2

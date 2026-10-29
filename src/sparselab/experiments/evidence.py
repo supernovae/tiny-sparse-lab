@@ -12,15 +12,11 @@ import os
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.data.verification import verify_file
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.experiments.lock import ResolvedCell, ResolvedExperimentPlan
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    config_sha256,
-    read_manifest,
-)
+from sparselab.training.manifest import config_sha256, read_manifest
 from sparselab.verification_proofs import (
     ProofStore,
     VerificationMode,

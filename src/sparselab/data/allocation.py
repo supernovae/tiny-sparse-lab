@@ -10,7 +10,8 @@ from typing import Any
 
 import numpy as np
 
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.canonical import canonical_digest, canonical_json
+from sparselab.training.manifest import sha256_file
 
 ALLOCATION_FORMAT = "sparselab-allocation-manifest"
 ALLOCATION_VERSION = 1

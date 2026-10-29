@@ -5,10 +5,11 @@ from contextlib import contextmanager, nullcontext
 from itertools import zip_longest
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import metadata_operation
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import SourceDeclaration, source_declaration_payload
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 @contextmanager

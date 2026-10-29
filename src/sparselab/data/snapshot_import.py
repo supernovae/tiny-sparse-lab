@@ -13,26 +13,18 @@ import shutil
 import tempfile
 from pathlib import Path, PurePosixPath
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig
 from sparselab.data import local_stories
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 
 FORMAT = "sparselab-dataset-import-v1"
 
 
 def _seal(value: dict, field: str) -> dict:
     return {**value, field: canonical_digest(value)}
-
-
-def _sync_directory(path: Path) -> None:
-    if os.name == "nt":
-        return
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def _regular(path: Path) -> Path:
@@ -326,10 +318,10 @@ def import_legacy_snapshot(
                 os.fsync(handle.fileno())
         directories = [p for p in staging.rglob("*") if p.is_dir()]
         for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
-            _sync_directory(directory)
-        _sync_directory(staging)
+            sync_directory(directory)
+        sync_directory(staging)
         _rename_noreplace(staging, output)
-        _sync_directory(output.parent)
+        sync_directory(output.parent)
     finally:
         if staging.exists():
             shutil.rmtree(staging)

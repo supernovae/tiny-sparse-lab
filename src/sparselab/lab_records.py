@@ -38,7 +38,7 @@ def is_setup_record(record: Mapping[str, Any]) -> bool:
 
 
 def canonical(value: Any) -> bytes:
-    from sparselab.training.manifest import canonical_json
+    from sparselab.canonical import canonical_json
 
     return canonical_json(value)
 

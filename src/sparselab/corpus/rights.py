@@ -22,8 +22,8 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import field_validator, model_validator
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_digest
 
 TrainingEligibility = Literal[
     "eligible", "eligible_with_obligations", "review_required", "ineligible"

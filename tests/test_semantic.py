@@ -11,6 +11,7 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.engram.packs import compile_pack
 from sparselab.engram.semantic import (
@@ -20,7 +21,6 @@ from sparselab.engram.semantic import (
 )
 from sparselab.evaluation.generation import generate
 from sparselab.model.transformer import DenseLM
-from sparselab.training.manifest import canonical_json
 
 _CREATED_AT = "2026-09-23T00:00:00Z"
 

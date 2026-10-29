@@ -12,10 +12,10 @@ from typing import Literal, TypedDict
 
 import torch
 
+from sparselab.canonical import canonical_json
 from sparselab.evaluation.capabilities import capability_card, evaluate_capability
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.inference import InferenceRun, load_run
-from sparselab.training.manifest import canonical_json
 
 Status = Literal["PASS", "FAIL", "NOT_APPLICABLE", "UNAVAILABLE"]
 

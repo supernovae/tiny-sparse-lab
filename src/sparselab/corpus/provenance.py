@@ -6,7 +6,7 @@ import hashlib
 import re
 from typing import Any
 
-from sparselab.training.manifest import canonical_digest, canonical_json
+from sparselab.canonical import canonical_digest, canonical_json
 
 SOURCE_ORIGIN = "primary_source"
 HUMAN_ORIGIN = "human_authored"

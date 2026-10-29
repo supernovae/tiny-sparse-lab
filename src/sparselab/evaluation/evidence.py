@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from sparselab.canonical import canonical_digest
 from sparselab.data.packing import (
     TokenBlockDataset,
     load_prepared_data,
@@ -15,7 +16,7 @@ from sparselab.data.packing import (
 )
 from sparselab.data.verification import VerifiedFile, _receipt_from_proofs, verify_file
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest, read_manifest
+from sparselab.training.manifest import read_manifest
 from sparselab.verification_proofs import (
     ProofStore,
     VerificationMode,

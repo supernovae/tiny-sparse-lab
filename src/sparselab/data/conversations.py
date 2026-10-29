@@ -6,8 +6,8 @@ import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+from sparselab.canonical import reject_duplicate_keys
 from sparselab.evaluation.chat import ChatMessage, format_chat_prompt
 
 
@@ -18,15 +18,6 @@ class RenderedConversation:
     text: str
     supervision_spans: tuple[tuple[int, int], ...]
     loss_mode: str
-
-
-def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
 
 
 def _error(path: Path, line_number: int, detail: str) -> ValueError:
@@ -78,7 +69,7 @@ def _canonical_tool_calls(
                 f"message {index} tool call {call_index} is not canonical JSON: {error}",
             ) from error
         # json.dumps accepts non-string mapping keys; canonical JSON does not.
-        if json.loads(encoded, object_pairs_hook=_object_without_duplicates) != call:
+        if json.loads(encoded, object_pairs_hook=reject_duplicate_keys) != call:
             raise _error(
                 path,
                 line_number,
@@ -328,7 +319,7 @@ def iter_rendered_conversations(path: Path) -> Iterator[RenderedConversation]:
             try:
                 record = json.loads(
                     line,
-                    object_pairs_hook=_object_without_duplicates,
+                    object_pairs_hook=reject_duplicate_keys,
                     parse_constant=lambda value: (_ for _ in ()).throw(
                         ValueError(f"nonfinite JSON value: {value}")
                     ),

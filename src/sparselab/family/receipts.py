@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sparselab.campaign.state import digest, publish_immutable, read_canonical, utc_now
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.evaluation.readiness import (
     verify_readiness_result,
     verify_review_receipt,
 )
 from sparselab.evaluation.suite import verify_evaluation_index
 from sparselab.family.manifest import family_digest, load_family
-from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.workdir import resolve_work_dir
 
 Action = Literal["promote", "reject", "supersede"]

@@ -24,7 +24,8 @@ from typing import Any
 import psutil
 
 from sparselab import host_capacity
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.canonical import canonical_digest, canonical_json
+from sparselab.training.manifest import sha256_file
 
 _EXPERIMENT = "learned-engram-portability-v1"
 _PROTOCOL_FORMAT = "sparselab-portability-protocol"

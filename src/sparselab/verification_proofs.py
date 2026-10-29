@@ -19,7 +19,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Literal
 
-from sparselab.training.manifest import canonical_digest, canonical_json
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.verifier_authority import (
     AUTHORITY_SCHEMA,
     supports_verifier,

@@ -16,9 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.bottleneck_observations import BottleneckObserver
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.experiments.lock import _exclusive_bytes
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _path(value: Path | str) -> Path:

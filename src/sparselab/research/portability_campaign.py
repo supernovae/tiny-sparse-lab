@@ -15,6 +15,7 @@ import torch
 from safetensors.torch import save_file
 
 from sparselab.address_hash import token_addressing_marker, token_ngram_address
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.data.allocation import (
     OWNER_LEXICAL,
     OWNER_NEURAL,
@@ -37,12 +38,7 @@ from sparselab.engram.packs import _rename_noreplace, compile_pack, verify_pack
 from sparselab.engram.semantic import SemanticRetriever
 from sparselab.evaluation.chat import format_chat_prompt
 from sparselab.model.portable_engram import export_portable_engram
-from sparselab.training.manifest import (
-    canonical_digest,
-    canonical_json,
-    sha256_file,
-    source_identity,
-)
+from sparselab.training.manifest import sha256_file, source_identity
 
 _ASSET_FORMAT = "sparselab-portability-memory-assets"
 _ASSET_VERSION = 1

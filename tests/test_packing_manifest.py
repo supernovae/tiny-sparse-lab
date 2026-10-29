@@ -11,9 +11,10 @@ import torch
 import torch.nn.functional as F
 from test_training import config
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.data.packing import TokenBlockDataset, load_prepared_data, prepare_data
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _resign(manifest: dict[str, object]) -> None:

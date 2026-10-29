@@ -15,6 +15,7 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.acquisition import (
     _adapter,
@@ -43,7 +44,7 @@ from sparselab.training.attempt_commands import (
     classify_attempt_command,
     phase_output_paths,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.training.preparation import compile_phase
 
 _PACKET = Path(__file__).resolve().parent / "fixtures/preparation"

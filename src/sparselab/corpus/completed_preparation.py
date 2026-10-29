@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from contextlib import ExitStack
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.admission_inspection_cache import (
     InspectionCache,
     capture,
@@ -44,7 +45,7 @@ from sparselab.corpus.split_runs import (
 )
 from sparselab.corpus.streaming_build_rows import StreamBuildRows
 from sparselab.corpus.streaming_split_freeze import _AdmissionSpools
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _PHASE = "native-build-publication"

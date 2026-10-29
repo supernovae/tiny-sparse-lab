@@ -11,9 +11,10 @@ from contextlib import ExitStack
 from pathlib import Path
 from uuid import uuid4
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.admission_inspection_cache import InspectionCache, capture
 from sparselab.result_publication import sync_directory
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 BUFFER_BYTES = 32 * 1024**2  # Sort buffer, never a limit on the workload.
 FAN_IN = 32

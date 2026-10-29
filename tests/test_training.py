@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import torch
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
@@ -19,7 +20,7 @@ from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.post_train_triage import read_triage
 from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest, read_manifest
+from sparselab.training.manifest import read_manifest
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
 

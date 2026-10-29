@@ -14,6 +14,7 @@ from typing import Any, TypeGuard
 
 import yaml
 
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.evaluation.capabilities import (
     CapabilityCard,
     capability_card,
@@ -27,7 +28,7 @@ from sparselab.experiments.matrix import ExpandedExperiment, expand
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.result_publication import sync_directory as _sync_directory
 from sparselab.result_publication import write_bytes_exclusive
-from sparselab.training.manifest import canonical_digest, canonical_json, config_sha256
+from sparselab.training.manifest import config_sha256
 
 
 def study_workspace(name: str) -> Path:
@@ -580,7 +581,7 @@ def recover_study_receipt(
         raise FileExistsError(f"recovery output already exists: {output}")
     intent_bytes = intent_path.read_bytes()
     intent = _mapping(
-        json.loads(intent_bytes, object_pairs_hook=_reject_duplicate_pairs),
+        json.loads(intent_bytes, object_pairs_hook=reject_duplicate_keys),
         "study intent",
     )
     if (
@@ -617,7 +618,7 @@ def recover_study_receipt(
             "spec": _mapping(
                 json.loads(
                     record["specification_json"],
-                    object_pairs_hook=_reject_duplicate_pairs,
+                    object_pairs_hook=reject_duplicate_keys,
                 ),
                 "native specification",
             ),
@@ -711,18 +712,9 @@ def recover_study_receipt(
     return receipt
 
 
-def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
 def _read_receipt(path: Path) -> tuple[dict[str, object], str]:
     data = path.read_bytes()
-    value = json.loads(data, object_pairs_hook=_reject_duplicate_pairs)
+    value = json.loads(data, object_pairs_hook=reject_duplicate_keys)
     receipt = _mapping(value, "study receipt")
     if receipt.get("format") != "sparselab-architecture-study-receipt":
         raise ValueError("unknown architecture study receipt format")

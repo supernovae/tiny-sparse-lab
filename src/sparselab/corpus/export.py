@@ -12,9 +12,10 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import DatasetConfig, RunConfig, TokenizerTrainConfig
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode

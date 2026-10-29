@@ -18,6 +18,7 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig, StrictModel
 from sparselab.config.recipe_paths import (
     _INPUT_FIELDS,
@@ -37,7 +38,7 @@ from sparselab.experiments.compiler import (
 from sparselab.experiments.phase_graph import validate_phase_graph
 from sparselab.experiments.plan import ExperimentPlan
 from sparselab.recovery.provenance import declaration_reference
-from sparselab.training.manifest import canonical_json, config_sha256, source_identity
+from sparselab.training.manifest import config_sha256, source_identity
 
 MAX_DOCUMENT_BYTES = 1024 * 1024
 MAX_RECIPE_BYTES = 8 * MAX_DOCUMENT_BYTES

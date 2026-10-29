@@ -18,9 +18,10 @@ from sparselab.address_hash import (
     token_ngram_address,
     token_uses_legacy,
 )
+from sparselab.canonical import canonical_digest
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_digest, sha256_file
+from sparselab.training.manifest import sha256_file
 
 MAX_INPUT_BYTES: Final = 256 * 1024 * 1024
 MAX_DOCUMENTS: Final = 1_000_000

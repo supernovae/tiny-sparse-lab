@@ -9,7 +9,8 @@ from pathlib import Path
 
 import yaml
 
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
+from sparselab.canonical import canonical_digest, canonical_json
+from sparselab.training.manifest import sha256_file
 
 _SLOT = re.compile(rb"\$\{([A-Z][A-Z0-9_]*)\}")
 _JSON_ARRAY_SLOT = re.compile(rb'"\$\{([A-Z][A-Z0-9_]*_JSON)\}"')

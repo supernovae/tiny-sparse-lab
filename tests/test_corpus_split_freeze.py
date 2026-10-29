@@ -10,11 +10,12 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from sparselab.canonical import canonical_json
 from sparselab.corpus import split_freeze
 from sparselab.corpus.mixture import _rank
 from sparselab.corpus.mixture_index import MixtureIndex
 from sparselab.corpus.project import SplitDeclaration
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _assignments(path):

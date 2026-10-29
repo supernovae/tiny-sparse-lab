@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.acquisition import verify_acquisition
 from sparselab.corpus.admission_inspection_cache import (
     InspectionCache,
@@ -34,8 +35,8 @@ from sparselab.corpus.structure_cleaning import (
     NORMALIZER_V3,
     clean_structure,
 )
-from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
-from sparselab.verification_proofs import _sync
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 _MAX_FILE_BYTES = 8 * 1024**2
@@ -678,7 +679,7 @@ def inspect_admission(
                 raise
         try:
             os.link(temporary, output)
-            _sync(output.parent)
+            sync_directory(output.parent)
         finally:
             temporary.unlink(missing_ok=True)
     _inside(output, root)

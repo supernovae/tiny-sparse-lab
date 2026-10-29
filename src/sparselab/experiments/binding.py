@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_digest, canonical_json
 
 if TYPE_CHECKING:
     from sparselab.experiments.lock import ResolvedCell, ResolvedExperimentPlan
