@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
+from sparselab import workspace_preflight as storage
 from sparselab.config.models import (
     DatasetConfig,
     TokenizerSampling,
@@ -93,6 +95,59 @@ def fixture(tmp_path, monkeypatch):
         engine, "verify_release_export", lambda *_args, **_kwargs: binding
     )
     return config, rows
+
+
+def storage_fixture(tmp_path, monkeypatch, *, available_bytes):
+    config, _ = fixture(tmp_path, monkeypatch)
+    config = config.model_copy(
+        update={
+            "dataset": config.dataset.model_copy(
+                update={"train_max_tokens": 105_000_000_000}
+            ),
+            "sampling": config.sampling.model_copy(
+                update={"max_fit_bytes": 512 * 1024 * 1024}
+            ),
+        }
+    )
+    monkeypatch.setattr(
+        storage.os,
+        "statvfs",
+        lambda _path: SimpleNamespace(
+            f_bavail=available_bytes,
+            f_frsize=1,
+            f_files=1_000_000,
+            f_favail=1_000_000,
+        ),
+    )
+    return config
+
+
+def test_sampled_fit_storage_does_not_reserve_the_full_corpus(tmp_path, monkeypatch):
+    config = storage_fixture(tmp_path, monkeypatch, available_bytes=3 * 1024**3)
+    path = engine.train_tokenizer(config)
+    manifest = json.loads(path.with_name("tokenizer_manifest.json").read_text())
+    assert manifest["input_byte_budget_utf8"] == 512 * 1024 * 1024
+    assert (
+        sum(
+            manifest["training_contract"]["sampling_result"]["requested_bytes"].values()
+        )
+        == manifest["input_byte_budget_utf8"]
+    )
+
+
+def test_sampled_fit_still_refuses_insufficient_storage(tmp_path, monkeypatch):
+    config = storage_fixture(tmp_path, monkeypatch, available_bytes=1024**3)
+    with pytest.raises(OSError, match="storage preflight failed"):
+        engine.train_tokenizer(config)
+    assert not config.output_dir.exists()
+
+
+def test_unsampled_storage_keeps_the_dataset_bound(tmp_path, monkeypatch):
+    config = storage_fixture(tmp_path, monkeypatch, available_bytes=3 * 1024**3)
+    config = config.model_copy(update={"sampling": None})
+    with pytest.raises(OSError, match="storage preflight failed"):
+        storage.require_storage(storage.tokenizer_storage_checks(config))
+    assert not config.output_dir.exists()
 
 
 def test_sampling_byte_shares_whole_utf8_and_disjoint_audit(tmp_path, monkeypatch):
