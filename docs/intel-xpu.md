@@ -148,10 +148,11 @@ after its doctor passes). These configs retain the existing explicit smoke
 input paths; author external paths when persistent inputs are desired.
 
 After CPU tests finish, run Intel hardware tests serially in the provisioned
-interpreter with pytest available:
+interpreter with pytest available. `-o addopts=` drops the repository's
+parallel default, which needs pytest-xdist, so one process owns the device:
 
 ```sh
-/absolute/xpu-env/bin/python -m pytest -q -m 'xpu and not network'
+/absolute/xpu-env/bin/python -m pytest -q -o addopts= -m 'xpu and not network'
 ```
 
 The opt-in training test exercises native XPU forward/backward, recomputation,

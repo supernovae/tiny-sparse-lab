@@ -64,7 +64,7 @@ jobs:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           SPARSELAB_WORK_DIR: ${{ runner.temp }}/pr-safe-work
         run: |
-          uv run --locked --no-sync pytest -q -p no:cacheprovider \
+          uv run --locked --no-sync pytest -q -n 0 -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/pr-safe-pytest" \
             tests/test_verifier_authority_current.py \
             tests/test_slow_list.py \
@@ -189,7 +189,7 @@ jobs:
       - run: uv sync --locked --extra cpu --dev
       - name: Manual optimizer and generation integration
         run: >-
-          uv run --locked --extra cpu pytest -q
+          uv run --locked --extra cpu pytest -q -n 0
           tests/test_training.py tests/test_generation.py
           tests/test_generation_panel.py tests/test_serving.py
 
@@ -210,7 +210,7 @@ jobs:
       - run: uv sync --locked --extra cpu --dev
       - name: Manual macOS optimizer and generation integration
         run: >-
-          uv run --locked --extra cpu pytest -q
+          uv run --locked --extra cpu pytest -q -n 0
           tests/test_training.py tests/test_generation.py
           tests/test_generation_panel.py tests/test_serving.py
 
