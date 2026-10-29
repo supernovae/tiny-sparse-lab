@@ -186,7 +186,11 @@ def verify_additive_anchor(base, delta):
             and path.is_file()
             and path.stat().st_size <= 4 * 1024**2
         ):
+            if capture([path]).get(name) != inputs[name]:
+                raise ValueError("additive split receipt fingerprint differs")
             receipt = json.loads(path.read_bytes())
+            if capture([path]).get(name) != inputs[name]:
+                raise ValueError("additive split receipt changed during read")
             if receipt.get("prior_family_inventory"):
                 matches.append((path, receipt["prior_family_inventory"]))
     if len(matches) != 1:
@@ -304,6 +308,8 @@ class RetainedMixtureIndex(MixtureIndex):
     """Use signed source offsets and a bounded file-handle cache."""
 
     def __init__(self, scratch, work_root, cohorts, seed, strata, order_policy=None):
+        if not 1 <= len(cohorts) <= 2:
+            raise ValueError("at most one additional release is supported")
         self.work_root = Path(work_root)
         self.cohorts = cohorts
         self.handles = OrderedDict()

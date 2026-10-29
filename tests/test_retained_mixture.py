@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from sparselab.corpus import mixture
+from sparselab.corpus.admission_inspection_cache import capture
 from sparselab.corpus.completed_preparation import _producer
 from sparselab.corpus.mixture import MixtureDeclaration, _rank, _schedule
 from sparselab.corpus.mixture_index import MixtureIndex
@@ -20,6 +21,27 @@ from sparselab.corpus.retained_mixture import (
     verify_additive_anchor,
 )
 from sparselab.corpus.split_runs import SplitStages, rows, write_rows
+
+
+def test_multiple_additional_releases_are_refused_before_any_io(tmp_path):
+    declaration = {
+        "schema_version": 1,
+        "release_path": str(tmp_path / "base"),
+        "additional_releases": [
+            {"release_path": str(tmp_path / "delta1")},
+            {"release_path": str(tmp_path / "delta2")},
+        ],
+        "tokenizer_config": str(tmp_path / "tokenizer.yaml"),
+        "family_inventory": str(tmp_path / "families.jsonl"),
+        "source_strata": {"code": "code"},
+        "target_quotas": {"code": 10},
+        "seed": 86,
+        "max_exposures": 1,
+    }
+    with pytest.raises(ValueError, match="at most 1"):
+        MixtureDeclaration.model_validate(declaration)
+    with pytest.raises(ValueError, match="at most one additional release"):
+        RetainedMixtureIndex(tmp_path, tmp_path, [{}, {}, {}], 86, {})
 
 
 def test_retained_phase_reuses_signed_execution_and_refuses_mutation(
@@ -274,11 +296,17 @@ def test_additive_release_must_bind_exact_prior_inventory(tmp_path):
         "release_id": "new",
         "manifest": {
             "build_identity": {
-                "completed_preparation": {"request": {"inputs": {str(receipt): []}}}
+                "completed_preparation": {"request": {"inputs": capture([receipt])}}
             }
         },
     }
     assert verify_additive_anchor(base, delta)["prior"]["release_id"] == "old"
+    receipt.write_text(receipt.read_text() + " ")
+    with pytest.raises(ValueError, match="receipt fingerprint differs"):
+        verify_additive_anchor(base, delta)
+    delta["manifest"]["build_identity"]["completed_preparation"]["request"][
+        "inputs"
+    ] = capture([receipt])
     base["manifest"]["files"]["family-inventory.jsonl"]["sha256"] = "other"
     with pytest.raises(ValueError, match="prior split differs"):
         verify_additive_anchor(base, delta)
@@ -480,7 +508,7 @@ def test_additive_mixture_keeps_origin_and_publishes_combined_identity(
         "release_id": "delta-id",
         "corpus_id": "delta-corpus",
         "build_identity": {
-            "completed_preparation": {"request": {"inputs": {str(receipt_path): []}}}
+            "completed_preparation": {"request": {"inputs": capture([receipt_path])}}
         },
     }
 

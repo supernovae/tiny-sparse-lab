@@ -122,7 +122,11 @@ def prior_indexes(root, binding):
             and path.is_file()
             and path.stat().st_size <= 4 * 1024**2
         ):
+            if capture([path]).get(name) != request_inputs[name]:
+                raise ValueError("prior split receipt fingerprint differs")
             value = json.loads(path.read_bytes())
+            if capture([path]).get(name) != request_inputs[name]:
+                raise ValueError("prior split receipt changed during read")
             if value.get("cluster_sha256"):
                 receipts.append(value)
     if len(receipts) != 1 or receipts[0]["cluster_sha256"] != alias_binding["sha256"]:

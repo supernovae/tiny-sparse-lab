@@ -1230,9 +1230,10 @@ relationship is unambiguous; incompatible strata, conflicting prior splits,
 or quotas that cannot be met without moving old families are refused. Exact
 content crossing new families is still checked by the normal split logic.
 
-For mixture materialization, `additional_releases` may list objects with a
-`release_path` for separately built, retained releases in the same work root.
-Each must carry a completed split bound to the baseline family inventory;
+For mixture materialization, `additional_releases` may contain one object with a
+`release_path` for a separately built, retained release in the same work root.
+Multiple additional releases are refused until their family splits can be
+coordinated. The additional release must carry a completed split bound to the baseline family inventory;
 source IDs must be disjoint and all sources mapped in `source_strata`. The
 tokenizer remains bound to the baseline release. The mixture records the
 ordered release identities and reads authenticated retained offsets instead of

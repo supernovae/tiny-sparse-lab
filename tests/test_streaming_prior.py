@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from sparselab.corpus.admission_inspection_cache import capture
 from sparselab.corpus.split_runs import rows, write_rows
 from sparselab.corpus.streaming_prior import (
     _index,
@@ -53,7 +54,7 @@ def test_prior_indexes_bind_old_release_and_approved_family_clusters(
         "corpus_id": "fixture",
         "files": {"family-inventory.jsonl": {"sha256": inventory_sha}},
         "build_identity": {
-            "completed_preparation": {"request": {"inputs": {str(split_receipt): []}}}
+            "completed_preparation": {"request": {"inputs": capture([split_receipt])}}
         },
     }
     monkeypatch.setattr(
@@ -70,6 +71,11 @@ def test_prior_indexes_bind_old_release_and_approved_family_clusters(
     assert result["prior_counts"] == {"code": {"train": 1}}
     assert evidence["release_id"] == "release-id"
     split_receipt.write_text(json.dumps({"cluster_sha256": "different"}))
+    with pytest.raises(ValueError, match="receipt fingerprint differs"):
+        prior_indexes(tmp_path, binding)
+    manifest["build_identity"]["completed_preparation"]["request"]["inputs"] = capture(
+        [split_receipt]
+    )
     with pytest.raises(ValueError, match="authenticated split receipt"):
         prior_indexes(tmp_path, binding)
 

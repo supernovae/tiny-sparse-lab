@@ -81,7 +81,7 @@ class MixtureDeclaration(BaseModel):
     tokenizer_config: Path
     family_inventory: Path
     additional_releases: list[AdditiveRelease] = Field(
-        default_factory=list, exclude_if=lambda value: not value
+        default_factory=list, max_length=1, exclude_if=lambda value: not value
     )
     source_strata: dict[str, str]
     target_quotas: dict[str, int]
