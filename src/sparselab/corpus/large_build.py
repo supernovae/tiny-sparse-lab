@@ -65,6 +65,17 @@ def _receipt_identity(
 ) -> dict[str, Any]:
     return {
         "stage_version": "normalized-source-v2",
+        "implementation": {
+            name: sha256_file(Path(__file__).with_name(name))
+            for name in (
+                "large_build.py",
+                "pipeline.py",
+                "jsonl_records.py",
+                "structure_cleaning.py",
+                "rights.py",
+                "provenance.py",
+            )
+        },
         "source": source.model_dump(mode="json"),
         "source_id": source.id,
         "revision": source.revision,
