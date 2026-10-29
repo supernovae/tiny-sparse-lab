@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 from collections import Counter, defaultdict
@@ -20,7 +19,7 @@ from sparselab.data.tokenizer import (
     train_tokenizer,
     verify_tokenizer_artifact,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 GROUPS = ("prose", "python", "go", "rust", "shell", "yaml", "json", "toml", "logs")
 VOCABS = (16384, 24576, 32768)
@@ -349,7 +348,7 @@ def _binding(
         "lm_train_sha256": sha256_file(release / "lm" / "train.jsonl"),
         "lm_validation_sha256": sha256_file(release / "lm" / "validation.jsonl"),
         "declaration_sha256": identity["declaration_sha256"],
-        "sample_receipt_sha256": hashlib.sha256(canonical_json(receipt)).hexdigest(),
+        "sample_receipt_sha256": canonical_digest(receipt),
         "fit_sample_sha256": sha256_file(sample),
         "heldout_sample_sha256": sha256_file(validation),
     }

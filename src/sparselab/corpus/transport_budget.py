@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.corpus.project import Project
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest
 
 HTTP_OPERATION_TIMEOUT_SECONDS = 30.0
 
@@ -69,7 +69,7 @@ def _binding(project: Project) -> str:
         value["source_effects"] = [
             effect.model_dump(mode="json") for effect in project.config.source_effects
         ]
-    return hashlib.sha256(canonical_json(value)).hexdigest()
+    return canonical_digest(value)
 
 
 def _validate_scope(project: Project) -> None:
@@ -791,7 +791,7 @@ class TransportBudget:
             # Stop references attest external cleanup; receipt equality is not
             # evidence of process death. No charge, deadline or retry is reset.
             state["gate_review"] = {
-                "receipt_sha256": hashlib.sha256(canonical_json(state)).hexdigest(),
+                "receipt_sha256": canonical_digest(state),
                 "report_sha256": decision["report_sha256"],
                 "approval_reference": decision["approval_reference"],
             }

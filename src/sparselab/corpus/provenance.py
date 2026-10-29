@@ -6,7 +6,7 @@ import hashlib
 import re
 from typing import Any
 
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 SOURCE_ORIGIN = "primary_source"
 HUMAN_ORIGIN = "human_authored"
@@ -284,7 +284,7 @@ def validate_verification(
             or evidence.get("comparison_status") != "match"
         ):
             raise ValueError("oracle result is not verified against expected answer")
-        expected = hashlib.sha256(canonical_json([world, answer])).hexdigest()
+        expected = canonical_digest([world, answer])
         if evidence["oracle_identity"] != expected:
             raise ValueError("oracle identity does not match world and answer")
         receipt = evidence.get("receipt")

@@ -17,6 +17,7 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     ArtifactIdentity,
+    canonical_digest,
     canonical_json,
     config_sha256,
     read_manifest,
@@ -225,7 +226,7 @@ def _verify_complete_run(
     recovery_frontier: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[tuple[object, ...]]]:
     manifest = read_manifest(root / "manifest.json")
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_digest = canonical_digest(manifest)
     for name in ("run_id", "attempt_id", "experiment_id"):
         if manifest.get(name) != _field(receipt, name):
             raise ValueError(f"ingested manifest {name} differs from receipt")

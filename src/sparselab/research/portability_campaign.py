@@ -37,7 +37,12 @@ from sparselab.engram.packs import _rename_noreplace, compile_pack, verify_pack
 from sparselab.engram.semantic import SemanticRetriever
 from sparselab.evaluation.chat import format_chat_prompt
 from sparselab.model.portable_engram import export_portable_engram
-from sparselab.training.manifest import canonical_json, sha256_file, source_identity
+from sparselab.training.manifest import (
+    canonical_digest,
+    canonical_json,
+    sha256_file,
+    source_identity,
+)
 
 _ASSET_FORMAT = "sparselab-portability-memory-assets"
 _ASSET_VERSION = 1
@@ -72,7 +77,7 @@ def _verify_existing_assets(root: Path, world_digest: str) -> Path:
         manifest.get("format") != _ASSET_FORMAT
         or manifest.get("version") != _ASSET_VERSION
         or manifest.get("world_manifest_sha256") != world_digest
-        or hashlib.sha256(canonical_json(body)).hexdigest() != digest
+        or canonical_digest(body) != digest
     ):
         raise FileExistsError(
             "existing portability memory assets bind different inputs"
@@ -345,7 +350,7 @@ def build_portability_memory_assets(
     world_manifest = json.loads(world_manifest_path.read_text(encoding="utf-8"))
     expected = world_manifest.get("sha256")
     body = {key: value for key, value in world_manifest.items() if key != "sha256"}
-    if hashlib.sha256(canonical_json(body)).hexdigest() != expected:
+    if canonical_digest(body) != expected:
         raise ValueError("portability world manifest hash mismatch")
     if asset_root.exists() or asset_root.is_symlink():
         _verify_existing_assets(asset_root, str(expected))
@@ -532,7 +537,7 @@ def build_portability_memory_assets(
             "files": files,
             "address_observations": "address_observations.json",
         }
-        digest = hashlib.sha256(canonical_json(manifest_body)).hexdigest()
+        digest = canonical_digest(manifest_body)
         (staging / "memory_assets.json").write_bytes(
             canonical_json({**manifest_body, "sha256": digest}) + b"\n"
         )
@@ -1009,7 +1014,7 @@ def _write_immutable_bytes(path: Path, encoded: bytes) -> None:
 
 def _write_immutable_json(path: Path, value: dict[str, Any]) -> str:
     body = {key: item for key, item in value.items() if key != "sha256"}
-    digest = hashlib.sha256(canonical_json(body)).hexdigest()
+    digest = canonical_digest(body)
     _write_immutable_bytes(path, canonical_json({**body, "sha256": digest}) + b"\n")
     return digest
 

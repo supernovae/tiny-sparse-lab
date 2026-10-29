@@ -28,7 +28,7 @@ from sparselab.engram.packs import (
     compile_pack,
     verify_pack,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 _SYMBOLS = tuple("ABCDEFGHIJKLMNOP")
 _RELATIONS = ("next", "label")
@@ -217,7 +217,7 @@ def _fact_row(
             "license": "CC0-1.0",
         }
     )
-    row["content_digest_sha256"] = hashlib.sha256(canonical_json(row)).hexdigest()
+    row["content_digest_sha256"] = canonical_digest(row)
     return row
 
 
@@ -428,7 +428,7 @@ def _verify_existing(root: Path, expected_manifest_sha256: str) -> Path:
             f"existing portability world is not verifiable: {root}"
         ) from error
     content = {key: value for key, value in manifest.items() if key != "sha256"}
-    actual = hashlib.sha256(canonical_json(content)).hexdigest()
+    actual = canonical_digest(content)
     if actual != manifest.get("sha256") or actual != expected_manifest_sha256:
         raise FileExistsError(
             f"existing portability world differs from requested replay: {root}"
@@ -1002,7 +1002,7 @@ def materialize_portability_worlds(
             },
             "files": file_entries,
         }
-        digest = hashlib.sha256(canonical_json(manifest_content)).hexdigest()
+        digest = canonical_digest(manifest_content)
         manifest = {**manifest_content, "sha256": digest}
         (staging / "world_manifest.json").write_bytes(canonical_json(manifest) + b"\n")
         if root.exists() or root.is_symlink():

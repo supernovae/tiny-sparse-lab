@@ -15,7 +15,7 @@ from sparselab.config.models import RunConfig
 from sparselab.model.inspection import named_tensor_inventory
 from sparselab.model.transformer import DenseLM
 from sparselab.training.checkpoints import CheckpointManager, TrainingSnapshot
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.training.mlx_checkpoints import validate_optimizer_state
 
 
@@ -103,7 +103,7 @@ def test_common_manager_promotes_mlx_canonical_weights_without_native_codec(
             entry["bytes"] = native.stat().st_size
             entry["sha256"] = hashlib.sha256(native.read_bytes()).hexdigest()
     manifest.pop("sha256")
-    manifest["sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest["sha256"] = canonical_digest(manifest)
     manifest_path.write_bytes(canonical_json(manifest))
     promoted = manager.load(generation, mode="promote")
 
@@ -140,7 +140,7 @@ def test_common_manager_rejects_unknown_native_codec_and_strict_pointer(
     manifest["state_codec_version"] = 2
     manifest.pop("sha256")
 
-    manifest["sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest["sha256"] = canonical_digest(manifest)
     (generation / "manifest.json").write_text(json.dumps(manifest))
     assert not manager.verify(generation).valid
 
@@ -211,7 +211,7 @@ def test_corrupt_native_optimizer_is_rejected_and_recovery_falls_back(tmp_path):
             entry["bytes"] = optimizer.stat().st_size
             entry["sha256"] = hashlib.sha256(optimizer.read_bytes()).hexdigest()
     raw.pop("sha256")
-    raw["sha256"] = hashlib.sha256(canonical_json(raw)).hexdigest()
+    raw["sha256"] = canonical_digest(raw)
     manifest_path.write_bytes(canonical_json(raw))
     assert not manager.verify(generation).valid
     recovered = manager.recovery_report()

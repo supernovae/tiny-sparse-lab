@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 
 class Pin(BaseModel):
@@ -170,7 +170,7 @@ def _source(root: Path, source: Source, spec: Preview, reader: Reader):
         if "source_row_index" not in envelope:
             raise ValueError("unsupported acquisition envelope: no source_row_index")
         index = envelope["source_row_index"]
-        digest = hashlib.sha256(canonical_json(value)).hexdigest()
+        digest = canonical_digest(value)
         if (
             type(index) is not int
             or index <= previous

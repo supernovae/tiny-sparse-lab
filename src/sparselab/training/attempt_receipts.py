@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.training.manifest import canonical_digest, canonical_json, read_manifest
 
 NativeReceiptKind = Literal[
     "train", "panel", "campaign_run", "campaign_panel", "campaign_evaluation", "none"
@@ -26,7 +26,7 @@ def _training(
     if progress_path.is_symlink():
         raise ValueError("native training progress is linked")
     progress = json.loads(progress_path.read_text())
-    manifest_sha = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_sha = canonical_digest(manifest)
     evidence = experiment_evidence(path, verification_mode="cold")
     if (
         manifest.get("run_id") != path.name

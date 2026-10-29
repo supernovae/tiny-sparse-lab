@@ -31,7 +31,7 @@ from sparselab.research.portability_campaign import (
 )
 from sparselab.runtime import seed_everything
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest
 
 _SYMBOLS = "ABCDEFGHIJKLMNOP"
 
@@ -747,7 +747,7 @@ def build_portability_evidence(campaign_root: Path) -> Path:
         },
         "limitations": list(protocol["limitations"]),
     }
-    digest = hashlib.sha256(canonical_json(evidence)).hexdigest()
+    digest = canonical_digest(evidence)
     evidence_path = campaign_root / f"portability_evidence-{digest[:16]}.json"
     _write_immutable_json(evidence_path, evidence)
     return evidence_path

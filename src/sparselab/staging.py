@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import logging
 import os
@@ -72,7 +71,7 @@ from sparselab.runtime_forecasting import (
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import _atomic_json, _fsync_directory, _safe_member
 from sparselab.training.manifest import (
-    canonical_json,
+    canonical_digest,
     config_sha256,
     sha256_file,
     source_identity,
@@ -137,7 +136,7 @@ def inspect_runtime(config: RunConfig) -> RuntimeInfo:
 
 
 def _seal(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
-    value = {**payload, "sha256": hashlib.sha256(canonical_json(payload)).hexdigest()}
+    value = {**payload, "sha256": canonical_digest(payload)}
     _atomic_json(path, value)
     return value
 
@@ -162,7 +161,7 @@ def _read_sealed(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise TypeError("stage manifest must be an object")
     body = {key: value for key, value in payload.items() if key != "sha256"}
-    if payload.get("sha256") != hashlib.sha256(canonical_json(body)).hexdigest():
+    if payload.get("sha256") != canonical_digest(body):
         raise ValueError("stage manifest digest mismatch")
     if payload.get("format_version") != 1:
         raise ValueError("unsupported stage bundle version")
@@ -212,7 +211,7 @@ def _verify_inventory(
     seen: set[str] = set()
     closure = {
         "manifest_sha256": manifest_sha256,
-        "inventory_sha256": hashlib.sha256(canonical_json(inventory)).hexdigest(),
+        "inventory_sha256": canonical_digest(inventory),
         "published_manifest": published_manifest,
     }
     proofs: dict[str, VerifiedFile] = {}

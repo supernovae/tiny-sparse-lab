@@ -19,7 +19,7 @@ from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.post_train_triage import read_triage
 from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.training.manifest import canonical_digest, read_manifest
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
 
@@ -396,7 +396,7 @@ def test_assistant_only_evidence_counts_and_binds_supervised_targets(
     payload = json.loads(report.read_text())
     payload["identities"]["data/validation_supervision.npy"] = "0" * 64
     payload.pop("sha256")
-    payload["sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    payload["sha256"] = canonical_digest(payload)
     report.write_text(json.dumps(payload))
     rejected = experiment_evidence(run)
     assert report.name in {item["path"] for item in rejected["rejected_reports"]}

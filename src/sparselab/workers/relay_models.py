@@ -6,7 +6,6 @@ storage endpoints, never credentials or provider SDK settings.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -15,7 +14,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest
 
 _RELAY_VERSION = 1
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -180,7 +179,7 @@ class RelayBinding(StrictModel):
         return self.model_copy(update={"controller": None})
 
     def digest(self) -> str:
-        return hashlib.sha256(canonical_json(self.model_dump(mode="json"))).hexdigest()
+        return canonical_digest(self.model_dump(mode="json"))
 
 
 class CheckpointFrontier(StrictModel):
@@ -344,7 +343,7 @@ class RelayCommitDescriptor(StrictModel):
         return self.model_dump(mode="json", exclude={"hmac_sha256"})
 
     def descriptor_digest(self) -> str:
-        return hashlib.sha256(canonical_json(self.model_dump(mode="json"))).hexdigest()
+        return canonical_digest(self.model_dump(mode="json"))
 
 
 def _without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:

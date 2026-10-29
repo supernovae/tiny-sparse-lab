@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import random
@@ -38,7 +37,12 @@ from sparselab.engram.packs import (
     compile_pack,
 )
 from sparselab.evaluation.capabilities import _card_from_mapping, load_capability_card
-from sparselab.training.manifest import canonical_json, sha256_file, source_identity
+from sparselab.training.manifest import (
+    canonical_digest,
+    canonical_json,
+    sha256_file,
+    source_identity,
+)
 
 _LICENSE = "MIT; original synthetic path_domain_v1 corpus; see data/path_domain_v1/provenance.json"
 _PACK_CREATED_AT = "2026-09-23T00:00:00Z"
@@ -607,7 +611,7 @@ def _build_bundle(
         "profiles": profiles,
         "files": files,
     }
-    payload["sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    payload["sha256"] = canonical_digest(payload)
     with (staging / "manifest.json").open("xb") as handle:
         handle.write(canonical_json(payload) + b"\n")
         handle.flush()

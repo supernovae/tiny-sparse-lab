@@ -16,7 +16,11 @@ from pydantic import Field, field_validator
 
 from sparselab.config.models import StrictModel
 from sparselab.documents import read_document
-from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.training.manifest import (
+    canonical_digest,
+    canonical_json,
+    source_identity,
+)
 
 _ENV = (
     "SPARSELAB_SOURCE_COMPATIBILITY",
@@ -134,7 +138,7 @@ def _committed_identity_bytes(repo: Path, commit: str) -> bytes:
         {
             "algorithm": "package-path-sha256-v2",
             "files": inventory,
-            "sha256": hashlib.sha256(canonical_json(inventory)).hexdigest(),
+            "sha256": canonical_digest(inventory),
         }
     )
 

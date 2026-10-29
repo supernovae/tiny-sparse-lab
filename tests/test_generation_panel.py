@@ -9,6 +9,7 @@ from test_training import config
 
 from sparselab.evaluation import panel
 from sparselab.evaluation.suite import run_suite
+from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.training.trainer import train
 
 
@@ -246,10 +247,10 @@ def test_structural_coverage_rejects_rehashed_row_loss(panel_run):
     original = output.read_bytes()
     record = json.loads(original)
     record["rows"] = []
-    record["record_sha256"] = panel._digest(
+    record["record_sha256"] = canonical_digest(
         {k: v for k, v in record.items() if k != "record_sha256"}
     )
-    output.write_bytes(panel.canonical_json(record) + b"\n")
+    output.write_bytes(canonical_json(record) + b"\n")
     try:
         with pytest.raises(ValueError, match="coverage mismatch"):
             panel.verify_panel_result(output)

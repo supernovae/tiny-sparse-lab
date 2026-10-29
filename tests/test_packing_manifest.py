@@ -13,12 +13,12 @@ from test_training import config
 
 from sparselab.data.packing import TokenBlockDataset, load_prepared_data, prepare_data
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 
 def _resign(manifest: dict[str, object]) -> None:
     manifest.pop("manifest_sha256", None)
-    manifest["manifest_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest["manifest_sha256"] = canonical_digest(manifest)
 
 
 def test_resigned_metadata_tamper_cannot_reuse_cache(tmp_path: Path) -> None:

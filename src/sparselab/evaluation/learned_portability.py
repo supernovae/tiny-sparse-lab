@@ -9,7 +9,6 @@ vocabulary distribution at the byte-addressed assistant-symbol position.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import random
 import re
@@ -26,7 +25,7 @@ from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.evaluation.inference import InferenceRun
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import PortableEngramAdapter
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, sha256_file
 
 _FORMAT = "sparselab-learned-portability-data"
 _VERSION = 1
@@ -138,10 +137,7 @@ def _verify_manifest(path: Path) -> tuple[dict[str, object], dict[str, Path]]:
     digest = manifest.get("sha256")
     canonical = dict(manifest)
     canonical.pop("sha256", None)
-    if (
-        not isinstance(digest, str)
-        or hashlib.sha256(canonical_json(canonical)).hexdigest() != digest
-    ):
+    if not isinstance(digest, str) or canonical_digest(canonical) != digest:
         raise ValueError("learned data manifest canonical digest mismatch")
     manifest_path = path.resolve()
     root = manifest_path.parent
@@ -290,7 +286,7 @@ def _load_facts(
         body.pop("content_digest_sha256")
         if (
             not isinstance(content_digest, str)
-            or hashlib.sha256(canonical_json(body)).hexdigest() != content_digest
+            or canonical_digest(body) != content_digest
         ):
             raise ValueError(f"learned fact content digest mismatch: {fact_id}")
         nonce, target_row, symbol = (
@@ -420,8 +416,7 @@ def _load_preparation_facts(
                 "namespace": "learned-engram-portability-v1|data-v1",
                 "purpose": "preparation_only",
             }
-            or hashlib.sha256(canonical_json(body)).hexdigest()
-            != fact.get("content_digest_sha256")
+            or canonical_digest(body) != fact.get("content_digest_sha256")
         ):
             raise ValueError(f"learned preparation fact is invalid: {fact_id}")
         suffix = b"|" + key.encode("ascii") + b"\n\nAssistant: "

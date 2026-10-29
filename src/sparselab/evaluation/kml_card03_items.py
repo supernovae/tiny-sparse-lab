@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.corpus.release import verify_release
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 LANGUAGE_CATEGORIES = (
     "paraphrase",
@@ -65,10 +65,6 @@ _ITEM_FIELDS = {
     "content_sha256",
 }
 _CHUNK_FIELDS = {"id", "document_id", "start", "end", "text_sha256"}
-
-
-def _sha(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -144,7 +140,7 @@ def _chunks(
             != chunk["text_sha256"]
         ):
             raise ValueError("chunk does not bind exact held-out source text")
-        expected = _sha({key: chunk[key] for key in _CHUNK_FIELDS - {"id"}})
+        expected = canonical_digest({key: chunk[key] for key in _CHUNK_FIELDS - {"id"}})
         if chunk["id"] != expected or expected in chunks:
             raise ValueError("invalid or duplicate chunk identity")
         chunks[expected] = chunk
@@ -192,7 +188,7 @@ def _items(
             or not identifier
             or identifier in identifiers
             or item["content_sha256"]
-            != _sha(
+            != canonical_digest(
                 {key: value for key, value in item.items() if key != "content_sha256"}
             )
         ):
@@ -402,7 +398,7 @@ def freeze_card03_items(
         "chunks": candidate["chunks"],
         "items": candidate["items"],
     }
-    result["content_sha256"] = _sha(result)
+    result["content_sha256"] = canonical_digest(result)
     output = output.resolve()
     if output.exists() or output.is_symlink():
         raise FileExistsError(output)
@@ -449,9 +445,9 @@ def freeze_item_directory(
         "output": str(output / "items.json"),
         "content_sha256": result["content_sha256"],
         "manifest_sha256": sha256_file(output / "items.json"),
-        "items_sha256": _sha(result["items"]),
-        "chunks_sha256": _sha(result["chunks"]),
-        "denominators_sha256": _sha(denominators),
+        "items_sha256": canonical_digest(result["items"]),
+        "chunks_sha256": canonical_digest(result["chunks"]),
+        "denominators_sha256": canonical_digest(denominators),
         "release_id": result["release_id"],
         "family_inventory_sha256": result["family_inventory_sha256"],
         "complete_denominators": result["complete_denominators"],

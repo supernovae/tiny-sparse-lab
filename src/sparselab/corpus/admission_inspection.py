@@ -34,7 +34,7 @@ from sparselab.corpus.structure_cleaning import (
     NORMALIZER_V3,
     clean_structure,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 from sparselab.verification_proofs import _sync
 
 _MAX_RECORD_BYTES = 8 * 1024**2
@@ -129,7 +129,7 @@ def _candidate(
         "row_index": row_index,
     }
     return {
-        "item_id": hashlib.sha256(canonical_json(identity)).hexdigest(),
+        "item_id": canonical_digest(identity),
         "source_id": source.id,
         "path": path,
         "digest": digest,
@@ -312,7 +312,7 @@ def _fetch_candidate(source, entry, snapshot, row, stats):
             for key, value in record.value.items()
             if key != "_sparselab_source"
         }
-        digest = hashlib.sha256(canonical_json(original)).hexdigest()
+        digest = canonical_digest(original)
         value = original[source.acquisition.text_field]
         metadata = original.get("metadata")
         metadata = metadata if isinstance(metadata, dict) else {}

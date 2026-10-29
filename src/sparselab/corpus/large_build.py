@@ -31,7 +31,7 @@ from sparselab.corpus.provenance import (
     verification,
 )
 from sparselab.corpus.rights import reported_spdx_expression, resolve_file_rights
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -42,10 +42,6 @@ _PREPARED_FILES = ("docs.jsonl", "spans.jsonl", "rejected.jsonl")
 _PROCESS_SHARD_MIN_BYTES = 32 * 1024**2
 _PROCESS_SHARD_MAX_LINE_BYTES = 1024**2
 _ADMITTED_RECORD_MAX_BYTES = 8 * 1024**2
-
-
-def _digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -269,7 +265,7 @@ def _prepare_file(
                 digest.update(canonical_json(value))
         identity["file_admission_sha256"] = digest.hexdigest()
     parent = prepared_root / source.id
-    destination = parent / _digest(identity)
+    destination = parent / canonical_digest(identity)
     if destination.exists():
         receipt = _verify_prepared(destination, identity)
         progress.update(
@@ -798,7 +794,7 @@ def _deduplicate(
                         {
                             "error": "cross-split exact text overlap",
                             "method": method,
-                            "sha256": _digest(key),
+                            "sha256": canonical_digest(key),
                         },
                     )
                     raise ValueError("cross-split exact text overlap")
@@ -1182,7 +1178,7 @@ def _emit_build(
             "id": stage_id,
             "kind": stage_spec["kind"],
             "version": stage_spec["version"],
-            "parameters_sha256": _digest(stage_spec["parameters"]),
+            "parameters_sha256": canonical_digest(stage_spec["parameters"]),
             "inputs": stage_spec["inputs"],
             "implementation_sha256": identity["implementation_sha256"],
             "output_sha256": sha256_file(stage_path),

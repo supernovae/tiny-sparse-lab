@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ctypes
 import errno
-import hashlib
 import json
 import os
 import re
@@ -40,7 +39,12 @@ from sparselab.engram.records import (
     iter_knowledge_records,
 )
 from sparselab.model.portable_engram import load_portable_engram
-from sparselab.training.manifest import ArtifactIdentity, canonical_json, sha256_file
+from sparselab.training.manifest import (
+    ArtifactIdentity,
+    canonical_digest,
+    canonical_json,
+    sha256_file,
+)
 
 
 def _validate_model[T: StrictModel](model_type: type[T], value: object) -> T:
@@ -357,10 +361,6 @@ def _manifest_payload(manifest: EngramPackManifest) -> dict[str, object]:
     return payload
 
 
-def _pack_digest(payload: dict[str, object]) -> str:
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
-
-
 def _iter_record_lines(path: Path) -> Iterator[tuple[int, bytes]]:
     with path.open("rb") as handle:
         line_number = 0
@@ -387,7 +387,7 @@ def _manifest_from_bytes(path: Path) -> tuple[EngramPackManifest, bytes]:
     canonical = canonical_json(manifest.model_dump(mode="json")) + b"\n"
     if data != canonical:
         raise ValueError("manifest.json is not canonical JSON with final LF")
-    if manifest.pack_id != _pack_digest(_manifest_payload(manifest)):
+    if manifest.pack_id != canonical_digest(_manifest_payload(manifest)):
         raise ValueError("manifest pack_id self-digest mismatch")
     return manifest, data
 
@@ -444,7 +444,7 @@ def _semantic_space_id(component: SemanticComponent | dict[str, object]) -> str:
             "dtype": raw["dtype"],
             "key_normalization": raw["key_normalization"],
         }
-    return hashlib.sha256(canonical_json(identity)).hexdigest()
+    return canonical_digest(identity)
 
 
 def _scan_tensor(path: Path, name: str, *, l2: bool = False) -> tuple[int, int]:
@@ -747,7 +747,7 @@ def compile_pack(
             else None,
             "files": [entry.model_dump(mode="json") for entry in files],
         }
-        raw_payload["pack_id"] = _pack_digest(raw_payload)
+        raw_payload["pack_id"] = canonical_digest(raw_payload)
         manifest = _validate_model(EngramPackManifest, raw_payload)
         manifest_path = temporary / "manifest.json"
         _write_file(

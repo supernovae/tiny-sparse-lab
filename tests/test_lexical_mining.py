@@ -14,6 +14,7 @@ from tokenizers.pre_tokenizers import WhitespaceSplit
 from sparselab.data import lexical_mining
 from sparselab.data.lexical_mining import analyze_training_corpus
 from sparselab.model.memory import TokenNgramMemory
+from sparselab.training.manifest import canonical_digest
 
 
 def _write_conversations(path: Path, pairs: list[tuple[str, str]]) -> None:
@@ -176,7 +177,7 @@ def test_analyze_training_corpus_has_deterministic_content_identity_and_reads_tr
     assert first == second
     body = dict(first)
     identity = body.pop("analysis_sha256")
-    assert identity == hashlib.sha256(lexical_mining.canonical_json(body)).hexdigest()
+    assert identity == canonical_digest(body)
 
 
 @pytest.mark.parametrize(

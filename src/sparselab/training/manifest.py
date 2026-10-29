@@ -48,7 +48,8 @@ def canonical_json(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def _digest(value: object) -> str:
+def canonical_digest(value: object) -> str:
+    """Return the SHA-256 hex digest of ``canonical_json(value)``."""
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
@@ -106,7 +107,7 @@ def architecture_sha256(
     addressing = memory_addressing_identity(model_identity)
     if memory_addressing and addressing is not None:
         identity["memory_addressing"] = addressing
-    return _digest(identity)
+    return canonical_digest(identity)
 
 
 def trained_memory_addressing(
@@ -143,7 +144,7 @@ def config_sha256(config: Mapping[str, Any]) -> str:
                 if key != "source_manifest_path"
             },
         }
-    return _digest(
+    return canonical_digest(
         {
             "identity_version": IDENTITY_VERSION,
             "config": _without_machine_local_paths(
@@ -216,7 +217,7 @@ def source_identity() -> dict[str, object]:
     return {
         "algorithm": "package-path-sha256-v2",
         "files": inventory,
-        "sha256": _digest(inventory),
+        "sha256": canonical_digest(inventory),
     }
 
 
@@ -265,13 +266,13 @@ class RunManifest:
         return value
 
     def digest(self) -> str:
-        return _digest(self.payload())
+        return canonical_digest(self.payload())
 
 
 def write_manifest(path: Path, manifest: RunManifest) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = manifest.payload()
-    data["sha256"] = _digest(data)
+    data["sha256"] = canonical_digest(data)
     temporary = path.with_suffix(path.suffix + ".tmp")
     with temporary.open("xb") as handle:
         handle.write(canonical_json(data) + b"\n")
@@ -365,7 +366,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     if type(version) is not int or version != MANIFEST_VERSION:
         raise ValueError(f"unsupported manifest version: {version!r}")
     actual = data.pop("sha256", None)
-    if not isinstance(actual, str) or _digest(data) != actual:
+    if not isinstance(actual, str) or canonical_digest(data) != actual:
         raise ValueError("manifest hash mismatch")
     identity_version = data.get("identity_version")
     if identity_version is not None and identity_version != IDENTITY_VERSION:

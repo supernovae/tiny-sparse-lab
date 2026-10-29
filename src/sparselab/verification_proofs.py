@@ -6,17 +6,20 @@ protect against a compromised same-UID owner. Every miss requires cold checking.
 
 from __future__ import annotations
 
+import functools
+import grp
 import hashlib
 import hmac
 import json
 import os
+import pwd
 import secrets
 import stat
 from collections import Counter
 from pathlib import Path
 from typing import Literal
 
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.verifier_authority import (
     AUTHORITY_SCHEMA,
     supports_verifier,
@@ -56,6 +59,27 @@ def _fingerprint(path: Path) -> list[int]:
     ]
 
 
+def writable_by_others(info: os.stat_result) -> bool:
+    """Whether anyone but the owner may write this entry.
+
+    Group write is the owner's alone under a user-private group (Ubuntu's
+    default umask 002), so it is refused only for shared groups.
+    """
+    if info.st_mode & 0o002:
+        return True
+    return bool(info.st_mode & 0o020) and not _private_group(info.st_gid)
+
+
+@functools.cache
+def _private_group(gid: int) -> bool:
+    try:
+        group = grp.getgrgid(gid)
+        user = pwd.getpwuid(os.getuid()).pw_name
+    except KeyError:
+        return False
+    return gid == os.getgid() and group.gr_name == user and set(group.gr_mem) <= {user}
+
+
 def _trusted(root: Path, path: Path, *, private: bool = False) -> bool:
     """Check selected owned root and children, not system-owned ancestors."""
     try:
@@ -73,7 +97,7 @@ def _trusted(root: Path, path: Path, *, private: bool = False) -> bool:
             entries.append(current)
         for entry in entries:
             info = entry.lstat()
-            if info.st_uid != os.getuid() or info.st_mode & 0o022:
+            if info.st_uid != os.getuid() or writable_by_others(info):
                 return False
             if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
                 return False
@@ -259,7 +283,7 @@ class ProofStore:
                         if (
                             not stat.S_ISDIR(info.st_mode)
                             or info.st_uid != owner
-                            or info.st_mode & 0o022
+                            or writable_by_others(info)
                         ):
                             return False
                         checked_dirs.add(parent)
@@ -280,7 +304,7 @@ class ProofStore:
                     if (
                         (not directory and not stat.S_ISREG(info.st_mode))
                         or info.st_uid != owner
-                        or info.st_mode & 0o022
+                        or writable_by_others(info)
                         or (not directory and info.st_nlink != 1)
                         or index >= len(rows)
                         or rows[index]
@@ -340,9 +364,7 @@ class ProofStore:
                 "path",
             )
         }
-        return self.directory / (
-            hashlib.sha256(canonical_json(locator)).hexdigest() + ".json"
-        )
+        return self.directory / (canonical_digest(locator) + ".json")
 
     def _key(self, *, create: bool) -> bytes | None:
         if create:

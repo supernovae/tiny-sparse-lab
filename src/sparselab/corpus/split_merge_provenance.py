@@ -9,7 +9,7 @@ from sparselab.corpus.admission_inspection_cache import unchanged
 from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.corpus.project import project_path
 from sparselab.corpus.split_inventory_adoption import _reference
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 
 def exact_content_family_id(stratum, members):
@@ -23,7 +23,7 @@ def exact_content_family_id(stratum, members):
     ):
         raise ValueError("invalid exact-content family component")
     payload = {"stratum": stratum, "member_hints": members}
-    return "exact-content-family:" + hashlib.sha256(canonical_json(payload)).hexdigest()
+    return "exact-content-family:" + canonical_digest(payload)
 
 
 def reviewed_component_merges(components):

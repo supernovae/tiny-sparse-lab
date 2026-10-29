@@ -28,7 +28,7 @@ from sparselab.corpus.acquisition import (
 from sparselab.corpus.transport_budget import TransportBudget
 from sparselab.data.acquisition_scope import current_transport
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 
 class AcquisitionInterrupted(RuntimeError):
@@ -382,7 +382,7 @@ class DatasetTransport(TransportBudget):
     def file(self, row):
         self.observe()
         self._cache_inventory()
-        key = hashlib.sha256(canonical_json(row)).hexdigest()
+        key = canonical_digest(row)
         target = self.cache / (key + ".bin")
         partial = target.with_suffix(".partial")
         if target.exists():

@@ -11,10 +11,10 @@ from pathlib import Path
 
 from sparselab.corpus.admission_inspection_cache import capture, unchanged
 from sparselab.corpus.preparation_inputs import corpus_work_root, local_scope
-from sparselab.corpus.retained_render_adoption import _sha, _small
+from sparselab.corpus.retained_render_adoption import _small
 from sparselab.corpus.split_runs import SplitStages, _stamp, write_rows
 from sparselab.result_publication import sync_directory
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 _NOTE = "release-publication.json"
 
@@ -35,12 +35,12 @@ def retained_payload(path):
     scope = local_scope(build)
     if (
         scope is None
-        or _sha(build["identity"]) != path.name
+        or canonical_digest(build["identity"]) != path.name
         or build["build_id"] != path.name
     ):
         raise ValueError("retained native build identity or producer changed")
     unchanged(scope["source_bindings"])
-    request_id = _sha(scope["request"])
+    request_id = canonical_digest(scope["request"])
     directory = path.parent.parent / "build-stages"
     if not (directory / request_id).is_dir():
         raise ValueError("retained native build completion unavailable")
@@ -56,7 +56,7 @@ def retained_payload(path):
     event = candidates[0]
     body, payload = event["record"], event["record"]["result"]
     if (
-        _sha(body) != event["sha256"]
+        canonical_digest(body) != event["sha256"]
         or body["request"] != request_id
         or payload.get("build_path") != str(path)
         or payload.get("build_id") != path.name
@@ -99,7 +99,9 @@ def retained_payload(path):
     }
     if "mutable_dependencies" not in before:
         normalized["upstream_identities"].pop("mutable_dependencies", None)
-    normalized["manifest_inventory_sha256"] = _sha(normalized["upstream_identities"])
+    normalized["manifest_inventory_sha256"] = canonical_digest(
+        normalized["upstream_identities"]
+    )
     if normalized != saved:
         raise ValueError("retained native build semantic binding differs")
     inventory = {item["path"]: item for item in payload["files"]}
@@ -131,7 +133,7 @@ def retained_payload(path):
         "build_id": build["build_id"],
         "completion_sha256": event["sha256"],
         "historical_proof_sha256": hashlib.sha256(historical).hexdigest(),
-        "historical_authority_sha256": _sha(before["authority"]),
+        "historical_authority_sha256": canonical_digest(before["authority"]),
         "build_manifest_sha256": sha256_file(path / "build.json"),
     }
     return build, evidence
@@ -165,7 +167,7 @@ def freeze_retained(path, work_root):
         raise ValueError("retained release must stay in its owned corpus work root")
     build, evidence = retained_payload(path)
     payload = _manifest_payload(build)
-    release_id = _sha(payload)
+    release_id = canonical_digest(payload)
     evidence = {**evidence, "release_id": release_id}
     # No payload inode, filename, timestamp or historical proof is modified.
     # manifest.json is the final commit; an interrupted metadata-only freeze is
@@ -187,7 +189,7 @@ def verify_retained_release(path, manifest=None, *, expected_id=None):
     manifest = manifest or json.loads(_small(path / "manifest.json", root))
     build, evidence = retained_payload(path)
     payload = _manifest_payload(build)
-    release_id = _sha(payload)
+    release_id = canonical_digest(payload)
     if (
         not in_place(path, manifest)
         or manifest != {**payload, "release_id": release_id}

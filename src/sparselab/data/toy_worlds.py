@@ -20,7 +20,7 @@ import torch
 from safetensors.numpy import save_file
 
 from sparselab.engram.packs import EncoderIdentity, EngramPackManifest, compile_pack
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 _CREATED_AT = "2026-09-23T00:00:00Z"
 _NAMESPACE = "synthetic-toy-world-v1"
@@ -251,7 +251,7 @@ def _identity(
     return EncoderIdentity(
         name=name,
         revision=revision,
-        sha256=hashlib.sha256(canonical_json(dict(specification))).hexdigest(),
+        sha256=canonical_digest(dict(specification)),
     )
 
 

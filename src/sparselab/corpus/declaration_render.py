@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -10,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 _SLOT = re.compile(rb"\$\{([A-Z][A-Z0-9_]*)\}")
 _JSON_ARRAY_SLOT = re.compile(rb'"\$\{([A-Z][A-Z0-9_]*_JSON)\}"')
@@ -107,7 +106,7 @@ def render_declaration(
     return {
         "format": "sparselab-declaration-render-v1",
         "template_sha256": sha256_file(template),
-        "bindings_sha256": hashlib.sha256(canonical_json(values)).hexdigest(),
+        "bindings_sha256": canonical_digest(values),
         "path": str(destination),
         "sha256": sha256_file(destination),
         "bytes": len(rendered),

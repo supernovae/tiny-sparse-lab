@@ -19,7 +19,6 @@ from sparselab.cli.main import build_parser
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.acquisition import (
     _adapter,
-    _digest,
     _project_sha,
     declaration_sha256,
     verify_acquisition,
@@ -45,7 +44,7 @@ from sparselab.training.attempt_commands import (
     classify_attempt_command,
     phase_output_paths,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 from sparselab.training.preparation import compile_phase
 
 _PACKET = Path(__file__).resolve().parent / "fixtures/preparation"
@@ -247,7 +246,7 @@ def _sources(root: Path, project_id: str) -> tuple[Path, dict[str, str]]:
                     )
                     * 3,
                 }
-                digest = hashlib.sha256(canonical_json(record)).hexdigest()
+                digest = canonical_digest(record)
                 selected.append(
                     {"source_row_index": index, "source_row_sha256": digest}
                 )
@@ -399,7 +398,7 @@ def _sources(root: Path, project_id: str) -> tuple[Path, dict[str, str]]:
             {"path": name, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)}
             for name, raw in files_by_source[source.id]
         ]
-        identity = _digest(
+        identity = canonical_digest(
             {
                 "declaration_sha256": declaration_sha256(source),
                 "adapter": _adapter(source),

@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from sparselab.corpus.admission_inspection_cache import InspectionCache, capture
 from sparselab.result_publication import sync_directory
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 BUFFER_BYTES = 32 * 1024**2  # Sort buffer, never a limit on the workload.
 FAN_IN = 32
@@ -121,7 +121,7 @@ class SplitStages:
 
     def __init__(self, directory, request, *, work_root=None):
         self.request = request
-        self.identity = hashlib.sha256(canonical_json(request)).hexdigest()
+        self.identity = canonical_digest(request)
         self.root = Path(directory) / self.identity
         self.root.mkdir(parents=True, exist_ok=True)
         if any(p.is_symlink() for p in (self.root, *self.root.parents)):
@@ -141,7 +141,7 @@ class SplitStages:
         for path in sorted(self.root.glob("completion-*.json")):
             for event in rows(path):
                 body = event["record"]
-                digest = hashlib.sha256(canonical_json(body)).hexdigest()
+                digest = canonical_digest(body)
                 if event["sha256"] != digest or body["previous"] != self.previous:
                     raise ValueError("corrupt split completion chain")
                 if body["request"] != self.identity:
@@ -210,7 +210,7 @@ class SplitStages:
             "result": result,
             "elapsed_seconds": time.monotonic() - started,
         }
-        digest = hashlib.sha256(canonical_json(body)).hexdigest()
+        digest = canonical_digest(body)
         event = {"record": body, "sha256": digest}
         completion = self.root / f"completion-{self.sequence:06d}-{digest}.json"
         write_rows(completion, [event])

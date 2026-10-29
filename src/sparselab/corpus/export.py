@@ -14,7 +14,7 @@ import yaml
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import DatasetConfig, RunConfig, TokenizerTrainConfig
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -179,7 +179,7 @@ def export_release(
     base_digest = sha256_file(Path(base_run_config))
     release_id = str(manifest["release_id"])
     request = _export_request(release_id, view, base_digest, vocab_size, min_frequency)
-    identity = hashlib.sha256(canonical_json(request)).hexdigest()
+    identity = canonical_digest(request)
     destination = (
         Path(work_root).resolve()
         / "corpora"
@@ -390,7 +390,7 @@ def _verify_release_export_cold(
         or re.fullmatch(r"[0-9a-f]{64}", request["base_config_sha256"]) is None
         or type(request["vocab_size"]) is not int
         or request["vocab_size"] < 260
-        or export_dir.name != hashlib.sha256(canonical_json(request)).hexdigest()
+        or export_dir.name != canonical_digest(request)
         or export_dir.parts[-6:-1]
         != (
             "corpora",

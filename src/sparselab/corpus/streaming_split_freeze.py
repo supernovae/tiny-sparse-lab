@@ -28,7 +28,7 @@ from sparselab.corpus.split_runs import (
     rows,
     write_rows,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _STATES = {"qualify", "exclude", "quarantine"}
@@ -277,7 +277,7 @@ def _family_phase(directory, joined, seed):
                     raise ValueError("reviewed family spans multiple token strata")
                 stratum = row[2]
             counts[stratum] = counts.get(stratum, 0) + 1
-            rank = hashlib.sha256(canonical_json([seed, stratum, family])).hexdigest()
+            rank = canonical_digest([seed, stratum, family])
             yield [stratum, rank, family]
 
     sorted_file = external_sort(families(), directory / "sorted")

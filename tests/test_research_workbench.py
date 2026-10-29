@@ -31,7 +31,7 @@ from sparselab.research.catalog import (
 )
 from sparselab.research.probe import probe_model
 from sparselab.research.scaffold import scaffold_lesson, scaffold_research
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest
 
 
 def _write_byte_tokenizer(path: Path) -> None:
@@ -142,10 +142,7 @@ def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     unsigned = {
         key: value for key, value in metadata.items() if key != "research_sha256"
     }
-    assert (
-        hashlib.sha256(canonical_json(unsigned)).hexdigest()
-        == metadata["research_sha256"]
-    )
+    assert canonical_digest(unsigned) == metadata["research_sha256"]
     assert not (output / "artifacts").exists()
     assert not (output / "runs").exists()
 

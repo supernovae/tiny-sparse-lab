@@ -7,7 +7,6 @@ It never downloads a model, imports source code, or guesses a tensor mapping.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -36,6 +35,7 @@ from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
     architecture_sha256,
+    canonical_digest,
     canonical_json,
     config_sha256,
     sha256_file,
@@ -94,10 +94,6 @@ def _json(path: Path) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise TypeError(f"{path} must contain a JSON object")
     return raw
-
-
-def _sha256_json(raw: Mapping[str, object]) -> str:
-    return hashlib.sha256(canonical_json(raw)).hexdigest()
 
 
 def _provenance(path: Path) -> dict[str, str]:
@@ -259,7 +255,7 @@ def load_legacy_weights(
     return LegacyWeights(
         tensors,
         source_config,
-        _sha256_json(source_config.model_dump(mode="json")),
+        canonical_digest(source_config.model_dump(mode="json")),
         metadata,
     )
 
@@ -435,7 +431,7 @@ def _llama_weights(
     return (
         _validate_destination_tensors(destination, mapped),
         config,
-        _sha256_json(config),
+        canonical_digest(config),
     )
 
 
@@ -501,7 +497,7 @@ def _write_import_checkpoint(
             "parent_checkpoint_sha256": None,
             "lineage_best": None,
         }
-        digest = hashlib.sha256(canonical_json(content)).hexdigest()
+        digest = canonical_digest(content)
         (temporary / "manifest.json").write_bytes(
             canonical_json({**content, "sha256": digest}) + b"\n"
         )

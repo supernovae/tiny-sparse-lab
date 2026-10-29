@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from pathlib import Path
 
@@ -23,7 +22,12 @@ from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.model.transformer import DenseLM
-from sparselab.training.manifest import canonical_json, sha256_file, source_identity
+from sparselab.training.manifest import (
+    canonical_digest,
+    canonical_json,
+    sha256_file,
+    source_identity,
+)
 
 
 def _allocation_config(tmp_path: Path, *, weight: float, memory: bool = True):
@@ -302,7 +306,7 @@ def _prepared_cache(root: Path) -> None:
     manifest = {
         "packing_version": "contiguous-eos-v5",
         "cache_identity": identity,
-        "settings_sha256": hashlib.sha256(canonical_json(identity)).hexdigest(),
+        "settings_sha256": canonical_digest(identity),
         "train": _array_metadata(root / "train.npy"),
         "validation": _array_metadata(root / "validation.npy"),
         "supervision": {
@@ -317,7 +321,7 @@ def _prepared_cache(root: Path) -> None:
         "byte_addressing": None,
         "allocation": allocation,
     }
-    manifest["manifest_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest["manifest_sha256"] = canonical_digest(manifest)
     (root / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
 
 

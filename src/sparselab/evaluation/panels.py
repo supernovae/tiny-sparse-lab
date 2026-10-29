@@ -21,7 +21,7 @@ from sparselab.evaluation.inference import load_run
 from sparselab.evaluation.language_model import evaluate
 from sparselab.evaluation.panel_data import select_panel as _dataset
 from sparselab.training.attempt_budget import AttemptBudget
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
@@ -53,7 +53,7 @@ def run_panel(
     protocol = panel.model_dump(
         mode="json", exclude={"prepared_path", "checkpoint_sha256"}
     )
-    protocol_sha = hashlib.sha256(canonical_json(protocol)).hexdigest()
+    protocol_sha = canonical_digest(protocol)
     result: dict[str, Any] = {
         "source": "heldout_panel",
         "version": 1,

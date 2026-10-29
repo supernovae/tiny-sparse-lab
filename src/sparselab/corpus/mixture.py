@@ -33,7 +33,7 @@ from sparselab.corpus.mixture_index import (
 from sparselab.corpus.release import _verification_operation, verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 
 class ObservationFile(BaseModel):
@@ -222,7 +222,7 @@ def _rank(
         return hashlib.sha256(
             f"kml-card03-v1 | {stratum} | {doc_id}".encode()
         ).hexdigest()
-    return hashlib.sha256(canonical_json([seed, stratum, family, doc_id])).hexdigest()
+    return canonical_digest([seed, stratum, family, doc_id])
 
 
 def materialize_mixture(declaration: Path, output: Path) -> dict:

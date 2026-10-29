@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import gc
-import hashlib
 import math
 import sqlite3
 import uuid
@@ -27,7 +26,7 @@ from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime_profile import rederive_authorization, require_authorization
 from sparselab.staging import _read_sealed, _seal, pilot_config
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest, source_identity
+from sparselab.training.manifest import canonical_digest, read_manifest, source_identity
 from sparselab.training.pilot_progress import (
     activate_pilot_progress,
     pilot_phase,
@@ -93,7 +92,7 @@ def run_pilot(
     gc.collect()
     run = config.logging.root_dir / run_id
     manifest = read_manifest(run / "manifest.json")
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_digest = canonical_digest(manifest)
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     checkpoint = manager.root / "latest.json"
     with pilot_phase("checkpoint_verification"):

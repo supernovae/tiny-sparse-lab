@@ -42,6 +42,7 @@ from sparselab.research.catalog import (
     ScaleProfile,
 )
 from sparselab.training.manifest import (
+    canonical_digest,
     canonical_json,
     config_sha256,
     read_manifest,
@@ -228,10 +229,7 @@ def _validate_portability_evidence(
         raise ValueError("portability evidence summary is malformed")
     claimed = evidence["sha256"]
     material = {key: value for key, value in evidence.items() if key != "sha256"}
-    if (
-        not _is_sha256(claimed)
-        or hashlib.sha256(canonical_json(material)).hexdigest() != claimed
-    ):
+    if not _is_sha256(claimed) or canonical_digest(material) != claimed:
         raise ValueError("portability evidence hash mismatch")
     if evidence_bytes != canonical_json(evidence) + b"\n":
         raise ValueError("portability evidence must use canonical JSON")
@@ -297,7 +295,7 @@ def _historical_study_identity(study: Any) -> tuple[str, str, list[str]]:
             "requirements": first.requirements.model_dump(mode="json"),
         },
     }
-    matrix_sha256 = hashlib.sha256(canonical_json(matrix_material)).hexdigest()
+    matrix_sha256 = canonical_digest(matrix_material)
     config_digests = [
         _historical_config_sha256(item.config.model_dump(mode="json"))
         for item in study.expanded
@@ -315,7 +313,7 @@ def _historical_study_identity(study: Any) -> tuple[str, str, list[str]]:
             for item, digest in zip(study.expanded, config_digests, strict=True)
         ],
     }
-    study_sha256 = hashlib.sha256(canonical_json(study_material)).hexdigest()
+    study_sha256 = canonical_digest(study_material)
     return matrix_sha256, study_sha256, config_digests
 
 
@@ -349,7 +347,7 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
     ):
         raise ValueError("unsupported research scaffold metadata")
     body = {key: value for key, value in metadata.items() if key != "research_sha256"}
-    if hashlib.sha256(canonical_json(body)).hexdigest() != metadata["research_sha256"]:
+    if canonical_digest(body) != metadata["research_sha256"]:
         raise ValueError("research metadata hash mismatch")
     inventory = metadata.get("inputs")
     coordinates = metadata.get("coordinates")
@@ -866,7 +864,7 @@ def _validate_local_run(
         return {
             "status": "validated",
             "evidence_level": local.get("evidence_level"),
-            "manifest_sha256": hashlib.sha256(canonical_json(manifest)).hexdigest(),
+            "manifest_sha256": canonical_digest(manifest),
             "selected_checkpoint": matches[0],
             "experiment_evidence": local,
         }
@@ -1007,10 +1005,7 @@ def build_study_report(
         raise ValueError("unsupported collected report")
     claimed = evidence.get("report_sha256")
     material = {key: value for key, value in evidence.items() if key != "report_sha256"}
-    if (
-        not _is_sha256(claimed)
-        or hashlib.sha256(canonical_json(material)).hexdigest() != claimed
-    ):
+    if not _is_sha256(claimed) or canonical_digest(material) != claimed:
         raise ValueError("collected report hash mismatch")
     portability_evidence: dict[str, object] | None = None
     portability_evidence_bytes: bytes | None = None
@@ -1809,7 +1804,7 @@ def write_study_report(report: dict[str, object], output: Path) -> Path:
             "receipt_sha256": report_inputs["receipt_sha256"],
             "report_sha256": report_inputs["collected_report_sha256"],
         }
-        manifest["bundle_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+        manifest["bundle_sha256"] = canonical_digest(manifest)
         (temp / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
         destination = output / str(manifest["bundle_sha256"])
         if os.path.lexists(destination):
@@ -1852,10 +1847,7 @@ def load_report_bundle(path: Path) -> dict[str, object]:
     ):
         raise ValueError("unsupported report bundle manifest")
     body = {key: value for key, value in manifest.items() if key != "bundle_sha256"}
-    if (
-        hashlib.sha256(canonical_json(body)).hexdigest() != bundle_digest
-        or root.name != bundle_digest
-    ):
+    if canonical_digest(body) != bundle_digest or root.name != bundle_digest:
         raise ValueError("report bundle manifest hash mismatch")
     files = manifest.get("files")
     if not isinstance(files, list):
@@ -2086,7 +2078,7 @@ def _validate_learned_portability_evidence(
     material = {key: value for key, value in evidence.items() if key != "sha256"}
     if (
         not _is_sha256(claimed)
-        or hashlib.sha256(canonical_json(material)).hexdigest() != claimed
+        or canonical_digest(material) != claimed
         or evidence_bytes != canonical_json(evidence) + b"\n"
     ):
         raise ValueError("learned portability evidence hash or encoding differs")
@@ -2445,7 +2437,7 @@ def _write_portability_report_bundle(report: dict[str, object], output: Path) ->
             "evidence_sha256": inputs["evidence_sha256"],
             "report_sha256": _sha(report_bytes),
         }
-        manifest["bundle_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+        manifest["bundle_sha256"] = canonical_digest(manifest)
         (temp / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
         destination = output / str(manifest["bundle_sha256"])
         if os.path.lexists(destination):

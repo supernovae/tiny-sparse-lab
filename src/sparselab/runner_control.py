@@ -19,6 +19,7 @@ from sparselab.operational_monitor import (
     MonitorPolicy,
     monitor_command,
 )
+from sparselab.verification_proofs import writable_by_others
 
 
 class RunnerPreflightRefused(ValueError):
@@ -73,7 +74,7 @@ def _safe(path: Path, *, directory: bool = False) -> os.stat_result:
     if (
         not kind(info.st_mode)
         or info.st_uid != os.getuid()
-        or info.st_mode & 0o022
+        or writable_by_others(info)
         or (not directory and info.st_nlink != 1)
     ):
         raise ValueError(f"unsafe runner state: {path}")

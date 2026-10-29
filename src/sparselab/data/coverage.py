@@ -7,7 +7,6 @@ No preparation, source acquisition, training, or source-compatibility grant occu
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from contextlib import redirect_stdout
@@ -25,7 +24,7 @@ from sparselab.data.packing import (
     load_prepared_data,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.training.manifest import canonical_digest, source_identity
 
 _CHUNK_TOKENS = 1 << 20
 _LOCATION_KEYS = {
@@ -36,10 +35,6 @@ _LOCATION_KEYS = {
     "corpus_release_path",
     "corpus_export_path",
 }
-
-
-def _digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _bind_config(manifest: dict, config: RunConfig) -> dict | None:
@@ -70,12 +65,12 @@ def _bind_config(manifest: dict, config: RunConfig) -> dict | None:
         from sparselab.data.local_stories import verify_snapshot
 
         snapshot = verify_snapshot(config.dataset)
-        expected["local_stories_source_sha256"] = _digest(snapshot)
+        expected["local_stories_source_sha256"] = canonical_digest(snapshot)
     elif config.dataset.source == "snapshot":
         from sparselab.data.sources import verify_snapshot
 
         snapshot = verify_snapshot(config.dataset)
-        expected["snapshot_source_sha256"] = _digest(snapshot)
+        expected["snapshot_source_sha256"] = canonical_digest(snapshot)
         declared = snapshot["lock"]["source"]
         if (
             config.dataset.revision != declared["revision"]
@@ -195,7 +190,8 @@ def coverage(prepared_root: Path, config: RunConfig | Path | None = None) -> dic
     snapshot = manifest.get("dataset_snapshot")
     if snapshot is not None and (
         not isinstance(snapshot, dict)
-        or _digest(snapshot) != manifest["cache_identity"].get("snapshot_source_sha256")
+        or canonical_digest(snapshot)
+        != manifest["cache_identity"].get("snapshot_source_sha256")
     ):
         raise ValueError("embedded snapshot source binding mismatch")
     if config is not None:

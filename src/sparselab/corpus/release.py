@@ -17,7 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -47,10 +47,6 @@ def _verification_operation():
         yield
     finally:
         _verified_releases.reset(token)
-
-
-def _digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _load(path: Path) -> Any:
@@ -542,7 +538,7 @@ def _validate_rows_v3(
                     if (
                         span.get("normalizer") != normalizer
                         or doc["document_id"]
-                        != _digest(
+                        != canonical_digest(
                             [
                                 source["snapshot_sha256"],
                                 doc["source_location"],
@@ -1093,7 +1089,7 @@ def _validate_rows_stored(
         } and (
             span.get("normalizer") != expected_normalizer
             or doc["document_id"]
-            != _digest(
+            != canonical_digest(
                 [
                     source["snapshot_sha256"],
                     doc["source_location"],
@@ -1266,7 +1262,7 @@ def _validate_rows_stored(
                     evidence["oracle_answer"] != scenario["oracle_answer"]
                     or evidence["generator_world_id"] != scenario["generator_world_id"]
                     or evidence["oracle_identity"]
-                    != _digest([world, scenario["oracle_answer"]])
+                    != canonical_digest([world, scenario["oracle_answer"]])
                     or evidence["world_state"] != world
                     or evidence["oracle_version"] != scenario["generator_version"]
                     or evidence["oracle_implementation"] != implementation
@@ -1422,13 +1418,13 @@ def _validate_rows_stored(
                     != evidence["document_id"]
                 ):
                     raise ValueError("generation answer not entailed by citation")
-                if generation != payload or _digest(generation["generator"]) != row.get(
-                    "generator_identity"
-                ):
+                if generation != payload or canonical_digest(
+                    generation["generator"]
+                ) != row.get("generator_identity"):
                     raise ValueError("generation identity mismatch")
             elif kind == "scenario":
                 scenario = scenarios.get(row["record_id"])
-                if scenario != payload or _digest(
+                if scenario != payload or canonical_digest(
                     [scenario["generator_id"], scenario["generator_version"]]
                 ) != row.get("generator_identity"):
                     raise ValueError("scenario generator identity mismatch")
@@ -1447,7 +1443,7 @@ def _validate_rows_stored(
                         raise ValueError("chat verification differs from generation")
                 elif scenario_id := row.get("scenario_id"):
                     source = scenarios.get(scenario_id)
-                    if source is None or _digest(
+                    if source is None or canonical_digest(
                         [source["generator_id"], source["generator_version"]]
                     ) != row.get("generator_identity"):
                         raise ValueError("chat scenario identity mismatch")
@@ -1457,7 +1453,7 @@ def _validate_rows_stored(
                         fact is None
                         or record.get("semantic_id") != semantic_id
                         or row.get("generator_identity")
-                        != _digest(
+                        != canonical_digest(
                             [
                                 "semantic_chat_v1",
                                 row["transform_id"],
@@ -1579,7 +1575,7 @@ def _verify_stages(
         if (
             stage["kind"] != declaration["kind"]
             or stage["version"] != declaration["version"]
-            or stage["parameters_sha256"] != _digest(declaration["parameters"])
+            or stage["parameters_sha256"] != canonical_digest(declaration["parameters"])
             or stage["inputs"] != declaration["inputs"]
             or stage["implementation_sha256"] != identity["implementation_sha256"]
         ):
@@ -1663,7 +1659,7 @@ def _verify_build_cold(
     if (
         manifest["schema_version"] != 1
         or manifest["build_id"] != path.name
-        or _digest(manifest["identity"]) != path.name
+        or canonical_digest(manifest["identity"]) != path.name
     ):
         raise ValueError("invalid build identity")
     _files(
@@ -1747,7 +1743,7 @@ def freeze(
                 ):
                     raise ValueError(f"selected {view}/{split} training view is empty")
     payload = _manifest_payload(build)
-    release_id = _digest(payload)
+    release_id = canonical_digest(payload)
     destination = (
         Path(work_root) / "corpora" / payload["corpus_id"] / "releases" / release_id
     )
@@ -1918,7 +1914,9 @@ def _verify_release_cold(
     if release_id != (expected_id or path.name) or len(release_id) != 64:
         raise ValueError("release directory identity mismatch")
     if (
-        _digest({key: value for key, value in manifest.items() if key != "release_id"})
+        canonical_digest(
+            {key: value for key, value in manifest.items() if key != "release_id"}
+        )
         != release_id
     ):
         raise ValueError("release manifest identity mismatch")

@@ -15,7 +15,7 @@ from typing import Any, BinaryIO, Literal
 
 from sparselab.campaign.state import read_canonical
 from sparselab.recovery.manifest import load_manifest
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 from sparselab.workdir import resolve_work_dir
 
 _CHUNK = 1024 * 1024
@@ -950,7 +950,7 @@ def _verify_domain_inventory(
         if present[name]["role"] == "checkpoint":
             identity = record.get("sha256")
             body = {key: value for key, value in record.items() if key != "sha256"}
-            if hashlib.sha256(canonical_json(body)).hexdigest() != identity:
+            if canonical_digest(body) != identity:
                 raise ValueError("archived checkpoint manifest digest mismatch")
             listed = {
                 entry["name"]: (entry["bytes"], entry["sha256"])
@@ -974,7 +974,7 @@ def _verify_domain_inventory(
             body = {
                 key: value for key, value in record.items() if key != "manifest_sha256"
             }
-            if hashlib.sha256(canonical_json(body)).hexdigest() != identity:
+            if canonical_digest(body) != identity:
                 raise ValueError("archived prepared-data manifest digest mismatch")
             required = required_arrays(record)
             available = {
@@ -1027,7 +1027,7 @@ def _verify_domain_inventory(
         else:
             identity = record.get("release_id")
             body = {key: value for key, value in record.items() if key != "release_id"}
-            if hashlib.sha256(canonical_json(body)).hexdigest() != identity:
+            if canonical_digest(body) != identity:
                 raise ValueError("archived corpus release manifest digest mismatch")
             listed = {
                 file: (entry["size"], entry["sha256"])

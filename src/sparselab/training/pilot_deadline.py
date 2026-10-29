@@ -25,7 +25,7 @@ from sparselab.operational_monitor import (
     _signal_owned,
     sample,
 )
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.training.pilot_progress import validate_event
 
 _MAX_FRAME = 2048
@@ -374,7 +374,7 @@ def _fsync_directory(path: Path) -> None:
 
 
 def _seal(path: Path, payload: dict[str, object]) -> dict[str, object]:
-    sealed = {**payload, "sha256": hashlib.sha256(canonical_json(payload)).hexdigest()}
+    sealed = {**payload, "sha256": canonical_digest(payload)}
     with path.open("xb") as stream:
         _record(stream, sealed)
     _fsync_directory(path.parent)
@@ -445,7 +445,7 @@ def supervise_pilot(
     state = PilotDeadlineState(windows, expected_steps=expected_steps)
     monitor = monitor_policy or MonitorPolicy(monitor_policy_version=1)
     monitor_dump = monitor.model_dump(mode="json")
-    monitor_digest = hashlib.sha256(canonical_json(monitor_dump)).hexdigest()
+    monitor_digest = canonical_digest(monitor_dump)
     known: dict[int, ProcessIdentity] = {}
     root: ProcessIdentity | None = None
     process: subprocess.Popen[bytes] | None = None

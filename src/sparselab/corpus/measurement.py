@@ -15,7 +15,7 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, sha256_file
 
 SPLITS = ("train", "validation", "test")
 DIMENSIONS = ("origin", "verification_status", "shape")
@@ -593,10 +593,10 @@ def _verified_capability_results(
         identity = record.get("identity")
         if (
             not isinstance(digest, str)
-            or hashlib.sha256(canonical_json(record)).hexdigest() != digest
+            or canonical_digest(record) != digest
             or not isinstance(identity, dict)
             or path.name
-            != f"capability-{hashlib.sha256(canonical_json(str(identity.get('checkpoint_sha256') or 'unbound'))).hexdigest()[:12]}-{digest}.json"
+            != f"capability-{canonical_digest(str(identity.get('checkpoint_sha256') or 'unbound'))[:12]}-{digest}.json"
             or identity.get("run_id") != evidence["run_id"]
             or identity.get("source_identity_sha256")
             != evidence["source_identity_sha256"]

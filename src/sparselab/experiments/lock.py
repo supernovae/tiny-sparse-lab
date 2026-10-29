@@ -40,6 +40,7 @@ from sparselab.experiments.plan import (
 )
 from sparselab.experiments.source_compatibility import locked_source_identity
 from sparselab.training.manifest import (
+    canonical_digest,
     canonical_json,
     config_sha256,
     sha256_file,
@@ -605,16 +606,13 @@ def _check_cell_inputs(
                 / snapshot["excluded"]["path"],
             ):
                 _safe_path(str(member), Path(tokenizer_path))
-            if (
-                contract.get("source_manifest_sha256")
-                != sha256_file(config.dataset.source_manifest_path)
-                or prepared_identity.get(
-                    "snapshot_source_sha256"
-                    if config.dataset.source == "snapshot"
-                    else "local_stories_source_sha256"
-                )
-                != hashlib.sha256(canonical_json(snapshot)).hexdigest()
-            ):
+            if contract.get("source_manifest_sha256") != sha256_file(
+                config.dataset.source_manifest_path
+            ) or prepared_identity.get(
+                "snapshot_source_sha256"
+                if config.dataset.source == "snapshot"
+                else "local_stories_source_sha256"
+            ) != canonical_digest(snapshot):
                 raise ValueError(
                     "prepared cache/tokenizer does not bind the pinned "
                     + ("source" if config.dataset.source == "snapshot" else "story")

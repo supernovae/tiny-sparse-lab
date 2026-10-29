@@ -27,7 +27,7 @@ from sparselab.experiments.matrix import ExpandedExperiment, expand
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.result_publication import sync_directory as _sync_directory
 from sparselab.result_publication import write_bytes_exclusive
-from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.training.manifest import canonical_digest, canonical_json, config_sha256
 
 
 def study_workspace(name: str) -> Path:
@@ -362,7 +362,7 @@ def plan_study(path: Path, *, max_runs: int = 1000) -> ArchitectureStudy:
             for item in expanded
         ],
     }
-    digest = hashlib.sha256(canonical_json(material)).hexdigest()
+    digest = canonical_digest(material)
     return ArchitectureStudy(
         source,
         name,
@@ -475,7 +475,7 @@ def _study_receipt_template(study: ArchitectureStudy) -> dict[str, Any]:
 def _submission_binding(intent: dict[str, Any], index: int) -> dict[str, Any]:
     return {
         "submission_id": intent["submission_id"],
-        "intent_sha256": hashlib.sha256(canonical_json(intent)).hexdigest(),
+        "intent_sha256": canonical_digest(intent),
         "study_sha256": intent["receipt"]["study_sha256"],
         "matrix_sha256": intent["receipt"]["matrix_sha256"],
         "cards_sha256": hashlib.sha256(
@@ -698,7 +698,7 @@ def recover_study_receipt(
         "recovery": {
             "submission_id": intent["submission_id"],
             "intent_path": str(intent_path.absolute()),
-            "intent_sha256": hashlib.sha256(canonical_json(intent)).hexdigest(),
+            "intent_sha256": canonical_digest(intent),
             "intent_file_sha256": hashlib.sha256(intent_bytes).hexdigest(),
             "original_receipt_path": str(original),
             "original_receipt_sha256": hashlib.sha256(original.read_bytes()).hexdigest()
@@ -1156,7 +1156,7 @@ def collect_study(
         "summary": _summary(comparisons, study.cards),
         "interpretation": "Matched evidence is limited to the declared cards and validation split. Paired summaries are descriptive, not statistical confirmation.",
     }
-    digest = hashlib.sha256(canonical_json(report)).hexdigest()
+    digest = canonical_digest(report)
     report_dir = receipt_path.parent / "local-reports"
     report_path = report_dir / f"architecture-{study.study_sha256[:12]}-{digest}.json"
     payload = {**report, "report_sha256": digest}

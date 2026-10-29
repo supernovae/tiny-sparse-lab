@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 LEGACY_HF_ROW_URIS = {
     "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered",
@@ -132,7 +132,7 @@ def use_evidence(
     row: dict, qualification: RowQualification, text_field: str, policy: RowUsePolicy
 ) -> dict:
     """Retain labels and notice pointers; do not classify licenses or infer permission."""
-    digest = hashlib.sha256(canonical_json(row)).hexdigest()
+    digest = canonical_digest(row)
     label = field_value(row, qualification.license_field)
     text = row.get(text_field)
     # Iterate LF physical lines without materializing a split list. Extracted
@@ -192,9 +192,7 @@ def family_hint(row: dict, policy: RowQualification) -> str:
         values[0] = values[0].casefold()
     if any(not _present(value) for value in values):
         raise ValueError("missing declared family provenance")
-    return (
-        policy.profile + "-family:" + hashlib.sha256(canonical_json(values)).hexdigest()
-    )
+    return policy.profile + "-family:" + canonical_digest(values)
 
 
 def provenance(row: dict, policy: RowQualification) -> dict:
@@ -251,10 +249,7 @@ def exceptions(
         and field_value(row, policy.language_field) not in policy.allowed_languages
     ):
         return "record outside declared language policy", ()
-    if (
-        row_use is not None
-        and hashlib.sha256(canonical_json(row)).hexdigest() in row_use.restricted_rows
-    ):
+    if row_use is not None and canonical_digest(row) in row_use.restricted_rows:
         return "explicit training-use restriction on source row", ()
     if policy.profile != "code":
         return None, ()

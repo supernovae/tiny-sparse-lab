@@ -6,7 +6,6 @@ the worker's receipt, run store, checkpoints, and outbox remain authoritative.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
@@ -27,7 +26,11 @@ from sparselab.evaluation.post_train_triage import read_triage, triage_summary
 from sparselab.resource_envelope import check_envelope, current_process_rss_bytes
 from sparselab.runtime import discover_runtimes, validate_runtime
 from sparselab.runtime_profile import authorize_worker, require_authorization
-from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.training.manifest import (
+    canonical_digest,
+    canonical_json,
+    source_identity,
+)
 from sparselab.verification_proofs import verification_options
 
 from .leases import acquire_lease, boot_identity, process_matches, process_start
@@ -454,7 +457,7 @@ def validate_worker(
 
 def _spec_from_path(path: Path) -> dict[str, Any]:
     spec = _strict_json(path)
-    digest = hashlib.sha256(canonical_json(spec)).hexdigest()
+    digest = canonical_digest(spec)
     return {"payload": spec, "digest": digest}
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from sparselab.corpus.bounded_metadata import metadata_operation
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import SourceDeclaration, source_declaration_payload
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 
 @contextmanager
@@ -87,7 +87,7 @@ def derive_subset(source, *, scratch_directory, staging=None):
                     for key, value in row.items()
                     if key != "_sparselab_source"
                 }
-                row_sha = hashlib.sha256(canonical_json(original_row)).hexdigest()
+                row_sha = canonical_digest(original_row)
                 index = receipt["source_row_index"]
                 if (
                     not isinstance(envelope, dict)

@@ -15,7 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from sparselab.result_publication import sync_directory
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.verification_proofs import _trusted
 
 _ACTIVE = ContextVar("retained_render_adoption", default=None)
@@ -24,7 +24,7 @@ _LIMIT = 4 * 1024**2
 
 
 def _sha(value):
-    return hashlib.sha256(canonical_json(value)).hexdigest()
+    return canonical_digest(value)
 
 
 def _small(path, root, *, private=False):

@@ -1927,13 +1927,11 @@ class CampaignEngine:
     @staticmethod
     def _check_continuation_parent(parent: Path, continuation: Any) -> None:
         """Bind a previously verified generation to its authenticated run manifest."""
-        import hashlib
-
-        from sparselab.training.manifest import canonical_json, read_manifest
+        from sparselab.training.manifest import canonical_digest, read_manifest
 
         run_manifest_path = parent.parent.parent / "manifest.json"
         run_manifest = read_manifest(run_manifest_path)
-        run_digest = hashlib.sha256(canonical_json(run_manifest)).hexdigest()
+        run_digest = canonical_digest(run_manifest)
         generation = json.loads((parent / "manifest.json").read_text())
         identity = continuation.artifact_identity
         if (

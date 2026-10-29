@@ -21,6 +21,7 @@ from sparselab.engram.packs import verify_pack
 from sparselab.model.inspection import named_tensor_inventory
 from sparselab.training.manifest import (
     architecture_sha256,
+    canonical_digest,
     canonical_json,
     read_manifest,
     sha256_file,
@@ -171,7 +172,7 @@ def _verify_world_manifest(path: Path) -> dict[str, Any]:
         raise ValueError("unsupported portability world manifest")
     expected = _digest(payload.get("sha256"), "world manifest sha256")
     content = {key: value for key, value in payload.items() if key != "sha256"}
-    if hashlib.sha256(canonical_json(content)).hexdigest() != expected:
+    if canonical_digest(content) != expected:
         raise ValueError("portability world manifest hash mismatch")
     files = payload.get("files")
     if not isinstance(files, list):
@@ -231,7 +232,7 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
         raise ValueError("unsupported portability run manifest version")
     expected = _digest(payload["sha256"], "portability run manifest sha256")
     content = {key: value for key, value in payload.items() if key != "sha256"}
-    if hashlib.sha256(canonical_json(content)).hexdigest() != expected:
+    if canonical_digest(content) != expected:
         raise ValueError("portability run manifest hash mismatch")
     if payload["seeds"] != list(_SEEDS) or config.seed not in _SEEDS:
         raise ValueError("portability seed axis must be exactly [17, 41, 73]")
@@ -666,7 +667,7 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
         content = {
             key: value for key, value in fact.items() if key != "content_digest_sha256"
         }
-        if hashlib.sha256(canonical_json(content)).hexdigest() != _digest(
+        if canonical_digest(content) != _digest(
             fact["content_digest_sha256"], "fact content digest"
         ):
             raise ValueError("learned fact content digest mismatch")
@@ -756,7 +757,7 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
         content = {
             key: value for key, value in fact.items() if key != "content_digest_sha256"
         }
-        if hashlib.sha256(canonical_json(content)).hexdigest() != _digest(
+        if canonical_digest(content) != _digest(
             fact["content_digest_sha256"], "preparation fact content digest"
         ):
             raise ValueError("learned preparation fact digest mismatch")
@@ -847,7 +848,7 @@ def _load_portability_manifest_v2(
         raise ValueError("learned portability v2 manifest has an invalid schema")
     body = {key: value for key, value in payload.items() if key != "sha256"}
     if (
-        hashlib.sha256(canonical_json(body)).hexdigest()
+        canonical_digest(body)
         != _digest(payload["sha256"], "portability run manifest sha256")
         or path.read_bytes() != canonical_json(payload) + b"\n"
     ):

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import math
@@ -91,6 +90,7 @@ from sparselab.training.manifest import (
     RunManifest,
     _is_sha256,
     architecture_sha256,
+    canonical_digest,
     canonical_json,
     config_sha256,
     sha256_file,
@@ -552,7 +552,7 @@ def _write_validation_report(
         "seq_len": config.training.seq_len,
         **result,
     }
-    payload["sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    payload["sha256"] = canonical_digest(payload)
     content = canonical_json(payload) + b"\n"
     if report.exists():
         if report.read_bytes() != content:

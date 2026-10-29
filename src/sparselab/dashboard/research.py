@@ -18,7 +18,7 @@ import streamlit as st
 
 from sparselab.experiments.reporting import load_report_bundle
 from sparselab.research.catalog import list_lessons, list_research
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest
 
 _BUNDLE_NAME = re.compile(r"^[0-9a-f]{64}$")
 _MAX_BUNDLES = 200
@@ -508,7 +508,7 @@ def _learning_observations(
             content = {
                 key: value for key, value in payload.items() if key != "identity"
             }
-            if identity != hashlib.sha256(canonical_json(content)).hexdigest():
+            if identity != canonical_digest(content):
                 raise ValueError("observation identity mismatch")
             accepted.append(payload)
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:

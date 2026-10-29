@@ -31,14 +31,10 @@ from sparselab.data.verification import (
 from sparselab.data.verification import (
     _fingerprint as _verified_fingerprint,
 )
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 
 _after_sealed_chunk: Callable[[str, int, Path], None] | None = None
 _after_unsealed_chunk_write: Callable[[str, int, Path], None] | None = None
-
-
-def _digest(payload: dict[str, object]) -> str:
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
 
 
 def _document(path: Path) -> dict[str, object]:
@@ -49,13 +45,13 @@ def _document(path: Path) -> dict[str, object]:
     if not isinstance(document, dict) or canonical_json(document) + b"\n" != raw:
         raise ValueError(f"noncanonical staging receipt: {path}")
     checksum = document.pop("checksum", None)
-    if not isinstance(checksum, str) or checksum != _digest(document):
+    if not isinstance(checksum, str) or checksum != canonical_digest(document):
         raise ValueError(f"staging receipt checksum mismatch: {path}")
     return document
 
 
 def _store_document(path: Path, payload: dict[str, object]) -> None:
-    complete = {**payload, "checksum": _digest(payload)}
+    complete = {**payload, "checksum": canonical_digest(payload)}
     temporary = path.with_name(path.name + ".tmp")
     with temporary.open("xb") as output:
         output.write(canonical_json(complete) + b"\n")
@@ -445,9 +441,9 @@ class PreparationChunks:
         signature = signed.pop("manifest_sha256", None)
         if (
             not isinstance(signature, str)
-            or _digest(signed) != signature
+            or canonical_digest(signed) != signature
             or manifest.get("cache_identity") != cache_identity
-            or manifest.get("settings_sha256") != _digest(cache_identity)
+            or manifest.get("settings_sha256") != canonical_digest(cache_identity)
         ):
             raise ValueError("published staging manifest or identity mismatch")
         required = required_arrays(manifest)

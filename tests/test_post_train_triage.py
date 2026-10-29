@@ -152,14 +152,17 @@ def _triage_shape_fixture(tmp_path: Path) -> dict:
 
 
 def _write_triage_shape(tmp_path: Path, payload: object) -> Path:
-    from sparselab.evaluation.post_train_triage import _sha
-    from sparselab.training.manifest import canonical_json, sha256_file
+    from sparselab.training.manifest import (
+        canonical_digest,
+        canonical_json,
+        sha256_file,
+    )
 
     if isinstance(payload, dict):
         payload["identity"] = {
-            "sha256": _sha(payload),
+            "sha256": canonical_digest(payload),
             "run_id": "run",
-            "manifest_sha256": _sha({"run_id": "run"}),
+            "manifest_sha256": canonical_digest({"run_id": "run"}),
         }
     folder = tmp_path / "run" / "post-train-triage"
     folder.mkdir(parents=True, exist_ok=True)
@@ -262,11 +265,11 @@ def test_nonobject_manifest_is_local_value_error(tmp_path, value):
     ],
 )
 def test_manifest_nested_shape_errors_are_local_value_error(tmp_path, field, value):
-    from sparselab.evaluation.post_train_triage import _sha
     from sparselab.training.manifest import (
         ARCHITECTURE_VERSION,
         IDENTITY_VERSION,
         architecture_sha256,
+        canonical_digest,
         config_sha256,
         read_manifest,
     )
@@ -293,7 +296,7 @@ def test_manifest_nested_shape_errors_are_local_value_error(tmp_path, field, val
         data[config_name + "_sha256"] = (
             config_sha256(config) if isinstance(config, dict) else "malformed"
         )
-    data["sha256"] = _sha(data)
+    data["sha256"] = canonical_digest(data)
     manifest = path.parent.parent / "manifest.json"
     manifest.write_text(json.dumps(data))
     before = manifest.read_bytes(), path.read_bytes()
@@ -305,15 +308,18 @@ def test_manifest_nested_shape_errors_are_local_value_error(tmp_path, field, val
 
 
 def _triage_pass_fixture(tmp_path):
-    from sparselab.evaluation.post_train_triage import _sha
-    from sparselab.training.manifest import canonical_json
+    from sparselab.training.manifest import canonical_digest, canonical_json
 
     manifest = {"manifest_version": 1, "run_id": "run"}
-    manifest["sha256"] = _sha(manifest)
+    manifest["sha256"] = canonical_digest(manifest)
     bound_manifest = {key: value for key, value in manifest.items() if key != "sha256"}
     payload = _triage_shape_fixture(tmp_path)
-    checkpoint = {"manifest_sha256": _sha(bound_manifest), "step": 0, "tokens_seen": 0}
-    checkpoint["sha256"] = _sha(checkpoint)
+    checkpoint = {
+        "manifest_sha256": canonical_digest(bound_manifest),
+        "step": 0,
+        "tokens_seen": 0,
+    }
+    checkpoint["sha256"] = canonical_digest(checkpoint)
     generation = "step_00000000_gen_000001"
     payload["core"]["integrity"] = {
         "status": "PASS",
@@ -325,8 +331,8 @@ def _triage_pass_fixture(tmp_path):
     payload.pop("identity")
     payload["identity"] = {
         "run_id": "run",
-        "sha256": _sha(payload),
-        "manifest_sha256": _sha(bound_manifest),
+        "sha256": canonical_digest(payload),
+        "manifest_sha256": canonical_digest(bound_manifest),
         "generation_manifest_sha256": checkpoint["sha256"],
     }
     path.unlink()
@@ -343,7 +349,7 @@ def _triage_pass_fixture(tmp_path):
     checkpoint_path.write_bytes(canonical_json(checkpoint))
     progress = {
         "status": "completed",
-        "manifest_sha256": _sha(bound_manifest),
+        "manifest_sha256": canonical_digest(bound_manifest),
         "step": 0,
         "tokens_seen": 0,
         "latest": {
@@ -373,8 +379,7 @@ def _triage_pass_fixture(tmp_path):
     ],
 )
 def test_pass_binding_rejects_malformed_checkpoint_and_progress(tmp_path, broken):
-    from sparselab.evaluation.post_train_triage import _sha
-    from sparselab.training.manifest import canonical_json
+    from sparselab.training.manifest import canonical_digest, canonical_json
 
     path, checkpoint, progress = _triage_pass_fixture(tmp_path)
     assert read_triage("run", tmp_path)["core"]["integrity"]["status"] == "PASS"
@@ -397,7 +402,7 @@ def test_pass_binding_rejects_malformed_checkpoint_and_progress(tmp_path, broken
             data["step"] = False
         else:
             data["step" if broken == "bad_step" else "tokens_seen"] = []
-        data["sha256"] = _sha(data)
+        data["sha256"] = canonical_digest(data)
         checkpoint.write_bytes(canonical_json(data))
         # Keep digest/counter bindings matched so only malformed counter shape
         # distinguishes this from the valid fixture.
@@ -405,7 +410,7 @@ def test_pass_binding_rejects_malformed_checkpoint_and_progress(tmp_path, broken
         identity = report.pop("identity")
         report["core"]["integrity"]["generation_manifest_sha256"] = data["sha256"]
         identity["generation_manifest_sha256"] = data["sha256"]
-        identity["sha256"] = _sha(report)
+        identity["sha256"] = canonical_digest(report)
         report["identity"] = identity
         path.write_bytes(canonical_json(report) + b"\n")
         from sparselab.training.manifest import sha256_file

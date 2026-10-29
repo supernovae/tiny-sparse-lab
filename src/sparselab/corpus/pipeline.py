@@ -38,7 +38,7 @@ from sparselab.corpus.rights import (
     resolve_file_rights,
     verify_record_admission,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -209,7 +209,7 @@ KEY_VALUE = re.compile(
 
 
 def digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
+    return canonical_digest(value)
 
 
 def _json(path: Path, value: Any) -> None:

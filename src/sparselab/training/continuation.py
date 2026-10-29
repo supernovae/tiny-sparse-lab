@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -16,7 +15,7 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     architecture_sha256,
-    canonical_json,
+    canonical_digest,
     config_sha256,
     read_manifest,
     sha256_file,
@@ -216,7 +215,7 @@ def load_continuation(
         assert selected is not None
         root = selected.parent.parent.resolve()
     manifest = read_manifest(root / "manifest.json")
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_digest = canonical_digest(manifest)
     manager = CheckpointManager(root, manifest_sha256=manifest_digest)
     decisions: list[dict[str, object]] = []
     with manager.writer_lease():

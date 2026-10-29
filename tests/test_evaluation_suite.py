@@ -588,3 +588,38 @@ def test_suite_signed_replay_reuses_payload_and_preserves_canonical_index(
     )
     assert rejected.valid is False
     assert {"field": "manifest_sha256", "reason": "mismatch"} in rejected.errors
+
+
+def test_group_write_is_trusted_only_for_a_user_private_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ubuntu's umask 002 must not silently disable signed caches."""
+    import grp
+    import os
+
+    from sparselab import verification_proofs
+
+    directory = tmp_path / "work"
+    directory.mkdir()
+    real = grp.getgrgid(os.getgid())
+    for members, mode, trusted in (
+        ([], 0o775, True),
+        (["someone-else"], 0o775, False),
+        ([], 0o777, False),
+    ):
+        verification_proofs._private_group.cache_clear()
+        monkeypatch.setattr(
+            grp,
+            "getgrgid",
+            lambda gid, members=members: grp.struct_group(
+                (real.gr_name, real.gr_passwd, real.gr_gid, members)
+            ),
+        )
+        monkeypatch.setattr(
+            verification_proofs.pwd,
+            "getpwuid",
+            lambda uid: type("User", (), {"pw_name": real.gr_name}),
+        )
+        directory.chmod(mode)
+        assert verification_proofs._trusted(tmp_path, directory) is trusted
+    verification_proofs._private_group.cache_clear()

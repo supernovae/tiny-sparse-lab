@@ -15,6 +15,7 @@ from typing import Any, ClassVar
 import numpy as np
 import pytest
 import yaml
+from lab_fixtures import write_smoke_inputs
 
 from sparselab.lab_context import LabContext
 from sparselab.lab_records import eval_group, seal
@@ -38,8 +39,6 @@ from sparselab.probes.verdict import (
     judge,
     overfit_guard,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
 
 # Any change to probe declarations or items must bump SUITE_VERSION and this pin,
 # so historical results are never silently compared across different suites.
@@ -890,7 +889,7 @@ def smoke_tokenizer(tmp_path_factory: pytest.TempPathFactory) -> Any:
     from tokenizers import Tokenizer
 
     root = tmp_path_factory.mktemp("tok")
-    _write_inputs(root)
+    write_smoke_inputs(root, max_steps=8)
     return Tokenizer.from_file(str(root / "tokenizer" / "tokenizer.json"))
 
 
@@ -1031,34 +1030,12 @@ def test_lm_eval_summary_prefers_acc_then_acc_norm() -> None:
 # --- End to end: try runs the fast tier; `probe` and `report` CLIs -----------
 
 
-def _write_inputs(root: Path) -> Path:
-    from sparselab.config.loading import load_tokenizer_config
-    from sparselab.data.tokenizer import train_tokenizer
-
-    tokenizer = yaml.safe_load((ROOT / "configs/tokenizer_smoke.yaml").read_text())
-    tokenizer["output_dir"] = str(root / "tokenizer")
-    tokenizer["dataset"]["cache_dir"] = str(root / "data")
-    (root / "tokenizer.yaml").write_text(yaml.safe_dump(tokenizer, sort_keys=False))
-    config = yaml.safe_load((ROOT / "configs/smoke_cpu.yaml").read_text())
-    config["tokenizer"]["path"] = str(root / "tokenizer" / "tokenizer.json")
-    config["dataset"]["cache_dir"] = str(root / "data")
-    config["logging"]["root_dir"] = str(root / "unused-runs")
-    config["training"]["max_steps"] = 8
-    config["training"]["max_tokens"] = 1024
-    config["checkpoint"]["every_steps"] = 4
-    config["evaluation"]["every_steps"] = 4
-    baseline = root / "baseline.yaml"
-    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
-    train_tokenizer(load_tokenizer_config(root / "tokenizer.yaml"))
-    return baseline
-
-
 @pytest.fixture(scope="module")
 def tried(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, Any]]:
     from sparselab.lab_mode import run_try
 
     root = tmp_path_factory.mktemp("probe-lab")
-    baseline = _write_inputs(root)
+    baseline = write_smoke_inputs(root, max_steps=8)
     delta = root / "wider.yaml"
     delta.write_text(
         yaml.safe_dump({"question": "wider?", "set": {"model.ffn_dim": 128}})
@@ -1276,7 +1253,7 @@ def test_try_stopped_during_probing_keeps_partial_battery_and_comparison(
 ) -> None:
     from sparselab.lab_mode import read_record, run_try
 
-    baseline = _write_inputs(tmp_path)
+    baseline = write_smoke_inputs(tmp_path, max_steps=8)
     delta = tmp_path / "wider.yaml"
     delta.write_text(
         yaml.safe_dump({"question": "wider?", "set": {"model.ffn_dim": 128}})

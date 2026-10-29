@@ -22,7 +22,7 @@ from sparselab.corpus.jsonl_records import records_from_bytes, records_from_path
 from sparselab.corpus.pipeline import _records_for_file
 from sparselab.corpus.project import Project
 from sparselab.corpus.rights import resolve_file_rights
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 _MAX_FILE_BYTES = 8 * 1024**2
@@ -57,7 +57,7 @@ def _verified_hf_records(
         original = {
             key: value for key, value in row.items() if key != "_sparselab_source"
         }
-        digest = hashlib.sha256(canonical_json(original)).hexdigest()
+        digest = canonical_digest(original)
         index = receipt["source_row_index"]
         if (
             type(index) is not int

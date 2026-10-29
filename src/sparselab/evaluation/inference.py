@@ -31,7 +31,7 @@ from sparselab.model.transformer import DenseLM
 from sparselab.runtime import discover_runtimes, select_device, torch_device_for
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.training.manifest import canonical_digest, canonical_json, read_manifest
 from sparselab.verification_proofs import ProofStore, VerificationMode
 
 
@@ -129,7 +129,7 @@ def _verified_checkpoint(
 ) -> tuple[RunConfig, dict[str, Any], Path, dict[str, Any], CheckpointManager]:
     config = RunConfig.model_validate_json((run / "resolved_config.yaml").read_text())
     manifest = read_manifest(run / "manifest.json")
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_digest = canonical_digest(manifest)
     if RunConfig.model_validate(manifest["effective_config"]) != config:
         raise ValueError("resolved config differs from the verified run manifest")
     selected = Path(checkpoint or "latest.json")

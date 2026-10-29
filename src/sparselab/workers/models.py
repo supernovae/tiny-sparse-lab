@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 import re
 import unicodedata
@@ -20,7 +19,7 @@ from sparselab.data.encoding import (
 )
 from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime import RuntimeInfo
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_digest, canonical_json
 from sparselab.workers.relay_models import RelayBinding
 
 PROTOCOL_VERSION = 1
@@ -673,7 +672,7 @@ class ExperimentSpec(WorkerModel):
         return _closed_required_versions(value)
 
     def digest(self) -> str:
-        return hashlib.sha256(canonical_json(self.model_dump(mode="json"))).hexdigest()
+        return canonical_digest(self.model_dump(mode="json"))
 
 
 class BundleManifest(WorkerModel):
@@ -712,7 +711,7 @@ class BundleManifest(WorkerModel):
         return self
 
     def digest(self) -> str:
-        return hashlib.sha256(canonical_json(self.model_dump(mode="json"))).hexdigest()
+        return canonical_digest(self.model_dump(mode="json"))
 
 
 class AttemptReceipt(WorkerModel):

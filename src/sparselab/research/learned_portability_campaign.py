@@ -24,7 +24,7 @@ from typing import Any
 import psutil
 
 from sparselab import host_capacity
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import canonical_digest, canonical_json, sha256_file
 
 _EXPERIMENT = "learned-engram-portability-v1"
 _PROTOCOL_FORMAT = "sparselab-portability-protocol"
@@ -44,10 +44,6 @@ _RECIPIENT_CONDITIONS = (
 )
 
 
-def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
-
-
 def _read_json(path: Path, description: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"{description} must be a regular file: {path}")
@@ -58,7 +54,7 @@ def _read_json(path: Path, description: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{description} must be a JSON object: {path}")
     claimed = value.get("sha256")
-    if not isinstance(claimed, str) or claimed != _digest(
+    if not isinstance(claimed, str) or claimed != canonical_digest(
         {key: item for key, item in value.items() if key != "sha256"}
     ):
         raise ValueError(f"{description} hash mismatch: {path}")
@@ -124,7 +120,7 @@ def _read_learned_run_audit(root: Path, run_id: str) -> dict[str, Any]:
 
 def _write_immutable_json(path: Path, value: dict[str, Any]) -> Path:
     body = {key: item for key, item in value.items() if key != "sha256"}
-    encoded = canonical_json({**body, "sha256": _digest(body)}) + b"\n"
+    encoded = canonical_json({**body, "sha256": canonical_digest(body)}) + b"\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     if os.path.lexists(path):
         if path.is_symlink() or not path.is_file() or path.read_bytes() != encoded:
@@ -309,7 +305,7 @@ def _protocol(
             "This protocol tests artifact and adapter portability, not representation portability.",
         ],
     }
-    return {**body, "sha256": _digest(body)}
+    return {**body, "sha256": canonical_digest(body)}
 
 
 def build_learned_portability_campaign(
@@ -1831,7 +1827,7 @@ def _publish_receipt(
         "elapsed_seconds": elapsed,
         "remaining_seconds": max(0.0, allowance - elapsed),
     }
-    digest = _digest(body)
+    digest = canonical_digest(body)
     receipt = _write_immutable_json(
         root / "execution" / "receipts" / f"{digest}.json", body
     )
@@ -1848,7 +1844,7 @@ def _publish_receipt(
     index_body = {"current": receipt.name, "revisions": [*revisions, receipt.name]}
     temporary = index.with_suffix(".tmp")
     temporary.write_bytes(
-        canonical_json({**index_body, "sha256": _digest(index_body)}) + b"\n"
+        canonical_json({**index_body, "sha256": canonical_digest(index_body)}) + b"\n"
     )
     os.replace(temporary, index)
     return receipt
@@ -2921,7 +2917,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
             "Representation portability is not tested by this byte-only protocol.",
         ],
     }
-    digest = _digest(body)
+    digest = canonical_digest(body)
     evidence_dir = root / "execution" / "evidence"
     evidence_path = _write_immutable_json(evidence_dir / f"{digest}.json", body)
     index_path = root / "execution" / "evidence-index.json"
@@ -2939,7 +2935,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
     index_body = {"current": evidence_path.name, "revisions": revisions}
     temporary = index_path.with_suffix(".tmp")
     temporary.write_bytes(
-        canonical_json({**index_body, "sha256": _digest(index_body)}) + b"\n"
+        canonical_json({**index_body, "sha256": canonical_digest(index_body)}) + b"\n"
     )
     os.replace(temporary, index_path)
     return evidence_path
