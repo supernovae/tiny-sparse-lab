@@ -12,8 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from sparselab.canonical import canonical_json
 from sparselab.runtime_env_subprocess import run_bounded
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.workdir import ensure_scratch_dir
 from sparselab.workers.relay_models import (
     RelayArtifactIdentity,

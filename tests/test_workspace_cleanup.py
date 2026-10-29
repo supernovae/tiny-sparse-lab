@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json
 from sparselab.training.metrics import ExperimentStore
 from sparselab.workspace_cleanup import (
     apply_cleanup,
@@ -146,7 +146,7 @@ def test_registered_checkpoint_is_never_proposed(tmp_path: Path) -> None:
 
     workspace, _ = _workspace(tmp_path)
     store = ExperimentStore(workspace / "runs")
-    digest = hashlib.sha256(canonical_json({"run_id": "tiny"})).hexdigest()
+    digest = canonical_digest({"run_id": "tiny"})
     store.register_manifest("tiny", digest, {"run_id": "tiny"})
     run = workspace / "runs" / "tiny"
     manager = CheckpointManager(run, manifest_sha256=digest)
@@ -252,7 +252,7 @@ def test_cleanup_refuses_unresolved_manifest_lineage(tmp_path):
     source = ExperimentStore(tmp_path / "source")
     source.create_run("tiny", {}, {})
     payload = {"checkpoint_sha256": "a" * 64}
-    digest = hashlib.sha256(canonical_json(payload)).hexdigest()
+    digest = canonical_digest(payload)
     source.register_manifest("tiny", digest, payload)
     source.finish_run("tiny", "completed")
     workspace = tmp_path / "campaign"

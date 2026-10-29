@@ -22,6 +22,7 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import AttentionConfig, ModelConfig, StrictModel
 from sparselab.documents import read_document
 from sparselab.engram.packs import EncoderIdentity
@@ -32,7 +33,7 @@ from sparselab.engram.semantic import (
 )
 from sparselab.evaluation.inference import load_run
 from sparselab.model.transformer import DenseLM
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _MAX_INPUT_BYTES = 2 * 1024 * 1024
 _MAX_ITEMS = 16
@@ -260,7 +261,7 @@ def _state_digest(module: torch.nn.Module) -> str:
                 "sha256": _digest_tensor(raw),
             }
         )
-    return hashlib.sha256(canonical_json(rows)).hexdigest()
+    return canonical_digest(rows)
 
 
 def _validate_attachment_shape(attachment: _Attachment, model: DenseLM) -> None:
@@ -290,7 +291,7 @@ def _pack_inventory_digest(retriever: SemanticRetriever) -> str:
             entry.model_dump(mode="json") for entry in retriever.pack.manifest.files
         ],
     }
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
+    return canonical_digest(payload)
 
 
 def _query_identity(query: SemanticQueryBatch, tokens: torch.Tensor) -> dict[str, Any]:
@@ -331,7 +332,7 @@ def _query_identity(query: SemanticQueryBatch, tokens: torch.Tensor) -> dict[str
         },
         "as_of": time_value,
     }
-    body["identity_sha256"] = hashlib.sha256(canonical_json(body)).hexdigest()
+    body["identity_sha256"] = canonical_digest(body)
     return body
 
 

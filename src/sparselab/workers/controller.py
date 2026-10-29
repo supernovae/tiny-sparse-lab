@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.data.encoding import (
     TOKENIZER_BATCH_DOCUMENTS,
@@ -22,7 +23,7 @@ from sparselab.resource_envelope import (
     check_envelope,
     current_process_rss_bytes,
 )
-from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.training.manifest import config_sha256
 from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
 from sparselab.workers.store import (
     ACTIVE_QUEUE_STATES,

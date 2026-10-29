@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import _publish_prepared_directory, load_prepared_data
 from sparselab.data.tokenizer import load_tokenizer
@@ -36,7 +37,6 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     ArtifactIdentity,
-    canonical_json,
     config_sha256,
     read_manifest,
     sha256_file,
@@ -153,12 +153,13 @@ def _write_bundle_manifest(path: Path, manifest: Any) -> None:
 def _read_bundle_manifest(path: Path) -> Any:
     import json
 
-    from sparselab.training.manifest import _reject_duplicate_keys, _reject_nonfinite
+    from sparselab.canonical import reject_duplicate_keys
+    from sparselab.training.manifest import _reject_nonfinite
 
     try:
         raw = json.loads(
             path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
     except (OSError, ValueError) as error:
@@ -195,7 +196,7 @@ def _verify_parent_closure(
     """Verify a selected generation and every parent-declared local input."""
     run, generation = _selected_run(selected)
     parent = read_manifest(run / "manifest.json")
-    parent_digest = hashlib.sha256(canonical_json(parent)).hexdigest()
+    parent_digest = canonical_digest(parent)
     # Reconstitute the already-verified sealed representation for the bundle.
     parent["sha256"] = parent_digest
     manager = CheckpointManager(run)
@@ -402,7 +403,7 @@ def verify_portable_corpus_binding(
             != binding["validation_sha256"]
             or tokenizer_binding.get("fit_sample_sha256") != manifest.get("revision")
             or tokenizer_binding.get("sample_receipt_sha256")
-            != hashlib.sha256(canonical_json(selection["sample_receipt"])).hexdigest()
+            != canonical_digest(selection["sample_receipt"])
             or tokenizer_binding.get("declaration_sha256")
             != selection["identity"]["declaration_sha256"]
             or [item["vocab_size"] for item in candidates] != list(VOCABS)
@@ -717,7 +718,7 @@ def _verify_embedded_continuation(root: Path, manifest: Any, config: RunConfig) 
         raise ValueError("continuation parent manifest identity is invalid")
     parent_path = root / identity.relative_path
     parent = read_manifest(parent_path)
-    parent_digest = hashlib.sha256(canonical_json(parent)).hexdigest()
+    parent_digest = canonical_digest(parent)
     if (
         parent_digest != identity.sha256
         or parent_path.stat().st_size != identity.size_bytes
@@ -1177,7 +1178,7 @@ def materialize_dispatch_bundle(
                 canonical_json(
                     {
                         **payload,
-                        "sha256": hashlib.sha256(canonical_json(payload)).hexdigest(),
+                        "sha256": canonical_digest(payload),
                     }
                 )
                 + b"\n"

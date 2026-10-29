@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from contextlib import ExitStack
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.admission_inspection_cache import (
     InspectionCache,
     capture,
@@ -44,7 +45,7 @@ from sparselab.corpus.split_runs import (
 )
 from sparselab.corpus.streaming_build_rows import StreamBuildRows
 from sparselab.corpus.streaming_split_freeze import _AdmissionSpools
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _PHASE = "native-build-publication"
@@ -521,7 +522,7 @@ def build_completed(project, work_root):
         ),
         "completed_preparation": scope,
     }
-    build_id = hashlib.sha256(canonical_json(identity)).hexdigest()
+    build_id = canonical_digest(identity)
     target = workspace / "builds" / build_id
     progress = BuildProgress(workspace / "progress" / (build_id + ".jsonl"), build_id)
     if _PHASE in stages.authenticated:
@@ -651,10 +652,7 @@ def verify_completed_build(path, manifest=None):
     path = Path(path).resolve()
     manifest = manifest or _small(path / "build.json")
     scope = local_scope(manifest)
-    if (
-        scope is None
-        or hashlib.sha256(canonical_json(manifest["identity"])).hexdigest() != path.name
-    ):
+    if scope is None or canonical_digest(manifest["identity"]) != path.name:
         raise ValueError("invalid completed local build identity")
     root = corpus_work_root(path)
     local_dependencies(manifest, work_root=root)
@@ -662,7 +660,7 @@ def verify_completed_build(path, manifest=None):
         raise ValueError("completed local build producer changed")
     unchanged(scope["source_bindings"])
     directory = path.parent.parent / "build-stages"
-    request_id = hashlib.sha256(canonical_json(scope["request"])).hexdigest()
+    request_id = canonical_digest(scope["request"])
     if not (directory / request_id).is_dir():
         raise ValueError(
             "completed native build evidence unavailable; no automatic source replay"
@@ -684,10 +682,7 @@ def verify_completed_release(path, manifest, *, expected_id=None):
     path = Path(path).resolve()
     payload = {key: value for key, value in manifest.items() if key != "release_id"}
     expected = expected_id or path.name
-    if (
-        manifest.get("release_id") != expected
-        or hashlib.sha256(canonical_json(payload)).hexdigest() != expected
-    ):
+    if manifest.get("release_id") != expected or canonical_digest(payload) != expected:
         raise ValueError("invalid completed local release identity")
     build_path = path.parent.parent / "builds" / manifest["build_id"]
     build = verify_completed_build(build_path)

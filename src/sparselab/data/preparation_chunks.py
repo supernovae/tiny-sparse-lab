@@ -19,6 +19,7 @@ from typing import Self
 
 import numpy as np
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.data.verification import (
     HashingWriter,
     VerifiedFile,
@@ -31,14 +32,10 @@ from sparselab.data.verification import (
 from sparselab.data.verification import (
     _fingerprint as _verified_fingerprint,
 )
-from sparselab.training.manifest import canonical_json
+from sparselab.result_publication import sync_directory
 
 _after_sealed_chunk: Callable[[str, int, Path], None] | None = None
 _after_unsealed_chunk_write: Callable[[str, int, Path], None] | None = None
-
-
-def _digest(payload: dict[str, object]) -> str:
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
 
 
 def _document(path: Path) -> dict[str, object]:
@@ -49,28 +46,20 @@ def _document(path: Path) -> dict[str, object]:
     if not isinstance(document, dict) or canonical_json(document) + b"\n" != raw:
         raise ValueError(f"noncanonical staging receipt: {path}")
     checksum = document.pop("checksum", None)
-    if not isinstance(checksum, str) or checksum != _digest(document):
+    if not isinstance(checksum, str) or checksum != canonical_digest(document):
         raise ValueError(f"staging receipt checksum mismatch: {path}")
     return document
 
 
 def _store_document(path: Path, payload: dict[str, object]) -> None:
-    complete = {**payload, "checksum": _digest(payload)}
+    complete = {**payload, "checksum": canonical_digest(payload)}
     temporary = path.with_name(path.name + ".tmp")
     with temporary.open("xb") as output:
         output.write(canonical_json(complete) + b"\n")
         output.flush()
         os.fsync(output.fileno())
     temporary.replace(path)
-    _sync_directory(path.parent)
-
-
-def _sync_directory(directory: Path) -> None:
-    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    sync_directory(path.parent)
 
 
 def _fingerprint(path: Path) -> tuple[int, int, int, int]:
@@ -196,7 +185,7 @@ class PreparationChunks:
                     entry.unlink()
         for stale_name in ("manifest.json", "manifest.json.tmp"):
             (self.root / stale_name).unlink(missing_ok=True)
-        _sync_directory(self.root)
+        sync_directory(self.root)
 
     def _validate_receipt(
         self, split: str, index: int, payload: dict[str, object]
@@ -371,9 +360,9 @@ class PreparationChunks:
         for name in sorted(files):
             (root / name).unlink(missing_ok=True)
         (root / "staging.json.tmp").unlink(missing_ok=True)
-        _sync_directory(root)
+        sync_directory(root)
         (root / "staging.json").unlink()
-        _sync_directory(root)
+        sync_directory(root)
 
     @staticmethod
     def check_binding_collision(
@@ -445,9 +434,9 @@ class PreparationChunks:
         signature = signed.pop("manifest_sha256", None)
         if (
             not isinstance(signature, str)
-            or _digest(signed) != signature
+            or canonical_digest(signed) != signature
             or manifest.get("cache_identity") != cache_identity
-            or manifest.get("settings_sha256") != _digest(cache_identity)
+            or manifest.get("settings_sha256") != canonical_digest(cache_identity)
         ):
             raise ValueError("published staging manifest or identity mismatch")
         required = required_arrays(manifest)
@@ -676,7 +665,7 @@ class SplitChunks:
                 "sha256": self._hashes[name].hexdigest(),
             }
             fingerprints[name] = _fingerprint(path)
-        _sync_directory(self.root)
+        sync_directory(self.root)
         receipt = self._receipt_path(index)
         payload = {
             "schema_version": 1,
@@ -754,7 +743,7 @@ class SplitChunks:
                 output.flush()
                 os.fsync(output.fileno())
             temporary.replace(path)
-            _sync_directory(self.root)
+            sync_directory(self.root)
             if self.owner.telemetry is not None:
                 self.owner.telemetry.add(
                     "finalize_fsync_seconds", time.monotonic() - sync_started

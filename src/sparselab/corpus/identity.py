@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.campaign.state import read_canonical
-from sparselab.corpus.acquisition import _digest as digest
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.project import Project, safe_name
 
 _SCOPE = "declared_digest_payloads_only"
@@ -96,12 +96,14 @@ def _verify(value: Any) -> dict[str, Any]:
     sha(release["release_id"])
     if (
         release["schema_version"] != 1
-        or digest({key: item for key, item in release.items() if key != "release_id"})
+        or canonical_digest(
+            {key: item for key, item in release.items() if key != "release_id"}
+        )
         != release["release_id"]
     ):
         raise ValueError("corpus release identity payload mismatch")
     build = release["build_identity"]
-    if digest(build) != release["build_id"]:
+    if canonical_digest(build) != release["build_id"]:
         raise ValueError("corpus build identity payload mismatch")
     if release["corpus_id"] != build["project_id"] or (
         build["project"]["id"] != build["project_id"]
@@ -126,7 +128,7 @@ def _verify(value: Any) -> dict[str, Any]:
         declaration = declarations[source_id]
         if (
             declaration["id"] != source_id
-            or digest(declaration) != entry["declaration_sha256"]
+            or canonical_digest(declaration) != entry["declaration_sha256"]
         ):
             raise ValueError("corpus source declaration payload mismatch")
         if entry["snapshot_sha256"] is not None:
@@ -143,7 +145,7 @@ def _verify(value: Any) -> dict[str, Any]:
         required = {"declaration_sha256", "adapter", "files"}
         if declarations[source_id]["kind"] == "wikimedia_dump":
             required.add("retrieval")
-        if set(payload) != required or digest(payload) != pinned[source_id]:
+        if set(payload) != required or canonical_digest(payload) != pinned[source_id]:
             raise ValueError("corpus snapshot identity payload mismatch")
         if (
             payload["declaration_sha256"]

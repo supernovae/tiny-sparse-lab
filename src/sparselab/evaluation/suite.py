@@ -10,6 +10,7 @@ from typing import Any
 
 from sparselab.campaign.plan import safe_path
 from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.documents import read_document
 from sparselab.engines.base import EngineCapabilityError
 from sparselab.evaluation.suite_models import (  # noqa: F401
@@ -18,7 +19,7 @@ from sparselab.evaluation.suite_models import (  # noqa: F401
 )
 from sparselab.runtime_profile import RuntimeAuthorization, RuntimeAuthorizationRequired
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
+from sparselab.training.manifest import read_manifest, sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
 
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -63,7 +64,7 @@ def _selected_checkpoint(
         raise ValueError("unsafe or invalid selected checkpoint")
     candidate = run / relative
     manifest = read_manifest(run / "manifest.json")
-    run_sha = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    run_sha = canonical_digest(manifest)
     report = CheckpointManager(run, manifest_sha256=run_sha).verify(
         candidate,
         expected_manifest=run_sha,
@@ -422,9 +423,9 @@ def run_suite(
     binding = _index_binding(
         payload["suite_sha256"], payload["checkpoint_sha256"], rows, evaluation_runtime
     )
-    index_sha = hashlib.sha256(canonical_json(binding)).hexdigest()
+    index_sha = canonical_digest(binding)
     payload["index_sha256"] = index_sha
-    payload["record_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    payload["record_sha256"] = canonical_digest(payload)
     output = run / "evaluations" / f"suite-{index_sha}.json"
     if output.exists():
         verify_evaluation_index(output, **verification)
@@ -556,8 +557,7 @@ def verify_evaluation_index(
                     key: val for key, val in result.items() if key != "result_digest"
                 }
                 if (
-                    result.get("result_digest")
-                    != hashlib.sha256(canonical_json(inner)).hexdigest()
+                    result.get("result_digest") != canonical_digest(inner)
                     or result.get("card_digest") != card.digest
                     or result.get("valid") is not True
                     or row["result"] != {"score": result["score"], "valid": True}
@@ -575,7 +575,7 @@ def verify_evaluation_index(
         record["suite_sha256"], record["checkpoint_sha256"], rows, evaluation_runtime
     )
     if (
-        hashlib.sha256(canonical_json(binding)).hexdigest() != record["index_sha256"]
+        canonical_digest(binding) != record["index_sha256"]
         or path.name != f"suite-{record['index_sha256']}.json"
     ):
         raise ValueError("evaluation index identity mismatch")

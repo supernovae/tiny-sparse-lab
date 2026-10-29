@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.campaign.state import read_canonical
+from sparselab.canonical import canonical_json
 from sparselab.evaluation.panel import verify_panel_result
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")

@@ -10,9 +10,9 @@ import hashlib
 
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import TokenizerTrainConfig
 from sparselab.corpus.mixture import _rows, _source_rights
-from sparselab.training.manifest import canonical_json
 
 
 def quotas(config: TokenizerTrainConfig) -> dict[str, int]:

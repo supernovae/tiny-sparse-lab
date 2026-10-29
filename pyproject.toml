@@ -65,6 +65,9 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+# Parallel by default; tests/conftest.py sizes `auto` from CPUs and free RAM.
+# An explicit -n N (or -n 0 to debug serially) overrides it.
+addopts = "-p xdist -n auto --dist worksteal"
 markers = [
     "mps: requires actual Apple MPS hardware",
     "cuda: requires actual NVIDIA CUDA hardware",

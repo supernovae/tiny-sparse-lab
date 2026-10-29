@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.corpus.project import (
     RETAINED_MAX_BYTES,
@@ -45,7 +46,8 @@ from sparselab.corpus.project import (
 from sparselab.corpus.transport_budget import TransportBudget
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -158,7 +160,7 @@ class _AcquisitionResources:
                     },
                 )
                 os.replace(temporary, self.journal)
-                _sync_dir(self.journal.parent)
+                sync_directory(self.journal.parent)
             finally:
                 temporary.unlink(missing_ok=True)
 
@@ -179,10 +181,6 @@ class _AcquisitionResources:
                 self.observe()
 
 
-def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
-
-
 def _identity_declaration(source: SourceDeclaration) -> dict[str, Any]:
     declaration = source_declaration_payload(source)
     if source.kind == "local":
@@ -193,7 +191,7 @@ def _identity_declaration(source: SourceDeclaration) -> dict[str, Any]:
 
 
 def declaration_sha256(source: SourceDeclaration) -> str:
-    return _digest(_identity_declaration(source))
+    return canonical_digest(_identity_declaration(source))
 
 
 def _adapter(source: SourceDeclaration) -> dict[str, str]:
@@ -230,14 +228,6 @@ def _write_json(path: Path, value: object, *, max_bytes: int | None = None) -> N
         handle.write(body)
         handle.flush()
         os.fsync(handle.fileno())
-
-
-def _sync_dir(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def _copy_stream(
@@ -313,7 +303,7 @@ def _acquire_git(
             raise ValueError("bounded Git acquisition requires a transport ledger")
         return _bounded_git_acquire(source, spec, staging, budget)
     cache_root.mkdir(parents=True, exist_ok=True)
-    cache = cache_root / _digest(
+    cache = cache_root / canonical_digest(
         {"uri": source.canonical_uri, "revision": source.revision}
     )
     if not cache.exists():
@@ -1118,7 +1108,7 @@ def _bounded_hf_acquire(
                             "HF source row collides with reserved provenance field"
                         )
                     try:
-                        row_digest = hashlib.sha256(canonical_json(row)).hexdigest()
+                        row_digest = canonical_digest(row)
                     except (TypeError, ValueError) as error:
                         raise ValueError(
                             f"HF row is not canonical JSON: {shard.path} row {index}"
@@ -1705,7 +1695,7 @@ def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any
             and source.acquisition.retained_subset is not None
         ):
             identity_fields["retrieval"] = manifest["retrieval"]
-        expected = _digest(identity_fields)
+        expected = canonical_digest(identity_fields)
         if expected != manifest["snapshot_sha256"] or (
             not _staged and path.name != expected
         ):
@@ -1760,7 +1750,7 @@ def _project_sha(project: Project) -> str:
         identity["source_effects"] = [
             item.model_dump(mode="json") for item in project.config.source_effects
         ]
-    return _digest(identity)
+    return canonical_digest(identity)
 
 
 def _safe_snapshot_path(path: Path) -> None:
@@ -2026,10 +2016,10 @@ def acquire(
                             with member.open("rb") as stream:
                                 os.fsync(stream.fileno())
                         elif member.is_dir():
-                            _sync_dir(member)
-                    _sync_dir(staging)
+                            sync_directory(member)
+                    sync_directory(staging)
                     _rename_noreplace(staging, destination)
-                    _sync_dir(destination.parent)
+                    sync_directory(destination.parent)
                 finally:
                     if staging.exists():
                         shutil.rmtree(staging)
@@ -2147,7 +2137,7 @@ def acquire(
             else:
                 files = []
                 retrieval = {
-                    "generator_config_sha256": _digest(
+                    "generator_config_sha256": canonical_digest(
                         source.acquisition.model_dump(mode="json")
                     )
                 }
@@ -2162,7 +2152,7 @@ def acquire(
                 and source.acquisition.retained_subset is not None
             ):
                 identity_fields["retrieval"] = retrieval
-            identity = _digest(identity_fields)
+            identity = canonical_digest(identity_fields)
             manifest = {
                 "schema_version": 1,
                 "source_id": source.id,
@@ -2190,11 +2180,11 @@ def acquire(
             else:
                 for directory in sorted((staging / "files").rglob("*"), reverse=True):
                     if directory.is_dir():
-                        _sync_dir(directory)
-                _sync_dir(staging / "files")
-                _sync_dir(staging)
+                        sync_directory(directory)
+                sync_directory(staging / "files")
+                sync_directory(staging)
                 _rename_noreplace(staging, destination)
-                _sync_dir(parent)
+                sync_directory(parent)
                 verify_snapshot(
                     destination,
                     proof_store=proof_store,
@@ -2279,7 +2269,7 @@ def acquire(
             output.flush()
             os.fsync(output.fileno())
         os.replace(name, base / "acquisition.json")
-        _sync_dir(base)
+        sync_directory(base)
     finally:
         if os.path.exists(name):
             os.unlink(name)

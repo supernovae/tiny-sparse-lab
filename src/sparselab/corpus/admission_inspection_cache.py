@@ -14,14 +14,16 @@ import stat
 import tempfile
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus.bounded_metadata import current_metadata_store
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import (
     _fingerprint,
-    _sync,
     _trusted,
     file_binding,
     verification_options,
+    writable_by_others,
 )
 from sparselab.verifier_authority import verifier_authority
 
@@ -127,7 +129,7 @@ class InspectionCache:
                 self._unavailable("cache_cleanup_unavailable")
 
     def _path(self, kind, request):
-        key = hashlib.sha256(canonical_json([kind, request])).hexdigest()
+        key = canonical_digest([kind, request])
         return self.directory / f"{kind}-{key}.json"
 
     def _binding(self, path, raw, request, dependencies):
@@ -136,10 +138,12 @@ class InspectionCache:
         # they are immutable artifact members in ProofStore's trust walk.
         immutable, mutable = {}, {}
         for name, members in dependencies.items():
-            if any(row[3] & 0o020 for row in members):
-                root = Path(name)
-                for row in members:
-                    member = root if row[0] == "." else root / row[0]
+            root = Path(name)
+            paths = [root if row[0] == "." else root / row[0] for row in members]
+            if any(row[3] & 0o020 for row in members) and any(
+                writable_by_others(member.lstat()) for member in paths
+            ):
+                for member in paths:
                     info = member.lstat()
                     if (
                         not stat.S_ISREG(info.st_mode)
@@ -215,7 +219,7 @@ class InspectionCache:
         body = event["record"]
         if (
             event["sha256"] != request["completion"]
-            or hashlib.sha256(canonical_json(body)).hexdigest() != event["sha256"]
+            or canonical_digest(body) != event["sha256"]
             or body["request"] != request["request"]
             or body["result"] != payload
             or not payload.get("files")
@@ -347,7 +351,7 @@ class InspectionCache:
             unchanged(dependencies)
             try:
                 os.replace(temporary, path)
-                _sync(self.directory)
+                sync_directory(self.directory)
                 binding = self._binding(path, raw, request, dependencies)
                 verify_file(
                     path,

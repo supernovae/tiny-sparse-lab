@@ -22,6 +22,7 @@ from typing import Any
 import torch
 from torch.nn import functional
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.data.datasets import iter_documents
 from sparselab.reference_models import (
@@ -29,7 +30,7 @@ from sparselab.reference_models import (
     validate_model_metadata,
     validate_snapshot,
 )
-from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
+from sparselab.training.manifest import config_sha256, sha256_file
 
 PYTHIA_MODEL_ID = "EleutherAI/pythia-70m-deduped"
 PYTHIA_LICENSE = "Apache-2.0"

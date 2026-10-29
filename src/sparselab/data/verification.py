@@ -315,7 +315,7 @@ def _receipt_from_proofs(
     root: Path, manifest: dict[str, object], proofs: dict[str, VerifiedFile]
 ) -> VerifiedPreparedData:
     """Validate file proofs against signed manifest, NPY headers, and exact inventory."""
-    from sparselab.training.manifest import canonical_json
+    from sparselab.canonical import canonical_digest
 
     if root.is_symlink():
         raise ValueError("prepared root is a symlink")
@@ -329,10 +329,7 @@ def _receipt_from_proofs(
         raise ValueError("prepared manifest changed during verification")
     signed = dict(manifest)
     digest = signed.pop("manifest_sha256", None)
-    if (
-        not isinstance(digest, str)
-        or hashlib.sha256(canonical_json(signed)).hexdigest() != digest
-    ):
+    if not isinstance(digest, str) or canonical_digest(signed) != digest:
         raise ValueError("prepared manifest signature mismatch")
     required = required_arrays(manifest)
     if set(proofs) != set(required):

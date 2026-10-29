@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json
 
 if TYPE_CHECKING:
     from sparselab.experiments.lock import ResolvedCell, ResolvedExperimentPlan
@@ -115,7 +115,7 @@ def _runtime_digest(payload: dict[str, Any]) -> str:
             return [stable(item) for item in value]
         return value
 
-    return hashlib.sha256(canonical_json(stable(payload))).hexdigest()
+    return canonical_digest(stable(payload))
 
 
 def bind_runtime(
@@ -133,7 +133,7 @@ def bind_runtime(
     )
     digest = _runtime_digest(payload)
     payload["binding_sha256"] = digest
-    payload["receipt_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    payload["receipt_sha256"] = canonical_digest(payload)
     path = (
         Path(workspace)
         / "runtime-bindings"
@@ -308,7 +308,7 @@ def bind_generation(
         **selected,
     }
     encoded = canonical_json(payload) + b"\n"
-    digest = hashlib.sha256(canonical_json(payload)).hexdigest()
+    digest = canonical_digest(payload)
     binding = workspace / "bindings" / f"{digest}.json"
     if binding.is_symlink():
         raise ValueError(f"execution binding must not be a symlink: {binding}")

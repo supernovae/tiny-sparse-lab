@@ -12,9 +12,9 @@ import json
 import re
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.export import _export_binding, _export_request
-from sparselab.training.manifest import canonical_json
 
 
 def _read(path: Path, expected: str, *, limit: int = 4 * 1024 * 1024) -> bytes:
@@ -175,7 +175,7 @@ def verify_observed_tokenizer(
         or export.get("schema_version") != 1
         or export.get("view") != "lm"
         or export.get("vocab_size") != config.vocab_size
-        or export_path.name != hashlib.sha256(canonical_json(request)).hexdigest()
+        or export_path.name != canonical_digest(request)
         or export_path.parts[-6:-1]
         != (
             "corpora",

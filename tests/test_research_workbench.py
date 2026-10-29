@@ -15,6 +15,7 @@ from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import ByteLevel
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.config.models import AttentionConfig
 from sparselab.data.tokenizer import SPECIAL_TOKENS, load_tokenizer
@@ -31,7 +32,6 @@ from sparselab.research.catalog import (
 )
 from sparselab.research.probe import probe_model
 from sparselab.research.scaffold import scaffold_lesson, scaffold_research
-from sparselab.training.manifest import canonical_json
 
 
 def _write_byte_tokenizer(path: Path) -> None:
@@ -142,10 +142,7 @@ def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     unsigned = {
         key: value for key, value in metadata.items() if key != "research_sha256"
     }
-    assert (
-        hashlib.sha256(canonical_json(unsigned)).hexdigest()
-        == metadata["research_sha256"]
-    )
+    assert canonical_digest(unsigned) == metadata["research_sha256"]
     assert not (output / "artifacts").exists()
     assert not (output / "runs").exists()
 

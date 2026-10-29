@@ -6,13 +6,13 @@ inventory.  Index only that compact metadata; never reread the document body.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.split_runs import SplitStages, external_sort, rows
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _index(directory, inventory, expected_sha256):
@@ -172,7 +172,7 @@ def prior_indexes(root, binding):
         "release_id": manifest["release_id"],
         "inventory_sha256": binding["sha256"],
         "cluster_sha256": alias_binding["sha256"],
-        "request_sha256": hashlib.sha256(canonical_json(request)).hexdigest(),
+        "request_sha256": canonical_digest(request),
     }
 
 

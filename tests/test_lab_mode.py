@@ -17,10 +17,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from lab_fixtures import write_smoke_inputs
 
 from sparselab.cli.main import FAST_PATH_COMMANDS, RELEASE_COMMANDS, build_parser
-from sparselab.config.loading import load_tokenizer_config
-from sparselab.data.tokenizer import train_tokenizer
 from sparselab.lab_mode import (
     EXIT_INTERRUPTED,
     EXIT_NOT_COMPARABLE,
@@ -31,46 +30,8 @@ from sparselab.lab_mode import (
 from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.training.trainer import train
 
-ROOT = Path(__file__).resolve().parents[1]
 # Generous: the TODO target is 15 minutes on CPU; a quiet laptop needs ~15 s.
 LOOP_BUDGET_SECONDS = float(os.environ.get("SPARSELAB_LAB_LOOP_BUDGET_SECONDS", "900"))
-
-
-_CACHED_SMOKE_TOKENIZER: tuple[bytes, bytes] | None = None
-
-
-def _write_inputs(root: Path, *, train_tokenizer_now: bool = True) -> Path:
-    global _CACHED_SMOKE_TOKENIZER
-    tokenizer = yaml.safe_load((ROOT / "configs/tokenizer_smoke.yaml").read_text())
-    tok_dir = root / "tokenizer"
-    tokenizer["output_dir"] = str(tok_dir)
-    tokenizer["dataset"]["cache_dir"] = str(root / "data")
-    (root / "tokenizer.yaml").write_text(yaml.safe_dump(tokenizer, sort_keys=False))
-    config = yaml.safe_load((ROOT / "configs/smoke_cpu.yaml").read_text())
-    config["tokenizer"]["path"] = str(tok_dir / "tokenizer.json")
-    config["dataset"]["cache_dir"] = str(root / "data")
-    config["logging"]["root_dir"] = str(root / "unused-runs")
-    config["training"]["max_steps"] = 4
-    config["training"]["max_tokens"] = 512
-    config["checkpoint"]["every_steps"] = 4
-    config["evaluation"]["every_steps"] = 4
-    baseline = root / "baseline.yaml"
-    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
-    if train_tokenizer_now:
-        if _CACHED_SMOKE_TOKENIZER is not None and not tok_dir.exists():
-            tok_dir.mkdir(parents=True, exist_ok=True)
-            (tok_dir / "tokenizer.json").write_bytes(_CACHED_SMOKE_TOKENIZER[0])
-            (tok_dir / "tokenizer_manifest.json").write_bytes(
-                _CACHED_SMOKE_TOKENIZER[1]
-            )
-        else:
-            out = train_tokenizer(load_tokenizer_config(root / "tokenizer.yaml"))
-            if _CACHED_SMOKE_TOKENIZER is None:
-                _CACHED_SMOKE_TOKENIZER = (
-                    out.read_bytes(),
-                    (tok_dir / "tokenizer_manifest.json").read_bytes(),
-                )
-    return baseline
 
 
 def _delta(root: Path, name: str, settings: dict[str, object]) -> Path:
@@ -82,7 +43,7 @@ def _delta(root: Path, name: str, settings: dict[str, object]) -> Path:
 @pytest.fixture
 def lab(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
-    return tmp_path, _write_inputs(tmp_path)
+    return tmp_path, write_smoke_inputs(tmp_path)
 
 
 def test_try_writes_one_sealed_record_with_identity_and_heldout_scores(
@@ -230,11 +191,13 @@ def test_startup_cancellation_is_recorded_without_fabricated_checkpoint(
 def test_sigint_from_the_cli_stops_safely_and_records_interruption(
     tmp_path: Path,
 ) -> None:
-    baseline = _write_inputs(tmp_path)
+    baseline = write_smoke_inputs(tmp_path)
     config = yaml.safe_load(baseline.read_text())
-    config["training"]["max_steps"] = 200_000  # about an hour on one CPU core
-    config["training"]["max_tokens"] = 200_000 * 128
-    config["checkpoint"]["every_steps"] = 100_000  # keep storage preflight small
+    # Long enough to still be training when SIGINT lands; small enough that the
+    # storage preflight (which scales with max_steps) fits an ordinary disk.
+    config["training"]["max_steps"] = 20_000
+    config["training"]["max_tokens"] = 20_000 * 128
+    config["checkpoint"]["every_steps"] = 10_000
     baseline.write_text(yaml.safe_dump(config, sort_keys=False))
     delta = _delta(tmp_path, "s.yaml", {"model.ffn_dim": 128})
     work = tmp_path / "work"
@@ -373,7 +336,7 @@ def test_help_lists_fast_path_first_and_every_command_once() -> None:
 
 def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     """Loop-time guard: YAML delta -> scored report through the public CLI."""
-    baseline = _write_inputs(tmp_path, train_tokenizer_now=False)
+    baseline = write_smoke_inputs(tmp_path, train_tokenizer_now=False)
     delta = _delta(tmp_path, "loop.yaml", {"model.ffn_dim": 128, "seed": 9})
     (tmp_path / "bounds.yaml").write_text(
         "resource_envelope_version: 1\nlab_try:\n"
@@ -431,7 +394,7 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
 
 def _local_text_baseline(root: Path) -> Path:
     """A local_text baseline whose train file can be edited between tries."""
-    baseline = _write_inputs(root)
+    baseline = write_smoke_inputs(root)
     words = [
         "the",
         "quick",
@@ -620,7 +583,7 @@ def _portable_memory_baseline(root: Path) -> tuple[Path, Path]:
 
     from sparselab.model.portable_engram import export_portable_engram
 
-    baseline = _write_inputs(root)
+    baseline = write_smoke_inputs(root)
     package = root / "memory.engram"
     export_portable_engram(
         torch.randn(17, 5, generator=torch.Generator().manual_seed(0)),
@@ -702,7 +665,7 @@ def test_changed_memory_package_retrains_baseline_and_is_recorded(
 
 def _chat_baseline(root: Path) -> Path:
     """A local_chat baseline whose loss mode can differ on identical tokens."""
-    baseline = _write_inputs(root)
+    baseline = write_smoke_inputs(root)
     for mode in ("all_tokens", "assistant_only"):
         for split, count in (("train", 300), ("validation", 60)):
             lines = [

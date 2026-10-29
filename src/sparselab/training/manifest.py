@@ -13,9 +13,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sparselab.address_hash import memory_addressing_identity, memory_schemes
+from sparselab.canonical import canonical_digest, canonical_json
 
 if TYPE_CHECKING:
     from sparselab.runtime import RuntimeInfo
+
+from sparselab.canonical import reject_duplicate_keys
 
 MANIFEST_VERSION = 1
 IDENTITY_VERSION = "run-identity-v2"
@@ -35,21 +38,6 @@ _MACHINE_LOCAL_PATH_KEYS = frozenset(
         "corpus_export_path",
     }
 )
-
-
-def canonical_json(value: object) -> bytes:
-    """Encode only JSON-native data in a canonical, finite representation."""
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8")
-
-
-def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _without_machine_local_paths(value: object) -> object:
@@ -106,7 +94,7 @@ def architecture_sha256(
     addressing = memory_addressing_identity(model_identity)
     if memory_addressing and addressing is not None:
         identity["memory_addressing"] = addressing
-    return _digest(identity)
+    return canonical_digest(identity)
 
 
 def trained_memory_addressing(
@@ -143,7 +131,7 @@ def config_sha256(config: Mapping[str, Any]) -> str:
                 if key != "source_manifest_path"
             },
         }
-    return _digest(
+    return canonical_digest(
         {
             "identity_version": IDENTITY_VERSION,
             "config": _without_machine_local_paths(
@@ -216,7 +204,7 @@ def source_identity() -> dict[str, object]:
     return {
         "algorithm": "package-path-sha256-v2",
         "files": inventory,
-        "sha256": _digest(inventory),
+        "sha256": canonical_digest(inventory),
     }
 
 
@@ -265,13 +253,13 @@ class RunManifest:
         return value
 
     def digest(self) -> str:
-        return _digest(self.payload())
+        return canonical_digest(self.payload())
 
 
 def write_manifest(path: Path, manifest: RunManifest) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = manifest.payload()
-    data["sha256"] = _digest(data)
+    data["sha256"] = canonical_digest(data)
     temporary = path.with_suffix(path.suffix + ".tmp")
     with temporary.open("xb") as handle:
         handle.write(canonical_json(data) + b"\n")
@@ -283,15 +271,6 @@ def write_manifest(path: Path, manifest: RunManifest) -> str:
         if temporary.exists():
             temporary.unlink()
     return str(data["sha256"])
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON object key: {key!r}")
-        result[key] = value
-    return result
 
 
 def _reject_nonfinite(value: str) -> None:
@@ -354,7 +333,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(
             path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
@@ -365,7 +344,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     if type(version) is not int or version != MANIFEST_VERSION:
         raise ValueError(f"unsupported manifest version: {version!r}")
     actual = data.pop("sha256", None)
-    if not isinstance(actual, str) or _digest(data) != actual:
+    if not isinstance(actual, str) or canonical_digest(data) != actual:
         raise ValueError("manifest hash mismatch")
     identity_version = data.get("identity_version")
     if identity_version is not None and identity_version != IDENTITY_VERSION:

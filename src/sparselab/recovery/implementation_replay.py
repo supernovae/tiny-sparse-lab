@@ -1911,12 +1911,12 @@ def _stage_ancestry_imports(
     from sparselab.corpus.acquisition import (
         _project_sha,
         _rename_noreplace,
-        _sync_dir,
         _write_json,
         declaration_sha256,
         verify_acquisition,
         verify_snapshot,
     )
+    from sparselab.result_publication import sync_directory
 
     if parent is None or parent["corpus_work_root"] == str(work) or work.exists():
         return
@@ -2006,10 +2006,10 @@ def _stage_ancestry_imports(
                 with member.open("rb") as stream:
                     os.fsync(stream.fileno())
             elif member.is_dir():
-                _sync_dir(member)
-        _sync_dir(staged)
+                sync_directory(member)
+        sync_directory(staged)
         _rename_noreplace(staged, work)
-        _sync_dir(work.parent)
+        sync_directory(work.parent)
     if complete_unchanged:
         verify_acquisition(corpus, work)
 

@@ -28,12 +28,14 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.corpus import acquisition as forge
 from sparselab.corpus.project import safe_name
 from sparselab.documents import read_document
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import VerificationMode
 
 
@@ -139,12 +141,8 @@ class DatasetSource(_Model):
         return self
 
 
-def _digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
-
-
 def _seal(value: dict, key: str) -> dict:
-    return {**value, key: _digest(value)}
+    return {**value, key: canonical_digest(value)}
 
 
 def _read(path: Path, key: str) -> dict:
@@ -153,7 +151,7 @@ def _read(path: Path, key: str) -> dict:
     if not isinstance(value, dict) or key not in value:
         raise ValueError("missing artifact identity")
     body = {k: v for k, v in value.items() if k != key}
-    if value[key] != _digest(body):
+    if value[key] != canonical_digest(body):
         raise ValueError("artifact manifest hash mismatch")
     return value
 
@@ -325,7 +323,9 @@ def _locked_source(lock: dict, locations: dict | None = None) -> DatasetSource:
 def _verify_lock_payload(lock: dict) -> DatasetSource:
     if lock.get("format") != "sparselab-dataset-lock-v1" or lock.get(
         "lock_sha256"
-    ) != _digest({key: value for key, value in lock.items() if key != "lock_sha256"}):
+    ) != canonical_digest(
+        {key: value for key, value in lock.items() if key != "lock_sha256"}
+    ):
         raise ValueError("unsupported or changed snapshot lock")
     source = _locked_source(lock)
     if lock["source"] != _source_payload(source):
@@ -432,7 +432,7 @@ def lock_source(
         handle.flush()
         os.fsync(handle.fileno())
     _rename_noreplace(temporary, output)
-    forge._sync_dir(output.parent)
+    sync_directory(output.parent)
     return output
 
 
@@ -652,7 +652,7 @@ def _decision(
     return {
         "split": split,
         "ordinal": ordinal,
-        "source_sha256": _digest(row),
+        "source_sha256": canonical_digest(row),
         "reason": reason,
         "text": text if reason == "selected" else None,
     }
@@ -915,7 +915,7 @@ def _snapshot_locked(
             os.fsync(handle.fileno())
         manifest = _seal(
             {
-                "snapshot_source_sha256": _digest(lock["source"]),
+                "snapshot_source_sha256": canonical_digest(lock["source"]),
                 "excluded": {
                     "path": "excluded.jsonl",
                     "count": excluded_count,
@@ -933,9 +933,9 @@ def _snapshot_locked(
         forge._write_json(publication / "manifest.json", manifest)
         _admit(work, cache, source)
         verify_snapshot(publication / "manifest.json", verification_mode="cold")
-        forge._sync_dir(publication)
+        sync_directory(publication)
         _rename_noreplace(publication, output)
-        forge._sync_dir(output.parent)
+        sync_directory(output.parent)
         return output / "manifest.json"
     finally:
         db.close()
@@ -1167,7 +1167,7 @@ def _verify_snapshot_cold(path: Path, manifest: dict, source: DatasetSource) -> 
     lock = manifest["lock"]
     if sha256_file(path.parent / "events.jsonl") != manifest["events_sha256"]:
         raise ValueError("snapshot event digest mismatch")
-    if manifest["snapshot_source_sha256"] != _digest(lock["source"]):
+    if manifest["snapshot_source_sha256"] != canonical_digest(lock["source"]):
         raise ValueError("snapshot source identity mismatch")
     excluded = manifest["excluded"]
     if (

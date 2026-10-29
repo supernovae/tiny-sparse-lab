@@ -89,17 +89,12 @@ def _parent(path: Path, options: dict[str, Any]) -> tuple[dict[str, Any], Any | 
             }
         ]
         return result, None
-    from hashlib import sha256
-
-    from sparselab.training.manifest import (
-        canonical_json,
-        config_sha256,
-        read_manifest,
-    )
+    from sparselab.canonical import canonical_digest
+    from sparselab.training.manifest import config_sha256, read_manifest
 
     root = path.parent.parent
     run_manifest = read_manifest(root / "manifest.json")
-    manifest_sha256 = sha256(canonical_json(run_manifest)).hexdigest()
+    manifest_sha256 = canonical_digest(run_manifest)
     manager = CheckpointManager(root, manifest_sha256=manifest_sha256)
     report = manager.verify(path, expected_manifest=manifest_sha256, **options)
     result.update(

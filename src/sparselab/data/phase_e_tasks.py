@@ -26,6 +26,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Final
 
+from sparselab.canonical import reject_duplicate_keys
 from sparselab.engram.packs import _rename_noreplace
 
 _TASK_KINDS: Final[frozenset[str]] = frozenset(
@@ -216,15 +217,6 @@ def python_stdlib_test_cases(seed: int = 17) -> tuple[TaskCase, ...]:
     return _python_examples(seed, split="test")
 
 
-def _reject_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
 def _reject_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON constant: {value}")
 
@@ -233,7 +225,7 @@ def _strict_json_bytes(content: bytes, description: str) -> object:
     try:
         return json.loads(
             content.decode("utf-8"),
-            object_pairs_hook=_reject_pairs,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as error:

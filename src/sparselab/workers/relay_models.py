@@ -6,7 +6,6 @@ storage endpoints, never credentials or provider SDK settings.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -14,8 +13,8 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from sparselab.canonical import canonical_digest, reject_duplicate_keys
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_json
 
 _RELAY_VERSION = 1
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -180,7 +179,7 @@ class RelayBinding(StrictModel):
         return self.model_copy(update={"controller": None})
 
     def digest(self) -> str:
-        return hashlib.sha256(canonical_json(self.model_dump(mode="json"))).hexdigest()
+        return canonical_digest(self.model_dump(mode="json"))
 
 
 class CheckpointFrontier(StrictModel):
@@ -344,16 +343,7 @@ class RelayCommitDescriptor(StrictModel):
         return self.model_dump(mode="json", exclude={"hmac_sha256"})
 
     def descriptor_digest(self) -> str:
-        return hashlib.sha256(canonical_json(self.model_dump(mode="json"))).hexdigest()
-
-
-def _without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate relay profile key: {key}")
-        result[key] = value
-    return result
+        return canonical_digest(self.model_dump(mode="json"))
 
 
 def load_relay_profile(path: Path) -> RelayProfile:
@@ -362,7 +352,7 @@ def load_relay_profile(path: Path) -> RelayProfile:
         raise ValueError("relay profile must not be a symlink")
     raw = path.read_bytes()
     try:
-        value = json.loads(raw, object_pairs_hook=_without_duplicate_keys)
+        value = json.loads(raw, object_pairs_hook=reject_duplicate_keys)
     except json.JSONDecodeError:
         try:
             import yaml
@@ -374,7 +364,7 @@ def load_relay_profile(path: Path) -> RelayProfile:
 
         def mapping(loader: Any, node: Any, deep: bool = False) -> dict[str, Any]:
             loader.flatten_mapping(node)
-            return _without_duplicate_keys(
+            return reject_duplicate_keys(
                 [
                     (
                         loader.construct_object(key, deep=deep),

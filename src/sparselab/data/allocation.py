@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from dataclasses import dataclass
@@ -11,7 +10,8 @@ from typing import Any
 
 import numpy as np
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.canonical import canonical_digest, canonical_json
+from sparselab.training.manifest import sha256_file
 
 ALLOCATION_FORMAT = "sparselab-allocation-manifest"
 ALLOCATION_VERSION = 1
@@ -94,10 +94,6 @@ class AllocationManifest:
                 "semantic query mask may select only semantic or hybrid target ownership"
             )
         return AllocationSidecars(owner, queries, mask)
-
-
-def _digest(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
 
 
 def _safe_relative(root: Path, value: object, *, directory: bool = False) -> Path:
@@ -192,7 +188,7 @@ def load_allocation_manifest(
         or payload.get("version") != ALLOCATION_VERSION
     ):
         raise ValueError("unsupported allocation manifest schema")
-    if not isinstance(digest, str) or _digest(payload) != digest:
+    if not isinstance(digest, str) or canonical_digest(payload) != digest:
         raise ValueError("allocation manifest digest mismatch")
     if (
         payload["source_identity_sha256"] != source_identity_sha256
@@ -463,7 +459,7 @@ def build_allocation_manifest(
     if resource_regime is not None:
         payload["resource_regime"] = resource_regime
         payload["ownership_profile"] = ownership_profile
-    payload["sha256"] = _digest(payload)
+    payload["sha256"] = canonical_digest(payload)
     with path.open("xb") as handle:
         handle.write(canonical_json(payload) + b"\n")
         handle.flush()

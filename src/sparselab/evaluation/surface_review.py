@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import reject_duplicate_keys
+
 BLIND_FORMAT = "sparselab_surface_blind_v1"
 PROVENANCE_FORMAT = "sparselab_surface_provenance_v1"
 JUDGMENT_FORMAT = "sparselab_surface_judgment_v1"
@@ -65,15 +67,7 @@ def _sealed_bytes(path: Path) -> bytes:
 def _load(path: Path) -> Any:
     data = _sealed_bytes(path)
 
-    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, val in pairs:
-            if key in result:
-                raise ValueError(f"duplicate JSON field {key}: {path}")
-            result[key] = val
-        return result
-
-    return json.loads(data, object_pairs_hook=unique), data
+    return json.loads(data, object_pairs_hook=reject_duplicate_keys), data
 
 
 def _publish(path: Path, value: Any) -> None:

@@ -107,10 +107,9 @@ def test_training_triage_panel_rejects_forged_and_symlinked_artifacts(
 
 @pytest.mark.parametrize("assigned", [False, True])
 def test_imported_manifest_is_explicitly_pending_until_collection(tmp_path, assigned):
-    import hashlib
     import json
 
-    from sparselab.training.manifest import canonical_json
+    from sparselab.canonical import canonical_digest
     from sparselab.workers.artifacts import _restore_crash_projection
 
     source = ExperimentStore(tmp_path / "worker")
@@ -121,7 +120,7 @@ def test_imported_manifest_is_explicitly_pending_until_collection(tmp_path, assi
         "continuation_kind": "resume",
         "checkpoint_sha256": "c" * 64,
     }
-    digest = hashlib.sha256(canonical_json(payload)).hexdigest()
+    digest = canonical_digest(payload)
     source.register_manifest("child", digest, payload)
     target = ExperimentStore(tmp_path / "controller")
     target.import_records(source.export_records()["records"])

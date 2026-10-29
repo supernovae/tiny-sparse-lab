@@ -7,20 +7,16 @@ all three lock/spec/receipt/run identities are checked again at collection time.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
 from typing import Any
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.data.verification import verify_file
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.experiments.lock import ResolvedCell, ResolvedExperimentPlan
-from sparselab.training.manifest import (
-    canonical_json,
-    config_sha256,
-    read_manifest,
-)
+from sparselab.training.manifest import config_sha256, read_manifest
 from sparselab.verification_proofs import (
     ProofStore,
     VerificationMode,
@@ -31,10 +27,6 @@ from sparselab.workers.controller import Controller
 from sparselab.workers.models import AttemptReceipt, ExperimentSpec
 
 _FORMAT = "sparselab-experiment-evidence-index"
-
-
-def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _plan_metadata(lock: ResolvedExperimentPlan, cell: ResolvedCell) -> dict[str, Any]:
@@ -111,7 +103,7 @@ def _verify_attempt(
             raise ValueError(
                 "terminal receipt differs from controller run/spec/dispatch"
             )
-        result["receipt_sha256"] = _digest(receipt.model_dump(mode="json"))
+        result["receipt_sha256"] = canonical_digest(receipt.model_dump(mode="json"))
         result["receipt_state"] = receipt.state
         if row["status"] == "COMPLETE" and receipt.state != "COMPLETE":
             raise ValueError("controller completion disagrees with terminal receipt")
@@ -223,7 +215,7 @@ def _verify_attempt(
         raise ValueError("completed run lacks verified checkpoint evidence")
     result.update(
         status="complete",
-        manifest_sha256=_digest(manifest),
+        manifest_sha256=canonical_digest(manifest),
         artifacts=inventory,
         checkpoints=[
             {
@@ -396,7 +388,7 @@ def collect_evidence(
             proof_store=proof_store,
             verification_mode=verification_mode,
         )
-    digest = _digest(payload)
+    digest = canonical_digest(payload)
     directory = root / "evidence"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{digest}.json"
@@ -430,7 +422,7 @@ def read_evidence(
         raise ValueError("evidence index is outside plan workspace or is a symlink")
     raw = path.read_bytes()
     payload = json.loads(raw)
-    digest = _digest(payload)
+    digest = canonical_digest(payload)
     if path.name != f"{digest}.json" or raw != canonical_json(payload) + b"\n":
         raise ValueError("evidence index digest or canonical encoding differs")
     if (

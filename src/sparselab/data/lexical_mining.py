@@ -7,7 +7,6 @@ inputs; its address arithmetic mirrors :class:`TokenNgramMemory` directly.
 
 from __future__ import annotations
 
-import hashlib
 import math
 from collections import Counter
 from pathlib import Path
@@ -19,9 +18,10 @@ from sparselab.address_hash import (
     token_ngram_address,
     token_uses_legacy,
 )
+from sparselab.canonical import canonical_digest
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 MAX_INPUT_BYTES: Final = 256 * 1024 * 1024
 MAX_DOCUMENTS: Final = 1_000_000
@@ -271,7 +271,7 @@ def analyze_training_corpus(
             "excludes": ["output_projection_weights", "gate_weights"],
         },
     }
-    result["analysis_sha256"] = hashlib.sha256(canonical_json(result)).hexdigest()
+    result["analysis_sha256"] = canonical_digest(result)
     return result
 
 

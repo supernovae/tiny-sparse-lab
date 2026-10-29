@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from sparselab.canonical import canonical_json
 from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.progress import memory_bytes
 from sparselab.corpus.release import _verification_operation
@@ -31,7 +32,7 @@ from sparselab.data.encoding import (
     validate_tokenizer_batch_limits,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.campaign.policy import CorpusReadinessPolicy

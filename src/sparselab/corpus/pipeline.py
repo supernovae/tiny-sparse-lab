@@ -18,6 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import StrictModel
 from sparselab.corpus.project import ReleaseDeclaration, release_declaration_payload
 from sparselab.corpus.provenance import (
@@ -38,7 +39,7 @@ from sparselab.corpus.rights import (
     resolve_file_rights,
     verify_record_admission,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
@@ -209,7 +210,7 @@ KEY_VALUE = re.compile(
 
 
 def digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
+    return canonical_digest(value)
 
 
 def _json(path: Path, value: Any) -> None:
@@ -3470,16 +3471,16 @@ def _build_stored(
                 ],
             },
         )
-        from sparselab.corpus.acquisition import _sync_dir
         from sparselab.engram.packs import _rename_noreplace
+        from sparselab.result_publication import sync_directory
 
         for entry in sorted(staging.rglob("*"), reverse=True):
             if entry.is_file():
                 with entry.open("rb") as handle:
                     os.fsync(handle.fileno())
             elif entry.is_dir():
-                _sync_dir(entry)
-        _sync_dir(staging)
+                sync_directory(entry)
+        sync_directory(staging)
         _rename_noreplace(staging, target)
-        _sync_dir(root)
+        sync_directory(root)
     return target

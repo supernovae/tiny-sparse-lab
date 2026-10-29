@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.engram.packs import _rename_noreplace
@@ -33,7 +34,7 @@ from sparselab.research.catalog import (
     resource_root,
     resource_sha256,
 )
-from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
+from sparselab.training.manifest import config_sha256, sha256_file
 
 
 def _dataset_names(*, root: Path | None = None) -> tuple[str, ...]:
@@ -782,12 +783,12 @@ def _semantic_lesson_workspace(directory: Path) -> dict[str, object]:
     key_encoder = {
         "name": "tutorial-fixed-structured-key",
         "revision": "frozen-v1",
-        "sha256": hashlib.sha256(canonical_json(key_specification)).hexdigest(),
+        "sha256": canonical_digest(key_specification),
     }
     value_encoder = {
         "name": "tutorial-fixed-value",
         "revision": "frozen-v1",
-        "sha256": hashlib.sha256(canonical_json(value_specification)).hexdigest(),
+        "sha256": canonical_digest(value_specification),
     }
     keys = np.zeros((len(facts), len(key_indices)), dtype=np.float32)
     values = np.zeros((len(facts), len(value_indices)), dtype=np.float32)

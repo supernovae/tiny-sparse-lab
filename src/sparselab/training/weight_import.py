@@ -7,7 +7,6 @@ It never downloads a model, imports source code, or guesses a tensor mapping.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -26,6 +25,7 @@ from safetensors import SafetensorError
 from safetensors.torch import load_file
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import RunConfig
 from sparselab.data.tokenizer import SPECIAL_TOKENS
@@ -36,7 +36,6 @@ from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
     architecture_sha256,
-    canonical_json,
     config_sha256,
     sha256_file,
     source_identity,
@@ -69,15 +68,6 @@ class LegacyWeights:
     metadata: dict[str, object]
 
 
-def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    output: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in output:
-            raise ValueError(f"duplicate JSON object key: {key!r}")
-        output[key] = value
-    return output
-
-
 def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-finite JSON value: {value}")
 
@@ -86,7 +76,7 @@ def _json(path: Path) -> dict[str, Any]:
     try:
         raw = json.loads(
             path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -94,10 +84,6 @@ def _json(path: Path) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise TypeError(f"{path} must contain a JSON object")
     return raw
-
-
-def _sha256_json(raw: Mapping[str, object]) -> str:
-    return hashlib.sha256(canonical_json(raw)).hexdigest()
 
 
 def _provenance(path: Path) -> dict[str, str]:
@@ -259,7 +245,7 @@ def load_legacy_weights(
     return LegacyWeights(
         tensors,
         source_config,
-        _sha256_json(source_config.model_dump(mode="json")),
+        canonical_digest(source_config.model_dump(mode="json")),
         metadata,
     )
 
@@ -435,7 +421,7 @@ def _llama_weights(
     return (
         _validate_destination_tensors(destination, mapped),
         config,
-        _sha256_json(config),
+        canonical_digest(config),
     )
 
 
@@ -501,7 +487,7 @@ def _write_import_checkpoint(
             "parent_checkpoint_sha256": None,
             "lineage_best": None,
         }
-        digest = hashlib.sha256(canonical_json(content)).hexdigest()
+        digest = canonical_digest(content)
         (temporary / "manifest.json").write_bytes(
             canonical_json({**content, "sha256": digest}) + b"\n"
         )

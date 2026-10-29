@@ -19,12 +19,13 @@ from pathlib import Path
 import numpy as np
 from tokenizers import Tokenizer
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.evaluation.chat import format_chat_prompt
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _FORMAT = "sparselab-learned-portability-data"
 _VERSION = 1
@@ -61,10 +62,6 @@ _TEMPLATES: dict[str, dict[str, str]] = {
         "text": "Copy the supplied symbol {symbol}.",
     },
 }
-
-
-def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _stream(seed: int, fact_count: int, purpose: str) -> bytes:
@@ -359,7 +356,7 @@ def _verify_existing(root: Path, *, seed: int, fact_count: int) -> Path:
         payload = dict(manifest)
         digest = payload.pop("sha256")
         if (
-            digest != _digest(payload)
+            digest != canonical_digest(payload)
             or type(manifest.get("seed")) is not int
             or manifest.get("seed") != seed
             or type(manifest.get("fact_count")) is not int
@@ -654,7 +651,7 @@ def materialize_learned_portability_data(
                     },
                     "permitted_roles": roles,
                 }
-                fact["content_digest_sha256"] = _digest(fact)
+                fact["content_digest_sha256"] = canonical_digest(fact)
                 facts.append(fact)
                 labels[fact_id] = symbol
         if len({int(row["target_row"]) for row in facts}) != fact_count or 0 in {
@@ -740,7 +737,7 @@ def materialize_learned_portability_data(
                         "purpose": "preparation_only",
                     },
                 }
-                fact["content_digest_sha256"] = _digest(fact)
+                fact["content_digest_sha256"] = canonical_digest(fact)
                 preparation_facts.append(fact)
                 preparation_rows[purpose].append(conversation)
                 packed[purpose].append(
@@ -871,7 +868,7 @@ def materialize_learned_portability_data(
         }
 
         template_manifest = {
-            name: {**value, "digest_sha256": _digest(value)}
+            name: {**value, "digest_sha256": canonical_digest(value)}
             for name, value in _TEMPLATES.items()
         }
         ownership_content = {
@@ -959,7 +956,7 @@ def materialize_learned_portability_data(
             },
             "files": files,
         }
-        manifest = {**manifest_content, "sha256": _digest(manifest_content)}
+        manifest = {**manifest_content, "sha256": canonical_digest(manifest_content)}
         (staging / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
         try:
             _rename_noreplace(staging, root)

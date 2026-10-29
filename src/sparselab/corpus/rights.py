@@ -22,8 +22,8 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import field_validator, model_validator
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import StrictModel
-from sparselab.training.manifest import canonical_json
 
 TrainingEligibility = Literal[
     "eligible", "eligible_with_obligations", "review_required", "ineligible"
@@ -860,7 +860,7 @@ def _verify_record_admission_v1(
                     for key, value in row.items()
                     if key != "_sparselab_source"
                 }
-                row_hash = hashlib.sha256(canonical_json(original)).hexdigest()
+                row_hash = canonical_digest(original)
                 index = envelope.get("source_row_index")
                 decision = indexed.get(index)
                 metadata = original.get("metadata")

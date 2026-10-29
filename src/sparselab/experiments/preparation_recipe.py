@@ -13,6 +13,7 @@ from pydantic import Field, StrictInt, StrictStr, field_validator, model_validat
 
 from sparselab.campaign.plan import CampaignPlan
 from sparselab.campaign.preparation_plan import CompiledPreparation, compile_preparation
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig, StrictModel, TokenizerTrainConfig
 from sparselab.config.recipe_paths import _INPUT_FIELDS, _OUTPUT_FIELDS, _paths
 from sparselab.declaration_context import RecipeContext, canonical_reference
@@ -23,7 +24,7 @@ from sparselab.experiments.recipe import (
     snapshot_inventory,
 )
 from sparselab.experiments.workflow_recipe import _location
-from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.training.manifest import source_identity
 
 
 class PreparationFile(StrictModel):

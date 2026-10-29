@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config
 from sparselab.runtime import RuntimeInfo
 from sparselab.training import manifest
@@ -14,7 +15,6 @@ from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
     architecture_sha256,
-    canonical_json,
     config_sha256,
     read_manifest,
     write_manifest,
@@ -156,7 +156,7 @@ def test_manifest_rejects_duplicate_nonfinite_and_unknown_versions(
     path = tmp_path / "manifest.json"
     digest = write_manifest(path, manifest)
     loaded = read_manifest(path)
-    assert digest == hashlib.sha256(canonical_json(loaded)).hexdigest()
+    assert digest == canonical_digest(loaded)
     assert loaded["artifacts"] == [
         {
             "relative_path": artifact.relative_path,
@@ -178,7 +178,7 @@ def test_manifest_rejects_duplicate_nonfinite_and_unknown_versions(
 
     unknown = dict(loaded)
     unknown["manifest_version"] = 99
-    unknown["sha256"] = hashlib.sha256(canonical_json(unknown)).hexdigest()
+    unknown["sha256"] = canonical_digest(unknown)
     unknown_path = tmp_path / "unknown.json"
     unknown_path.write_text(json.dumps(unknown), encoding="utf-8")
     with pytest.raises(ValueError, match="unsupported manifest version"):
@@ -257,7 +257,7 @@ def test_legacy_v1_manifest_digest_is_verified_without_reinterpretation(
         "run_id": "historic",
         "requested_config_sha256": "historical-digest",
     }
-    legacy["sha256"] = hashlib.sha256(canonical_json(legacy)).hexdigest()
+    legacy["sha256"] = canonical_digest(legacy)
     path = tmp_path / "legacy.json"
     path.write_bytes(canonical_json(legacy) + b"\n")
 

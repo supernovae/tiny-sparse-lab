@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_json
 from sparselab.workers.models import (
     AttemptReceipt,
     BundleManifest,

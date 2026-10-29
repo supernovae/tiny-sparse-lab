@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ctypes
 import errno
-import hashlib
 import json
 import os
 import re
@@ -30,17 +29,18 @@ from pydantic import (
 from safetensors import SafetensorError
 
 from sparselab.address_hash import byte_scheme
+from sparselab.canonical import canonical_digest, canonical_json, reject_duplicate_keys
 from sparselab.config.models import StrictModel
 from sparselab.engram.records import (
     MAX_RECORD_BYTES,
     KnowledgeRecord,
-    _object_without_duplicates,
     _reject_constant,
     canonical_record_bytes,
     iter_knowledge_records,
 )
 from sparselab.model.portable_engram import load_portable_engram
-from sparselab.training.manifest import ArtifactIdentity, canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import ArtifactIdentity, sha256_file
 
 
 def _validate_model[T: StrictModel](model_type: type[T], value: object) -> T:
@@ -336,7 +336,7 @@ def _strict_json(data: bytes, label: str) -> object:
     try:
         return json.loads(
             data.decode("utf-8", errors="strict"),
-            object_pairs_hook=_object_without_duplicates,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
@@ -355,10 +355,6 @@ def _manifest_payload(manifest: EngramPackManifest) -> dict[str, object]:
     payload = manifest.model_dump(mode="json")
     payload.pop("pack_id")
     return payload
-
-
-def _pack_digest(payload: dict[str, object]) -> str:
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
 
 
 def _iter_record_lines(path: Path) -> Iterator[tuple[int, bytes]]:
@@ -387,7 +383,7 @@ def _manifest_from_bytes(path: Path) -> tuple[EngramPackManifest, bytes]:
     canonical = canonical_json(manifest.model_dump(mode="json")) + b"\n"
     if data != canonical:
         raise ValueError("manifest.json is not canonical JSON with final LF")
-    if manifest.pack_id != _pack_digest(_manifest_payload(manifest)):
+    if manifest.pack_id != canonical_digest(_manifest_payload(manifest)):
         raise ValueError("manifest pack_id self-digest mismatch")
     return manifest, data
 
@@ -444,7 +440,7 @@ def _semantic_space_id(component: SemanticComponent | dict[str, object]) -> str:
             "dtype": raw["dtype"],
             "key_normalization": raw["key_normalization"],
         }
-    return hashlib.sha256(canonical_json(identity)).hexdigest()
+    return canonical_digest(identity)
 
 
 def _scan_tensor(path: Path, name: str, *, l2: bool = False) -> tuple[int, int]:
@@ -532,14 +528,6 @@ def _write_file(path: Path, data: bytes) -> None:
         handle.write(data)
         handle.flush()
         os.fsync(handle.fileno())
-
-
-def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def _fsync_parent_if_supported(path: Path) -> None:
@@ -747,13 +735,13 @@ def compile_pack(
             else None,
             "files": [entry.model_dump(mode="json") for entry in files],
         }
-        raw_payload["pack_id"] = _pack_digest(raw_payload)
+        raw_payload["pack_id"] = canonical_digest(raw_payload)
         manifest = _validate_model(EngramPackManifest, raw_payload)
         manifest_path = temporary / "manifest.json"
         _write_file(
             manifest_path, canonical_json(manifest.model_dump(mode="json")) + b"\n"
         )
-        _fsync_directory(temporary)
+        sync_directory(temporary)
 
         report = verify_pack(temporary, expected_pack_id=manifest.pack_id)
         if not report.valid:

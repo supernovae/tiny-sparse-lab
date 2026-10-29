@@ -17,13 +17,14 @@ from pydantic import (
 )
 
 from sparselab.campaign.state import publish_immutable, read_canonical
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import StrictModel
 from sparselab.documents import read_document
 from sparselab.evaluation.generation import generate_with_token_ids
 from sparselab.evaluation.inference import load_run
 from sparselab.evaluation.suite import verify_evaluation_index
 from sparselab.runtime_profile import RuntimeAuthorization
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode
 from sparselab.workspace_cleanup import campaign_lock
 
@@ -173,10 +174,6 @@ def load_panel(source: Path) -> GenerationPanel:
     return GenerationPanel.model_validate(read_document(source))
 
 
-def _digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
-
-
 def _runtime_identity(runtime: dict[str, Any]) -> dict[str, Any]:
     """Separate stable execution identity from discovery timestamps and counters."""
     return {
@@ -279,7 +276,7 @@ def run_panel(
         else authorization.as_dict(),
         "rows": [],
     }
-    record["binding_sha256"] = _digest(_binding(record))
+    record["binding_sha256"] = canonical_digest(_binding(record))
     output = run / "evaluations" / f"panel-{record['binding_sha256']}.json"
     journal = output.with_suffix(".attempts")
     with campaign_lock(journal):
@@ -355,7 +352,7 @@ def run_panel(
             or sha256_file(evaluation_index) != index_file_sha
         ):
             raise ValueError("panel or evaluation index changed during generation")
-        record["record_sha256"] = _digest(record)
+        record["record_sha256"] = canonical_digest(record)
         publish_immutable(output, record)
         verify_panel_result(output, **verification)
         return output
@@ -374,8 +371,8 @@ def _attempt_marker(
 
 
 def _publish_attempt(path: Path, marker: dict[str, Any], row: dict[str, Any]) -> None:
-    payload = {"marker_sha256": _digest(marker), "row": row}
-    payload["record_sha256"] = _digest(payload)
+    payload = {"marker_sha256": canonical_digest(marker), "row": row}
+    payload["record_sha256"] = canonical_digest(payload)
     publish_immutable(path, payload)
 
 
@@ -384,9 +381,9 @@ def _read_attempt(journal: Path, marker: dict[str, Any]) -> dict[str, Any]:
     if read_canonical(journal / f"{ordinal}.started.json") != marker:
         raise ValueError("generation panel attempt marker changed")
     receipt = read_canonical(journal / f"{ordinal}.result.json")
-    if receipt.get("marker_sha256") != _digest(marker) or receipt.get(
+    if receipt.get("marker_sha256") != canonical_digest(marker) or receipt.get(
         "record_sha256"
-    ) != _digest({k: v for k, v in receipt.items() if k != "record_sha256"}):
+    ) != canonical_digest({k: v for k, v in receipt.items() if k != "record_sha256"}):
         raise ValueError("generation panel attempt receipt changed")
     return receipt["row"]
 
@@ -405,7 +402,7 @@ def verify_panel_result(
         or record.get("role") != "descriptive_not_quality_gate"
     ):
         raise ValueError("invalid descriptive generation panel result")
-    if record.get("record_sha256") != _digest(
+    if record.get("record_sha256") != canonical_digest(
         {k: v for k, v in record.items() if k != "record_sha256"}
     ):
         raise ValueError("generation panel record changed")
@@ -440,7 +437,7 @@ def verify_panel_result(
     ):
         raise ValueError("generation panel inference identity changed")
     if (
-        record["binding_sha256"] != _digest(_binding(record))
+        record["binding_sha256"] != canonical_digest(_binding(record))
         or path.name != f"panel-{record['binding_sha256']}.json"
         or path.parent.resolve() != (Path(record["run"]) / "evaluations").resolve()
     ):

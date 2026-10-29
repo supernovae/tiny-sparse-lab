@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 from pathlib import Path
 
 import numpy as np
 
+from sparselab.canonical import canonical_digest
 from sparselab.data.packing import (
     TokenBlockDataset,
     load_prepared_data,
@@ -16,7 +16,7 @@ from sparselab.data.packing import (
 )
 from sparselab.data.verification import VerifiedFile, _receipt_from_proofs, verify_file
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.training.manifest import read_manifest
 from sparselab.verification_proofs import (
     ProofStore,
     VerificationMode,
@@ -88,10 +88,7 @@ def validate_held_out_report(
         if not isinstance(payload, dict):
             return None, "report is not an object"
         digest = payload.pop("sha256", None)
-        if (
-            not isinstance(digest, str)
-            or hashlib.sha256(canonical_json(payload)).hexdigest() != digest
-        ):
+        if not isinstance(digest, str) or canonical_digest(payload) != digest:
             return None, "report hash mismatch"
         checkpoint = payload.get("checkpoint")
         bound = checkpoints.get(checkpoint) if isinstance(checkpoint, str) else None
@@ -262,7 +259,7 @@ def experiment_evidence(
         from sparselab.evaluation.panel_data import panel_coverage
 
         expected_targets, expected_batches = panel_coverage(config["evaluation"])
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_digest = canonical_digest(manifest)
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     checkpoints: list[dict[str, object]] = []
     checkpoint_lookup: dict[str, dict[str, object]] = {}

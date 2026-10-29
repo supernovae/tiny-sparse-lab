@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 import shutil
 from pathlib import Path
 
 import numpy as np
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.models import FixedValidationPanel, RunConfig
 from sparselab.data.packing import (
     TokenBlockDataset,
@@ -16,7 +16,7 @@ from sparselab.data.packing import (
     load_prepared_data,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def select_panel(
@@ -58,7 +58,7 @@ def panel_protocol(panel: FixedValidationPanel) -> dict:
 
 
 def panel_protocol_sha256(panel: FixedValidationPanel) -> str:
-    return hashlib.sha256(canonical_json(panel_protocol(panel))).hexdigest()
+    return canonical_digest(panel_protocol(panel))
 
 
 def load_fixed_panels(

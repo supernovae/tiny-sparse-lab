@@ -11,7 +11,8 @@ import json
 import sqlite3
 from pathlib import Path
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.canonical import canonical_json
+from sparselab.training.manifest import sha256_file
 
 MAX_ROW_BYTES = 64 * 1024**2
 MAX_RECEIPT_BYTES = 256 * 1024**2

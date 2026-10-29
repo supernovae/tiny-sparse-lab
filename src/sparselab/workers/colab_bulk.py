@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_json
 from sparselab.workers.agent import _dispatch, _error
 from sparselab.workers.models import (
     PROTOCOL_VERSION,

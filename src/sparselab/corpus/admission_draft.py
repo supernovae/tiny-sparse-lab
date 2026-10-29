@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.acquisition import declaration_sha256, verify_acquisition
 from sparselab.corpus.bounded_metadata import metadata_operation, read_metadata
 from sparselab.corpus.project import Project, source_declaration_payload
@@ -27,7 +28,7 @@ from sparselab.corpus.rights import (
     resolve_file_rights,
     verify_record_admission,
 )
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 
@@ -244,7 +245,7 @@ def _draft_admission_manifest(
                         raise ValueError("selected HF rows exceed snapshot file")
                     record = row.value
                     envelope = record.pop("_sparselab_source", None)
-                    original_sha = hashlib.sha256(canonical_json(record)).hexdigest()
+                    original_sha = canonical_digest(record)
                     if (
                         not isinstance(envelope, dict)
                         or envelope.get("source_row_index")

@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 import torch
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset, supervision_requires_mask
 from sparselab.evaluation.evidence import validate_held_out_report
@@ -28,12 +29,7 @@ from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.model.inspection import parameter_inventory
 from sparselab.runtime_profile import RuntimeAuthorization
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import (
-    IDENTITY_VERSION,
-    canonical_json,
-    read_manifest,
-    sha256_file,
-)
+from sparselab.training.manifest import IDENTITY_VERSION, read_manifest, sha256_file
 
 FORMAT = "sparselab_post_train_triage_v1"
 MAX_BYTES = 256 * 1024
@@ -91,10 +87,6 @@ def _json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"expected JSON object: {path.name}")  # noqa: TRY004 - serialized artifact
     return value
-
-
-def _sha(value: object) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _finite(value: object) -> bool:
@@ -289,7 +281,7 @@ def _checkpoint_metadata(
     digest = raw.pop("sha256", None)
     if (
         not isinstance(digest, str)
-        or _sha(raw) != digest
+        or canonical_digest(raw) != digest
         or raw.get("manifest_sha256") != run_digest
     ):
         return None
@@ -752,7 +744,7 @@ def _parent(
         parent_run = _run_path(parent_id, runs_dir)
         parent_manifest = read_manifest(_owned(parent_run, "manifest.json"))
         parent_progress = _json(_owned(parent_run, "progress.json"))
-        parent_digest = _sha(parent_manifest)
+        parent_digest = canonical_digest(parent_manifest)
         rows, final, _, _ = _metrics(runs_dir, parent_id)
         integrity, evidence = _evidence(
             parent_run, parent_manifest, parent_progress, parent_digest, rows
@@ -1386,7 +1378,7 @@ def _card_surface(
             identity = payload.get("identity")
             if (
                 not isinstance(digest, str)
-                or _sha(payload) != digest
+                or canonical_digest(payload) != digest
                 or not isinstance(identity, dict)
                 or identity.get("run_id") != manifest["run_id"]
                 or not isinstance(identity.get("checkpoint_sha256"), str)
@@ -1475,7 +1467,9 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
         raise ValueError("post-train triage filename hash mismatch")
     payload = _json(path)
     identity = payload.pop("identity", None)
-    if not isinstance(identity, dict) or identity.get("sha256") != _sha(payload):
+    if not isinstance(identity, dict) or identity.get("sha256") != canonical_digest(
+        payload
+    ):
         raise ValueError("post-train triage embedded identity mismatch")
     payload["identity"] = identity
     if payload.get("format") != FORMAT or identity.get("run_id") != run_id:
@@ -1573,7 +1567,7 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
         ):
             raise ValueError("post-train triage malformed recommendation")
     manifest = _owned(run, "manifest.json")
-    if identity.get("manifest_sha256") != _sha(_triage_manifest(manifest)):
+    if identity.get("manifest_sha256") != canonical_digest(_triage_manifest(manifest)):
         raise ValueError("post-train triage manifest binding mismatch")
     progress = _json(_owned(run, "progress.json"))
     if (
@@ -1628,7 +1622,7 @@ def triage_completed_run(
         raise ValueError("post-train triage requires completed progress status")
     manifest_path = _owned(run, "manifest.json")
     manifest = read_manifest(manifest_path)
-    digest = _sha(manifest)
+    digest = canonical_digest(manifest)
     if manifest.get("run_id") != run_id or progress.get("manifest_sha256") != digest:
         raise ValueError("run/manifest identity mismatch")
     config = RunConfig.model_validate(manifest["effective_config"])
@@ -1791,7 +1785,7 @@ def triage_completed_run(
         "validation_data_sha256": artifacts.get("data/validation.npy"),
         "tokenizer_sha256": artifacts.get("tokenizer.json"),
         "report_sha256": {r["path"]: r["sha256"] for r in evidence["reports"]},
-        "telemetry_sha256": _sha({"metrics": rows, "runtime": final}),
+        "telemetry_sha256": canonical_digest({"metrics": rows, "runtime": final}),
         "policy": {
             "tier1_parameter_ceiling": 100_000_000,
             "cpu_parameter_ceiling": 10_000_000,
@@ -1822,7 +1816,7 @@ def triage_completed_run(
         ],
     }
     payload["identity"] = {
-        "sha256": _sha(payload),
+        "sha256": canonical_digest(payload),
         "run_id": run_id,
         "manifest_sha256": digest,
         "generation_manifest_sha256": integrity.get("generation_manifest_sha256"),

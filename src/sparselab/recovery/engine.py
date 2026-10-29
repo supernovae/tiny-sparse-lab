@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.campaign.state import digest, publish_immutable, read_canonical, utc_now
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.project import load_project
 from sparselab.corpus.release import verify_release
@@ -17,7 +18,7 @@ from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.experiments.lock import open_lock
 from sparselab.experiments.plan import load_plan
 from sparselab.recovery.manifest import RecoveryManifest, load_manifest
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 
 def _reference(source: Path, reference: str) -> Path:
@@ -161,7 +162,7 @@ def _export_path(root: Path, release: Path, step: Any, source: Path) -> Path:
         "base_config_sha256": sha256_file(_reference(source, step.base_run)),
         "vocab_size": step.vocab_size,
     }
-    identity = hashlib.sha256(canonical_json(request)).hexdigest()
+    identity = canonical_digest(request)
     return (
         root
         / "corpora"
@@ -964,7 +965,7 @@ def reconstruct_manifest(
             "receipt_sha256": receipt_id,
             "issued_at_utc": utc_now(),
         }
-        receipt["record_sha256"] = hashlib.sha256(canonical_json(receipt)).hexdigest()
+        receipt["record_sha256"] = canonical_digest(receipt)
         publish_immutable(receipt_path, receipt)
     if evidence_output is not None:
         publish_immutable(Path(evidence_output), receipt)

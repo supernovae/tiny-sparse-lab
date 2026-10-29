@@ -26,6 +26,24 @@ if isinstance(_torch, ModuleType):
     _torch.set_num_threads(1)
 
 
+# `-n auto` (pyproject addopts): one worker per usable CPU, capped so each gets
+# ~2 GiB of currently available RAM (a worker plus a `sparselab try` child
+# peaks near 1 GiB). Threads stay at 1 per worker above, so a 48-core box runs
+# ~48 workers and a 4-vCPU CI runner or small laptop runs 4 or fewer.
+_WORKER_RAM_BYTES = 2 * 1024**3
+
+
+def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
+    import psutil
+
+    try:
+        cpus = len(os.sched_getaffinity(0))
+    except AttributeError:  # macOS
+        cpus = os.cpu_count() or 1
+    available = psutil.virtual_memory().available
+    return max(1, min(cpus, available // _WORKER_RAM_BYTES))
+
+
 # Host-RAM planning (``sparselab.host_capacity``) refuses work when measured
 # available RAM minus a reserve cannot fit one worker. Under xdist, and on a
 # box shared with other jobs, that measurement depends on whatever else is

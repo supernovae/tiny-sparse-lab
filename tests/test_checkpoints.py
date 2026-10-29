@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import torch
 
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.engines.base import CanonicalTensor
@@ -23,7 +24,7 @@ from sparselab.training.checkpoints import (
     load_legacy_checkpoint,
     verify_legacy_checkpoint,
 )
-from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.training.manifest import config_sha256
 from sparselab.training.optimizer import (
     learning_rate_for_step,
     make_optimizer,
@@ -494,7 +495,7 @@ def test_full_verify_rejects_tampered_native_state(
             entry["sha256"] = hashlib.sha256(state_path.read_bytes()).hexdigest()
             entry["bytes"] = state_path.stat().st_size
     payload = {key: value for key, value in manifest.items() if key != "sha256"}
-    manifest["sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    manifest["sha256"] = canonical_digest(payload)
     (generation / "manifest.json").write_text(json.dumps(manifest))
     report = manager.verify(generation)
     assert not report.valid

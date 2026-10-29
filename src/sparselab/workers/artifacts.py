@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Protocol
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.training.checkpoints import (
     CheckpointManager,
@@ -17,7 +18,6 @@ from sparselab.training.checkpoints import (
 )
 from sparselab.training.manifest import (
     ArtifactIdentity,
-    canonical_json,
     config_sha256,
     read_manifest,
     sha256_file,
@@ -225,7 +225,7 @@ def _verify_complete_run(
     recovery_frontier: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[tuple[object, ...]]]:
     manifest = read_manifest(root / "manifest.json")
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_digest = canonical_digest(manifest)
     for name in ("run_id", "attempt_id", "experiment_id"):
         if manifest.get(name) != _field(receipt, name):
             raise ValueError(f"ingested manifest {name} differs from receipt")

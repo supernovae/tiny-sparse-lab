@@ -11,9 +11,10 @@ from typing import Any
 
 import yaml
 
+from sparselab.canonical import canonical_json, reject_duplicate_keys
 from sparselab.config.loading import _resolve_paths, load_config
 from sparselab.config.models import RunConfig
-from sparselab.documents import _reject_constant, _unique_json_pairs, read_document
+from sparselab.documents import _reject_constant, read_document
 from sparselab.experiments.compiler import (
     apply_patch,
     flatten_config,
@@ -21,7 +22,7 @@ from sparselab.experiments.compiler import (
     patchable_config,
 )
 from sparselab.experiments.lock import _exclusive_bytes
-from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
+from sparselab.training.manifest import config_sha256, sha256_file
 
 
 def parse_assignments(values: Sequence[str]) -> dict[str, Any]:
@@ -36,7 +37,9 @@ def parse_assignments(values: Sequence[str]) -> dict[str, Any]:
         if field in result:
             raise ValueError(f"duplicate assignment: {field}")
         value = json.loads(
-            text, object_pairs_hook=_unique_json_pairs, parse_constant=_reject_constant
+            text,
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=_reject_constant,
         )
         canonical_json(value)
         result[field] = value

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import re
@@ -13,10 +12,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from sparselab.campaign.state import publish_immutable
+from sparselab.canonical import canonical_digest
 from sparselab.config.loading import load_config
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
+from sparselab.training.manifest import read_manifest, sha256_file
 
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
@@ -267,7 +267,7 @@ def _selection_payload(declaration_path: Path, *, before_test: bool) -> dict[str
         before_test=before_test,
     )
     selected = min(scores, key=lambda row: (row["loss"], row["step"]))
-    manifest_sha = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_sha = canonical_digest(manifest)
     report = CheckpointManager(run, manifest_sha256=manifest_sha).verify(
         run / "checkpoints" / selected["checkpoint"],
         expected_manifest=manifest_sha,
@@ -300,7 +300,7 @@ def select_fixed_validation(declaration: Path, output: Path) -> dict[str, Any]:
     if output.exists() or output.is_symlink():
         raise FileExistsError(f"fixed selection output already exists: {output}")
     payload = _selection_payload(declaration, before_test=True)
-    digest = hashlib.sha256(canonical_json(payload)).hexdigest()
+    digest = canonical_digest(payload)
     receipt = {**payload, "sha256": digest}
     publish_immutable(output, receipt)
     return receipt
@@ -312,7 +312,7 @@ def verify_fixed_selection(declaration: Path, receipt_path: Path) -> dict[str, A
         raise ValueError("fixed-selection receipt is missing or symlinked")
     saved = json.loads(receipt_path.read_text(encoding="utf-8"))
     actual = _selection_payload(declaration, before_test=False)
-    digest = hashlib.sha256(canonical_json(actual)).hexdigest()
+    digest = canonical_digest(actual)
     if saved != {**actual, "sha256": digest}:
         raise ValueError("fixed-selection receipt differs from verified evidence")
     return saved

@@ -18,9 +18,9 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.canonical import canonical_json, reject_duplicate_keys
 from sparselab.config.models import StrictModel
-from sparselab.experiments.study import _reject_duplicate_pairs
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _RESOURCE_ROOT = Path(str(files("sparselab.research").joinpath("resources"))).resolve()
 _MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -461,7 +461,7 @@ def _read_json(path: Path) -> tuple[object, bytes]:
     try:
         value = json.loads(
             data,
-            object_pairs_hook=_reject_duplicate_pairs,
+            object_pairs_hook=reject_duplicate_keys,
             parse_constant=lambda token: (_ for _ in ()).throw(
                 ValueError(f"nonfinite JSON number: {token}")
             ),

@@ -18,6 +18,7 @@ import torch
 import yaml
 
 from sparselab import host_capacity
+from sparselab.canonical import canonical_json
 from sparselab.config.models import RunConfig
 from sparselab.model.inspection import (
     ParameterInventory,
@@ -25,7 +26,7 @@ from sparselab.model.inspection import (
     parameter_inventory,
 )
 from sparselab.runtime import RuntimeInfo, allocated_memory_bytes, process_rss_bytes
-from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.training.manifest import config_sha256
 
 _MIB = 1024 * 1024
 

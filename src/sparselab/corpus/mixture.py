@@ -21,9 +21,9 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import DatasetConfig
-from sparselab.corpus.acquisition import _sync_dir
 from sparselab.corpus.mixture_index import (
     MAX_RECEIPT_BYTES,
     MAX_ROW_BYTES,
@@ -33,7 +33,8 @@ from sparselab.corpus.mixture_index import (
 from sparselab.corpus.release import _verification_operation, verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.result_publication import sync_directory
+from sparselab.training.manifest import sha256_file
 
 
 class ObservationFile(BaseModel):
@@ -222,7 +223,7 @@ def _rank(
         return hashlib.sha256(
             f"kml-card03-v1 | {stratum} | {doc_id}".encode()
         ).hexdigest()
-    return hashlib.sha256(canonical_json([seed, stratum, family, doc_id])).hexdigest()
+    return canonical_digest([seed, stratum, family, doc_id])
 
 
 def materialize_mixture(declaration: Path, output: Path) -> dict:
@@ -412,9 +413,9 @@ def _materialize_mixture(
             stream.write(canonical_json(receipt) + b"\n")
             stream.flush()
             os.fsync(stream.fileno())
-        _sync_dir(staging)
+        sync_directory(staging)
         _rename_noreplace(staging, output)
-        _sync_dir(output.parent)
+        sync_directory(output.parent)
         if completed is not None:
             _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt)
         else:

@@ -22,17 +22,13 @@ import torch
 from safetensors import SafetensorError
 from safetensors.torch import load_file, save_file
 
+from sparselab.canonical import canonical_json
 from sparselab.config.models import AdamWConfig, CheckpointRetention, RunConfig
 from sparselab.data.verification import verify_file
 from sparselab.engines.base import CanonicalTensor, WeightSource
 from sparselab.model.inspection import TensorSpec, named_tensor_inventory
 from sparselab.training import retention as retention_policy
-from sparselab.training.manifest import (
-    architecture_sha256,
-    canonical_json,
-    config_sha256,
-    sha256_file,
-)
+from sparselab.training.manifest import architecture_sha256, config_sha256, sha256_file
 from sparselab.training.mlx_checkpoints import (
     CODEC as MLX_CODEC,
 )

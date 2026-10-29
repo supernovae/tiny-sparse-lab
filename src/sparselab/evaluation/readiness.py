@@ -11,10 +11,11 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.config.models import StrictModel
 from sparselab.documents import read_document
 from sparselab.evaluation.suite import load_suite, verify_evaluation_index
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -155,7 +156,7 @@ def _review_identity(record: dict[str, Any]) -> str:
         for key, value in record.items()
         if key not in {"receipt_sha256", "index_path", "surface_bundle"}
     }
-    return hashlib.sha256(canonical_json(science)).hexdigest()
+    return canonical_digest(science)
 
 
 def _readiness_identity(record: dict[str, Any]) -> str:
@@ -164,7 +165,7 @@ def _readiness_identity(record: dict[str, Any]) -> str:
         for key, value in record.items()
         if key not in {"result_sha256", "assessed_at_utc", "policy", "index", "review"}
     }
-    return hashlib.sha256(canonical_json(science)).hexdigest()
+    return canonical_digest(science)
 
 
 def verify_review_receipt(path: Path) -> dict[str, Any]:

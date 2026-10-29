@@ -138,7 +138,7 @@ def test_native_sha_and_canonical_bytes_match(capacity, tmp_path):
     def worker(path):
         return (path.name, hashlib.sha256(path.read_bytes()).hexdigest())
 
-    from sparselab.training.manifest import canonical_json
+    from sparselab.canonical import canonical_json
 
     reference = canonical_json(
         list(host.run_ordered(paths, worker, plan=replace(plan, workers=1)))

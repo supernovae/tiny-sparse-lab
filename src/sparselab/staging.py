@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import logging
 import os
@@ -14,6 +13,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from sparselab.canonical import canonical_digest, reject_duplicate_keys
 from sparselab.config.models import RunConfig
 from sparselab.data.allocation import (
     copy_allocation_bundle,
@@ -71,12 +71,7 @@ from sparselab.runtime_forecasting import (
 )
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import _atomic_json, _fsync_directory, _safe_member
-from sparselab.training.manifest import (
-    canonical_json,
-    config_sha256,
-    sha256_file,
-    source_identity,
-)
+from sparselab.training.manifest import config_sha256, sha256_file, source_identity
 from sparselab.training.metrics import SCHEMA_VERSION, ExperimentStore
 from sparselab.training.pilot_deadline import (
     PilotCancelled,
@@ -137,7 +132,7 @@ def inspect_runtime(config: RunConfig) -> RuntimeInfo:
 
 
 def _seal(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
-    value = {**payload, "sha256": hashlib.sha256(canonical_json(payload)).hexdigest()}
+    value = {**payload, "sha256": canonical_digest(payload)}
     _atomic_json(path, value)
     return value
 
@@ -150,19 +145,13 @@ def _read_sealed(path: Path) -> dict[str, Any]:
     ):
         raise ValueError(f"invalid or oversized stage manifest: {path}")
 
-    def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in items:
-            if key in result:
-                raise ValueError(f"duplicate stage key: {key}")
-            result[key] = value
-        return result
-
-    payload = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=pairs)
+    payload = json.loads(
+        path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys
+    )
     if not isinstance(payload, dict):
         raise TypeError("stage manifest must be an object")
     body = {key: value for key, value in payload.items() if key != "sha256"}
-    if payload.get("sha256") != hashlib.sha256(canonical_json(body)).hexdigest():
+    if payload.get("sha256") != canonical_digest(body):
         raise ValueError("stage manifest digest mismatch")
     if payload.get("format_version") != 1:
         raise ValueError("unsupported stage bundle version")
@@ -212,7 +201,7 @@ def _verify_inventory(
     seen: set[str] = set()
     closure = {
         "manifest_sha256": manifest_sha256,
-        "inventory_sha256": hashlib.sha256(canonical_json(inventory)).hexdigest(),
+        "inventory_sha256": canonical_digest(inventory),
         "published_manifest": published_manifest,
     }
     proofs: dict[str, VerifiedFile] = {}

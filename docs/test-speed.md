@@ -32,13 +32,17 @@ documentation, check links, anchors, parser arguments and configuration schemas
 without calling command handlers. Ordinary PR success does not certify all
 training paths, accelerator behavior or macOS behavior.
 
-For an explicit local full-suite run, use two workers, distributing whole test
-files so module-scoped fixtures remain together. Pytest's `tmp_path` and
-`tmp_path_factory` keep artifacts in worker-specific directories. Do not share
-a mutable work directory between independently launched suites.
+Plain `pytest` is parallel by default (`-n auto --dist worksteal` in
+`pyproject.toml`). `tests/conftest.py` sizes `auto` to one worker per usable
+CPU, capped at one per 2 GiB of available RAM, and pins each worker to one
+math thread. A large workstation uses most of its cores, and a 4-vCPU runner or
+small laptop gets 4 or fewer. Pass `-n N` to choose, or `-n 0` to debug
+serially. Pytest's `tmp_path` and `tmp_path_factory` keep artifacts in
+worker-specific directories. Do not share a mutable work directory between
+independently launched suites.
 
 ```sh
-uv run --locked --extra cpu pytest -q -n 2 --dist loadfile -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
+uv run --locked --extra cpu pytest -q -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
 uv run --locked --extra cpu ruff check .
 uv run --locked --extra cpu ruff format --check .
 ```
@@ -50,12 +54,12 @@ a push and what every PR runs in CI. The full suite runs nightly and is the
 release gate.
 
 ```sh
-# Fast: ~1,000 tests across ~110 modules; ~1-2 minutes with 4 workers on an 8-vCPU box
-uv run --locked --extra cpu pytest -q -n 4 -m 'not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network'
-# Full: includes slow integration tests; ~3-5 minutes with 4 workers on the same box
-uv run --locked --extra cpu pytest -q -n 4 -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
+# Fast: ~2,000 tests; ~35 s on a 48-core box, ~1-2 minutes with 4 workers
+uv run --locked --extra cpu pytest -q -m 'not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network'
+# Full: includes slow integration tests; ~4 minutes (bounded by the longest test)
+uv run --locked --extra cpu pytest -q -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
 # Only the slow tests
-uv run --locked --extra cpu pytest -q -n 4 -m slow
+uv run --locked --extra cpu pytest -q -m slow
 ```
 
 `tests/conftest.py` applies the `slow` marker to the base node ids listed in
@@ -85,7 +89,7 @@ lifecycle runs, tiny training, and native subprocess monitors.
 Profile a full run, then list any test whose call time is at least 1 s:
 
 ```sh
-uv run --locked --extra cpu pytest -q -n 4 -p no:randomly --durations=50 \
+uv run --locked --extra cpu pytest -q -p no:randomly --durations=50 \
   --junitxml=/tmp/suite.xml -o junit_duration_report=call
 ```
 
@@ -147,11 +151,11 @@ take several minutes. A whole-command deadline must allow all separately
 bounded runs and the subsequent verification; a faulthandler stack report is
 not a test failure or a run deadline.
 
-For a suspected CPU stall, retain the normal two-worker layout and ask
+For a suspected CPU stall, use a small fixed worker count and ask
 pytest's built-in faulthandler plugin for thread stacks after a bounded interval:
 
 ```sh
-uv run --locked --extra cpu pytest -vv -n 2 --dist loadfile \
+uv run --locked --extra cpu pytest -vv -n 2 \
   -o faulthandler_timeout=120 \
   -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
 ```
@@ -163,20 +167,19 @@ serially with the same option when isolating the blockage.
 On an Apple Silicon machine with the optional MLX runtime installed (`uv sync --locked --dev --extra cpu --extra mlx`), run hardware tests in **one serial process**, after CPU workers finish:
 
 ```sh
-uv run --locked --extra cpu --extra mlx pytest -q -m 'mlx and not mps and not network'
+uv run --locked --extra cpu --extra mlx pytest -q -n 0 -m 'mlx and not mps and not network'
 # Opt-in MPS tests when the device is available; the current CI gate excludes these.
-uv run --locked --extra cpu pytest -q -m 'mps and not network'
+uv run --locked --extra cpu pytest -q -n 0 -m 'mps and not network'
 ```
 
-Never use `-n` for MLX/MPS or run another accelerator test/training process against the same device at the same time. Network-marked tests require explicit separate opt-in.
+Always pass `-n 0` for MLX/MPS or run another accelerator test/training process against the same device at the same time. Network-marked tests require explicit separate opt-in.
 
 ## Why the gate is structured this way
 
 The full CPU jobs on Linux and macOS retain their tests, hardware exclusions,
 and existing 30-minute safety limits, but are manual-only while their long
 native integrations are paused as automatic build gates. The automatic `safe`, `lab-loop` and `fast` jobs have 8-, 12- and 12-minute limits; the nightly full suite has 25 minutes. The manual hosted
-CPU jobs use up to four workers with work-stealing; the local command above
-uses whole-file scheduling for fixture reuse.
+CPU jobs use up to four workers with work-stealing, as local runs do by default.
 
 The [historical CI run 36380519748](https://github.com/supernovae/tiny-sparse-lab/actions/runs/36380519748)
 measured 331 seconds for Linux's serial CPU step and 407 seconds for macOS's

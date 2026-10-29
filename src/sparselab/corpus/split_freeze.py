@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import yaml
 
+from sparselab.canonical import canonical_json
 from sparselab.corpus.acquisition import verify_acquisition
 from sparselab.corpus.bounded_metadata import (
     current_metadata_store,
@@ -28,7 +29,7 @@ from sparselab.corpus.row_index import RowIndex, ValueMap
 from sparselab.corpus.split_inventory import write_split_inventory
 from sparselab.corpus.split_inventory_cache import InventoryCache, verified_inventory
 from sparselab.result_publication import sync_directory as _sync_directory
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import verification_options
 
 _SPLITS = ("train", "validation", "test")

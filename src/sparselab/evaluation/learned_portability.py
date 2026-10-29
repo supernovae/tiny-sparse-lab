@@ -9,7 +9,6 @@ vocabulary distribution at the byte-addressed assistant-symbol position.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import random
 import re
@@ -22,11 +21,12 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from sparselab.canonical import canonical_digest, reject_duplicate_keys
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.evaluation.inference import InferenceRun
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import PortableEngramAdapter
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.manifest import sha256_file
 
 _FORMAT = "sparselab-learned-portability-data"
 _VERSION = 1
@@ -34,19 +34,10 @@ _BATCH_SIZE = 32
 _SYMBOLS = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
 
 
-def _without_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
 def _read_json(path: Path) -> dict[str, object]:
     try:
         value = json.loads(
-            path.read_text(encoding="utf-8"), object_pairs_hook=_without_duplicate_keys
+            path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys
         )
     except json.JSONDecodeError as error:
         raise ValueError(f"invalid JSON: {path}") from error
@@ -61,7 +52,7 @@ def _jsonl(path: Path) -> Iterator[dict[str, object]]:
             if not line.strip():
                 raise ValueError(f"blank JSONL row: {path}:{number}")
             try:
-                value = json.loads(line, object_pairs_hook=_without_duplicate_keys)
+                value = json.loads(line, object_pairs_hook=reject_duplicate_keys)
             except json.JSONDecodeError as error:
                 raise ValueError(f"invalid JSONL row: {path}:{number}") from error
             if not isinstance(value, dict):
@@ -138,10 +129,7 @@ def _verify_manifest(path: Path) -> tuple[dict[str, object], dict[str, Path]]:
     digest = manifest.get("sha256")
     canonical = dict(manifest)
     canonical.pop("sha256", None)
-    if (
-        not isinstance(digest, str)
-        or hashlib.sha256(canonical_json(canonical)).hexdigest() != digest
-    ):
+    if not isinstance(digest, str) or canonical_digest(canonical) != digest:
         raise ValueError("learned data manifest canonical digest mismatch")
     manifest_path = path.resolve()
     root = manifest_path.parent
@@ -290,7 +278,7 @@ def _load_facts(
         body.pop("content_digest_sha256")
         if (
             not isinstance(content_digest, str)
-            or hashlib.sha256(canonical_json(body)).hexdigest() != content_digest
+            or canonical_digest(body) != content_digest
         ):
             raise ValueError(f"learned fact content digest mismatch: {fact_id}")
         nonce, target_row, symbol = (
@@ -420,8 +408,7 @@ def _load_preparation_facts(
                 "namespace": "learned-engram-portability-v1|data-v1",
                 "purpose": "preparation_only",
             }
-            or hashlib.sha256(canonical_json(body)).hexdigest()
-            != fact.get("content_digest_sha256")
+            or canonical_digest(body) != fact.get("content_digest_sha256")
         ):
             raise ValueError(f"learned preparation fact is invalid: {fact_id}")
         suffix = b"|" + key.encode("ascii") + b"\n\nAssistant: "

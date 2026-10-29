@@ -11,6 +11,7 @@ import pytest
 import torch
 from safetensors.numpy import load_file, save_file
 
+from sparselab.canonical import canonical_digest, canonical_json
 from sparselab.cli.main import main
 from sparselab.engram import packs
 from sparselab.engram.packs import (
@@ -25,7 +26,6 @@ from sparselab.model.portable_engram import (
     export_portable_engram,
     load_portable_engram,
 )
-from sparselab.training.manifest import canonical_json
 
 CREATED_AT = "2026-09-23T00:00:00Z"
 
@@ -274,7 +274,7 @@ def test_rehashed_semantic_row_map_still_fails_verification(tmp_path) -> None:
     identity["size_bytes"] = len(metadata_bytes)
     payload = dict(raw_manifest)
     payload.pop("pack_id")
-    raw_manifest["pack_id"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    raw_manifest["pack_id"] = canonical_digest(payload)
     (pack / "manifest.json").write_bytes(canonical_json(raw_manifest) + b"\n")
 
     report = verify_pack(pack)
@@ -350,7 +350,7 @@ def test_rejects_unexpected_symlink_and_manifest_traversal(tmp_path) -> None:
     raw["files"][0]["relative_path"] = "../outside.txt"
     identity = dict(raw)
     identity.pop("pack_id")
-    raw["pack_id"] = hashlib.sha256(canonical_json(identity)).hexdigest()
+    raw["pack_id"] = canonical_digest(identity)
     manifest_path.write_bytes(canonical_json(raw) + b"\n")
     with pytest.raises(ValueError, match="unsafe or unsupported"):
         inspect_pack(tmp_path / "valid.enpack")

@@ -16,6 +16,7 @@ import struct
 from collections import OrderedDict
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.admission_inspection_cache import (
     InspectionCache,
     capture,
@@ -24,7 +25,7 @@ from sparselab.corpus.admission_inspection_cache import (
 from sparselab.corpus.completed_preparation import _producer
 from sparselab.corpus.completed_release import verify_retained_release
 from sparselab.corpus.mixture_index import MAX_ROW_BYTES, MixtureIndex
-from sparselab.corpus.retained_render_adoption import _sha, _small
+from sparselab.corpus.retained_render_adoption import _small
 from sparselab.corpus.split_runs import (
     SplitStages,
     _stamp,
@@ -46,7 +47,7 @@ def _phase(root, stage_root, name, *, expected_producer=None):
         event = json.loads(_small(path, root))
         body = event["record"]
         if (
-            event["sha256"] != _sha(body)
+            event["sha256"] != canonical_digest(body)
             or body["previous"] != previous
             or body["request"] != stage_root.name
         ):
@@ -100,7 +101,9 @@ def _phase(root, stage_root, name, *, expected_producer=None):
     }
     if "mutable_dependencies" not in before:
         normalized["upstream_identities"].pop("mutable_dependencies", None)
-    normalized["manifest_inventory_sha256"] = _sha(normalized["upstream_identities"])
+    normalized["manifest_inventory_sha256"] = canonical_digest(
+        normalized["upstream_identities"]
+    )
     if normalized != saved:
         raise ValueError("retained mixture semantic binding differs")
     for item in payload["files"]:
@@ -126,7 +129,7 @@ def prepared_release(root, release):
     identity = manifest["build_identity"]
     request = identity["completed_preparation"]["request"]
     workspace = release.parent.parent
-    stage_root = workspace / "build-stages" / _sha(request)
+    stage_root = workspace / "build-stages" / canonical_digest(request)
     refs, refs_proof = _phase(
         root,
         stage_root,

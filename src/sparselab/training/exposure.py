@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import hashlib
 from typing import TYPE_CHECKING, Any
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_digest
 
 if TYPE_CHECKING:
     from sparselab.data.packing import BatchCursor, TokenBlockDataset
@@ -44,7 +43,7 @@ def exposure_context(
     return {
         "version": 1,
         "protocol": protocol,
-        "protocol_sha256": hashlib.sha256(canonical_json(protocol)).hexdigest(),
+        "protocol_sha256": canonical_digest(protocol),
         "supply": dataset.exposure_supply(),
         "scope": {
             "continuation": continuation,

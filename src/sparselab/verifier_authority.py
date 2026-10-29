@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from sparselab.training.manifest import canonical_json
+from sparselab.canonical import canonical_digest
 
 AUTHORITY_SCHEMA = 2
 _COMMON = ("__init__", "verification_proofs", "verifier_authority", "training.manifest")
@@ -441,7 +441,7 @@ def _exclusion_signature(source: bytes, imported: str) -> str:
         )
         if any(uses_alias(part) for part in header)
     ]
-    return hashlib.sha256(canonical_json([*imports, *owners, *headers])).hexdigest()
+    return canonical_digest([*imports, *owners, *headers])
 
 
 @dataclass(frozen=True)
@@ -682,6 +682,6 @@ def verifier_authority(kind: str, version: int) -> dict[str, object]:
         kind=kind,
         version=version,
         modules=modules,
-        sha256=hashlib.sha256(canonical_json(modules)).hexdigest(),
+        sha256=canonical_digest(modules),
     )
     return asdict(authority)
