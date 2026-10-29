@@ -226,7 +226,7 @@ def _inventory_phase(directory, path, expected, headers, source_strata):
     }
 
 
-def _join_phase(directory, inventory, admission, merges):
+def _join_phase(directory, inventory, admission, merges, prior_aliases=None):
     decisions = iter(rows(admission["decisions"]))
     decision = next(decisions, None)
     seen_hints, eligible = set(), 0
@@ -252,7 +252,8 @@ def _join_phase(directory, inventory, admission, merges):
             ):
                 raise ValueError("eligible document has unresolved family")
             eligible += 1
-            yield [1, merges.get(hint, hint), stratum, document, content]
+            canonical = (prior_aliases or {}).get(hint, hint)
+            yield [1, merges.get(hint, canonical), stratum, document, content]
         if seen_hints != set(merges):
             raise ValueError("reviewed merge contains absent family hint")
 
@@ -286,9 +287,14 @@ def _family_phase(directory, joined, seed):
 def _allocation_phase(directory, family_phase, weights, strata):
     from sparselab.corpus.split_freeze import _SPLITS, _counts
 
-    realized = {}
+    realized, remaining = {}, {}
     for stratum in sorted(strata):
-        count = family_phase["counts"].get(stratum, 0)
+        delta_count = family_phase["counts"].get(stratum, 0)
+        pinned = family_phase.get("pinned", {}).get(stratum, {})
+        prior = family_phase.get("prior_counts", {}).get(stratum, {})
+        overlapping = family_phase.get("overlapping", {}).get(stratum, {})
+        extra = family_phase.get("extra_pinned", {}).get(stratum, {})
+        count = delta_count + sum(prior.values()) - sum(overlapping.values())
         if count < sum(weights):
             raise ValueError(f"too few eligible families for {stratum} split")
         counts = _counts(count, weights)
@@ -299,23 +305,41 @@ def _allocation_phase(directory, family_phase, weights, strata):
                 s: f"{n}/{count}" for s, n in zip(_SPLITS, counts, strict=True)
             },
         }
+        remaining[stratum] = {
+            split: quota
+            - (
+                prior.get(split, 0) + extra.get(split, 0)
+                if "prior_counts" in family_phase
+                else pinned.get(split, 0)
+            )
+            for split, quota in zip(_SPLITS, counts, strict=True)
+        }
+        if any(count < 0 for count in remaining[stratum].values()):
+            raise ValueError("prior family assignments exceed new split quota")
+        if sum(remaining[stratum].values()) != delta_count - sum(pinned.values()):
+            raise ValueError("prior family counts do not match pinned assignments")
 
     def allocations():
         previous, index = None, 0
-        for stratum, rank, family in rows(family_phase["families"]):
+        for row in rows(family_phase["families"]):
+            stratum, _rank, family = row[:3]
+            pinned = row[3] if len(row) == 4 else None
             if stratum != previous:
                 previous, index = stratum, 0
-            count = realized[stratum]
-            split = (
-                "train"
-                if index < count["train"]
-                else (
-                    "validation"
-                    if index < count["train"] + count["validation"]
-                    else "test"
+            count = remaining[stratum]
+            if pinned is not None:
+                split = pinned
+            else:
+                split = (
+                    "train"
+                    if index < count["train"]
+                    else (
+                        "validation"
+                        if index < count["train"] + count["validation"]
+                        else "test"
+                    )
                 )
-            )
-            index += 1
+                index += 1
             yield [family, stratum, split]
 
     sorted_file = external_sort(allocations(), directory / "sorted")
@@ -451,16 +475,12 @@ def freeze_completed_preparation(
         verify_split_bundle,
     )
 
-    # This operational reuse path does not silently change a release-family plan.
+    # Prior release assignments remain immutable anchors for an extension.
     with Path(clusters_path).open("rb") as stream:
         raw_clusters = stream.read(4 * 1024**2 + 1)
     if len(raw_clusters) > 4 * 1024**2:
         raise ValueError("reviewed cluster header byte cap exceeded")
-    initial = json.loads(raw_clusters)
-    if "prior_family_inventory" in initial:
-        raise ValueError(
-            "completed-preparation streaming requires a parentless split plan"
-        )
+    json.loads(raw_clusters)
     (
         root,
         configuration,
@@ -472,12 +492,23 @@ def freeze_completed_preparation(
         _prior_content,
         adopted,
     ) = _split_inputs(
-        project, work_root, inventory_path, clusters_path, output, recover=recover
+        project,
+        work_root,
+        inventory_path,
+        clusters_path,
+        output,
+        recover=recover,
+        load_prior=False,
     )
     if adopted is None:
         raise ValueError(
             "streaming reuse requires completed inventory execution evidence"
         )
+    prior, prior_evidence = None, None
+    if "prior_family_inventory" in clusters:
+        from sparselab.corpus.streaming_prior import prior_indexes
+
+        prior, prior_evidence = prior_indexes(root, clusters["prior_family_inventory"])
     reference = project.release.record_admission
     if reference is None:
         raise ValueError("streaming reuse requires reviewed admission")
@@ -503,6 +534,12 @@ def freeze_completed_preparation(
         "inputs": capture([inventory_path, admission_path, clusters_path]),
         "inventory_execution": adopted.provenance,
     }
+    if prior is not None:
+        request["producer"]["streaming_prior.py"] = sha256_file(
+            Path(__file__).with_name("streaming_prior.py")
+        )
+        request["prior_family_inventory"] = prior_evidence
+        request["inputs"].update(capture([prior["families"], prior["content"]]))
     stages = SplitStages(
         root / "corpora" / project.config.id / "split-stages", request, work_root=root
     )
@@ -535,12 +572,32 @@ def freeze_completed_preparation(
             if hint in merges:
                 raise ValueError("overlapping reviewed family merges")
             merges[hint] = merge["family_id"]
+    if prior is not None:
+        from sparselab.corpus.streaming_prior import (
+            check_content,
+            check_merges,
+            pin_families,
+        )
+
+        stages.phase("prior-merge-isolation", lambda d: check_merges(d, prior, merges))
     joined = stages.phase(
-        "join-admission", lambda d: _join_phase(d, inventory, admission, merges)
+        "join-admission",
+        lambda d: _join_phase(
+            d, inventory, admission, merges, prior.get("aliases") if prior else None
+        ),
     )
+    if prior is not None:
+        content_anchors = stages.phase(
+            "prior-content-isolation", lambda d: check_content(d, joined, prior)
+        )
     families = stages.phase(
         "family-rank", lambda d: _family_phase(d, joined, clusters["seed"])
     )
+    if prior is not None:
+        families = stages.phase(
+            "prior-family-anchors",
+            lambda d: pin_families(d, families, prior, content_anchors),
+        )
     allocated = stages.phase(
         "family-assign",
         lambda d: _allocation_phase(
@@ -597,6 +654,8 @@ def freeze_completed_preparation(
             "unavailable_reason": stages.cache.unavailable_reason,
         },
     }
+    if prior_evidence is not None:
+        receipt["prior_family_inventory"] = prior_evidence
     if "split_weights" in clusters:
         receipt["split_weights"] = clusters["split_weights"]
     candidate_path = output.with_name(output.stem + ".family-candidates.jsonl")

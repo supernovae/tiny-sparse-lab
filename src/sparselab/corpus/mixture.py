@@ -67,6 +67,12 @@ class TokenizerObservation(BaseModel):
         return self
 
 
+class AdditiveRelease(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    release_path: Path
+
+
 class MixtureDeclaration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -74,6 +80,9 @@ class MixtureDeclaration(BaseModel):
     release_path: Path
     tokenizer_config: Path
     family_inventory: Path
+    additional_releases: list[AdditiveRelease] = Field(
+        default_factory=list, max_length=1, exclude_if=lambda value: not value
+    )
     source_strata: dict[str, str]
     target_quotas: dict[str, int]
     seed: int
@@ -221,7 +230,58 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
     spec = MixtureDeclaration.model_validate(yaml.safe_load(raw))
     release = spec.release_path.resolve()
     manifest = verify_release(release)
-    _source_rights(release, spec.source_strata)
+    cohorts = None
+    additive_evidence = []
+    if spec.additional_releases:
+        from sparselab.corpus.completed_preparation import corpus_work_root
+        from sparselab.corpus.retained_mixture import (
+            prepared_release,
+            verify_additive_anchor,
+        )
+
+        root = corpus_work_root(release)
+        paths = [
+            release,
+            *(item.release_path.resolve() for item in spec.additional_releases),
+        ]
+        if len(set(paths)) != len(paths) or any(
+            not path.is_relative_to(root) for path in paths
+        ):
+            raise ValueError(
+                "additive releases must be distinct and inside the same work root"
+            )
+        if spec.family_inventory.resolve() != release / "family-inventory.jsonl":
+            raise ValueError(
+                "additive mixture requires the base release family inventory"
+            )
+        cohorts = [prepared_release(root, path) for path in paths]
+        for cohort in cohorts[1:]:
+            anchor = verify_additive_anchor(cohorts[0], cohort)
+            cohort["anchor"] = anchor
+            additive_evidence.append(anchor)
+        source_ids = [source for cohort in cohorts for source in cohort["source_ids"]]
+        if len(source_ids) != len(set(source_ids)) or set(source_ids) != set(
+            spec.source_strata
+        ):
+            raise ValueError(
+                "additive mixture sources must be disjoint and fully mapped"
+            )
+        for cohort in cohorts:
+            mapped = {
+                source: spec.source_strata[source] for source in cohort["source_ids"]
+            }
+            _source_rights(Path(cohort["release_path"]), mapped)
+            report_path = Path(cohort["release_path"]) / "report.json"
+            summary = json.loads(report_path.read_bytes())
+            if (
+                summary["view_counts"]["lm"]["train"]
+                != summary["split_counts"]["train"]
+            ):
+                raise ValueError(
+                    "additive release TRAIN view does not cover its kept TRAIN documents"
+                )
+    else:
+        _source_rights(release, spec.source_strata)
     report = json.loads((release / "report.json").read_text(encoding="utf-8"))
     requested = report.get("requested_mixture")
     total_quota = sum(spec.target_quotas.values())
@@ -253,6 +313,7 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
             spec.family_inventory.resolve(),
             spec.tokenizer_config.resolve(),
             load_tokenizer_config(spec.tokenizer_config).output_dir.resolve(),
+            *(item.release_path.resolve() for item in spec.additional_releases),
         ]
         if (
             cache.proofs is None
@@ -265,34 +326,61 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".mixture-", dir=output.parent))
     try:
-        with (
-            tempfile.TemporaryDirectory(prefix=".index-", dir=staging) as scratch,
-            MixtureIndex(Path(scratch), release / "documents.jsonl") as index,
-        ):
-            index.inventory(
-                spec.family_inventory,
-                spec.source_strata,
-                lambda row: _rank(
+        with tempfile.TemporaryDirectory(prefix=".index-", dir=staging) as scratch:
+            if cohorts is None:
+                index = MixtureIndex(Path(scratch), release / "documents.jsonl")
+            else:
+                from sparselab.corpus.retained_mixture import RetainedMixtureIndex
+
+                index = RetainedMixtureIndex(
+                    Path(scratch),
+                    root,
+                    cohorts,
                     spec.seed,
-                    row["stratum"],
-                    row["family_id"],
-                    row["document_id"],
+                    spec.source_strata,
                     spec.order_policy,
-                ),
-            )
-            index.select(release / "lm/train.lineage.jsonl")
-            receipt = _schedule(
-                spec,
-                raw,
-                release,
-                manifest,
-                tokenizer,
-                tokenizer_sha,
-                eos,
-                index,
-                staging,
-            )
-            index.verify_inputs()
+                )
+            with index:
+                if cohorts is None:
+                    index.inventory(
+                        spec.family_inventory,
+                        spec.source_strata,
+                        lambda row: _rank(
+                            spec.seed,
+                            row["stratum"],
+                            row["family_id"],
+                            row["document_id"],
+                            spec.order_policy,
+                        ),
+                    )
+                    index.select(release / "lm/train.lineage.jsonl")
+                receipt = _schedule(
+                    spec,
+                    raw,
+                    release,
+                    manifest,
+                    tokenizer,
+                    tokenizer_sha,
+                    eos,
+                    index,
+                    staging,
+                )
+                index.verify_inputs()
+                if cohorts is not None:
+                    composite = {
+                        "base_release_id": manifest["release_id"],
+                        "additional_release_ids": [
+                            item["release_id"] for item in additive_evidence
+                        ],
+                    }
+                    receipt["release_id"] = hashlib.sha256(
+                        canonical_json(composite)
+                    ).hexdigest()
+                    receipt["additive_release_binding"] = {
+                        **composite,
+                        "evidence": additive_evidence,
+                    }
+                    receipt["retained_reference_execution"] = index.reference_evidence
         if spec.tokenizer_observation is not None:
             from sparselab.corpus.tokenizer_observation import verify_observed_tokenizer
 
@@ -339,6 +427,7 @@ def _schedule(
     records = 0
     excluded: list[dict] = []
     excluded_bytes = 0
+    token_digest = hashlib.sha256()
 
     def exclude(doc, reason):
         nonlocal excluded_bytes
@@ -411,7 +500,9 @@ def _schedule(
                         "content_token_end": take - 1,
                         "token_ids": targets,
                     }
-                    stream.write(canonical_json(row) + b"\n")
+                    encoded_row = canonical_json(row) + b"\n"
+                    stream.write(encoded_row)
+                    token_digest.update(encoded_row)
                     totals[stratum] += take
                     source_totals[doc["source_id"]] += take
                     if exposure == 1:
@@ -429,7 +520,11 @@ def _schedule(
         "release_manifest_sha256": sha256_file(release / "manifest.json"),
         "tokenizer_sha256": tokenizer_sha,
         "declaration_sha256": hashlib.sha256(raw).hexdigest(),
-        "family_inventory_sha256": sha256_file(spec.family_inventory),
+        "family_inventory_sha256": (
+            manifest["files"]["family-inventory.jsonl"]["sha256"]
+            if spec.additional_releases
+            else sha256_file(spec.family_inventory)
+        ),
         "seed": spec.seed,
         **({"order_policy": spec.order_policy} if spec.order_policy else {}),
         "requested_target_quotas": spec.target_quotas,
@@ -447,7 +542,7 @@ def _schedule(
             stratum: spec.target_quotas[stratum] - totals[stratum]
             for stratum in spec.target_quotas
         },
-        "train_tokens_sha256": sha256_file(staging / "train.tokens.jsonl"),
+        "train_tokens_sha256": token_digest.hexdigest(),
         "train_tokens_bytes": (staging / "train.tokens.jsonl").stat().st_size,
     }
     if spec.unique_train_content_floors is not None:
@@ -470,6 +565,10 @@ def _completed_mixture_cache(spec):
             for name in ("mixture.py", "mixture_index.py")
         },
     }
+    if spec.additional_releases:
+        cache.authority["mixture"]["retained_mixture.py"] = sha256_file(
+            Path(__file__).with_name("retained_mixture.py")
+        )
     return cache
 
 
@@ -494,6 +593,13 @@ def _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt)
 
     release = spec.release_path.resolve()
     cache = _completed_mixture_cache(spec)
+    additive_dependencies = []
+    for item in spec.additional_releases:
+        path = item.release_path.resolve()
+        additive = verify_release(path)
+        additive_dependencies.extend(
+            [path, *local_dependencies(additive, work_root=corpus_work_root(path))]
+        )
     cache.publish(
         "completed-mixture",
         _completed_mixture_request(spec, raw, output, manifest, tokenizer_sha),
@@ -506,6 +612,7 @@ def _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt)
                 load_tokenizer_config(spec.tokenizer_config).output_dir,
                 release,
                 *local_dependencies(manifest, work_root=corpus_work_root(release)),
+                *additive_dependencies,
             ]
         ),
         limit=MAX_RECEIPT_BYTES,

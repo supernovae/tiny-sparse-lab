@@ -139,6 +139,49 @@ def assignments(output):
     return list(rows(output.parent / ("assignments-" + reference["sha256"] + ".jsonl")))
 
 
+def test_streaming_extension_anchors_existing_families(tmp_path, monkeypatch):
+    from sparselab.corpus import streaming_prior
+
+    project, inventory, clusters, records = fixture(tmp_path, monkeypatch)
+    old_inventory = tmp_path / "prior.jsonl"
+    old_rows = [
+        {
+            "document_id": "old-" + str(i),
+            "family_id": f"family-{i}",
+            "split": split,
+            "stratum": "web",
+            "content_sha256": records[i]["content_sha256"],
+        }
+        for i, split in ((0, "validation"), (1, "test"))
+    ]
+    old_inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in old_rows))
+    directory = tmp_path / "prior-index"
+    directory.mkdir()
+    prior = streaming_prior._index(directory, old_inventory, sha256_file(old_inventory))
+    evidence = {"release_id": "fixture", "inventory_sha256": sha256_file(old_inventory)}
+    monkeypatch.setattr(streaming_prior, "prior_indexes", lambda *_: (prior, evidence))
+    value = json.loads(clusters.read_bytes())
+    value["prior_family_inventory"] = {
+        "path": str(old_inventory),
+        "sha256": sha256_file(old_inventory),
+        "release_path": str(tmp_path),
+    }
+    clusters.write_bytes(canonical_json(value))
+    output = tmp_path / "extended.yaml"
+    old.freeze_splits(
+        project, tmp_path, inventory, clusters, output, reuse_completed_preparation=True
+    )
+    result = {row["document_id"]: row["split"] for row in assignments(output)}
+    assert result[records[0]["document_id"]] == "validation"
+    assert result[records[1]["document_id"]] == "test"
+    assert (
+        json.loads(output.with_suffix(".receipt.json").read_bytes())[
+            "prior_family_inventory"
+        ]
+        == evidence
+    )
+
+
 def test_native_equivalence_with_quarantined_rows_and_approved_merge(
     tmp_path, monkeypatch
 ):

@@ -1212,3 +1212,31 @@ instead of silently rerendering. Original proofs and completion records remain
 untouched. Each adopted render appends a durable `retained-renders.uses-*.jsonl`
 entry next to the declaration; keep it with the run evidence. The option applies
 only to that build invocation and does not change future default cache behavior.
+
+### Add a separately prepared release
+
+An incremental streaming split may bind the retained baseline through the
+family-cluster declaration's `prior_family_inventory` object. Set `path` and
+`sha256` to the baseline release's `family-inventory.jsonl`, `release_path`
+to that retained release, and `family_clusters` to an object containing the
+original cluster declaration's `path` and `sha256`. The prior cluster digest
+must match the authenticated original split receipt. Use completed preparation
+reuse; the ordinary cold split path retains its existing contract.
+
+The streaming path indexes the retained family and content metadata without
+reading the old document bodies. Existing family splits stay fixed. A new
+family containing retained content is anchored to the retained split when the
+relationship is unambiguous; incompatible strata, conflicting prior splits,
+or quotas that cannot be met without moving old families are refused. Exact
+content crossing new families is still checked by the normal split logic.
+
+For mixture materialization, `additional_releases` may contain one object with a
+`release_path` for a separately built, retained release in the same work root.
+Multiple additional releases are refused until their family splits can be
+coordinated. The additional release must carry a completed split bound to the baseline family inventory;
+source IDs must be disjoint and all sources mapped in `source_strata`. The
+tokenizer remains bound to the baseline release. The mixture records the
+ordered release identities and reads authenticated retained offsets instead of
+rebuilding an index from every old document body. Its existing cross-release
+split and rights checks still apply. Ranked reference checkpoints can be
+reused, but an interrupted token encoding spool is not yet resumable.
