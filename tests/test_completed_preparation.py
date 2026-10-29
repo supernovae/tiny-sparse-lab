@@ -239,6 +239,31 @@ def test_public_completed_build_release_and_family_export_match_native(
         verify_release(release)
 
 
+def test_retained_release_exposes_authenticated_source_offsets(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from sparselab.corpus.retained_mixture import prepared_release
+
+    root, _recipe, project = fixture(tmp_path, monkeypatch)
+    build = pipeline.build(
+        project, root, offline=True, reuse_completed_preparation=True
+    )
+    release = freeze(build, root, reuse_completed_preparation=True)
+    original = Path.open
+
+    def no_document_body(path, *args, **kwargs):
+        if path.name == "docs.jsonl":
+            pytest.fail("retained source bodies read while resolving offsets")
+        return original(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", no_document_body)
+        cohort = prepared_release(root, release)
+    assert cohort["documents"] == 11
+    assert len(cohort["sources"]) == 1
+    assert len(cohort["evidence"]["references"]["historical_proof_sha256"]) == 64
+
+
 def test_interrupted_public_build_reuses_committed_shard_rendering(
     tmp_path, monkeypatch
 ):
