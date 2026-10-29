@@ -1,0 +1,10 @@
+schema_version: 1
+release_path: ${VERIFIED_NEW_RELEASE_DIR}
+tokenizer_config: fixture-tokenizer.yaml
+family_inventory: ${FINALIZED_NEW_FAMILY_INVENTORY}
+source_strata: {}
+target_quotas: {}
+seed: 17
+max_exposures: 2
+order_policy: kml-card03-v1
+tokenizer_origin_release_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

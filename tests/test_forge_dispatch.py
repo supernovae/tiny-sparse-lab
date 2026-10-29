@@ -56,7 +56,7 @@ def sealed_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
     source = tmp_path / "source"
     source.mkdir()
-    shutil.copytree("corpora/devmind-sample-v0", source / "project")
+    shutil.copytree("tests/fixtures/corpus-sample", source / "project")
     base = yaml.safe_load(Path("configs/runtime_smoke_cpu.yaml").read_text())
     base["training"].update(max_steps=4, max_tokens=128)
     base["optimizer"]["warmup_steps"] = 0

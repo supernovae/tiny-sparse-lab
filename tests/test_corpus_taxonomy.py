@@ -202,7 +202,7 @@ def _rows(path: Path):
 def test_source_fact_has_three_distinct_rendered_shapes_and_filtered_views(
     tmp_path: Path,
 ):
-    project = load_project(Path("corpora/devmind-sample-v0/corpus.yaml"))
+    project = load_project(Path("tests/fixtures/corpus-sample/corpus.yaml"))
     acquire(project, tmp_path)
     built = build(project, tmp_path, offline=True)
     lineage = {row["record_id"]: row for row in _rows(built / "lineage.jsonl")}

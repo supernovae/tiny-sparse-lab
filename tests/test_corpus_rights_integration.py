@@ -19,7 +19,9 @@ from sparselab.corpus.project import Project, load_project, source_declaration_p
 from sparselab.corpus.publication import publication_manifest
 from sparselab.corpus.release import describe, freeze, verify_release
 
-PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0/corpus.yaml"
+PROJECT = (
+    Path(__file__).resolve().parents[1] / "tests/fixtures/corpus-sample/corpus.yaml"
+)
 
 
 def _prospective(tmp_path: Path) -> Project:

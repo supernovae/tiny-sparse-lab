@@ -18,7 +18,9 @@ from sparselab.corpus.pipeline import build
 from sparselab.corpus.project import load_project
 from sparselab.corpus.release import _validate_rows, describe, freeze
 
-PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0/corpus.yaml"
+PROJECT = (
+    Path(__file__).resolve().parents[1] / "tests/fixtures/corpus-sample/corpus.yaml"
+)
 
 
 def _release(tmp_path: Path) -> Path:

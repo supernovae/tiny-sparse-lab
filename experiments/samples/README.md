@@ -52,7 +52,7 @@ resolved field; neither is controlled, because the tokenizer and available
 training records also change. The target optimizer exposure is 640 tokens per
 arm, not proof that the same distinct source tokens were consumed. The pinned
 fraction tokenizer is checked in under
-[`corpora/devmind-sample-v0/pinned/`](../../corpora/devmind-sample-v0/pinned/).
+[`tests/fixtures/corpus-sample/pinned/`](../../tests/fixtures/corpus-sample/pinned/).
 If an exact subset becomes infeasible, preparation fails instead of rounding.
 
 From the repository root, in the locked environment:

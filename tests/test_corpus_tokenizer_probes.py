@@ -15,10 +15,7 @@ from tokenizers.trainers import BpeTrainer
 from sparselab.corpus.tokenizer_bakeoff import GROUPS
 from sparselab.corpus.tokenizer_probes import load_probe_suite, probe_tokenizer
 
-_SUITE = (
-    Path(__file__).resolve().parents[1]
-    / "experiments/research/history/devmind-pretrain-v1/tokenizer-probes.json"
-)
+_SUITE = Path(__file__).resolve().parents[1] / "tests/fixtures/tokenizer-probes.json"
 
 
 def _suite_copy(tmp_path: Path, suite: dict) -> Path:

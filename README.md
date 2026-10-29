@@ -34,6 +34,11 @@ and sharing community experiments:
 Earlier completed and archived studies remain browsable in the Workshop's
 [historical catalog](https://github.com/supernovae/kybern-workshop/tree/fd259e2cad4e9856d6d659e8df34728a98b32502/catalog).
 
+Runtime corpora, prepared inputs and model outputs stay outside this checkout in the
+configured work directory. See [source and storage boundaries](docs/repository-storage.md).
+Tiny maintained interface examples remain in `examples/`; synthetic corpus fixtures
+are under `tests/fixtures/`. Prior Lab-only research remains in pinned Git history.
+
 ## First run
 
 Install **Python 3.14** and [uv](https://docs.astral.sh/uv/), then:
@@ -161,7 +166,7 @@ experimental findings see the [experiment ledger](docs/research/experiment-ledge
 | **Conditional capacity** | Local Top-K MoE; token, byte, and portable Engram memory tables | [Capability experiments](docs/capabilities.md) |
 | **Training programs** | Parameter matrices, locked `ExperimentPlan` definitions, and multi-phase training | [Experiment programs DSL](docs/experiment-programs.md) |
 | **Campaign orchestration** | Multi-run dependency graphs, readiness checks, and result reconciliation | [Campaigns guide](docs/campaigns.md) |
-| **Corpus provenance** | Acquire, filter, freeze, export, and verify raw text corpora | [Corpus Forge sample](corpora/devmind-sample-v0/README.md) |
+| **Corpus provenance** | Acquire, filter, freeze, export, and verify raw text corpora | [Corpus Forge sample](tests/fixtures/corpus-sample/README.md) |
 | **Declarative datasets** | Pin Hugging Face Hub sources, snapshot, resume, and track token budgets | [Dataset interfaces](docs/datasets.md) |
 | **Instruction tuning** | Full-transcript or assistant-only loss over local multi-turn conversations | [Instruction training](docs/instruction-training.md) |
 | **Evaluation & review** | Held-out loss, capability cards, checkpoint-bound probe suites, and blind review | [Evidence guide](docs/evidence.md) |

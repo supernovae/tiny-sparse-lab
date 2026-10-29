@@ -249,7 +249,7 @@ def test_changed_sampling_contract_refuses_existing_output(tmp_path, monkeypatch
 def test_sampling_from_cold_production_template_release(tmp_path):
     from pathlib import Path
 
-    from test_kml_50m_preparation_sequence import _prior
+    from test_preparation_sequence import _prior
 
     from sparselab.config.loading import load_tokenizer_config
     from sparselab.corpus.export import export_release

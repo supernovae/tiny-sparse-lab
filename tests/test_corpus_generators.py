@@ -24,7 +24,7 @@ from sparselab.corpus.project import load_project
 from sparselab.corpus.release import freeze
 from sparselab.data.conversations import iter_rendered_conversations
 
-PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0"
+PROJECT = Path(__file__).resolve().parents[1] / "tests/fixtures/corpus-sample"
 
 
 def _replay_project(tmp_path: Path, *, bad_prompt: bool = False):

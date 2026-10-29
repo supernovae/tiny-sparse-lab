@@ -92,7 +92,16 @@ def test_retained_historical_evidence_keeps_exact_bytes() -> None:
     } <= paths
     assert "docs/context-engram-study.md" not in paths
     assert "docs/path-domain-corpus.md" not in paths
+    cleanup = json.loads((REPO / "docs/repository-storage-cleanup.json").read_text())
+    retired = {row["path"]: row for row in cleanup["files"]}
     for row in rows:
+        if row["relative_path"] in retired:
+            old = retired[row["relative_path"]]
+            assert (old["sha256"], old["size_bytes"]) == (
+                row["sha256"],
+                row["size_bytes"],
+            )
+            continue
         content = (REPO / row["relative_path"]).read_bytes()
         assert len(content) == row["size_bytes"], row["relative_path"]
         assert hashlib.sha256(content).hexdigest() == row["sha256"], row[
@@ -137,7 +146,7 @@ def test_devmind_v2_retirement_keeps_neutral_corpus_coverage() -> None:
         assert len(row["sha256"]) == 64
         assert row["size_bytes"] > 0
         assert not (REPO / row["source"]).exists()
-    assert (REPO / "corpora/devmind-sample-v0/corpus.yaml").is_file()
+    assert (REPO / "tests/fixtures/corpus-sample/corpus.yaml").is_file()
     for name in ("large_build", "pipeline", "rights_header", "structure_cleaning"):
         text = (REPO / f"tests/test_corpus_{name}.py").read_text()
         assert "corpora/devmind-v2" not in text
@@ -145,7 +154,6 @@ def test_devmind_v2_retirement_keeps_neutral_corpus_coverage() -> None:
 
 
 def test_context_retirement_preserves_shared_input_history() -> None:
-    import hashlib
     import json
 
     record = json.loads((REPO / "docs/context-retirement.json").read_text())
@@ -182,9 +190,14 @@ def test_context_retirement_preserves_shared_input_history() -> None:
     resource = json.loads((REPO / "docs/research-resource-retirement.json").read_text())
     assert resource["context_guide_moved_to_workshop"]["sha256"] == guide["sha256"]
     historical = record["retained_historical_reference"]
-    data = (REPO / historical["path"]).read_bytes()
-    assert hashlib.sha256(data).hexdigest() == historical["sha256"]
-    assert len(data) == historical["size_bytes"]
+    cleanup = json.loads((REPO / "docs/repository-storage-cleanup.json").read_text())
+    original = next(
+        row for row in cleanup["files"] if row["path"] == historical["path"]
+    )
+    assert original["sha256"] == historical["sha256"]
+    assert original["size_bytes"] == historical["size_bytes"]
+    assert original["disposition"] == "removed"
+    assert not (REPO / historical["path"]).exists()
     navigation = (REPO / guide["source"]).read_text()
     assert record["destination_commit"] in navigation
     assert "## Execution results — 2026-09-22" in navigation

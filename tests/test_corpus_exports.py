@@ -27,7 +27,7 @@ from sparselab.training.manifest import canonical_json, sha256_file
 @pytest.fixture(scope="module")
 def frozen_sample(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
     root = tmp_path_factory.mktemp("forge-export")
-    project = load_project(Path("corpora/devmind-sample-v0/corpus.yaml"))
+    project = load_project(Path("tests/fixtures/corpus-sample/corpus.yaml"))
     acquire(project, root)
     build_dir = build(project, root, offline=True)
     assert build(project, root, offline=True) == build_dir

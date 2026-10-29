@@ -85,7 +85,8 @@ operation-owned compact key/offset/split lookup instead of copying assignment
 JSON payloads into a relational index. Lookup maps close before scratch cleanup,
 and repeated consumers in one operation share the same validated lookup.
 
-New retained-corpus preparation uses the [current packet](../experiments/research/kernel-memory-lab/card05-base-50m/current/README.md).
+Current experiment definitions live in [Kybern Workshop](https://github.com/supernovae/kybern-workshop).
+Lab maintains a [synthetic native preparation fixture](../tests/fixtures/preparation/README.md) and a connected Workshop binder-to-stage regression.
 Use one `preparation.json` with native `attempt phase-command` for inspection and
 `attempt run-phase` for one supervised zero-model phase. Public `corpus
 render-declaration`, `attempt init`, `attempt bind-artifact`, corpus verifiers and
@@ -107,8 +108,8 @@ not copied, relinked, moved or modified, and the original build manifest and
 completion proofs remain intact. The ordinary freeze selection retains its
 independent-copy behavior.
 
-The native reader authenticates the original signed publication, exact current
-producer bytes, and unchanged input/output bindings. The publication record
+The native reader authenticates the original signed publication, the recorded signed
+producer identity, and unchanged input/output bindings. The publication record
 labels this as adopted execution, not a fresh build or source re-audit. Default
 build-cache refusal after verifier changes is unchanged. Missing, corrupt or
 changed evidence refuses reuse instead of triggering corpus processing.
@@ -188,7 +189,7 @@ or move them to another stratum.
 | Leaf/receipt/monitor output collisions | `test_attempt_contract`, connected admission-draft collision |
 | Accounting, exclusive creation, rollback, shutdown | Canonical `test_attempt_contract`, contract binding/CLI tests |
 | Actual operator argv and production template closure | `test_preparation_commands`, connected public `run-phase` through cold prepared bundle |
-| Historical identity and current science/resource ceilings | `test_kml_50m_launch_packet` |
+| Current Workshop model declaration and native staged inputs | `test_workshop_preparation_integration` |
 
 The duplicated static template-closure test and v1/v2 executable path-map tests
 are removed in favor of current compiler/connected coverage. Obsolete budget

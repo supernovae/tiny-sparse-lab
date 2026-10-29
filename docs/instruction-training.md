@@ -98,5 +98,5 @@ commands on a disposable v2 fixture. Each committed exactly 13 supervised
 training targets in one update. Evaluation scored 33 targets from a 398-token
 validation stream while excluding 19 wholly masked blocks; both produced
 `checkpointed_held_out` evidence bound to the supervision-mask digest.
-[The acceptance record](../artifacts/acceptance/assistant_only_2026_09_22.json)
+[The acceptance record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/assistant_only_2026_09_22.json)
 is an objective/packing/runtime check, not a domain-quality result.

@@ -59,7 +59,7 @@ def test_shape_ablation_reuses_acquisition_and_changes_release(
     tmp_path: Path,
 ) -> None:
     recipe = tmp_path / "sample"
-    shutil.copytree(Path("corpora/devmind-sample-v0"), recipe)
+    shutil.copytree(Path("tests/fixtures/corpus-sample"), recipe)
     source_project = recipe / "corpus.yaml"
     original = load_project(source_project)
     work = tmp_path / "work"
@@ -94,7 +94,7 @@ def test_zero_generated_fraction_counts_selected_training_tokens(
     tmp_path: Path,
 ) -> None:
     recipe = tmp_path / "sample"
-    shutil.copytree(Path("corpora/devmind-sample-v0"), recipe)
+    shutil.copytree(Path("tests/fixtures/corpus-sample"), recipe)
     project_path = recipe / "corpus.yaml"
     project = load_project(project_path)
     work = tmp_path / "work"

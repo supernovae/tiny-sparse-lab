@@ -65,4 +65,4 @@ terms. Authentication avoids **anonymous** limits but does not eliminate
 account-level throttling, data-transfer limits or network failures. Do not paste
 tokens into error reports. Corpus Forge's local sample and an already verified
 `corpus build --offline` need no Hugging Face credentials or network. See the
-[offline sample recipe](../corpora/devmind-sample-v0/README.md).
+[offline sample recipe](../tests/fixtures/corpus-sample/README.md).

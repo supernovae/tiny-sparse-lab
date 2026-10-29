@@ -151,7 +151,7 @@ def test_gate_release_is_public_but_not_automatic_attempt_dispatch(tmp_path):
 def test_pilot_reuse_materializes_without_full_origin_lock(tmp_path, monkeypatch):
     import shutil
 
-    from test_kml_50m_preparation_sequence import _sources
+    from test_preparation_sequence import _sources
 
     from sparselab.corpus import acquisition
     from sparselab.corpus.split_inventory import write_split_inventory

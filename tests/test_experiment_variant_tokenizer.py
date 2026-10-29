@@ -29,7 +29,7 @@ from sparselab.workers.bundles import prepare_dispatch_bundle
 def authored(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path, dict]:
     root = tmp_path_factory.mktemp("frozen-tokenizer-reuse")
     project_root = root / "project"
-    shutil.copytree("corpora/devmind-sample-v0", project_root)
+    shutil.copytree("tests/fixtures/corpus-sample", project_root)
     project_path = project_root / "corpus.yaml"
     base = root / "run.yaml"
     shutil.copyfile("configs/runtime_smoke_cpu.yaml", base)

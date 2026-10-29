@@ -11,7 +11,7 @@ forward, optimizer update, generation or cloud/device job was performed.
 ## Implemented surface
 
 The [current public mapping and coverage](../corpus-preparation.md) documents
-replacements and pruning. The [current packet](../../experiments/research/kernel-memory-lab/card05-base-50m/current/README.md)
+replacements and pruning. The [current packet](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/kernel-memory-lab/card05-base-50m/current/README.md)
 owns one 32-phase argument/path/template declaration. `attempt phase-command`
 expands it; `attempt run-phase` delegates one zero-counter phase to the existing
 attempt dispatcher and monitors. It is not a scheduler or review engine.
@@ -29,10 +29,10 @@ or frozen manifest's `build_identity`; no old artifacts were rewritten.
 
 ## Historical preservation and deletions
 
-[Lessons learned](../../experiments/research/history/LESSONS_LEARNED.md) summarizes
+[Lessons learned](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/LESSONS_LEARNED.md) summarizes
 dense token-budget/scale/decoding, DevMind and TinyStories findings and limitations.
-[The archive index](../../experiments/research/history/README.md) is explicitly
-inactive. [The path map](../../experiments/research/history/path-map.json) records
+[The archive index](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/README.md) is explicitly
+inactive. [The path map](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/path-map.json) records
 original paths, new locations, exact hashes/sizes and the recoverable source
 revision for removed helpers.
 
@@ -73,7 +73,7 @@ inspected before selecting these bounded checks. No broad pytest was run.
 | `tests/test_attempt_contract.py tests/test_attempt_contract_cli.py tests/test_attempt_contract_binding.py tests/test_preparation_commands.py tests/test_ci_routing.py` | 33 passed, one integrated invocation; the 3 compiler cases also passed after preserving the original 8 MiB production batch default |
 | `tests/test_research_lint.py` | 98 passed, includes actual staged records and archive/template rejection coverage |
 | `tests/test_kml_50m_launch_packet.py` | 6 passed against current and explicitly archived inputs |
-| `tests/test_kml_50m_preparation_sequence.py` | Final connected node passed (386.80s); the other 5 cases passed in the preceding module run |
+| `tests/test_preparation_sequence.py` | Final connected node passed (386.80s); the other 5 cases passed in the preceding module run |
 | Eight token-authentication nodes listed below | 8 passed in one final integrated invocation (7.50s) |
 | `tests/test_corpus_release_streaming.py::test_rehashed_release_rejects_tampered_evidence` | 3 passed (LM text, lineage, rights tampering) |
 | Native sensor/storage/shutdown selection listed below | 19 passed |
@@ -84,7 +84,7 @@ inspected before selecting these bounded checks. No broad pytest was run.
 Final connected command:
 
 ```sh
-uv run --locked --no-sync pytest -q --tb=short tests/test_kml_50m_preparation_sequence.py::test_offline_preparation_sequence_through_native_supervision
+uv run --locked --no-sync pytest -q --tb=short tests/test_preparation_sequence.py::test_offline_preparation_sequence_through_native_supervision
 ```
 
 This final run completed native prepared-bundle publication and cold verification,
@@ -238,7 +238,7 @@ not qualify production data, real acquisition, hardware or model behavior.
 
 Final retained-origin connected result: **1 passed in 420.88s**, using
 `uv run --locked --no-sync pytest -q --tb=short
-tests/test_kml_50m_preparation_sequence.py::test_offline_preparation_sequence_through_native_supervision`.
+tests/test_preparation_sequence.py::test_offline_preparation_sequence_through_native_supervision`.
 The final run completed publication, substituted-release denial, cold prepared
 bundle verification and zero-update/accounting/shutdown assertions with all four
 retained-origin effects intact. This supersedes the earlier connected coverage

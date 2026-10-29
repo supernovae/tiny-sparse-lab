@@ -25,7 +25,7 @@ def test_workshop_binder_to_native_stage_bundle(tmp_path, monkeypatch):
     if checkout is None:
         pytest.skip("set WORKSHOP_CHECKOUT to the reviewed Workshop checkout")
     from test_completed_preparation import fixture
-    from test_kml_50m_preparation_sequence import _authenticated_fixture_tokenizer
+    from test_preparation_sequence import _authenticated_fixture_tokenizer
 
     workshop = Path(checkout)
     module_spec = importlib.util.spec_from_file_location(

@@ -121,7 +121,7 @@ remains explicitly unavailable as a local checkpoint.
 
 `checkpoint.keep_periodic: false` prunes only after successful publication and protects latest, best, and the immediately previous verified generation. Keeping fewer generations reduces recovery/history options; it never makes old state safer.
 
-In [actual signal/recovery acceptance](../artifacts/acceptance/signal_recovery_2026_09_22.json),
+In [actual signal/recovery acceptance](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/signal_recovery_2026_09_22.json),
 SIGTERM ended cleanly at a committed update; deliberate latest-generation
 corruption made explicit resume fail before child creation. Explicit recovery
 selected the previous verified generation and completed a new child update,

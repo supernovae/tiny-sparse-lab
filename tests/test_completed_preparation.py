@@ -321,7 +321,7 @@ def test_unique_content_floor_excludes_eos(tmp_path, monkeypatch):
 def test_completed_mixture_counts_content_once_and_reuses_execution(
     tmp_path, monkeypatch
 ):
-    from test_kml_50m_preparation_sequence import _authenticated_fixture_tokenizer
+    from test_preparation_sequence import _authenticated_fixture_tokenizer
 
     from sparselab.corpus import mixture
 
