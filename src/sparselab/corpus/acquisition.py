@@ -1911,8 +1911,13 @@ def acquire(
     max_new_bytes: int | None = None,
     min_free_bytes: int | None = None,
     plan_only: bool = False,
+    require_existing: bool = False,
 ) -> dict[str, Any]:
     """Publish verified snapshots independently; replace the active lock only on success."""
+    if require_existing and (offline or source_id is not None or plan_only):
+        raise ValueError(
+            "existing-snapshot finalization requires the full project without --offline or a source step"
+        )
     step = None
     step_budget = None
     step_retained = None
@@ -2000,6 +2005,10 @@ def acquire(
             destination = snapshot_root / source.id / manifest["snapshot_sha256"]
             _safe_snapshot_path(destination.absolute())
             if not destination.exists():
+                if require_existing:
+                    raise ValueError(
+                        f"existing verified snapshot unavailable: {source.id}"
+                    )
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 staging = Path(
                     tempfile.mkdtemp(prefix=".reuse-", dir=destination.parent)
@@ -2109,6 +2118,8 @@ def acquire(
                 break
             if source.id in entries:
                 continue
+        if require_existing:
+            raise ValueError(f"existing verified snapshot unavailable: {source.id}")
         parent = snapshot_root / source.id
         parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=".acquire-", dir=parent))

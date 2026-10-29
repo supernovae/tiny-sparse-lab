@@ -950,6 +950,14 @@ source-step admission does not certify downstream build, tokenizer, packing or
 training capacity. Keep every step's JSON/stdout/stderr and supervisor receipts.
 No real corpus acquisition or model run is part of the offline fixture evidence.
 
+To finalize only already verified snapshots without fetching or reconstructing a
+missing source, use `corpus acquire PROJECT --require-existing`. It publishes
+the full lock only after every selected snapshot verifies, and refuses a missing
+or invalid snapshot before attempting a new acquisition. This option does not
+replace the snapshot integrity checks or apply to a single source step. Do not
+combine it with `--offline`, which verifies an already published lock rather
+than publishing one.
+
 
 ### Local network observation
 
