@@ -460,6 +460,76 @@ def test_tokenizer_accepts_retained_release_path_but_not_a_different_origin(
         mixture._tokenizer(spec, release, release_id)
 
 
+@pytest.mark.parametrize("change_during_run", [False, True])
+def test_mixture_records_and_rechecks_opt_in_tokenizer_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change_during_run: bool
+) -> None:
+    original_tokenizer = mixture._tokenizer
+    declaration, _, release = _fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(mixture, "_tokenizer", original_tokenizer)
+    (release / "manifest.json").write_text(json.dumps({"release_id": release.name}))
+    data = SimpleNamespace(
+        source="local_text", corpus_release_path=release, revision=release.name
+    )
+    config = SimpleNamespace(dataset=data, output_dir=tmp_path / "fit", vocab_size=260)
+    monkeypatch.setattr(mixture, "load_tokenizer_config", lambda path: config)
+    monkeypatch.setattr(
+        mixture,
+        "verify_tokenizer_artifact",
+        lambda *args, **kwargs: pytest.fail("cold tokenizer replay must not run"),
+    )
+    monkeypatch.setattr(
+        mixture,
+        "load_tokenizer",
+        lambda path: SimpleNamespace(
+            encode=lambda text, **kwargs: SimpleNamespace(ids=list(text.encode())),
+            token_to_id=lambda token: 3 if token == "<eos>" else None,
+        ),
+    )
+    from sparselab.corpus import tokenizer_observation
+
+    calls = []
+
+    def observe(*args):
+        calls.append(1)
+        if change_during_run and len(calls) == 2:
+            raise ValueError("observed input changed")
+        return {"method": "post_run_observation", "tokenizer_sha256": "t" * 64}
+
+    monkeypatch.setattr(tokenizer_observation, "verify_observed_tokenizer", observe)
+    data = yaml.safe_load(declaration.read_text())
+    names = (
+        "job_spec",
+        "session_spec",
+        "job_report",
+        "session_report",
+        "container_report",
+        "stdout",
+        "stderr",
+        "tokenizer_config",
+        "tokenizer",
+        "tokenizer_manifest",
+        "export",
+    )
+    data["tokenizer_observation"] = {
+        "method": "post_run_observation",
+        "observed_at_utc": "2026-10-29T05:00:00Z",
+        "files": {
+            name: {"path": str(tmp_path / name), "sha256": "a" * 64} for name in names
+        },
+    }
+    declaration.write_text(yaml.safe_dump(data))
+    output = tmp_path / "observed-output"
+    if change_during_run:
+        with pytest.raises(ValueError, match="observed input changed"):
+            mixture.materialize_mixture(declaration, output)
+        assert not output.exists()
+    else:
+        receipt = mixture.materialize_mixture(declaration, output)
+        assert receipt["tokenizer_observation"]["method"] == "post_run_observation"
+    assert len(calls) == 2
+
+
 def test_mixture_dataset_binds_train_validation_and_tokenizer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -512,6 +582,84 @@ def test_mixture_dataset_binds_train_validation_and_tokenizer(
     )
     wrong = dataset.model_copy(update={"validation_path": tmp_path / "other.jsonl"})
     with pytest.raises(ValueError, match="identity mismatch"):
+        mixture.verify_mixture_dataset(wrong, fit_dir / "tokenizer.json", 260)
+
+
+def test_observed_mixture_consumer_reuses_export_validation_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    declaration, _, release = _fixture(tmp_path, monkeypatch)
+    raw = yaml.safe_load(declaration.read_text())
+    names = (
+        "job_spec",
+        "session_spec",
+        "job_report",
+        "session_report",
+        "container_report",
+        "stdout",
+        "stderr",
+        "tokenizer_config",
+        "tokenizer",
+        "tokenizer_manifest",
+        "export",
+    )
+    raw["tokenizer_observation"] = {
+        "method": "post_run_observation",
+        "observed_at_utc": "2026-10-29T05:00:00Z",
+        "files": {
+            name: {"path": str(tmp_path / name), "sha256": "a" * 64} for name in names
+        },
+    }
+    declaration.write_text(yaml.safe_dump(raw))
+    output = tmp_path / "output"
+    fit_dir = tmp_path / "fit"
+    source = SimpleNamespace(
+        license="local research", validation_max_documents=1, validation_max_tokens=9
+    )
+    monkeypatch.setattr(
+        mixture,
+        "verify_mixture",
+        lambda *args: {
+            "release_id": release.name,
+            "actual_target_tokens": {"x": 20},
+            "records": 3,
+        },
+    )
+    monkeypatch.setattr(
+        mixture,
+        "load_tokenizer_config",
+        lambda *args: SimpleNamespace(
+            output_dir=fit_dir, vocab_size=260, dataset=source
+        ),
+    )
+    from sparselab.corpus import export
+
+    monkeypatch.setattr(export, "_licenses", lambda *args: pytest.fail("license scan"))
+    monkeypatch.setattr(
+        export, "_split_stats", lambda *args: pytest.fail("validation scan")
+    )
+    dataset = DatasetConfig(
+        source="local_token_mixture",
+        revision=release.name,
+        cache_dir=tmp_path / "cache",
+        train_path=output / "train.tokens.jsonl",
+        validation_path=release / "lm/validation.jsonl",
+        train_max_documents=3,
+        validation_max_documents=1,
+        train_max_tokens=20,
+        validation_max_tokens=9,
+        license="local research",
+        mixture_declaration_path=declaration,
+        mixture_output_path=output,
+    )
+    assert (
+        mixture.verify_mixture_dataset(dataset, fit_dir / "tokenizer.json", 260)[
+            "records"
+        ]
+        == 3
+    )
+    wrong = dataset.model_copy(update={"validation_max_tokens": 10})
+    with pytest.raises(ValueError, match="validation split count or budget mismatch"):
         mixture.verify_mixture_dataset(wrong, fit_dir / "tokenizer.json", 260)
 
 

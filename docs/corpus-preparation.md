@@ -87,7 +87,7 @@ source-rights and scientific split policy.
 | Writable `AttemptBudget.create/reserve/run`, old module CLI | Removed; public `attempt init/run/status` and contract v1 only |
 | Historical SQLite v1 ledgers | Retained raw evidence only; no execution or replay compatibility; current ledger schema 2 required |
 | Release normalizers v1/v2/v3, historical admission review v1 | Truthful normalizer identities retained for current inputs; unbound review-v1 acceptance removed; current packet requires inspection-bound review-v2 |
-| DevMind-only committed evidence flags and trust shortcut | Removed; cold release/tokenizer authentication with explicit tokenizer-origin reuse |
+| DevMind-only committed evidence flags and trust shortcut | Removed; current native release/tokenizer paths use explicit evidence and tokenizer-origin binding |
 | Old dense/TinyStories surface-study import modes | Removed; native triage import remains |
 | Experiment-specific Python/shell launchers and old CI guard | Removed; native attempt dispatch and monitors own execution/accounting/shutdown |
 | Historical versioned research packet files | Preserved byte-for-byte at cited paths, excluded from the current plan; not runnable compatibility wrappers |
@@ -1161,6 +1161,24 @@ positive counts for exactly the declared strata; it counts all eligible unique
 TRAIN content IDs **excluding EOS**, during the same encoding pass. It does not
 change target quotas, ordering, exposure limits or the training stop. Supply
 counts and floors are recorded separately from scheduled supervised targets.
+
+A retained in-place release may explicitly set `tokenizer_observation` on its
+mixture declaration to reuse a tokenizer observed after a completed local job.
+Set `method: post_run_observation`, `observed_at_utc` to the actual UTC
+observation time, and `files` to `{path, sha256}` entries for `job_spec`,
+`session_spec`, `job_report`, `session_report`, `container_report`, `stdout`,
+`stderr`, `tokenizer_config`, `tokenizer`, `tokenizer_manifest` and `export`.
+The consumer checks those small files, the closed job/session, and the retained
+release and export metadata before encoding and again before publication.
+The receipt labels the result `post_run_observation`: current tokenizer digests
+are not claimed to have been attested by the earlier job. The tokenizer sample
+selection, disjoint audit, and export split/license recomputation are not
+replayed. This explicit choice relies on the owner's local observation and the
+existing retained-release trust boundary. It is not a cold-verification proof.
+Keep all observed files at their recorded paths, unchanged, for the life of the
+mixture; later consumers check them again and use the bound export's recorded
+validation bounds and license rather than repeating those corpus scans.
+Omit the field for the ordinary cold tokenizer verification path.
 
 
 ### Explicit retained-render adoption after an assessed verifier change

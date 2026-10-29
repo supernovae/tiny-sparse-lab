@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 from collections import Counter
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -27,6 +28,43 @@ from sparselab.corpus.release import _verification_operation, verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.training.manifest import canonical_json, sha256_file
+
+
+class ObservationFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: Path
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class TokenizerObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["post_run_observation"]
+    observed_at_utc: datetime
+    files: dict[str, ObservationFile]
+
+    @model_validator(mode="after")
+    def exact_inputs(self) -> TokenizerObservation:
+        if self.observed_at_utc.utcoffset() != timedelta(0):
+            raise ValueError("tokenizer observation requires UTC")
+        if set(self.files) != {
+            "job_spec",
+            "session_spec",
+            "job_report",
+            "session_report",
+            "container_report",
+            "stdout",
+            "stderr",
+            "tokenizer_config",
+            "tokenizer",
+            "tokenizer_manifest",
+            "export",
+        }:
+            raise ValueError(
+                "tokenizer observation requires exact completed-job inputs"
+            )
+        return self
 
 
 class MixtureDeclaration(BaseModel):
@@ -48,6 +86,9 @@ class MixtureDeclaration(BaseModel):
     # Absent for legacy declarations, preserving their canonical identity.
     tokenizer_origin_release_id: str | None = Field(
         default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    tokenizer_observation: TokenizerObservation | None = Field(
+        default=None, exclude_if=lambda value: value is None
     )
 
     @field_validator("max_exposures", mode="before")
@@ -138,14 +179,25 @@ def _tokenizer(spec: MixtureDeclaration, release: Path, release_id: str):
     ):
         raise ValueError("tokenizer configuration is not bound to this release")
     path = config.output_dir / "tokenizer.json"
-    manifest = verify_tokenizer_artifact(
-        path,
-        source=dataset.source,
-        revision=dataset.revision,
-        vocab_size=config.vocab_size,
-        dataset=dataset,
-    )
-    return load_tokenizer(path), manifest["sha256"]
+    if getattr(spec, "tokenizer_observation", None) is not None:
+        from sparselab.corpus.tokenizer_observation import verify_observed_tokenizer
+
+        manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("release_id") != release_id:
+            raise ValueError("tokenizer observation release identity changed")
+        observed = verify_observed_tokenizer(
+            spec.tokenizer_observation, spec.tokenizer_config, config, release, manifest
+        )
+        digest = observed["tokenizer_sha256"]
+    else:
+        digest = verify_tokenizer_artifact(
+            path,
+            source=dataset.source,
+            revision=dataset.revision,
+            vocab_size=config.vocab_size,
+            dataset=dataset,
+        )["sha256"]
+    return load_tokenizer(path), digest
 
 
 def _rank(
@@ -241,6 +293,19 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
                 staging,
             )
             index.verify_inputs()
+        if spec.tokenizer_observation is not None:
+            from sparselab.corpus.tokenizer_observation import verify_observed_tokenizer
+
+            observed = verify_observed_tokenizer(
+                spec.tokenizer_observation,
+                spec.tokenizer_config,
+                load_tokenizer_config(spec.tokenizer_config),
+                release,
+                manifest,
+            )
+            if observed["tokenizer_sha256"] != tokenizer_sha:
+                raise ValueError("observed tokenizer changed during mixture execution")
+            receipt["tokenizer_observation"] = observed
         if completed is not None:
             receipt["completed_preparation"] = {
                 "policy": completed["policy"],
@@ -527,13 +592,23 @@ def verify_mixture_dataset(
         or vocab_size != fit.vocab_size
     ):
         raise ValueError("token mixture dataset or tokenizer identity mismatch")
-    from sparselab.corpus.export import _licenses, _split_stats
+    if spec.tokenizer_observation is not None:
+        # verify_mixture has just checked the observed export and its generated
+        # dataset against the retained release. Reuse those recorded validation
+        # bounds rather than scanning the same release and held-out view again.
+        expected_license = fit.dataset.license
+        records = fit.dataset.validation_max_documents
+        token_budget = fit.dataset.validation_max_tokens
+    else:
+        from sparselab.corpus.export import _licenses, _split_stats
 
-    records, rendered_bytes = _split_stats(dataset.validation_path, "lm")
+        records, rendered_bytes = _split_stats(dataset.validation_path, "lm")
+        token_budget = rendered_bytes + records + 1
+        expected_license = _licenses(release)
     if (
-        dataset.license != _licenses(release)
+        dataset.license != expected_license
         or records != dataset.validation_max_documents
-        or dataset.validation_max_tokens != rendered_bytes + records + 1
+        or dataset.validation_max_tokens != token_budget
     ):
         raise ValueError("token mixture validation split count or budget mismatch")
     return receipt
