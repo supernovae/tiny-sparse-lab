@@ -164,7 +164,7 @@ def test_prepared_reuse_preserves_bytes_and_provenance(
         )
         assert (
             receipt["prepared_production_source_identity_sha256"]
-            == prepared_manifest["cache_identity"]["source_identity_sha256"]
+            == prepared_manifest["source_identity_sha256"]
         )
         assert (
             receipt["verification_source_identity_sha256"]
@@ -254,6 +254,6 @@ def test_provenance_uses_verified_input_and_copied_manifest(
     )
     assert (
         receipt["prepared_production_source_identity_sha256"]
-        == json.loads(original_manifest)["cache_identity"]["source_identity_sha256"]
+        == json.loads(original_manifest)["source_identity_sha256"]
     )
     assert (output / "assets/data/manifest.json").read_bytes() == original_manifest

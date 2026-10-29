@@ -141,7 +141,7 @@ def test_build_rights_before_actual_prepared_reuse(
     progress = BuildProgress(tmp_path / "progress.jsonl", "header-reuse")
     large_build._prepare_file(
         build_id="header-reuse",
-        prepared_root=tmp_path / "builds/prepared/header-reuse",
+        prepared_root=tmp_path / "builds/prepared/normalized-source-v2",
         source=source,
         file=file,
         snapshot_sha="0" * 64,

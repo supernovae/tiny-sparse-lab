@@ -24,10 +24,14 @@ Ordinary `corpus verify-mixture DECLARATION --output OUTPUT` authenticates nativ
 completion and current inputs without re-running the schedule. An unchanged
 materialization request returns that verified completion. Missing or changed
 completion evidence fails closed; `--audit` explicitly reproduces the schedule.
-An audit does not convert historical output into a new execution receipt.
+An audit re-encodes without the token cache, compares the complete receipt, and
+establishes a current verification record for unchanged output bytes. It does
+not rewrite the original receipt or claim that the original execution was new.
 Mixture commands print bounded status/counts and artifact paths; the complete
 receipt remains in `receipt.json`. Completion uses Lab's owned verification
-storage, independently of supervisor logs. Preserve the work root and its verification key with local artifacts.
+storage, independently of supervisor logs. Ordinary mixtures keep their owned
+verification key under the output parent's cache, so publication does not require
+a writable user configuration directory. Preserve this cache with local artifacts.
 
 Packed data depends on preparation implementation rather than unrelated package
 code or documentation. Run provenance still records the package revision.

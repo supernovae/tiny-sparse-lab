@@ -22,14 +22,14 @@ from sparselab.corpus.split_freeze import finalize_family_inventory
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
-def fixture(tmp_path, monkeypatch):
+def fixture(tmp_path, monkeypatch, *, text_repetitions=3):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     root = tmp_path / "work"
     snapshots = root / "corpora/completed-fixture/snapshots"
     source_rows = [
         {
             "text": f"Generated explanation number {i} with enough clear words for native parsing. "
-            * 3,
+            * text_repetitions,
             **({"seed": {"id": i}} if i != 1 else {}),
         }
         for i in range(12)
@@ -249,6 +249,22 @@ def test_retained_release_exposes_authenticated_source_offsets(tmp_path, monkeyp
         project, root, offline=True, reuse_completed_preparation=True
     )
     release = freeze(build, root, reuse_completed_preparation=True)
+    # Later producer/verifier code does not erase authentic historical outputs.
+    from sparselab import verification_proofs
+
+    original_producer = completed._producer()
+    monkeypatch.setattr(
+        completed, "_producer", lambda: {**original_producer, "pipeline.py": "f" * 64}
+    )
+    original_authority = verification_proofs.verifier_authority
+    monkeypatch.setattr(
+        verification_proofs,
+        "verifier_authority",
+        lambda kind, version: {
+            **original_authority(kind, version),
+            "fixture_new_verifier": True,
+        },
+    )
     original = Path.open
 
     def no_document_body(path, *args, **kwargs):

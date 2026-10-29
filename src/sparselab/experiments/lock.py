@@ -521,6 +521,8 @@ def _check_cell_inputs(
     tokenizer = load_tokenizer(Path(tokenizer_path))
     if tokenizer.get_vocab_size() != config.model.vocab_size:
         raise ValueError("verified tokenizer vocabulary does not match cell model")
+    from sparselab.data.packing import prepared_source_matches
+
     prepared_identity = json.loads((Path(packed_path) / "manifest.json").read_text())[
         "cache_identity"
     ]
@@ -544,7 +546,7 @@ def _check_cell_inputs(
         or prepared_identity["packing"] != packing
         or prepared_identity["tokenizer_sha256"]
         != hashlib.sha256(tokenizer.to_str().encode()).hexdigest()
-        or prepared_identity["source_identity_sha256"] != source_sha256
+        or not prepared_source_matches(prepared_identity, source_sha256)
     ):
         raise ValueError(
             "prepared cache does not bind the locked dataset/tokenizer/packing/source"

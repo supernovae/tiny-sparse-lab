@@ -68,12 +68,16 @@ def test_retained_phase_reuses_signed_execution_and_refuses_mutation(
         _phase(tmp_path, stages.root, "build-frozen-family-bindings")
 
 
-def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatch):
+@pytest.mark.parametrize("legacy", [False, True])
+def test_prepared_release_reads_only_authenticated_metadata(
+    tmp_path, monkeypatch, legacy
+):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     workspace = tmp_path / "corpora" / "fixture"
     release = workspace / "builds" / "release"
     release.mkdir(parents=True)
-    request = {"producer": _producer(), "inputs": {}}
+    producer = {**_producer(), **({"pipeline.py": "0" * 64} if legacy else {})}
+    request = {"producer": producer, "inputs": {}}
     stages = SplitStages(workspace / "build-stages", request, work_root=tmp_path)
     stages.phase(
         "build-frozen-family-bindings",
@@ -112,11 +116,25 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
                     "identity": {
                         "source_id": "source",
                         "snapshot_sha256": "snapshot",
+                        **(
+                            {
+                                "build_id": source_stages.identity,
+                                "admission_sha256": "admission",
+                            }
+                            if legacy
+                            else {}
+                        ),
                     },
-                    "provenance": {
-                        "build_id": source_stages.identity,
-                        "admission_sha256": "admission",
-                    },
+                    **(
+                        {}
+                        if legacy
+                        else {
+                            "provenance": {
+                                "build_id": source_stages.identity,
+                                "admission_sha256": "admission",
+                            }
+                        }
+                    ),
                 }
             ],
         )
@@ -128,7 +146,11 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
         "build_identity": {
             "completed_preparation": {
                 "request": request,
-                "source_stage_ids": {"source": source_stages.identity},
+                **(
+                    {}
+                    if legacy
+                    else {"source_stage_ids": {"source": source_stages.identity}}
+                ),
             },
             "release": {"record_admission": {"sha256": "admission"}},
             "lock": {"source": {"snapshot_sha256": "snapshot"}},
@@ -137,6 +159,18 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
     monkeypatch.setattr(
         "sparselab.corpus.retained_mixture.verify_retained_release", lambda _: manifest
     )
+    from sparselab import verification_proofs
+
+    original_authority = verification_proofs.verifier_authority
+    if legacy:
+        monkeypatch.setattr(
+            verification_proofs,
+            "verifier_authority",
+            lambda kind, version: {
+                **original_authority(kind, version),
+                "fixture_new_verifier": True,
+            },
+        )
     original = Path.open
 
     def no_document_body(path, *args, **kwargs):
@@ -150,6 +184,14 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
     assert cohort["documents"] == 1
     assert cohort["source_ids"] == ["source"]
     assert len(cohort["evidence"]["sources"]["source"]["historical_proof_sha256"]) == 64
+    proof_path = Path(cohort["evidence"]["sources"]["source"]["proof_path"])
+    saved = json.loads(proof_path.read_bytes())
+    saved["proof"]["binding"]["upstream_identities"]["authority"]["streaming_producer"][
+        "pipeline.py"
+    ] = "f" * 64
+    proof_path.write_text(json.dumps(saved))
+    with pytest.raises(ValueError, match="historical proof invalid"):
+        prepared_release(tmp_path, release)
 
 
 def test_retained_offsets_rank_without_reading_old_document_bodies(

@@ -57,9 +57,13 @@ def unchanged(dependencies):
 class InspectionCache:
     """Reuse successful native results, including completed sources after a stop."""
 
-    def __init__(self, root):
+    def __init__(self, root, *, proof_store=None):
         self.root = Path(root).resolve(strict=True)
-        self.proofs = verification_options(self.root)["proof_store"]
+        self.proofs = (
+            proof_store
+            if proof_store is not None
+            else verification_options(self.root)["proof_store"]
+        )
         self.directory = self.root / "cache" / "admission-inspection"
         self.writable = self.proofs is not None
         self.unavailable_reason = None if self.writable else "untrusted_work_root"

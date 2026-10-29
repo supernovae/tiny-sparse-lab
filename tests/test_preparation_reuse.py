@@ -191,3 +191,61 @@ def test_mixture_cli_returns_artifact_paths_without_document_receipt(
     }
     assert "excluded" not in result
     assert "excluded" in json.loads((output / "receipt.json").read_bytes())
+
+
+def test_mixture_authority_change_requires_explicit_reencoding_audit(
+    tmp_path, monkeypatch
+):
+    declaration, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "output"
+    receipt = mixture.materialize_mixture(declaration, output)
+    original_output = {p.name: p.read_bytes() for p in output.iterdir()}
+    original_sha = mixture.sha256_file
+    monkeypatch.setattr(
+        mixture,
+        "sha256_file",
+        lambda path: "f" * 64 if path.name == "mixture.py" else original_sha(path),
+    )
+    with pytest.raises(ValueError, match="explicit audit"):
+        mixture.verify_mixture(declaration, output)
+    original = mixture._tokenizer
+    encoded = []
+
+    def counted(*args):
+        tok, digest = original(*args)
+        encode = tok.encode
+
+        def record(text, **kwargs):
+            encoded.append(text)
+            return encode(text, **kwargs)
+
+        tok.encode = record
+        return tok, digest
+
+    monkeypatch.setattr(mixture, "_tokenizer", counted)
+    assert mixture.verify_mixture(declaration, output, audit=True) == receipt
+    assert encoded
+    before = list(encoded)
+    assert mixture.verify_mixture(declaration, output) == receipt
+    assert encoded == before
+    assert {p.name: p.read_bytes() for p in output.iterdir()} == original_output
+
+
+def test_legacy_mixture_audit_recovers_without_replacing_output(tmp_path, monkeypatch):
+    declaration, _, _ = _fixture(tmp_path, monkeypatch)
+    output = tmp_path / "output"
+    receipt = mixture.materialize_mixture(declaration, output)
+    for path in (tmp_path / "cache/admission-inspection").glob("native-mixture-*.json"):
+        path.unlink()
+    before = {
+        p.name: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns)
+        for p in output.iterdir()
+    }
+    with pytest.raises(ValueError, match="explicit audit"):
+        mixture.verify_mixture(declaration, output)
+    assert mixture.verify_mixture(declaration, output, audit=True) == receipt
+    assert mixture.verify_mixture(declaration, output) == receipt
+    assert {
+        p.name: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns)
+        for p in output.iterdir()
+    } == before

@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 from collections import Counter
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -230,7 +231,9 @@ def materialize_mixture(declaration: Path, output: Path) -> dict:
         return _materialize_mixture(declaration, output)
 
 
-def _materialize_mixture(declaration: Path, output: Path) -> dict:
+def _materialize_mixture(
+    declaration: Path, output: Path, *, reuse_tokens: bool = True
+) -> dict:
     raw = declaration.read_bytes()
     spec = MixtureDeclaration.model_validate(yaml.safe_load(raw))
     release = spec.release_path.resolve()
@@ -369,6 +372,7 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
                     eos,
                     index,
                     staging,
+                    reuse_tokens=reuse_tokens,
                 )
                 index.verify_inputs()
                 if cohorts is not None:
@@ -434,7 +438,17 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
 
 
 def _schedule(
-    spec, raw, release, manifest, tokenizer, tokenizer_sha, eos, index, staging
+    spec,
+    raw,
+    release,
+    manifest,
+    tokenizer,
+    tokenizer_sha,
+    eos,
+    index,
+    staging,
+    *,
+    reuse_tokens=True,
 ):
     totals: Counter[str] = Counter()
     unique: Counter[str] = Counter()
@@ -463,7 +477,9 @@ def _schedule(
     except ValueError:
         token_root = staging.parent / ".source-tokens"
     with (
-        TokenCache(token_root, tokenizer_sha) as tokens,
+        (
+            TokenCache(token_root, tokenizer_sha) if reuse_tokens else nullcontext(None)
+        ) as tokens,
         (staging / "train.tokens.jsonl").open("wb") as stream,
     ):
         direct = spec.max_exposures == 1 and callable(
@@ -504,7 +520,11 @@ def _schedule(
                 if index.seen(digest):
                     exclude(doc, "duplicate_train_content")
                     continue
-                ids = tokens.encode(tokenizer, doc["text"])
+                ids = (
+                    tokens.encode(tokenizer, doc["text"])
+                    if tokens is not None
+                    else tokenizer.encode(doc["text"], add_special_tokens=False).ids
+                )
                 if not ids:
                     exclude(doc, "zero_encoded_targets")
                     continue
@@ -684,9 +704,26 @@ def _verify_completed_mixture(declaration, output, receipt):
 
 def _native_mixture_completion(spec, raw, output, manifest, tokenizer_sha):
     from sparselab.corpus.admission_inspection_cache import InspectionCache
+    from sparselab.verification_proofs import ProofStore
 
-    cache = InspectionCache(output.parent)
-    cache.authority = {"mixture_execution": "v1"}
+    # Native artifact verification owns its key beside the work, without a
+    # writable user configuration directory or any supervisor dependency.
+    proofs = ProofStore(output.parent)
+    proofs.config_root = output.parent / "cache" / "native-mixture-identity"
+    proofs.key_path = proofs.config_root / "sparselab" / "verification-key-v1"
+    cache = InspectionCache(output.parent, proof_store=proofs)
+    cache.authority = {
+        **cache.authority,
+        "mixture": {
+            name: sha256_file(Path(__file__).with_name(name))
+            for name in (
+                "mixture.py",
+                "mixture_index.py",
+                "retained_mixture.py",
+                "token_cache.py",
+            )
+        },
+    }
     request = {
         "declaration_sha256": hashlib.sha256(raw).hexdigest(),
         "release_id": manifest["release_id"],
@@ -734,9 +771,37 @@ def verify_mixture(declaration: Path, output: Path, *, audit: bool = False) -> d
     with tempfile.TemporaryDirectory(
         prefix=".verify-mixture-", dir=output.parent
     ) as temp:
-        replay = materialize_mixture(declaration, Path(temp) / "replay")
+        with _verification_operation():
+            replay = _materialize_mixture(
+                declaration, Path(temp) / "replay", reuse_tokens=False
+            )
         if replay != receipt:
             raise ValueError("mixture receipt differs from authenticated replay")
+    # Explicit audit can recover an unsigned/legacy output without replacing it.
+    raw = declaration.read_bytes()
+    spec = MixtureDeclaration.model_validate(yaml.safe_load(raw))
+    manifest = verify_release(spec.release_path.resolve())
+    _, tokenizer_sha = _tokenizer(
+        spec, spec.release_path.resolve(), manifest["release_id"]
+    )
+    if (
+        receipt.get("completed_preparation", {}).get("policy")
+        == "completed_local_preparation"
+    ):
+        _seal_completed_mixture(spec, raw, output, manifest, tokenizer_sha, receipt)
+    else:
+        from sparselab.corpus.admission_inspection_cache import capture
+
+        cache, request = _native_mixture_completion(
+            spec, raw, output, manifest, tokenizer_sha
+        )
+        cache.publish(
+            "native-mixture",
+            request,
+            receipt,
+            capture([output]),
+            limit=MAX_RECEIPT_BYTES,
+        )
     return receipt
 
 

@@ -651,17 +651,19 @@ def _prior(root: Path) -> tuple[Path, Path, dict[str, str]]:
     return release, family, strata
 
 
-def _authenticated_fixture_tokenizer(root: Path, release: Path) -> tuple[Path, Path]:
+def _authenticated_fixture_tokenizer(
+    root: Path, release: Path, *, vocab_size: int = 300
+) -> tuple[Path, Path]:
     """Reuse the existing cross-release test pattern with a prebuilt WordLevel model."""
     exported = export_release(
-        release, "lm", Path("configs/runtime_smoke_cpu.yaml"), 300, root
+        release, "lm", Path("configs/runtime_smoke_cpu.yaml"), vocab_size, root
     )
     config_path = exported / "tokenizer.yaml"
     config = load_tokenizer_config(config_path)
     tokenizer_path = config.output_dir / "tokenizer.json"
     tokenizer_path.parent.mkdir(parents=True)
     vocab = {"<pad>": 0, "<bos>": 1, "<eos>": 2, "[UNK]": 3}
-    vocab.update({f"unused-{index}": index for index in range(4, 300)})
+    vocab.update({f"unused-{index}": index for index in range(4, vocab_size)})
     tokenizer = Tokenizer(WordLevel(vocab, unk_token="[UNK]"))
     tokenizer.pre_tokenizer = Whitespace()
     tokenizer.save(str(tokenizer_path))
@@ -671,7 +673,7 @@ def _authenticated_fixture_tokenizer(root: Path, release: Path) -> tuple[Path, P
             {
                 "source": "local_text",
                 "revision": release.name,
-                "vocab_size": 300,
+                "vocab_size": vocab_size,
                 "sha256": sha256_file(tokenizer_path),
                 "corpus_export": binding,
                 "training_contract": {"corpus_export": binding},

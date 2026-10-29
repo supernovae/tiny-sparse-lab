@@ -34,7 +34,8 @@ def test_write_has_zero_array_rereads_and_cold_cache_hashes_once(
     original_wrapper = packing._sha256
 
     def counted_wrapper(path: Path) -> str:
-        wrapper_reads.append(path.name)
+        if path.suffix == ".npy":
+            wrapper_reads.append(path.name)
         return original_wrapper(path)
 
     monkeypatch.setattr(manifest_module, "sha256_file", counted)

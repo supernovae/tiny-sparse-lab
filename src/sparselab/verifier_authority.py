@@ -322,7 +322,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "experiments.source_compatibility",
-    ): "a2ac7fa8bfd20e50e31678c1f43ee04d61231edecb617b0c0326fabeb6b53067",
+    ): "02fa0ce2f6583ab8ff8cf35a3c64fa109c99ccc33df85adebff506d834188ef1",
     (
         "data.packing",
         "progress",

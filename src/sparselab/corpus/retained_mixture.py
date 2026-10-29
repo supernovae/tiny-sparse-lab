@@ -35,8 +35,9 @@ from sparselab.corpus.split_runs import (
 from sparselab.training.manifest import sha256_file
 
 
-def _phase(root, stage_root, name):
+def _phase(root, stage_root, name, *, expected_producer=None):
     """Authenticate the latest live phase and its original signed binding."""
+    expected_producer = _producer() if expected_producer is None else expected_producer
     root, stage_root = Path(root), Path(stage_root)
     if not stage_root.is_relative_to(root) or not stage_root.is_dir():
         raise ValueError("retained mixture stage is outside the work root")
@@ -84,11 +85,11 @@ def _phase(root, stage_root, name):
     binding = cache._binding(cache_path, raw, request, dependencies)
     old_raw = _small(cache.proofs._receipt(binding), root, private=True)
     saved = json.loads(old_raw)["proof"]["binding"]
-    if not cache.proofs.lookup(saved):
+    if not cache.proofs.lookup_recorded_execution(saved):
         raise ValueError("retained mixture historical proof invalid")
     before, after = saved["upstream_identities"], binding["upstream_identities"]
     if (
-        before["authority"].get("streaming_producer") != _producer()
+        before["authority"].get("streaming_producer") != expected_producer
         or before.get("mutable_dependencies", {})
         or after.get("mutable_dependencies", {})
     ):
@@ -126,23 +127,51 @@ def prepared_release(root, release):
     request = identity["completed_preparation"]["request"]
     workspace = release.parent.parent
     stage_root = workspace / "build-stages" / _sha(request)
-    refs, refs_proof = _phase(root, stage_root, "build-frozen-family-bindings")
-    dedupe, dedupe_proof = _phase(root, stage_root, "build-deduplicate")
-    origins, origins_proof = _phase(root, stage_root, "build-duplicate-keys")
+    refs, refs_proof = _phase(
+        root,
+        stage_root,
+        "build-frozen-family-bindings",
+        expected_producer=request["producer"],
+    )
+    dedupe, dedupe_proof = _phase(
+        root, stage_root, "build-deduplicate", expected_producer=request["producer"]
+    )
+    origins, origins_proof = _phase(
+        root, stage_root, "build-duplicate-keys", expected_producer=request["producer"]
+    )
     sources, source_proofs = [], {}
     for source_id in sorted(identity["lock"]):
         source_root = workspace / "source-build-stages" / source_id
-        stage_id = identity["completed_preparation"]["source_stage_ids"][source_id]
-        events = list((source_root / stage_id).glob("completion-*.json"))
+        stage_ids = identity["completed_preparation"].get("source_stage_ids")
+        if stage_ids is None:
+            # Historical receipts precede exact stage selectors. Retain their
+            # original unambiguous selection and global admission binding.
+            events = list(source_root.glob("*/completion-*.json"))
+        else:
+            events = list(
+                (source_root / stage_ids[source_id]).glob("completion-*.json")
+            )
         if len(events) != 1:
             raise ValueError("retained source render is missing or ambiguous")
-        payload, proof = _phase(root, events[0].parent, "native-shard-render")
+        payload, proof = _phase(
+            root,
+            events[0].parent,
+            "native-shard-render",
+            expected_producer=request["producer"],
+        )
         prepared = Path(payload["prepared"])
         receipt = json.loads(_small(prepared / "receipt.json", root))
         row = receipt["identity"]
+        provenance = row if stage_ids is None else receipt["provenance"]
+        if (
+            stage_ids is None
+            and row["admission_sha256"]
+            != identity["release"]["record_admission"]["sha256"]
+        ):
+            raise ValueError("retained source admission identity differs")
         if (
             row["source_id"] != source_id
-            or receipt["provenance"]["build_id"] != events[0].parent.name
+            or provenance["build_id"] != events[0].parent.name
             or row["snapshot_sha256"] != identity["lock"][source_id]["snapshot_sha256"]
         ):
             raise ValueError("retained source render identity differs")

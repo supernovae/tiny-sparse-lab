@@ -109,6 +109,19 @@ def preparation_source_identity(inventory: dict[str, str] | None = None) -> str:
     ).hexdigest()
 
 
+def prepared_source_matches(identity: dict, package_sha256: str) -> bool:
+    """Match preparation semantics, retaining explicit package-bound artifacts."""
+    from sparselab.experiments.source_compatibility import source_identities_compatible
+
+    recorded = identity["source_identity_sha256"]
+    if (
+        identity.get("allocation_manifest_sha256") is None
+        and recorded == preparation_source_identity()
+    ):
+        return True
+    return source_identities_compatible(recorded, package_sha256)
+
+
 def _sha256(path: Path) -> str:
     return manifest_module.sha256_file(path)
 
