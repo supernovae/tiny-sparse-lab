@@ -352,44 +352,6 @@ def test_fixed_score_runtime_authorization_is_bound_without_loading_model(
     assert args.runtime_profile_python == profile.python
 
 
-def test_declared_nontraining_forward_allocation_closes():
-    root = Path(__file__).parents[1] / "experiments/research/kernel-memory-lab"
-    budget = json.loads((root / "card05-base/evaluation-budget-v1.json").read_text())
-    assert (
-        sha256_file(root / "CARD05_BASE_EVALUATION_PROFILE_V1.json")
-        == budget["profile_sha256"]
-    )
-    scored = (
-        budget["new_validation_sweeps"]
-        + budget["new_test_sweeps"]
-        + budget["comparison_validation_sweeps"]
-        + budget["comparison_test_sweeps"]
-    ) * budget["loss_sweep_input_positions"] + budget["utility_sweeps"] * budget[
-        "utility_sweep_input_positions"
-    ]
-    assert scored == budget["fixed_scoring_planned_input_positions"] == 52392
-    assert scored <= budget["fixed_scoring_max_input_positions"] == 55000
-    prompt = budget["prompt_input_ids_per_call"]
-    requested = budget["max_requested_new_tokens_per_call"]
-    full_prefix = sum(range(prompt, prompt + requested))
-    assert full_prefix == budget["generation_full_prefix_max_input_positions_per_call"]
-    assert (
-        full_prefix * budget["generation_calls"]
-        == budget["generation_reserved_input_positions"]
-    )
-    assert (
-        budget["generation_calls"] * requested
-        == budget["max_requested_new_tokens_total"]
-    )
-    assert (
-        budget["fixed_scoring_max_input_positions"]
-        + budget["operational_validation_max_input_positions"]
-        + budget["generation_reserved_input_positions"]
-        == budget["nontraining_reserved_input_positions"]
-        <= budget["nontraining_max_input_positions"]
-    )
-
-
 def test_frozen_continuation_command_binds_prompts_and_labels(monkeypatch):
     from sparselab.evaluation import fixed_slices
 

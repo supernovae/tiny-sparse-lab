@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 from test_attempt_packet_dispatch import _fixture, _wrapped
-from test_kml_50m_preparation_sequence import _prior
+from test_preparation_sequence import _prior
 
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import TokenizerSampling
@@ -285,7 +285,7 @@ def test_exact_release_acceptance_before_reservation(
 def test_pilot_dispatch_enforces_bound_reuse_only_without_allocation(tmp_path, change):
     import shutil
 
-    from test_kml_50m_preparation_sequence import _sources
+    from test_preparation_sequence import _sources
 
     from sparselab.corpus.acquisition import verify_acquisition
     from sparselab.corpus.project import load_project

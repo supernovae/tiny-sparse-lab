@@ -1,5 +1,48 @@
 # Corpus-to-prepared-bundle public surface
 
+## Iterating on a mixture
+
+Existing-snapshot acquisition finalization (`corpus acquire PROJECT
+--require-existing`) prints a bounded result with `lock_path`, `project_id`,
+`source_count` and `complete`. The acquisition lock remains the artifact. The
+optional `--summary` spelling is also accepted. Finalization rebuilds a stale
+project lock from verified saved snapshots, without fetching missing sources.
+
+Source normalization is cached by the source definition, snapshot/file identity,
+normalizer, resolved rights and that file's verified admission decisions. The
+build and complete admission identities remain provenance; adding an unrelated
+source does not invalidate an unchanged normalized shard. Family assignment,
+rights verification and held-out isolation still run under the current plan.
+
+Mixture encoding uses a persistent tokenizer/content cache, independent of
+quotas, ordering and output names. Completed batches survive interruption; valid
+encodings are committed even when a supply floor cannot be met. No mixture is
+published until all declared quotas and unique-content floors pass. Retained
+single-exposure schedules avoid the additional temporary encoded spool.
+
+Ordinary `corpus verify-mixture DECLARATION --output OUTPUT` authenticates native
+completion and current inputs without re-running the schedule. An unchanged
+materialization request returns that verified completion. Missing or changed
+completion evidence fails closed; `--audit` explicitly reproduces the schedule.
+An audit re-encodes without the token cache, compares the complete receipt, and
+establishes a current verification record for unchanged output bytes. It does
+not rewrite the original receipt or claim that the original execution was new.
+Mixture commands print bounded status/counts and artifact paths; the complete
+receipt remains in `receipt.json`. Completion uses Lab's owned verification
+storage, independently of supervisor logs. Ordinary mixtures keep their owned
+verification key under the output parent's cache, so publication does not require
+a writable user configuration directory. Preserve this cache with local artifacts.
+
+Packed data depends on preparation implementation rather than unrelated package
+code or documentation. Run provenance still records the package revision.
+Token-mixture target packing commits native chunks containing both target IDs
+and supervision masks. Restart verifies the chunks and input stream, skips
+committed output records, and rebuilds only unfinished packing. Raw chunks are
+retained until the complete prepared bundle publishes; validation preparation
+still restarts if interrupted. Run-owned data uses the existing authenticated
+copy path, allowing reflink/clone support where available and falling back to
+independent copies elsewhere.
+
 ## Reusing completed local preparation
 
 `corpus freeze-splits PROJECT --inventory INVENTORY --clusters CLUSTERS
@@ -42,7 +85,8 @@ operation-owned compact key/offset/split lookup instead of copying assignment
 JSON payloads into a relational index. Lookup maps close before scratch cleanup,
 and repeated consumers in one operation share the same validated lookup.
 
-New retained-corpus preparation uses the [current packet](../experiments/research/kernel-memory-lab/card05-base-50m/current/README.md).
+Current experiment definitions live in [Kybern Workshop](https://github.com/supernovae/kybern-workshop).
+Lab maintains a [synthetic native preparation fixture](../tests/fixtures/preparation/README.md) and a connected Workshop binder-to-stage regression.
 Use one `preparation.json` with native `attempt phase-command` for inspection and
 `attempt run-phase` for one supervised zero-model phase. Public `corpus
 render-declaration`, `attempt init`, `attempt bind-artifact`, corpus verifiers and
@@ -64,8 +108,8 @@ not copied, relinked, moved or modified, and the original build manifest and
 completion proofs remain intact. The ordinary freeze selection retains its
 independent-copy behavior.
 
-The native reader authenticates the original signed publication, exact current
-producer bytes, and unchanged input/output bindings. The publication record
+The native reader authenticates the original signed publication, the recorded signed
+producer identity, and unchanged input/output bindings. The publication record
 labels this as adopted execution, not a fresh build or source re-audit. Default
 build-cache refusal after verifier changes is unchanged. Missing, corrupt or
 changed evidence refuses reuse instead of triggering corpus processing.
@@ -145,7 +189,7 @@ or move them to another stratum.
 | Leaf/receipt/monitor output collisions | `test_attempt_contract`, connected admission-draft collision |
 | Accounting, exclusive creation, rollback, shutdown | Canonical `test_attempt_contract`, contract binding/CLI tests |
 | Actual operator argv and production template closure | `test_preparation_commands`, connected public `run-phase` through cold prepared bundle |
-| Historical identity and current science/resource ceilings | `test_kml_50m_launch_packet` |
+| Current Workshop model declaration and native staged inputs | `test_workshop_preparation_integration` |
 
 The duplicated static template-closure test and v1/v2 executable path-map tests
 are removed in favor of current compiler/connected coverage. Obsolete budget

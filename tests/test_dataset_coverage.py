@@ -94,6 +94,11 @@ def test_wrong_config_and_source_identity_rejected(prepared, monkeypatch):
     with pytest.raises(ValueError, match="binding differs"):
         coverage(data.root, changed)
     monkeypatch.setattr(module, "source_identity", lambda: {"sha256": "0" * 64})
+    # Unrelated package provenance no longer invalidates equivalent preparation.
+    coverage(data.root, cfg)
+    monkeypatch.setattr(
+        "sparselab.data.packing.preparation_source_identity", lambda: "f" * 64
+    )
     with pytest.raises(ValueError, match="source identity"):
         coverage(data.root, cfg)
     assert coverage(data.root)["config_verified"] is False

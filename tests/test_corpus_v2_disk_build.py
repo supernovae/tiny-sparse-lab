@@ -1,8 +1,8 @@
 """Public v2 disk dispatch must preserve native tiny fixture output bytes."""
 
 import pytest
-import test_kml_50m_preparation_sequence as fixture_module
-from test_kml_50m_preparation_sequence import _prior
+import test_preparation_sequence as fixture_module
+from test_preparation_sequence import _prior
 
 from sparselab.corpus import large_build, pipeline
 from sparselab.corpus.project import load_project

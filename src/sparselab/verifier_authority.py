@@ -230,6 +230,9 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # Pinned below to the AST of each excluded import and all existing uses of its
 # imported names. A new use in a verifier, or any change to an existing user,
 # makes authority unavailable until the exclusion is explicitly re-audited.
+# data.packing re-audited 2026-10-29: stage-scoped cache identity and resumable
+# token-target packing change producer uses only; load_prepared_data and
+# _verified_receipt do not invoke any newly excluded preparation operation.
 # data.packing edges re-audited 2026-10-10: since ba6370d only _prepare_data
 # (token-mixture preparation) changed; no verifier gained a use of an excluded name.
 # corpus.mixture audited 2026-10-11: its sole import/use is in _prepare_data;
@@ -251,7 +254,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "corpus.mixture",
-    ): "9698e229f114ef46ef9646b3f9155353ddb925e2b97a1848ea7787a2305a7c74",
+    ): "ff671e4116820fc9c565833ad47f622c4b95800f816502ac2890a333f9751e61",
     (
         "workers",
         "workers.transport",
@@ -259,11 +262,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.tokenizer",
-    ): "48a61088c6da5a6f29c08ee8045560dc494a9307736fbc7ff2a6500b94f7e1d3",
+    ): "f55e21b8ecb4f497238a8ecfe0e3c45cebd418bf83831d3ed77f3b6f3adfa01c",
     (
         "data.packing",
         "data.sources",
-    ): "025ae1a969d868b2af0e253d6eeaba0cb7509f1997c1c3f4c533a1bab52cfa0d",
+    ): "15e1fe9ff2aa398d9129050d3bdc563af29850d2f8d36f4a75065a870bdce2f8",
     (
         "data",
         "data.tokenizer",
@@ -283,11 +286,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "corpus.export",
-    ): "e7dab92e93a719bd4fdd42544135bfe1449bcd2f0a1fc45059f0f069a3b9c3e1",
+    ): "2ff2434ad441b4723a8af6d9a6e90cc1e46add3746f3ae970270f835088abbf5",
     (
         "data.packing",
         "data.allocation",
-    ): "c084ce8c604affd00f49b26d5292d93eeaa4dde9f2ea05623495d3909efeba7c",
+    ): "536499616a1f33146745538484ed23623e170d48fc4bc825c90cfec3a35f47a2",
     (
         "data.packing",
         "data.byte_hash",
@@ -303,31 +306,31 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.encoding",
-    ): "2330ec3addcbf5823da4fffe54c7902b83e0b3fcecf63a3ed812de5e680e9e44",
+    ): "c8f8b25260520acf2986f7cdf3684b527472d87a12b9f6502de5cabf93a8ae8f",
     (
         "data.packing",
         "data.local_stories",
-    ): "b3605759b262e1a7dcedc71294d2b43064fb621a7eaf7df6f78d86290fadcd92",
+    ): "5acfd7c34a3f905440aa9ab2eba542a1be9da8f5f064f86647941e04ed3ab65c",
     (
         "data.packing",
         "data.preparation_chunks",
-    ): "2ddaf3b5a7d1f87fe9abadbde1b96c10ad0d87109b909f0b57b074dffb1b8c22",
+    ): "5185fbad649d42431d59a8da440a31c7cd804e9c53f6b194c7ff30ed1975e068",
     (
         "data.packing",
         "data.preparation_telemetry",
-    ): "eddaf444227aa9e29c47b98a33408d7df30401e19d437056c4b08d95e298aa72",
+    ): "7105cf505161c4bb9544c4972f25fdef5c24d642c96f48a89102b51920f3cd8c",
     (
         "data.packing",
         "experiments.source_compatibility",
-    ): "3aa7b9776dd30a7ab19cfb54ed4abcf671d96792cdcc95e98636ea02c706c8f1",
+    ): "02fa0ce2f6583ab8ff8cf35a3c64fa109c99ccc33df85adebff506d834188ef1",
     (
         "data.packing",
         "progress",
-    ): "aab01e4ed7589bfbf0fdab3e9bf676e164ee7aca36adfc6f64ff5b5e150a8c17",
+    ): "60cddc9be41ba602f0d0eef6c420d41e8f7e24c1352b27f126b555bb2a854e55",
     (
         "data.packing",
         "resource_envelope",
-    ): "366bbfde8fb5424f1cef246c81c494d3f28d3170130a48b6861afcd8f7df2a93",
+    ): "72eaf88de82c3c82dc917f1ffc1c2c438f7e414e598a4de9948b66865fc7b2a3",
     (
         "data.packing",
         "workdir",
@@ -339,7 +342,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "workspace_preflight",
-    ): "57cb47998d724d14c1c8d357ecb5ffc6cbba9fcd14474f925efc087deaea7e83",
+    ): "c03942e2578c78f6392a36a5a9e0c0877cf908ce7d0c9c89ca57e6a2f4d86d7d",
     (
         "corpus.tokenizer_bakeoff",
         "corpus.cli",

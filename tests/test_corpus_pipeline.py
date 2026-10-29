@@ -16,7 +16,9 @@ from sparselab.corpus.project import SourceDeclaration, load_project
 from sparselab.corpus.release import freeze, lineage, review, sample, verify_release
 from sparselab.corpus.rights import resolve_file_rights
 
-PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0/corpus.yaml"
+PROJECT = (
+    Path(__file__).resolve().parents[1] / "tests/fixtures/corpus-sample/corpus.yaml"
+)
 
 
 def _project():

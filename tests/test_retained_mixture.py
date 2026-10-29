@@ -68,12 +68,16 @@ def test_retained_phase_reuses_signed_execution_and_refuses_mutation(
         _phase(tmp_path, stages.root, "build-frozen-family-bindings")
 
 
-def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatch):
+@pytest.mark.parametrize("legacy", [False, True])
+def test_prepared_release_reads_only_authenticated_metadata(
+    tmp_path, monkeypatch, legacy
+):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     workspace = tmp_path / "corpora" / "fixture"
     release = workspace / "builds" / "release"
     release.mkdir(parents=True)
-    request = {"producer": _producer(), "inputs": {}}
+    producer = {**_producer(), **({"pipeline.py": "0" * 64} if legacy else {})}
+    request = {"producer": producer, "inputs": {}}
     stages = SplitStages(workspace / "build-stages", request, work_root=tmp_path)
     stages.phase(
         "build-frozen-family-bindings",
@@ -111,10 +115,26 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
                 {
                     "identity": {
                         "source_id": "source",
-                        "build_id": source_stages.identity,
                         "snapshot_sha256": "snapshot",
-                        "admission_sha256": "admission",
-                    }
+                        **(
+                            {
+                                "build_id": source_stages.identity,
+                                "admission_sha256": "admission",
+                            }
+                            if legacy
+                            else {}
+                        ),
+                    },
+                    **(
+                        {}
+                        if legacy
+                        else {
+                            "provenance": {
+                                "build_id": source_stages.identity,
+                                "admission_sha256": "admission",
+                            }
+                        }
+                    ),
                 }
             ],
         )
@@ -124,7 +144,14 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
     manifest = {
         "release_id": "release",
         "build_identity": {
-            "completed_preparation": {"request": request},
+            "completed_preparation": {
+                "request": request,
+                **(
+                    {}
+                    if legacy
+                    else {"source_stage_ids": {"source": source_stages.identity}}
+                ),
+            },
             "release": {"record_admission": {"sha256": "admission"}},
             "lock": {"source": {"snapshot_sha256": "snapshot"}},
         },
@@ -132,6 +159,18 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
     monkeypatch.setattr(
         "sparselab.corpus.retained_mixture.verify_retained_release", lambda _: manifest
     )
+    from sparselab import verification_proofs
+
+    original_authority = verification_proofs.verifier_authority
+    if legacy:
+        monkeypatch.setattr(
+            verification_proofs,
+            "verifier_authority",
+            lambda kind, version: {
+                **original_authority(kind, version),
+                "fixture_new_verifier": True,
+            },
+        )
     original = Path.open
 
     def no_document_body(path, *args, **kwargs):
@@ -145,6 +184,14 @@ def test_prepared_release_reads_only_authenticated_metadata(tmp_path, monkeypatc
     assert cohort["documents"] == 1
     assert cohort["source_ids"] == ["source"]
     assert len(cohort["evidence"]["sources"]["source"]["historical_proof_sha256"]) == 64
+    proof_path = Path(cohort["evidence"]["sources"]["source"]["proof_path"])
+    saved = json.loads(proof_path.read_bytes())
+    saved["proof"]["binding"]["upstream_identities"]["authority"]["streaming_producer"][
+        "pipeline.py"
+    ] = "f" * 64
+    proof_path.write_text(json.dumps(saved))
+    with pytest.raises(ValueError, match="historical proof invalid"):
+        prepared_release(tmp_path, release)
 
 
 def test_retained_offsets_rank_without_reading_old_document_bodies(
@@ -312,7 +359,10 @@ def test_additive_release_must_bind_exact_prior_inventory(tmp_path):
         verify_additive_anchor(base, delta)
 
 
-def test_retained_offsets_match_existing_mixture_schedule(tmp_path, monkeypatch):
+@pytest.mark.parametrize("quota,exposures", [(5, 1), (8, 1), (11, 2)])
+def test_retained_offsets_match_existing_mixture_schedule(
+    tmp_path, monkeypatch, quota, exposures
+):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     release = tmp_path / "release"
     (release / "lm").mkdir(parents=True)
@@ -417,9 +467,9 @@ def test_retained_offsets_match_existing_mixture_schedule(tmp_path, monkeypatch)
             "tokenizer_config": tmp_path / "tokenizer",
             "family_inventory": inventory,
             "source_strata": {"code-source": "code"},
-            "target_quotas": {"code": 5},
+            "target_quotas": {"code": quota},
             "seed": 86,
-            "max_exposures": 1,
+            "max_exposures": exposures,
         }
     )
     tok = SimpleNamespace(
@@ -468,10 +518,141 @@ def test_retained_offsets_match_existing_mixture_schedule(tmp_path, monkeypatch)
             index,
             reused_dir,
         )
+        if exposures == 1:
+            assert index.tokens.tell() == 0
+        else:
+            assert index.tokens.tell() > 0
     assert (original_dir / "train.tokens.jsonl").read_bytes() == (
         reused_dir / "train.tokens.jsonl"
     ).read_bytes()
     assert before == after
+
+
+@pytest.mark.parametrize("floor,cap", [(3, None), (99, None), (3, 32)])
+def test_direct_schedule_matches_duplicate_empty_and_floor_behavior(
+    tmp_path, monkeypatch, floor, cap
+):
+    if cap is not None:
+        monkeypatch.setattr(mixture, "MAX_ROW_BYTES", cap)
+    release = tmp_path / "release"
+    release.mkdir()
+    (release / "manifest.json").write_text("{}")
+    inventory = tmp_path / "inventory"
+    inventory.write_text("inventory")
+    spec = SimpleNamespace(
+        target_quotas={"code": 3},
+        unique_train_content_floors={"code": floor},
+        max_exposures=1,
+        additional_releases=[],
+        family_inventory=inventory,
+        seed=86,
+        order_policy=None,
+    )
+    docs = [
+        (
+            {
+                "document_id": "a",
+                "source_id": "s",
+                "content_sha256": "a",
+                "text": "abc",
+            },
+            "f1",
+        ),
+        (
+            {
+                "document_id": "duplicate",
+                "source_id": "s",
+                "content_sha256": "a",
+                "text": "abc",
+            },
+            "f1",
+        ),
+        (
+            {
+                "document_id": "empty",
+                "source_id": "s",
+                "content_sha256": "b",
+                "text": "",
+            },
+            "f2",
+        ),
+        (
+            {
+                "document_id": "after-quota",
+                "source_id": "s",
+                "content_sha256": "c",
+                "text": "de",
+            },
+            "f3",
+        ),
+    ]
+
+    class Index:
+        def __init__(self):
+            self.content = set()
+            self.rows = []
+            self.families = set()
+
+        def candidates(self, _):
+            return iter(docs)
+
+        def seen(self, digest):
+            old = digest in self.content
+            self.content.add(digest)
+            return old
+
+        def append(self, row):
+            if cap is not None and len(mixture.canonical_json(row)) + 1 > cap:
+                raise ValueError("mixture encoded record-byte cap exceeded")
+            self.rows.append(row)
+            self.families.add(row["family_id"])
+
+        def encoded(self, _):
+            return iter(self.rows)
+
+        def family_count(self, _):
+            return len(self.families)
+
+    class DirectIndex(Index):
+        def record_family(self, _, family):
+            self.families.add(family)
+
+        def append(self, _):
+            raise AssertionError("direct path wrote a token spool")
+
+    tok = SimpleNamespace(
+        encode=lambda text, **_: SimpleNamespace(ids=list(text.encode()))
+    )
+    results = []
+    for name, index in [("old", Index()), ("direct", DirectIndex())]:
+        staging = tmp_path / name
+        staging.mkdir()
+        try:
+            receipt = _schedule(
+                spec,
+                b"spec",
+                release,
+                {"release_id": "r"},
+                tok,
+                "tok",
+                3,
+                index,
+                staging,
+            )
+        except ValueError as exc:
+            receipt = str(exc)
+        results.append((receipt, (staging / "train.tokens.jsonl").read_bytes()))
+    if cap is not None:
+        assert (
+            results[0][0] == results[1][0] == "mixture encoded record-byte cap exceeded"
+        )
+    elif floor == 99:
+        assert "unique TRAIN content supply below floor" in results[0][0]
+        # Failed staging is discarded by the caller; direct scheduling may have
+        # written it before discovering the shortfall.
+        assert results[0][0] == results[1][0]
+    else:
+        assert results[0] == results[1]
 
 
 def test_additive_mixture_keeps_origin_and_publishes_combined_identity(

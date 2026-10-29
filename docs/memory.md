@@ -89,7 +89,7 @@ The acceptance record reports 86,444 optimizer-tensor bytes for AdamW and 3,436 
 on the same 10,800-parameter tied tiny decoder, including 11 step scalars.
 Both exactly match the estimator. This is persistent-state accounting, not a
 total-process memory reduction or quality comparison.
-[The record](../artifacts/acceptance/memory_optimizer_2026_09_22.json) includes
+[The record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/memory_optimizer_2026_09_22.json) includes
 factor shapes, aliases, CPU RSS, native MLX fields, and calibration limits.
 
 ## Reduce memory without changing the science silently
@@ -114,7 +114,7 @@ not a usable proposal. Report or config conflicts fail rather than replacing
 user-owned artifacts. Storage failures during publication roll back files
 created by that invocation.
 
-The [CLI acceptance record](../artifacts/acceptance/resource_policy_2026_09_22.json)
+The [CLI acceptance record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/resource_policy_2026_09_22.json)
 covers low-memory and capacity-constrained balanced proposals, unchanged source
 files, preserved effective batch, loadable hash-bound YAML, and overwrite refusal.
 These are planner/publication checks, not measured training-capacity claims.

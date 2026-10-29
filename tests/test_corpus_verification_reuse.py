@@ -24,7 +24,9 @@ from sparselab.data.tokenizer import train_tokenizer, verify_tokenizer_artifact
 from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import ProofStore
 
-PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0/corpus.yaml"
+PROJECT = (
+    Path(__file__).resolve().parents[1] / "tests/fixtures/corpus-sample/corpus.yaml"
+)
 CONFIG = Path(__file__).resolve().parents[1] / "configs/runtime_smoke_cpu.yaml"
 
 
@@ -293,7 +295,9 @@ def test_added_source_preserves_snapshot_receipt(
         source for source in specification["sources"] if source["id"] == "sample_docs"
     ).copy()
     additional["id"] = "additional_docs"
-    additional["canonical_uri"] = "sparselab://corpora/devmind-sample-v0/extra-guide.md"
+    additional["canonical_uri"] = (
+        "sparselab://tests/fixtures/corpus-sample/extra-guide.md"
+    )
     additional["source_family"] = "additional_docs_train"
     specification["sources"].append(additional)
     specification["splits"]["assignments"]["additional_docs_train"] = "train"

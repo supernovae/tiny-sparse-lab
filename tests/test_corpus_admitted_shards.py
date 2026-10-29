@@ -139,11 +139,11 @@ def test_streamed_admitted_shard_matches_native_v2_bytes(
         else:
             assert "quarantine" in rejected[0]["reason"]
         receipt = json.loads((output / "receipt.json").read_text())
-        assert receipt["identity"]["admission_sha256"] == digest
+        assert receipt["provenance"]["admission_sha256"] == digest
         assert _prepare_file(**args) == output
-        # A different complete reviewed artifact cannot reuse this receipt.
+        # A global admission edit with unchanged per-file decisions reuses the shard.
         other = _prepare_file(**{**args, "admission_sha256": "f" * 64})
-        assert other != output
+        assert other == output
         (output / "docs.jsonl").write_bytes(b"tampered")
         with pytest.raises(ValueError, match="changed"):
             _verify_prepared(output, receipt["identity"])

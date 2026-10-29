@@ -92,6 +92,36 @@ class PreparedData:
     receipt: VerifiedPreparedData
 
 
+def preparation_source_identity(inventory: dict[str, str] | None = None) -> str:
+    if inventory is None:
+        root = Path(__file__).parents[1]
+        paths = sorted((root / "data").glob("*.py"))
+        paths += [root / "config" / "models.py"]
+        inventory = {str(path.relative_to(root)): _sha256(path) for path in paths}
+    names = sorted(
+        name
+        for name in inventory
+        if name.startswith("data/") and name.endswith(".py") and name.count("/") == 1
+    )
+    names.append("config/models.py")
+    return hashlib.sha256(
+        canonical_json([(name, inventory[name]) for name in names])
+    ).hexdigest()
+
+
+def prepared_source_matches(identity: dict, package_sha256: str) -> bool:
+    """Match preparation semantics, retaining explicit package-bound artifacts."""
+    from sparselab.experiments.source_compatibility import source_identities_compatible
+
+    recorded = identity["source_identity_sha256"]
+    if (
+        identity.get("allocation_manifest_sha256") is None
+        and recorded == preparation_source_identity()
+    ):
+        return True
+    return source_identities_compatible(recorded, package_sha256)
+
+
 def _sha256(path: Path) -> str:
     return manifest_module.sha256_file(path)
 
@@ -639,6 +669,7 @@ def _collect_token_mixture(
     root: Path,
     *,
     proofs: dict[str, VerifiedFile] | None = None,
+    chunks: SplitChunks | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
     """Pack exact scheduled targets with BOS and masked block-end padding."""
     dataset = config.dataset
@@ -651,10 +682,17 @@ def _collect_token_mixture(
     pad = tokenizer.token_to_id("<pad>")
     if any(value is None for value in (bos, eos, pad)):
         raise ValueError("token mixture tokenizer requires BOS, EOS and PAD")
-    ids = _ArraySpool(root / "train.npy", np.dtype(np.int32))
-    mask = _ArraySpool(root / "train_supervision.npy", np.dtype(bool))
-    ids.append([bos])
-    mask.append([False])
+    ids = (
+        _ArraySpool(root / "train.npy", np.dtype(np.int32)) if chunks is None else None
+    )
+    mask = (
+        _ArraySpool(root / "train_supervision.npy", np.dtype(bool))
+        if chunks is None
+        else None
+    )
+    if chunks is None:
+        ids.append([bos])
+        mask.append([False])
     cursor = 1
     records = 0
     stream_digest = hashlib.sha256()
@@ -679,8 +717,19 @@ def _collect_token_mixture(
                 or cursor + len(tokens) > target_count + 1
             ):
                 raise ValueError("invalid token mixture target row")
-            ids.append(tokens)
-            mask.append([True] * len(tokens))
+            if chunks is None:
+                ids.append(tokens)
+                mask.append([True] * len(tokens))
+            elif records >= chunks.state["acquired_documents"]:
+                selected = ([bos] if records == 0 else []) + tokens
+                supervision = ([False] if records == 0 else []) + [True] * len(tokens)
+                if records + 1 == receipt["records"]:
+                    padding = padded_targets - target_count
+                    selected += [pad] * padding
+                    supervision += [False] * padding
+                chunks.append_record(
+                    records + 1, {"ids": selected, "supervision": supervision}
+                )
             cursor += len(tokens)
             records += 1
             by_stratum[row["stratum"]] += len(tokens)
@@ -692,15 +741,25 @@ def _collect_token_mixture(
     ):
         raise ValueError("token mixture target count differs from verified receipt")
     remaining_padding = padded_targets - target_count
-    while remaining_padding:
+    while chunks is None and remaining_padding:
         count = min(remaining_padding, 65_536)
         ids.append([pad] * count)
         mask.append([False] * count)
         remaining_padding -= count
-    for spool in (ids, mask):
-        proof = spool.finish()
-        if proofs is not None:
-            proofs[spool.path.name] = proof
+    if chunks is None:
+        for spool in (ids, mask):
+            proof = spool.finish()
+            if proofs is not None:
+                proofs[spool.path.name] = proof
+    else:
+        chunk_proofs, _ = chunks.finish()
+        for name, proof in chunk_proofs.items():
+            destination = root / name
+            proof.path.replace(destination)
+            if proofs is not None:
+                proofs[name] = _written_file(
+                    destination, proof.sha256, proof.size_bytes
+                )
     stats = {
         "acquired_documents": records,
         "retained_documents": records,
@@ -712,8 +771,8 @@ def _collect_token_mixture(
         "masked_padding_positions": padded_targets - target_count,
     }
     return (
-        np.load(ids.path, mmap_mode="r", allow_pickle=False),
-        np.load(mask.path, mmap_mode="r", allow_pickle=False),
+        np.load(root / "train.npy", mmap_mode="r", allow_pickle=False),
+        np.load(root / "train_supervision.npy", mmap_mode="r", allow_pickle=False),
         stats,
     )
 
@@ -1309,7 +1368,13 @@ def _prepare_data(
     ):
         raise ValueError("corpus export vocabulary size does not match run model")
     local_chat = _local_chat_identity(config.dataset)
-    source_digest = source_identity()["sha256"]
+    # Allocation attestations retain their declared package identity. Ordinary
+    # data caches depend on preparation implementation, not training/report/docs.
+    source_digest = (
+        source_identity()["sha256"]
+        if config.dataset.allocation_manifest_path is not None
+        else preparation_source_identity()
+    )
     allocation = None
     if config.dataset.allocation_manifest_path is not None:
         if config.dataset.source != "local_chat" or local_chat is None:
@@ -1387,8 +1452,16 @@ def _prepare_data(
 
     compatibility = active_source_compatibility()
     if compatibility is not None:
-        historical_source = compatibility["baseline_source_identity"]["sha256"]
-        if historical_source != source_digest:
+        baseline = compatibility["baseline_source_identity"]
+        historical_source = (
+            baseline["sha256"]
+            if config.dataset.allocation_manifest_path is not None
+            else preparation_source_identity(dict(baseline["files"]))
+        )
+        if (
+            historical_source != source_digest
+            or config.dataset.allocation_manifest_path is None
+        ):
             historical_identity = {
                 **cache_identity,
                 "source_identity_sha256": historical_source,
@@ -1569,6 +1642,11 @@ def _prepare_data(
             arrays=chunk_arrays,
             telemetry=telemetry,
         )
+    elif token_mixture is not None:
+        root.parent.mkdir(parents=True, exist_ok=True)
+        temporary_root = Path(
+            tempfile.mkdtemp(prefix=f".{root.name}-", dir=root.parent)
+        )
     else:
         if temporary_root.exists() or temporary_root.is_symlink():
             raise RuntimeError(
@@ -1651,9 +1729,23 @@ def _prepare_data(
             temporary_root / "validation.npy", mmap_mode="r", allow_pickle=False
         )
     elif token_mixture is not None:
-        train, train_supervision, train_stats = _collect_token_mixture(
-            config, tokenizer, token_mixture, temporary_root, proofs=proofs
+        mixture_chunks = PreparationChunks(
+            root.with_name(root.name + ".mixture.tmp"),
+            cache_identity=cache_identity,
+            binding={"stage": "mixture-target-packing", "identity": cache_identity},
+            arrays={"ids": np.dtype(np.int32), "supervision": np.dtype(bool)},
+            raw_byte_limit=128 * 1024**2,
+            telemetry=telemetry,
         )
+        with mixture_chunks:
+            train, train_supervision, train_stats = _collect_token_mixture(
+                config,
+                tokenizer,
+                token_mixture,
+                temporary_root,
+                proofs=proofs,
+                chunks=mixture_chunks.open_split("train"),
+            )
         train_byte = None
         validation, validation_supervision, validation_byte, validation_stats = (
             _collect(
@@ -1809,7 +1901,7 @@ def _prepare_data(
         **({"corpus_export": corpus_export} if corpus_export is not None else {}),
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
         "settings_sha256": hashlib.sha256(canonical_json(cache_identity)).hexdigest(),
-        "source_identity_sha256": cache_identity["source_identity_sha256"],
+        "source_identity_sha256": source_identity()["sha256"],
         "train": {
             **train_stats,
             **metadata(temporary_root / "train.npy"),
@@ -1932,6 +2024,10 @@ def _prepare_data(
     telemetry.add("finalize_fsync_seconds", time.monotonic() - finalize_started)
     if chunks_owner is not None:
         chunks_owner.cleanup_published(root)
+    if token_mixture is not None:
+        # Published arrays are independently owned and verified; raw chunks are
+        # only retained until the complete prepared bundle commits.
+        shutil.rmtree(mixture_chunks.root)
     with (
         progress_phase(
             "data_cache_validation",

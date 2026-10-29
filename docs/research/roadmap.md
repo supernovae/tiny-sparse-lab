@@ -56,7 +56,7 @@ questions are:
 
 - **Useful tasks:** establish one low-risk real task against an independent test population and a simple baseline, with declared error handling and human review.
 - **Corpus shape and synthetic fraction:** preregister paired releases from the same licensed source snapshots with declared shape/fraction filters, held-out source/world/template units, fixed tokenizer/target token budget and controlled model/seed/evaluation suites. Compare recall, paraphrase, troubleshooting, tool use and abstention separately; report negative and mixed effects rather than a universal synthetic percentage or shape ranking. The [Corpus Forge ledger](../corpus-provenance.md) provides measurement inputs, not an observed outcome.
-- **Historical DevMind work:** source expansion, failed recovery and the unpromoted MODEL-0 endpoint are archived in the [research history](../../experiments/research/history/README.md). The [lessons](../../experiments/research/history/LESSONS_LEARNED.md#devmind-source-supply-and-recovery) retain unresolved quality, rights, exposure and reproducibility limits. These archived successor proposals are not the current execution plan.
+- **Historical DevMind work:** source expansion, failed recovery and the unpromoted MODEL-0 endpoint are archived in the [research history](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/README.md). The [lessons](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/LESSONS_LEARNED.md#devmind-source-supply-and-recovery) retain unresolved quality, rights, exposure and reproducibility limits. These archived successor proposals are not the current execution plan.
 - **Lexical Engram:** test transfer/generalization across independent task data, held-out wording/facts, seeds, and collision/capacity controls; keep token and byte results distinct.
 - **Portable byte Engram:** extend the negative two-case result to multiple recipient configurations and held-out cases; prove adapter updates leave source table bytes unchanged and retain disabled/random/frozen-only controls.
 - **Semantic EngramPack:** distinguish exact retrieval of supplied vectors from natural-language understanding. Any text-query capability first needs a reproducible encoder/space contract, an exercised query path, leakage-audited tasks, pack controls, and measured encoder/retrieval cost.
@@ -67,8 +67,8 @@ questions are:
 ## Archived dense and TinyStories findings
 
 The completed token-budget, model-scale, decoding and data-rich TinyStories
-studies now live in [research history](../../experiments/research/history/README.md).
-Their [source-linked lessons](../../experiments/research/history/LESSONS_LEARNED.md)
+studies now live in [research history](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/README.md).
+Their [source-linked lessons](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/LESSONS_LEARNED.md)
 separate lower held-out loss from mixed prose behavior, repetition from coherence,
 and changed exposure from new source supply. Retained reports and identities are
 unchanged; old executable study drivers have been removed. An archive is not a
@@ -133,10 +133,10 @@ Current source boundaries: `SemanticQueryBatch` in `src/sparselab/engram/semanti
 
 ## Historical research: Kernel Memory Lab
 
-[Kernel Memory Lab](../../experiments/research/kernel-memory-lab/README.md) was
+[Kernel Memory Lab](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/kernel-memory-lab/README.md) was
 retired from the active showcase on 2026-10-18. Its retained
-[status](../../experiments/research/kernel-memory-lab/STATUS.md) and
-[bootstrap](../../experiments/research/kernel-memory-lab/BOOTSTRAP.md) describe
+[status](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/kernel-memory-lab/STATUS.md) and
+[bootstrap](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/kernel-memory-lab/BOOTSTRAP.md) describe
 historical cards, stopped attempts and scope, not a current release assignment.
 Fresh rerun ideas belong to the coordinated backlog with new identities and
 current frameworks. The old project is not awaiting qualification as an active

@@ -73,7 +73,7 @@ It retains optimizer moments, cursor, RNG, and the old cosine schedule's floor;
 it does not restart a new longer cosine. An interrupted extended child then
 uses ordinary `--resume` with its unchanged extended config. The
 [checkpointing contract](checkpointing.md#explicit-terminal-budget-extension)
-specifies the compatibility checks; the [dense-LM budget study](../experiments/research/history/dense-lm-token-budget-v1/results.md)
+specifies the compatibility checks; the [dense-LM budget study](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/dense-lm-token-budget-v1/results.md)
 records one executed ROCm continuation rather than a generic performance guarantee.
 
 Current run manifests retain `manifest_version: 1` with `identity_version: run-identity-v2`. Requested/effective configuration digests exclude machine-local paths; architecture identity covers model and attention semantics separately. Historical identity-less manifests keep their original digest interpretation. A child's `parent_run_id` and `checkpoint_sha256` bind the exact selected parent generation, not a moving pointer.

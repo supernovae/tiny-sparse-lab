@@ -11,13 +11,13 @@ Original protocols, artifacts, failed observations and identities remain authori
 
 ### Historical baseline
 
-[Compact baseline](../../artifacts/benchmarks/capacity-aware-execution-v1-baseline.json)
+[Compact baseline](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/benchmarks/capacity-aware-execution-v1-baseline.json)
 binds exact JSON pointers into versioned
-[execution records](../../experiments/research/history/devmind-pretrain-v5/model0-execution.md),
-[preparation](../../experiments/research/history/devmind-pretrain-v5/model0-preparation-verification.json),
-[lock acceptance](../../experiments/research/history/devmind-pretrain-v5/model0-plan-lock-acceptance.json),
-[current-source readiness](../../experiments/research/history/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json)
-and [completed result](../../experiments/research/history/devmind-pretrain-v5/model0-result.json).
+[execution records](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v5/model0-execution.md),
+[preparation](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v5/model0-preparation-verification.json),
+[lock acceptance](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v5/model0-plan-lock-acceptance.json),
+[current-source readiness](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json)
+and [completed result](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v5/model0-result.json).
 These are retrospective operational evidence, not new scientific results.
 
 | Boundary | Observed wall seconds | Interpretation |
@@ -103,7 +103,7 @@ medium process RSS differs by only a few MiB across 1/2/4 workers.
 `run_ordered` keeps at most the selected worker count outstanding, reduces in
 input ordinal order and cancels/joins on failure or iterator close.
 
-[Before measurements](../../artifacts/benchmarks/capacity-aware-execution-v1-before.json)
+[Before measurements](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/benchmarks/capacity-aware-execution-v1-before.json)
 use independent processes and uncontrolled OS cache, not evicted-cache claims.
 Their elapsed times include package imports. Threaded SHA did not demonstrate a
 material end-to-end benefit; production cold SHA defaults to one worker.
@@ -177,7 +177,7 @@ only within that invocation; no trust decision survives a lookup/publication.
 Tokenizer selection passes the explicit verification context to its nested
 release verifier. Recovery/archive callers retain their cold defaults.
 
-The [pre-MODEL-1 hash comparison](../../artifacts/benchmarks/pre-model1-hash.json)
+The [pre-MODEL-1 hash comparison](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/benchmarks/pre-model1-hash.json)
 uses fresh processes and equally pre-read inputs; it is not a disk-cold result.
 On the 3,937,267,228-byte retained training array, median SHA-256/1 MiB was
 1.921 seconds, BLAKE3/single-thread 1.109 seconds, bounded four-thread BLAKE3
@@ -568,7 +568,7 @@ The DevMind-only committed-evidence flags and trust implementation were removed
 in the lifecycle cleanup. Current measurement uses cold release/tokenizer
 verification, with an explicit tokenizer-origin release when reusing a retained
 tokenizer. The earlier proof and measurements remain unchanged in the
-[history archive](../../experiments/research/history/README.md); their existence
+[history archive](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/README.md); their existence
 does not authorize replay or replace verification of current inputs.
 
 ## Generation-panel integration history
@@ -627,7 +627,7 @@ The optional local reference package is `artifacts/phase-g/micro-reference/`: th
 - [Context/Engram study](../context-engram-study.md#execution-results--2026-09-22): 24 endpoints spanning seeds 17/41/73, two exact target budgets, dense/backbone and dense-total comparisons, and collision/address-order diagnostics. Every untouched override endpoint remained 0/8. Added memory capacity and observed bucket collisions are not evidence of a generalization advantage.
 - [Domain adaptation](../path-domain-corpus.md#2026-09-22-execution-record): three pretraining/adaptation pairs with frozen supervision, provenance, semantic leakage checks, per-case results, and static-retention measurements. Training-case acquisition improved, but held-out reliability remained poor and retention worsened sharply.
 
-[Independent acceptance](../../artifacts/acceptance/scientific_studies_2026_09_22.json) binds the input inventories, endpoint identities, stored responses, paired deltas, and retention observations. These studies retain all declared seeds/endpoints and their negative outcomes; they are not a general model-selection or significance framework.
+[Independent acceptance](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/scientific_studies_2026_09_22.json) binds the input inventories, endpoint identities, stored responses, paired deltas, and retention observations. These studies retain all declared seeds/endpoints and their negative outcomes; they are not a general model-selection or significance framework.
 
 ### Historical controlled dense runs
 
@@ -648,7 +648,7 @@ Dense attention, sliding-window attention, MLA, MoE, and byte memory alter diffe
 
 ## Partial recovery declaration example
 
-The [DevMind v4 recovery declaration](../../experiments/research/history/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.
+The [DevMind v4 recovery declaration](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.
 
 ## Task-scoped ancestry replay
 
@@ -658,7 +658,7 @@ gates; each invocation attempts only the named next stage, re-verifies parents,
 and preserves the first failure without automatic retry:
 
 The original invocation is retained with the
-[ancestry replay record](../../experiments/research/history/devmind-pretrain-v4/ancestry-replay-report.md).
+[ancestry replay record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/history/devmind-pretrain-v4/ancestry-replay-report.md).
 It is a historical recovery procedure, not a general native lab workflow.
 Declarative snapshot inheritance remains an explicit
 [implementation gap](../../TODO.md#p3--conditional-work-activate-for-a-concrete-workload);

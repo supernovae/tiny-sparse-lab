@@ -151,7 +151,7 @@ def pinned_project(tmp_path: Path) -> Iterator[tuple[Path, Path, str]]:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     shutil.copytree(
-        ROOT / "corpora" / "devmind-sample-v0",
+        ROOT / "tests/fixtures/corpus-sample",
         repository / "corpora" / "devmind-sample-v0",
     )
     for name in ("pyproject.toml", "uv.lock", "README.md"):

@@ -409,7 +409,7 @@ interfaces. A separate CPU evaluation retains the original training identity.
 Keep missing, failed and interrupted observations visible. No automatic model
 promotion follows from completing this execution contract.
 
-The [registered-runtime acceptance record](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
+The [registered-runtime acceptance record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
 preserves a software integration check run on the recorded GPU. Its device,
 source and checkpoint identities describe the execution environment and outputs;
 new users declare their own runtime.
@@ -744,7 +744,7 @@ source/tokenizer/owner identity, unexpected entries, and replacement publication
 
 ### Offline performance evidence
 
-The retained [preparation benchmark](../artifacts/benchmarks/runtime-prep-v1.json)
+The retained [preparation benchmark](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/benchmarks/runtime-prep-v1.json)
 measured generated 1/8/32 MiB prose/code JSONL, one local BPE tokenizer,
 scalar and batched encoding, and bounded Rayon thread counts. Wall time includes
 imports, child startup and instrumentation; sampled process-tree RSS includes
@@ -779,13 +779,13 @@ statistical portability or causal Rust-only speedup claim. Source re-iteration
 on resume, scalar tokenizer training, JSON IPC, and the contiguous final copy
 remain measured-performance questions.
 
-The [runtime-prep-v1 acceptance record](../artifacts/acceptance/runtime-prep-v1.json)
+The [runtime-prep-v1 acceptance record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/runtime-prep-v1.json)
 binds the actual CPU profile probe, preparation/hash measurements, bounded
 recovery checks, CLI smoke, and final focused/broader suite results. It is
 operational implementation evidence, not a research finding or a hardware
 portability claim.
 
-The [Campaign integration rebase record](../artifacts/acceptance/runtime-prep-v1-rebase.json)
+The [Campaign integration rebase record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/runtime-prep-v1-rebase.json)
 adds actual worker-dispatch/ingestion CLI proof and the combined CPU suites
 after integrating Campaign orchestration. Original benchmark measurements retain their
 original source identities; they were not rerun or relabeled as rebase measurements.
@@ -885,7 +885,7 @@ results concern SparseLab execution there, not the scientific question.
 
 ## Recorded local acceptance
 
-The [Host CLI acceptance record](../artifacts/acceptance/host_cli_2026_09_22.json) contains
+The [Host CLI acceptance record](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/host_cli_2026_09_22.json) contains
 fresh-process CPU FP32 20/640 versus 10+resume, CPU BF16 and Adafactor 4/128
 versus 2+resume, and native MLX FP32 2/64 versus 1+resume. Model, optimizer,
 schedule, scaler, cursor, and RNG match bitwise within each pair; parent
@@ -895,7 +895,7 @@ one fresh update. These are bounded implementation checks, not cross-engine
 training equivalence or model-quality results. Their execution environment is
 part of the record, not the subject of a scientific finding.
 
-The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
+The [integrated single-host gate](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
 
 Native CUDA sparse kernels remain an [implementation direction](../ROADMAP.md#longer-term-directions). Retained
 software integration records do not yet include execution on Intel XPU or a
@@ -903,7 +903,7 @@ simultaneous multi-host Apple/AMD/Intel worker setup. Native HIP sparse-attentio
 measurements were collected on an AMD RX 7900 XTX under WSL2; that names the
 environment used for the measurements, not the purpose of the model studies.
 
-The [registered-runtime ROCm gate](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
+The [registered-runtime ROCm gate](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
 records isolated `rocm-gfx1100-v1` provisioning and a fresh RX 7900 XTX BF16
 Campaign: one ingested attempt, two optimizer steps, 64 supervised targets,
 and a verified full-state checkpoint. Explicit ROCm and CPU FP32 evaluation

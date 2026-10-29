@@ -673,7 +673,7 @@ def test_project_consumer_refuses_incomplete_or_mismatched_bundle(
     else:
         candidates.write_text("{}\n")
     # Real project loader, with checked-in source/release declarations.
-    source = Path("corpora/devmind-sample-v0/corpus.yaml")
+    source = Path("tests/fixtures/corpus-sample/corpus.yaml")
     for folder in ("sources", "transforms"):
         shutil.copytree(source.parent / folder, tmp_path / folder)
     config = tmp_path / "corpus.yaml"

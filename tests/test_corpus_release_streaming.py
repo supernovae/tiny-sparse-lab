@@ -15,7 +15,9 @@ from sparselab.corpus.project import Project, load_project
 from sparselab.corpus.release import freeze, verify_release
 from sparselab.training.manifest import canonical_json, sha256_file
 
-PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0/corpus.yaml"
+PROJECT = (
+    Path(__file__).resolve().parents[1] / "tests/fixtures/corpus-sample/corpus.yaml"
+)
 
 
 @pytest.fixture(scope="module")

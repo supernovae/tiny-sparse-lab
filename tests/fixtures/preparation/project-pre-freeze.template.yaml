@@ -1,0 +1,12 @@
+schema_version: 1
+id: fixture-preparation
+sources:
+- ${SOURCE_GUTENBERG}
+- ${SOURCE_PAGERDUTY}
+- ${SOURCE_SCOUTFLO}
+- ${SOURCE_WIKIMEDIA}
+transforms: []
+splits: ${SPLITS_FILE}
+release: ${RELEASE_FILE}
+source_effects: []
+transport_budget: null

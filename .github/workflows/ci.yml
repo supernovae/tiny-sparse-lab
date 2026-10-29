@@ -67,10 +67,10 @@ jobs:
           uv run --locked --no-sync pytest -q -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/pr-safe-pytest" \
             tests/test_research_lint.py::test_actual_tracked_research_records \
-            tests/test_research_lint.py::test_exact_pinned_legacy_records_are_retained \
-            tests/test_research_lint.py::test_changed_legacy_bytes_are_rejected \
-            tests/test_research_lint.py::test_same_legacy_bytes_at_different_path_are_rejected \
-            tests/test_research_lint.py::test_additional_unapproved_legacy_artifact_is_rejected \
+            tests/test_research_lint.py::test_empty_research_checkout_is_valid \
+            tests/test_research_lint.py::test_valid_offline_research_records_and_untracked_outputs \
+            tests/test_research_lint.py::test_forbidden_tracked_output \
+            tests/test_research_lint.py::test_unsafe_binding \
             tests/test_research_launch_surface.py \
             tests/test_preparation_commands.py \
             tests/test_verification_adapters.py \

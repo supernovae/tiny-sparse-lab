@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 
 from sparselab.corpus.admission_inspection_cache import capture, unchanged
-from sparselab.corpus.completed_preparation import _producer
 from sparselab.corpus.preparation_inputs import corpus_work_root, local_scope
 from sparselab.corpus.retained_render_adoption import _sha, _small
 from sparselab.corpus.split_runs import SplitStages, _stamp, write_rows
@@ -38,7 +37,6 @@ def retained_payload(path):
         scope is None
         or _sha(build["identity"]) != path.name
         or build["build_id"] != path.name
-        or scope["request"]["producer"] != _producer()
     ):
         raise ValueError("retained native build identity or producer changed")
     unchanged(scope["source_bindings"])
@@ -88,10 +86,10 @@ def retained_payload(path):
     receipt = cache.proofs._receipt(binding)
     historical = _small(receipt, root, private=True)
     saved = json.loads(historical)["proof"]["binding"]
-    if not cache.proofs.lookup(saved):
+    if not cache.proofs.lookup_recorded_execution(saved):
         raise ValueError("retained native build historical proof invalid or changed")
     before, after = saved["upstream_identities"], binding["upstream_identities"]
-    if before["authority"]["streaming_producer"] != _producer():
+    if before["authority"]["streaming_producer"] != scope["request"]["producer"]:
         raise ValueError("retained native build signed producer changed")
     # Only verifier authority may differ. Mutable declaration fingerprints and
     # every other signed binding field must still match exactly.

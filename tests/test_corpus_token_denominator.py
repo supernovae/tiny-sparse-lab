@@ -91,7 +91,7 @@ def cross_release(
     """Two real local releases and a prebuilt tokenizer; no fitting or model work."""
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "state"))
     recipe = tmp_path / "project"
-    shutil.copytree(Path("corpora/devmind-sample-v0"), recipe)
+    shutil.copytree(Path("tests/fixtures/corpus-sample"), recipe)
     project = load_project(recipe / "corpus.yaml")
     workspace = tmp_path / "workspace"
     acquire(project, workspace, offline=False)

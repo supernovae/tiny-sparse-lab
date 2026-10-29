@@ -7,3 +7,10 @@ sparselab-work/
 dist/
 .pytest_cache/
 .ruff_cache/
+
+# Runtime corpora and storage belong in the configured external work root.
+/corpora/
+/workdir/
+/storage/
+/experiments/research/*
+!/experiments/research/README.md

@@ -108,6 +108,11 @@ def test_public_steps_keep_full_binding_and_publish_lock_only_on_completion(
     complete = acquire(project, root)
     assert set(complete["sources"]) == {"one", "two"} and calls == calls_before
     assert verify_acquisition(project, root) == complete
+    summary = _cli(monkeypatch, root, recipe, "--require-existing", "--summary")
+    assert summary["source_count"] == 2
+    assert summary["complete"] is True
+    assert summary["lock_path"] == str(root / "corpora/example/acquisition.json")
+    assert calls == calls_before
     assert (source / "manifest.json").read_bytes() == first_manifest
 
 
@@ -123,7 +128,9 @@ def test_finalize_existing_snapshots_never_fetches_and_publishes_lock(
         pytest.fail("existing-snapshot finalization attempted a fetch")
 
     monkeypatch.setattr(acquisition, "_acquire_hf", no_fetch)
-    complete = _cli(monkeypatch, root, recipe, "--require-existing")
+    summary = _cli(monkeypatch, root, recipe, "--require-existing")
+    assert summary["source_count"] == 2
+    complete = verify_acquisition(project, root)
     assert set(complete["sources"]) == {"one", "two"}
     assert (
         complete["sources"]["one"]["snapshot_sha256"]
@@ -497,3 +504,20 @@ def test_reuse_admission_only_credits_the_exact_pinned_origin(tmp_path, monkeypa
     result = run(project, root, effect.source_id)
     assert result["source"]["snapshot_sha256"] == effect.snapshot_sha256
     assert destination.exists()
+
+
+def test_compact_finalization_rebuilds_stale_lock_from_saved_snapshots(
+    tmp_path, monkeypatch
+):
+    recipe, project, root, _ledger, calls, _content = fixture(tmp_path, monkeypatch)
+    run(project, root, "one")
+    run(project, root, "two")
+    complete = acquire(project, root, require_existing=True)
+    lock = root / "corpora/example/acquisition.json"
+    stale = dict(complete, sources={"one": complete["sources"]["one"]})
+    lock.write_text(json.dumps(stale))
+    before = list(calls)
+    summary = _cli(monkeypatch, root, recipe, "--require-existing")
+    assert summary["source_count"] == 2
+    assert verify_acquisition(project, root) == complete
+    assert calls == before

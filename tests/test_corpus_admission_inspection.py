@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 import pytest
-from test_kml_50m_preparation_sequence import _policy, _sources
+from test_preparation_sequence import _policy, _sources
 
 from sparselab.corpus.admission_draft import draft_admission_manifest
 from sparselab.corpus.admission_inspection import (

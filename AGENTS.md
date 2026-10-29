@@ -112,7 +112,7 @@ Read `README.md`, relevant nearby guidance, `ROADMAP.md` for feature direction, 
 preserve other work and use an isolated checkout when experiments have pinned
 another checkout. Distinguish code, fixtures, experiments and evidence.
 Kernel Memory Lab was retired from the active showcase on 2026-10-18. Its
-[bootstrap](experiments/research/kernel-memory-lab/BOOTSTRAP.md) and retained status
+[bootstrap](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/experiments/research/kernel-memory-lab/BOOTSTRAP.md) and retained status
 are historical context, not a current release assignment. Fresh rerun ideas belong
 to the coordinated backlog with new identities, current frameworks and separately
 authorized scope. Historical allocations grant no runtime or spending authority;

@@ -190,6 +190,17 @@ def test_hf_rows_are_streamed_with_original_ids_and_verified_resume(
     assert list(zip(docs, spans, strict=True)) == expected
     assert len(docs) == 3
     assert _prepare_file(**kwargs) == prepared
+    # An edited global build plan must not invalidate unchanged normalization.
+    changed_plan = {**kwargs, "build_id": "added-source-plan"}
+    assert _prepare_file(**changed_plan) == prepared
+    with monkeypatch.context() as code_change:
+        original_sha = large_build.sha256_file
+        code_change.setattr(
+            large_build,
+            "sha256_file",
+            lambda path: "f" * 64 if path.name == "pipeline.py" else original_sha(path),
+        )
+        assert _prepare_file(**kwargs) != prepared
     assert any(
         json.loads(line)["event"] == "reused_verified_shard"
         for line in (tmp_path / "progress.jsonl").read_text().splitlines()
@@ -432,3 +443,65 @@ def test_process_shard_reduction_preserves_full_build_bytes_and_failure_counters
         )
     assert results[0] == results[1]
     assert counters[0] == counters[1]
+
+
+def test_adding_source_only_normalizes_delta_and_preserves_family_splits(
+    tmp_path, monkeypatch
+):
+    from sparselab.corpus import pipeline
+
+    spec = _prospective(tmp_path).model_dump(mode="json")
+    for source in spec["sources"]:
+        source["schema_version"] = 3
+        source["explicit_training_restriction"] = "none_found"
+    spec["transforms"] = [t for t in spec["transforms"] if t["kind"] == "lm_text"]
+    spec["release"].update(
+        schema_version=3,
+        training_use_policy="allowed_unless_explicitly_prohibited",
+        chat={"selected": False, "training_splits": []},
+    )
+    project = Project.model_validate(spec)
+    acquire(project, tmp_path)
+    first = build(project, tmp_path, offline=True)
+    original_docs = [
+        json.loads(line)
+        for line in (first / "documents.jsonl").read_text().splitlines()
+    ]
+    source = next(s for s in spec["sources"] if s["id"] == "sample_docs").copy()
+    delta = tmp_path / "delta.md"
+    delta.write_text(
+        "# Newly added material\n\nThis independent source explains incremental corpus preparation without changing existing held out family assignments.\n"
+    )
+    source.update(
+        id="added_docs",
+        source_family="added_docs_train",
+        acquisition={
+            "files": [{"path": str(delta), "name": "delta.md"}],
+            "max_bytes": 1000000,
+        },
+    )
+    spec["sources"].append(source)
+    spec["splits"]["assignments"]["added_docs_train"] = "train"
+    spec["transforms"][0]["inputs"].append("added_docs")
+    changed = Project.model_validate(spec)
+    acquire(changed, tmp_path)
+    parsed = []
+    original = pipeline._records_for_file
+
+    def counted(*args, **kwargs):
+        parsed.append(args[2].id)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "_records_for_file", counted)
+    second = build(changed, tmp_path, offline=True)
+    assert parsed and set(parsed) == {"added_docs"}
+    new_docs = {
+        row["document_id"]: row
+        for row in map(
+            json.loads, (second / "documents.jsonl").read_text().splitlines()
+        )
+    }
+    assert len(new_docs) > len(original_docs)
+    for row in original_docs:
+        assert new_docs[row["document_id"]]["split"] == row["split"]
+        assert new_docs[row["document_id"]]["source_family"] == row["source_family"]

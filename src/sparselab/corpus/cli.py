@@ -235,9 +235,26 @@ def _handle(args: argparse.Namespace) -> None:
         result = (
             materialize_mixture(Path(args.declaration), Path(args.output))
             if command == "materialize-mixture"
-            else verify_mixture(Path(args.declaration), Path(args.output))
+            else verify_mixture(
+                Path(args.declaration), Path(args.output), audit=args.audit
+            )
         )
-        print(json.dumps(result, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "status": "verified",
+                    "complete": True,
+                    "release_id": result["release_id"],
+                    "receipt_path": str(Path(args.output).resolve() / "receipt.json"),
+                    "train_tokens_path": str(
+                        Path(args.output).resolve() / "train.tokens.jsonl"
+                    ),
+                    "records": result["records"],
+                    "actual_target_tokens": result["actual_target_tokens"],
+                },
+                sort_keys=True,
+            )
+        )
         return
     if command == "adopt-retained-renders":
         from sparselab.corpus.completed_preparation import _producer
@@ -302,6 +319,8 @@ def _handle(args: argparse.Namespace) -> None:
             if args.source_id is None
             else nullcontext()
         )
+        if args.summary and not args.require_existing:
+            raise ValueError("compact acquisition summary requires --require-existing")
         with operation:
             result = acquire(
                 project,
@@ -314,6 +333,16 @@ def _handle(args: argparse.Namespace) -> None:
                 require_existing=args.require_existing,
                 **verification,
             )
+            if args.require_existing:
+                result = {
+                    "status": "existing_snapshots_verified",
+                    "complete": True,
+                    "project_id": result["project_id"],
+                    "source_count": len(result["sources"]),
+                    "lock_path": str(
+                        root / "corpora" / project.config.id / "acquisition.json"
+                    ),
+                }
             encoder = json.JSONEncoder(sort_keys=True, default=str)
             for part in encoder.iterencode(result):
                 sys.stdout.write(part)
@@ -464,6 +493,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--retained-render-adoption")
             command.add_argument("--retained-render-adoption-sha256")
         if name == "acquire":
+            command.add_argument(
+                "--summary",
+                action="store_true",
+                help="Print a compact result for existing-snapshot finalization",
+            )
             command.add_argument(
                 "--require-existing",
                 action="store_true",
@@ -647,6 +681,12 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command.add_argument("declaration")
         command.add_argument("--output", required=True)
         command.add_argument("--json", action="store_true")
+        if name == "verify-mixture":
+            command.add_argument(
+                "--audit",
+                action="store_true",
+                help="Explicitly reproduce the mixture schedule",
+            )
         command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "measure-tokens", help="Measure authenticated distinct source-domain tokens"

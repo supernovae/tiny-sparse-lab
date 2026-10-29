@@ -25,7 +25,6 @@ from sparselab.data.packing import (
     load_prepared_data,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.experiments.source_compatibility import source_identities_compatible
 from sparselab.training.manifest import canonical_json, source_identity
 
 _CHUNK_TOKENS = 1 << 20
@@ -46,9 +45,9 @@ def _digest(value: Any) -> str:
 def _bind_config(manifest: dict, config: RunConfig) -> dict | None:
     """Match the native packing identity, including live source bindings."""
     identity = manifest["cache_identity"]
-    if not source_identities_compatible(
-        identity["source_identity_sha256"], source_identity()["sha256"]
-    ):
+    from sparselab.data.packing import prepared_source_matches
+
+    if not prepared_source_matches(identity, source_identity()["sha256"]):
         raise ValueError("prepared source identity differs from current source")
     tokenizer = load_tokenizer(config.tokenizer.path)
     if tokenizer.get_vocab_size() != config.model.vocab_size:

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "inventory_sha256": "${INVENTORY_SHA256}",
+  "seed": "fixture",
+  "source_strata": {},
+  "merges": [],
+  "reviewer": "Fixture reviewer",
+  "reviewed_on": "${REVIEWED_ON}",
+  "prior_family_inventory": {}
+}

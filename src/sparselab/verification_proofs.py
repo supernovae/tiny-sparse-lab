@@ -467,6 +467,41 @@ class ProofStore:
         )
         return hit
 
+    def lookup_recorded_execution(self, binding: dict[str, object]) -> bool:
+        """Authenticate historical evidence without claiming current verification.
+
+        Retained execution readers must separately bind the recorded producer
+        and exact operation. This never publishes or upgrades a proof.
+        """
+        try:
+            receipt = self._receipt(binding)
+            if (
+                not supports_verifier(binding.get("kind"))
+                or not self._safe_binding(binding)
+                or not _trusted(self.root, receipt, private=True)
+                or receipt.stat().st_size > 16 * 1024 * 1024
+            ):
+                return False
+            key = self._key(create=False)
+            if key is None:
+                return False
+            raw = json.loads(receipt.read_bytes())
+            old = raw.get("proof")
+            return (
+                isinstance(old, dict)
+                and old.get("verification_schema") == VERIFIER_VERSION
+                and old.get("binding") == binding
+                and isinstance(old.get("verifier_authority"), dict)
+                and isinstance(raw.get("hmac"), str)
+                and hmac.compare_digest(
+                    raw["hmac"],
+                    hmac.new(key, canonical_json(old), hashlib.sha256).hexdigest(),
+                )
+                and self._safe_binding(binding)
+            )
+        except OSError, ValueError, TypeError, KeyError:
+            return False
+
     @staticmethod
     def _binding_size(binding: dict[str, object]) -> int | None:
         members = binding.get("members")

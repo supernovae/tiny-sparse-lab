@@ -22,14 +22,14 @@ from sparselab.corpus.split_freeze import finalize_family_inventory
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
-def fixture(tmp_path, monkeypatch):
+def fixture(tmp_path, monkeypatch, *, text_repetitions=3):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
     root = tmp_path / "work"
     snapshots = root / "corpora/completed-fixture/snapshots"
     source_rows = [
         {
             "text": f"Generated explanation number {i} with enough clear words for native parsing. "
-            * 3,
+            * text_repetitions,
             **({"seed": {"id": i}} if i != 1 else {}),
         }
         for i in range(12)
@@ -249,6 +249,22 @@ def test_retained_release_exposes_authenticated_source_offsets(tmp_path, monkeyp
         project, root, offline=True, reuse_completed_preparation=True
     )
     release = freeze(build, root, reuse_completed_preparation=True)
+    # Later producer/verifier code does not erase authentic historical outputs.
+    from sparselab import verification_proofs
+
+    original_producer = completed._producer()
+    monkeypatch.setattr(
+        completed, "_producer", lambda: {**original_producer, "pipeline.py": "f" * 64}
+    )
+    original_authority = verification_proofs.verifier_authority
+    monkeypatch.setattr(
+        verification_proofs,
+        "verifier_authority",
+        lambda kind, version: {
+            **original_authority(kind, version),
+            "fixture_new_verifier": True,
+        },
+    )
     original = Path.open
 
     def no_document_body(path, *args, **kwargs):
@@ -305,7 +321,7 @@ def test_unique_content_floor_excludes_eos(tmp_path, monkeypatch):
 def test_completed_mixture_counts_content_once_and_reuses_execution(
     tmp_path, monkeypatch
 ):
-    from test_kml_50m_preparation_sequence import _authenticated_fixture_tokenizer
+    from test_preparation_sequence import _authenticated_fixture_tokenizer
 
     from sparselab.corpus import mixture
 
@@ -339,3 +355,32 @@ def test_completed_mixture_counts_content_once_and_reuses_execution(
         ValueError, match="completed native mixture evidence unavailable"
     ):
         mixture.verify_mixture(declaration, output)
+
+
+def test_edited_admission_preserves_unchanged_source_stage(tmp_path, monkeypatch):
+    root, recipe, project = fixture(tmp_path, monkeypatch)
+    first = pipeline.build(
+        project, root, offline=True, reuse_completed_preparation=True
+    )
+    admission = recipe / "admission.json"
+    admission.write_bytes(admission.read_bytes() + b"\n")
+    release = yaml.safe_load((recipe / "release.yaml").read_text())
+    release["record_admission"]["sha256"] = sha256_file(admission)
+    (recipe / "release.yaml").write_text(yaml.safe_dump(release))
+    frozen = json.loads((recipe / "splits.receipt.json").read_bytes())
+    frozen["admission_sha256"] = sha256_file(admission)
+    (recipe / "splits.receipt.json").write_bytes(canonical_json(frozen) + b"\n")
+
+    def replay(*args, **kwargs):
+        pytest.fail("unchanged source was normalized again after admission edit")
+
+    monkeypatch.setattr(completed, "_prepared_source", replay)
+    second = pipeline.build(
+        load_project(recipe / "project.yaml"),
+        root,
+        offline=True,
+        reuse_completed_preparation=True,
+    )
+    assert first != second
+    for name in ("documents.jsonl", "splits.json", "family-inventory.jsonl"):
+        assert (first / name).read_bytes() == (second / name).read_bytes()

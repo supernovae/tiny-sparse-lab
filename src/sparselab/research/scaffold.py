@@ -448,7 +448,7 @@ To dispatch the complete study, use an explicit store and worker:
 {command} sparselab study report study.yaml "$WORK/receipt.json" --evidence PATH_FROM_COLLECT --research research.json --runs-dir "$WORK/runs" --output "$WORK/local-reports"
 ```
 
-Use `$WORK/staging/`, `$WORK/exercises/`, and `$WORK/captures/` for experiment-local staging and observations. Publish verified compact evidence separately to `artifacts/acceptance/` or `artifacts/research-reports/`; retain mutable runs here. A resume uses the same `--runs-dir "$WORK/runs"` and a new run ID.
+Use `$WORK/staging/`, `$WORK/exercises/`, and `$WORK/captures/` for experiment-local staging and observations. Keep verified evidence and mutable runs in this external work directory. Maintain experiment definitions and small evidence references in Workshop. A resume uses the same `--runs-dir "$WORK/runs"` and a new run ID.
 
 The scaffold itself performs no tokenization, data preparation/download, training, worker registration, submission, controller execution, inference, or evaluation. Use the independent train command above or the explicit plan→worker→submit→controller→collect→report route.
 

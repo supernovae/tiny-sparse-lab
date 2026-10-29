@@ -979,7 +979,9 @@ def stage(
             workspace=output,
             rss_bytes=current_process_rss_bytes(),
         )
-    if _LEVELS[through] >= 2:
+    if _LEVELS[through] >= 3:
+        # Validation publishes prepared assets only. Checkpoint space is needed
+        # only for the model-executing smoke/warmup stages.
         from sparselab.workspace_preflight import check_storage, require_storage
 
         checkpoint = int(inspection_report(config)["estimated_checkpoint_bytes"])
@@ -1222,8 +1224,8 @@ def stage(
                                 prepared_identity["source_identity_sha256"],
                             ),
                             "prepared_production_source_identity_sha256": prepared_manifest[
-                                "cache_identity"
-                            ]["source_identity_sha256"],
+                                "source_identity_sha256"
+                            ],
                             "verification_source_identity_sha256": source_digest,
                             "parent_inputs_sha256": prepared_identity["sha256"],
                             "runtime_authorization": (

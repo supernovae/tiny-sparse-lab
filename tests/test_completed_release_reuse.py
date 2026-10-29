@@ -84,13 +84,22 @@ def test_missing_or_changed_native_evidence_cannot_publish(
         p.write_bytes(raw.replace(b"Generated", b"Changed!!", 1))
         os.utime(p, ns=(info.st_atime_ns, info.st_mtime_ns))
     elif change == "producer":
-        monkeypatch.setattr(
-            completed_release, "_producer", lambda: {"changed": "f" * 64}
-        )
+        original_scope = completed_release.local_scope
+
+        def changed_scope(build):
+            scope = original_scope(build)
+            return {
+                **scope,
+                "request": {**scope["request"], "producer": {"changed": "f" * 64}},
+            }
+
+        monkeypatch.setattr(completed_release, "local_scope", changed_scope)
     else:
         from sparselab.verification_proofs import ProofStore
 
-        monkeypatch.setattr(ProofStore, "lookup", lambda *_args, **_kwargs: False)
+        monkeypatch.setattr(
+            ProofStore, "lookup_recorded_execution", lambda *_args, **_kwargs: False
+        )
     with pytest.raises((ValueError, FileNotFoundError)):
         freeze(path, root, reuse_completed_preparation=True)
     assert not (path / "manifest.json").exists()

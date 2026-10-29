@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import test_kml_50m_preparation_sequence as fixture
+import test_preparation_sequence as fixture
 import yaml
 from test_corpus_acquisition import _bounded_hf_fixture, _mock_hf_stream
 

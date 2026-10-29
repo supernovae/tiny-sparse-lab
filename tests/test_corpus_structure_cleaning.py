@@ -313,7 +313,7 @@ def test_large_shard_prepare_uses_same_opt_in_parser_without_acquisition(
 def test_optional_absence_keeps_legacy_release_payload() -> None:
     from sparselab.corpus.project import load_project
 
-    project = load_project("corpora/devmind-sample-v0/corpus.yaml")
+    project = load_project("tests/fixtures/corpus-sample/corpus.yaml")
     legacy = release_declaration_payload(project.release)
     assert "normalizer" not in legacy
     opt_in = ReleaseDeclaration.model_validate({**legacy, "normalizer": NORMALIZER_V2})
