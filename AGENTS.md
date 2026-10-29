@@ -219,3 +219,32 @@ and effective config; release runs additionally run from a fixed tested
 revision. Keep scientific milestones in research records and proposed code work
 in GitHub issues. Keep `ROADMAP.md` a short directional snapshot, not a second
 checklist.
+
+## 7. Avoid sprawl in code and tests
+
+- **Reuse the shared primitives; never copy them.** Hash JSON with
+  `canonical_digest`, encode with `canonical_json` and hash files with
+  `sha256_file` (all in `sparselab.training.manifest`). Check filesystem trust
+  with `verification_proofs.writable_by_others`/`_trusted`. Do not add a
+  private `_digest`/`_sha`/`_write_json` wrapper or inline
+  `hashlib.sha256(canonical_json(...))`. Never import another module's
+  `_private` helper: promote it or use the shared one.
+- **One builder per fixture.** Shared test inputs live in `tests/*_fixtures.py`
+  (`lab_fixtures.write_smoke_inputs` for lab-loop configs). Parameterize them
+  instead of copying, and keep derived settings valid when you shrink a budget
+  (for example `warmup_steps < max_steps`).
+- **Test outcomes, not trivia.** A test should prove that a lab path works
+  (`try` → record → `report`/`probe`) or that a real rail refuses bad input.
+  Do not test prose, help text or private helper shapes. Do not keep tests for
+  retired contract versions. Do not bundle unrelated assertions into one
+  grab-bag test.
+- **Size tests for an ordinary laptop.** Use the smallest budget that proves the
+  behavior. A cancel or signal test only needs training still running, not an
+  hour of steps or tens of GB of storage preflight. Never depend on CI's umask,
+  user, disk or `HOME`, and always isolate `SPARSELAB_WORK_DIR`.
+- **Pruning is a change too.** After deleting tests, imports or helpers, run
+  `ruff check .` (F821 catches names a removal broke), the touched test files
+  and the `lab-loop` tests before handoff. A red `main` blocks every other PR.
+- **No silent degradation.** An optional cache or proof that cannot publish
+  records why. If a rail refuses ordinary local setups (default umask,
+  user-private groups), fix the rail. Do not paper over it in tests.
