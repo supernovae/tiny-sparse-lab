@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gzip
+import json
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,66 @@ def test_public_steps_keep_full_binding_and_publish_lock_only_on_completion(
     assert set(complete["sources"]) == {"one", "two"} and calls == calls_before
     assert verify_acquisition(project, root) == complete
     assert (source / "manifest.json").read_bytes() == first_manifest
+
+
+def test_finalize_existing_snapshots_never_fetches_and_publishes_lock(
+    tmp_path, monkeypatch
+):
+    recipe, project, root, _ledger, calls, _content = fixture(tmp_path, monkeypatch)
+    one = run(project, root)
+    two = run(project, root, "two")
+    before = list(calls)
+
+    def no_fetch(*_args, **_kwargs):
+        pytest.fail("existing-snapshot finalization attempted a fetch")
+
+    monkeypatch.setattr(acquisition, "_acquire_hf", no_fetch)
+    complete = _cli(monkeypatch, root, recipe, "--require-existing")
+    assert set(complete["sources"]) == {"one", "two"}
+    assert (
+        complete["sources"]["one"]["snapshot_sha256"]
+        == one["source"]["snapshot_sha256"]
+    )
+    assert (
+        complete["sources"]["two"]["snapshot_sha256"]
+        == two["source"]["snapshot_sha256"]
+    )
+    assert calls == before
+    assert verify_acquisition(project, root) == complete
+
+
+def test_finalize_existing_refuses_missing_or_changed_snapshot_without_fetch(
+    tmp_path, monkeypatch
+):
+    _recipe, project, root, _ledger, calls, _content = fixture(tmp_path, monkeypatch)
+    first = run(project, root)
+    before = list(calls)
+
+    def no_fetch(*_args, **_kwargs):
+        pytest.fail("existing-snapshot finalization attempted a fetch")
+
+    monkeypatch.setattr(acquisition, "_acquire_hf", no_fetch)
+    with pytest.raises(ValueError, match="existing verified snapshot unavailable: two"):
+        acquire(project, root, require_existing=True)
+    assert calls == before and not (root / "corpora/example/acquisition.json").exists()
+    source = Path(first["source"]["snapshot_path"])
+    manifest = source / "manifest.json"
+    changed = json.loads(manifest.read_bytes())
+    changed["snapshot_sha256"] = "0" * 64
+    manifest.write_text(json.dumps(changed))
+    with pytest.raises(ValueError, match="existing verified snapshot unavailable: one"):
+        acquire(project, root, require_existing=True)
+    assert calls == before and not (root / "corpora/example/acquisition.json").exists()
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"offline": True}, {"source_id": "one"}, {"plan_only": True}]
+)
+def test_finalize_existing_refuses_incompatible_modes(tmp_path, monkeypatch, kwargs):
+    _recipe, project, root, _ledger, calls, _content = fixture(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="existing-snapshot finalization"):
+        acquire(project, root, require_existing=True, **kwargs)
+    assert not calls and not (root / "corpora/example/acquisition.json").exists()
 
 
 @pytest.mark.parametrize(

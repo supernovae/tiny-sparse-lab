@@ -311,6 +311,7 @@ def _handle(args: argparse.Namespace) -> None:
                 max_new_bytes=args.max_new_bytes,
                 min_free_bytes=args.min_free_bytes,
                 plan_only=args.plan,
+                require_existing=args.require_existing,
                 **verification,
             )
             encoder = json.JSONEncoder(sort_keys=True, default=str)
@@ -463,6 +464,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--retained-render-adoption")
             command.add_argument("--retained-render-adoption-sha256")
         if name == "acquire":
+            command.add_argument(
+                "--require-existing",
+                action="store_true",
+                help="Finalize only from already verified snapshots; never fetch or reconstruct missing sources",
+            )
             command.add_argument(
                 "--source-id", help="Acquire one exact bounded-HF source declaration"
             )
