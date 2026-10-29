@@ -48,6 +48,34 @@ Use one `preparation.json` with native `attempt phase-command` for inspection an
 render-declaration`, `attempt init`, `attempt bind-artifact`, corpus verifiers and
 `data prepared-inputs publish/verify` remain the underlying operations.
 
+## Freezing a completed local payload without copying it
+
+After a successful completed-local build, use its printed build path:
+
+```sh
+sparselab --work-dir WORK corpus freeze BUILD --reuse-completed-preparation
+```
+
+This explicit selection writes `manifest.json` and `release-publication.json`
+beside the existing payload. It returns that same directory as the release
+path. Its content-derived release ID is unchanged; consumers take the ID from
+the authenticated manifest rather than the directory name. Payload files are
+not copied, relinked, moved or modified, and the original build manifest and
+completion proofs remain intact. The ordinary freeze selection retains its
+independent-copy behavior.
+
+The native reader authenticates the original signed publication, exact current
+producer bytes, and unchanged input/output bindings. The publication record
+labels this as adopted execution, not a fresh build or source re-audit. Default
+build-cache refusal after verifier changes is unchanged. Missing, corrupt or
+changed evidence refuses reuse instead of triggering corpus processing.
+
+Retain the whole returned directory, original source dependencies and native
+completion storage for the release lifetime. Build and release share one local
+payload: later mutation or deletion is refused by native consumers. This is a
+local continuation path, not an independently portable archive or a change to
+source-rights and scientific split policy.
+
 ## Interface inventory and migration
 
 | Previous surface | Current surface / disposition |

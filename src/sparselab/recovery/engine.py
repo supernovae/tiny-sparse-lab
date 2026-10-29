@@ -151,8 +151,12 @@ def verify_recovery_receipt(path: Path) -> dict[str, Any]:
 
 
 def _export_path(root: Path, release: Path, step: Any, source: Path) -> Path:
+    release_manifest = json.loads(
+        (release / "manifest.json").read_text(encoding="utf-8")
+    )
+    release_id = release_manifest["release_id"]
     request = {
-        "release_id": release.name,
+        "release_id": release_id,
         "view": step.view,
         "base_config_sha256": sha256_file(_reference(source, step.base_run)),
         "vocab_size": step.vocab_size,
@@ -161,9 +165,9 @@ def _export_path(root: Path, release: Path, step: Any, source: Path) -> Path:
     return (
         root
         / "corpora"
-        / release.parent.parent.name
+        / release_manifest["corpus_id"]
         / "exports"
-        / release.name
+        / release_id
         / step.view
         / identity
     )

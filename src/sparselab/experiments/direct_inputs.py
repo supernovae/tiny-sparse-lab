@@ -107,13 +107,16 @@ def bind_direct_inputs(
         export = config.dataset.corpus_export_path
         if export is None:
             raise ValueError("Forge run requires release and export paths")
+        release_id = json.loads(
+            (release / "manifest.json").read_text(encoding="utf-8")
+        )["release_id"]
         artifacts["release"] = {
             "kind": "corpus_release",
             "version": 1,
             "producer": "sparselab corpus freeze",
-            "identifier": release.name,
+            "identifier": release_id,
             "path": str(release),
-            "sha256": release.name,
+            "sha256": release_id,
         }
         artifacts["export"] = {
             "kind": "corpus_export",

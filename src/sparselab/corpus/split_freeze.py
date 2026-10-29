@@ -183,9 +183,7 @@ def _prior_family_splits(
         or sha256_file(prior_path) != binding["sha256"]
     ):
         raise ValueError("prior family inventory path or digest mismatch")
-    manifest = verify_release(release, **verification_options(root))
-    if manifest["release_id"] != release.name:
-        raise ValueError("prior release identity mismatch")
+    verify_release(release, **verification_options(root))
     connection = current_metadata_store().connection
     kept = RowIndex(
         connection,

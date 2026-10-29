@@ -319,7 +319,14 @@ def _handle(args: argparse.Namespace) -> None:
             sys.stdout.write("\n")
         return
     if command == "freeze":
-        print(publication.freeze(Path(args.build), root, **verification))
+        print(
+            publication.freeze(
+                Path(args.build),
+                root,
+                reuse_completed_preparation=args.reuse_completed_preparation,
+                **verification,
+            )
+        )
         return
     if command == "verify-export":
         from sparselab.config.loading import load_config
@@ -612,6 +619,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.set_defaults(handler=_handle)
     command = sub.add_parser("freeze")
     command.add_argument("build")
+    command.add_argument(
+        "--reuse-completed-preparation",
+        action="store_true",
+        help="Freeze authenticated completed local payload in place without a data copy",
+    )
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "verify-export", help="Cold-verify one run configuration's shared corpus export"

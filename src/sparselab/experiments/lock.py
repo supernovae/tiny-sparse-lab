@@ -408,7 +408,12 @@ def _variant_identity(
     if record["prepared_manifest_sha256"] != sha256_file(packed / "manifest.json"):
         raise ValueError("prepared variant manifest bytes changed")
     specifications = {
-        "corpus_release": (release.name, record["release_id"], release, 1),
+        "corpus_release": (
+            release_manifest["release_id"],
+            record["release_id"],
+            release,
+            1,
+        ),
         "corpus_export": (export.name, export.name, export, 1),
         "tokenizer": (tokenizer.parent.name, record["tokenizer_sha256"], tokenizer, 1),
         "prepared_data": (
@@ -440,7 +445,7 @@ def _variant_identity(
             key: value for key, value in verified.items() if key != "path"
         }
         paths[kind] = verified["path"]
-    if record["release_id"] != release.name or record[
+    if record["release_id"] != release_manifest["release_id"] or record[
         "tokenizer_sha256"
     ] != sha256_file(tokenizer):
         raise ValueError("prepared variant identity mismatch")

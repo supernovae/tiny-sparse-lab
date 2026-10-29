@@ -62,14 +62,16 @@ def bind_fixed_slices(
     ):
         raise ValueError("fixed family inventory digest differs from declaration")
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
-    if release.parent.name != "releases" or release.parents[2].name != "corpora":
+    if (
+        release.parent.name not in {"builds", "releases"}
+        or release.parents[2].name != "corpora"
+    ):
         raise ValueError("fixed profile release must reside in a native corpus root")
     verification = verification_options(release.parents[3])
     manifest = verify_release(release, **verification)
     if (
         profile.get("schema_version") != 1
         or profile.get("release_id") != manifest["release_id"]
-        or release.name != manifest["release_id"]
         or profile.get("release_manifest_sha256")
         != sha256_file(release / "manifest.json")
         or profile.get("documents_sha256") != sha256_file(release / "documents.jsonl")

@@ -1722,9 +1722,14 @@ def freeze(
     *,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
+    reuse_completed_preparation: bool = False,
 ) -> Path:
-    """Publish a verified build at its content-derived full SHA-256, never replacing it."""
+    """Publish a release identity, optionally retaining its completed local payload."""
     build_dir = Path(build_dir).resolve()
+    if reuse_completed_preparation:
+        from sparselab.corpus.completed_release import freeze_retained
+
+        return freeze_retained(build_dir, work_root)
     build = verify_build(
         build_dir, proof_store=proof_store, verification_mode=verification_mode
     )
@@ -1818,7 +1823,9 @@ def verify_release(
             from sparselab.experiments.plan import Artifact
 
             manifest = _load(path / "manifest.json")
-            if manifest["release_id"] != (expected_id or path.name):
+            if manifest["release_id"] != _release_location_id(
+                path, manifest, expected_id
+            ):
                 raise ValueError("release directory identity mismatch")
             verify_artifact(
                 Artifact(
@@ -1861,6 +1868,14 @@ def _release_closure_key(path: Path, manifest: dict[str, Any]) -> tuple[object, 
     )
 
 
+def _release_location_id(path, manifest, expected_id):
+    from sparselab.corpus.completed_release import in_place
+
+    if expected_id is not None:
+        return expected_id
+    return manifest["release_id"] if in_place(path, manifest) else path.name
+
+
 def _verify_release_cold(
     path: Path,
     *,
@@ -1875,7 +1890,9 @@ def _verify_release_cold(
         proof = proofs[path]
         if proof.closure_key != _release_closure_key(
             path, proof.manifest
-        ) or proof.manifest["release_id"] != (expected_id or path.name):
+        ) or proof.manifest["release_id"] != _release_location_id(
+            path, proof.manifest, expected_id
+        ):
             raise ValueError("release changed within verification operation")
         return proof.manifest
     manifest = _load(path / "manifest.json")
@@ -1885,7 +1902,13 @@ def _verify_release_cold(
     )
 
     if local_scope(manifest) is not None:
-        manifest = verify_completed_release(path, manifest, expected_id=expected_id)
+        from sparselab.corpus.completed_release import in_place, verify_retained_release
+
+        manifest = (
+            verify_retained_release(path, manifest, expected_id=expected_id)
+            if in_place(path, manifest)
+            else verify_completed_release(path, manifest, expected_id=expected_id)
+        )
         if proofs is not None:
             proofs[path] = _VerifiedRelease(
                 manifest, _release_closure_key(path, manifest)
