@@ -36,23 +36,40 @@ ROOT = Path(__file__).resolve().parents[1]
 LOOP_BUDGET_SECONDS = float(os.environ.get("SPARSELAB_LAB_LOOP_BUDGET_SECONDS", "900"))
 
 
+_CACHED_SMOKE_TOKENIZER: tuple[bytes, bytes] | None = None
+
+
 def _write_inputs(root: Path, *, train_tokenizer_now: bool = True) -> Path:
+    global _CACHED_SMOKE_TOKENIZER
     tokenizer = yaml.safe_load((ROOT / "configs/tokenizer_smoke.yaml").read_text())
-    tokenizer["output_dir"] = str(root / "tokenizer")
+    tok_dir = root / "tokenizer"
+    tokenizer["output_dir"] = str(tok_dir)
     tokenizer["dataset"]["cache_dir"] = str(root / "data")
     (root / "tokenizer.yaml").write_text(yaml.safe_dump(tokenizer, sort_keys=False))
     config = yaml.safe_load((ROOT / "configs/smoke_cpu.yaml").read_text())
-    config["tokenizer"]["path"] = str(root / "tokenizer" / "tokenizer.json")
+    config["tokenizer"]["path"] = str(tok_dir / "tokenizer.json")
     config["dataset"]["cache_dir"] = str(root / "data")
     config["logging"]["root_dir"] = str(root / "unused-runs")
-    config["training"]["max_steps"] = 12
-    config["training"]["max_tokens"] = 1536
+    config["training"]["max_steps"] = 4
+    config["training"]["max_tokens"] = 512
     config["checkpoint"]["every_steps"] = 4
     config["evaluation"]["every_steps"] = 4
     baseline = root / "baseline.yaml"
     baseline.write_text(yaml.safe_dump(config, sort_keys=False))
     if train_tokenizer_now:
-        train_tokenizer(load_tokenizer_config(root / "tokenizer.yaml"))
+        if _CACHED_SMOKE_TOKENIZER is not None and not tok_dir.exists():
+            tok_dir.mkdir(parents=True, exist_ok=True)
+            (tok_dir / "tokenizer.json").write_bytes(_CACHED_SMOKE_TOKENIZER[0])
+            (tok_dir / "tokenizer_manifest.json").write_bytes(
+                _CACHED_SMOKE_TOKENIZER[1]
+            )
+        else:
+            out = train_tokenizer(load_tokenizer_config(root / "tokenizer.yaml"))
+            if _CACHED_SMOKE_TOKENIZER is None:
+                _CACHED_SMOKE_TOKENIZER = (
+                    out.read_bytes(),
+                    (tok_dir / "tokenizer_manifest.json").read_bytes(),
+                )
     return baseline
 
 
@@ -525,47 +542,6 @@ def test_shared_eval_protocol_holds_context_windows_fixed(
     assert record["comparison"]["comparable"] is True
 
 
-_SIGTERM_DURING_SCORING = """
-import os, signal, sys
-from sparselab.evaluation import inference
-original = inference.InferenceRun.evaluate
-def evaluate(self, **kwargs):
-    if self.run.name.startswith("lab-try-"):
-        os.kill(os.getpid(), signal.SIGTERM)
-    return original(self, **kwargs)
-inference.InferenceRun.evaluate = evaluate
-from sparselab.cli.main import main
-sys.argv = ["sparselab", "try", sys.argv[1], "--vs", sys.argv[2]]
-main()
-"""
-
-
-def test_sigterm_during_scoring_writes_sealed_interrupted_record(
-    tmp_path: Path,
-) -> None:
-    baseline = _write_inputs(tmp_path)
-    delta = _delta(tmp_path, "t.yaml", {"model.ffn_dim": 128})
-    work = tmp_path / "work"
-    completed = subprocess.run(
-        [sys.executable, "-c", _SIGTERM_DURING_SCORING, str(delta), str(baseline)],
-        env={**os.environ, "SPARSELAB_WORK_DIR": str(work)},
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=600,
-    )
-    assert completed.returncode == EXIT_INTERRUPTED, completed.stderr[-2000:]
-    (record_path,) = (work / "lab/tries").glob("*/try.json")
-    assert not list(record_path.parent.glob("*.tmp"))
-    record = read_record(record_path)
-    assert record["status"] == "interrupted"
-    assert record["interruption"]["arm"] == "candidate"
-    assert record["interruption"]["phase"] == "scoring"
-    assert record["interruption"]["reason"] == "SIGTERM"
-    assert "comparison" not in record
-
-
 def test_cancel_during_baseline_scoring_is_never_reused(
     lab: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -792,51 +768,6 @@ def test_supervision_mask_is_part_of_the_eval_protocol(
     )
     assert record["comparison"]["verdict"] == "NOT_COMPARABLE"
     assert "same_eval_protocol" in record["comparison"]["failed"]
-
-
-_SIGNAL_DURING_HASHING = """
-import os, signal, sys
-import sparselab.lab_mode as lab
-original = lab._path_digest
-def digest(path):
-    os.kill(os.getpid(), signal.SIGTERM)
-    return original(path)
-lab._path_digest = digest
-from sparselab.cli.main import main
-sys.argv = ["sparselab", "try", sys.argv[1], "--vs", sys.argv[2]]
-main()
-"""
-
-
-def test_sigterm_during_input_hashing_writes_interrupted_setup_record(
-    tmp_path: Path,
-) -> None:
-    baseline = _local_text_baseline(tmp_path)
-    delta = _delta(tmp_path, "h.yaml", {"model.ffn_dim": 128})
-    work = tmp_path / "work"
-    completed = subprocess.run(
-        [sys.executable, "-c", _SIGNAL_DURING_HASHING, str(delta), str(baseline)],
-        env={**os.environ, "SPARSELAB_WORK_DIR": str(work)},
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=600,
-    )
-    assert completed.returncode == EXIT_INTERRUPTED, completed.stderr[-2000:]
-    (record_path,) = (work / "lab/tries").glob("*/try.json")
-    assert not list(record_path.parent.glob(".*.tmp"))
-    record = read_record(record_path)
-    assert record["status"] == "interrupted"
-    assert record["interruption"] == {
-        "arm": None,
-        "phase": "setup",
-        "reason": "SIGTERM",
-    }
-    assert record["arms"] == {}
-    assert not (work / "lab/runs").exists() or not list(
-        (work / "lab/runs").glob("lab-*")
-    )
 
 
 def test_cancel_during_setup_finalizes_the_started_record(

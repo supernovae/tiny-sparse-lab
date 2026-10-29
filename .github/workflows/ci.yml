@@ -35,10 +35,10 @@ env:
 
 jobs:
   safe:
-    # The same small zero-model suite runs for every PR, draft or ready, and main.
+    # Fast static checks and core config/authority sanity checks.
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v7
         with:
@@ -58,7 +58,7 @@ jobs:
           uv run --locked --no-sync ruff check .
           uv run --locked --no-sync ruff format --check .
           uv run --locked --no-sync python -m sparselab.research.lint --json
-      - name: Explicit zero-model-work regressions
+      - name: Core config and verifier authority sanity
         env:
           UV_OFFLINE: "1"
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
@@ -66,48 +66,19 @@ jobs:
         run: |
           uv run --locked --no-sync pytest -q -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/pr-safe-pytest" \
-            tests/test_research_lint.py::test_actual_tracked_research_records \
-            tests/test_research_lint.py::test_empty_research_checkout_is_valid \
-            tests/test_research_lint.py::test_valid_offline_research_records_and_untracked_outputs \
-            tests/test_research_lint.py::test_forbidden_tracked_output \
-            tests/test_research_lint.py::test_unsafe_binding \
-            tests/test_research_launch_surface.py \
-            tests/test_preparation_commands.py \
-            tests/test_verification_adapters.py \
-            tests/test_spot_safety.py \
-            tests/test_snapshot_warm_reuse.py \
-            tests/test_snapshot_inheritance.py \
-            tests/test_admission_inspection_recovery.py::test_warm_completed_output_and_fresh_process_skip_full_passes \
-            tests/test_admission_inspection_recovery.py::test_public_cli_reuses_completed_inspection \
-            tests/test_study_recovery.py \
-            tests/test_lab_job.py \
-            tests/test_container_start.py \
-            tests/test_surface_cli.py \
-            tests/test_corpus_acquisition.py::test_bounded_resource_readings_exact_expansion_cap \
-            tests/test_corpus_acquisition.py::test_bounded_overlong_line_retains_measured_prefix \
-            tests/test_corpus_acquisition.py::test_required_staging_reading_failure_is_closed \
-            tests/test_corpus_acquisition.py::test_parquet_required_expansion_reading_is_unavailable \
-            tests/test_corpus_acquisition.py::test_staging_counters_include_empty_interrupted_input \
-            tests/test_corpus_acquisition.py::test_wikimedia_interruption_retains_distinct_resource_receipts \
-            tests/test_corpus_acquisition.py::test_wikimedia_resource_journal_rejects_symlink \
-            tests/test_corpus_acquisition.py::test_hf_without_transport_ledger_retains_interrupted_shard \
-            tests/test_attempt_contract.py::test_zero_update_vector_reservations_persist_without_refund \
-            tests/test_operational_monitor_safety.py::test_absent_optional_fields_preserve_legacy_policy_and_receipt_serialization \
-            tests/test_corpus_mixture.py::test_native_packing_supervises_exact_exported_quota \
-            tests/test_panel_decoder_controls.py::test_absent_controls_preserve_legacy_declaration_and_hash \
-            tests/test_reviewed_score_readiness.py::test_renderer_and_exact_frozen_question_prompt_binding \
-            tests/test_reviewed_score_readiness.py::test_threshold_failure_and_missing_scores_cannot_promote \
-            tests/test_attempt_native_integration_optin.py::test_ordinary_pytest_skips_optimizer_node_before_setup \
-            tests/test_ci_routing.py::test_ordinary_ci_selects_only_explicit_zero_model_nodes
+            tests/test_verifier_authority_current.py \
+            tests/test_slow_list.py \
+            tests/test_research_lint.py \
+            tests/test_config.py \
+            tests/test_first_model_config.py \
+            tests/test_instruction_config.py
 
   lab-loop:
-    # Lab-mode loop-time guard (CPU only): tokenizer -> try (with the fast probe
-    # tier) -> report on a tiny synthetic delta must finish well inside the
-    # 15-minute target; the probe battery, explorer and lab-dashboard tests ride
-    # along.
+    # Outcome validation (CPU): build, train, checkpoint, resume, try, probe,
+    # explore, and generate from real models within a fast iteration budget.
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v7
         with:
@@ -120,33 +91,41 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
-      - name: Timed lab loop (tokenizer -> try + probe -> report, references)
+      - name: Model build, training, lab loop, probes, explorer, and generation
         env:
           UV_OFFLINE: "1"
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           SPARSELAB_WORK_DIR: ${{ runner.temp }}/lab-loop-work
-          SPARSELAB_LAB_LOOP_BUDGET_SECONDS: "900"
+          SPARSELAB_LAB_LOOP_BUDGET_SECONDS: "300"
         run: |
-          uv run --locked --no-sync pytest -q -s -p no:cacheprovider \
+          uv run --locked --no-sync pytest -q -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/lab-loop-pytest" \
-            tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget \
-            tests/test_lab_job_native.py \
-            tests/test_preparation_execution.py \
-            tests/test_workflow_pair.py::test_native_pair_lock_and_zero_wait_attempt_replay \
-            tests/test_portable_acquisition.py \
+            -n auto --maxprocesses=4 --dist loadfile \
+            -m "not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network" \
+            tests/test_language_model.py \
+            tests/test_dense_sdpa.py \
+            tests/test_sparse_attention.py \
+            tests/test_sliding_attention.py \
+            tests/test_latent_attention.py \
+            tests/test_moe.py \
+            tests/test_memory.py \
+            tests/test_combined.py \
+            tests/test_training.py \
+            tests/test_gradient_accumulation.py \
+            tests/test_checkpoints.py \
+            tests/test_lab_mode.py \
             tests/test_probes.py \
+            tests/test_eval_integrity.py \
             tests/test_references.py \
-            tests/test_probe_followups.py \
             tests/test_explorer.py \
-            tests/test_dashboard_lab.py
+            tests/test_generation.py \
+            tests/test_inference.py
 
   fast:
-    # Every PR and main push, plus manual dispatch: the whole suite except tests
-    # marked slow (tests/slow_tests.txt). Slow tests run in the nightly workflow
-    # (.github/workflows/nightly.yml), which reports failures as an issue.
+    # Remaining fast CPU suite (excluding slow tests and modules already run in
+    # safe and lab-loop so checks are not duplicated across jobs).
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'fast'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v7
         with:
@@ -168,8 +147,31 @@ jobs:
           --basetemp "$RUNNER_TEMP/fast-pytest"
           -n auto --maxprocesses=4
           --dist loadfile --durations=25
+          --ignore=tests/test_verifier_authority_current.py
+          --ignore=tests/test_slow_list.py
+          --ignore=tests/test_research_lint.py
+          --ignore=tests/test_config.py
+          --ignore=tests/test_first_model_config.py
+          --ignore=tests/test_instruction_config.py
+          --ignore=tests/test_language_model.py
+          --ignore=tests/test_dense_sdpa.py
+          --ignore=tests/test_sparse_attention.py
+          --ignore=tests/test_sliding_attention.py
+          --ignore=tests/test_latent_attention.py
+          --ignore=tests/test_moe.py
+          --ignore=tests/test_memory.py
+          --ignore=tests/test_combined.py
+          --ignore=tests/test_training.py
+          --ignore=tests/test_gradient_accumulation.py
+          --ignore=tests/test_checkpoints.py
+          --ignore=tests/test_lab_mode.py
+          --ignore=tests/test_probes.py
+          --ignore=tests/test_eval_integrity.py
+          --ignore=tests/test_references.py
+          --ignore=tests/test_explorer.py
+          --ignore=tests/test_generation.py
+          --ignore=tests/test_inference.py
           -m "not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network"
-
   integration-linux:
     # Model work is manual-only. Dispatch requires its own reviewed allocation.
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'integration-linux'

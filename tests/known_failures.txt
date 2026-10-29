@@ -1,10 +1,2 @@
 # Known failures skipped by tests/conftest.py: base node id | reason (issue).
 # Remove an entry when its issue is fixed. Base ids cover every parametrized case.
-tests/test_campaign.py::test_engine_full_cpu_and_no_redispatch | campaign e2e fails with release identity drift (#68)
-tests/test_campaign.py::test_evaluation_stays_bound_to_collected_checkpoint_when_latest_moves | campaign e2e fails with release identity drift (#68)
-tests/test_campaign.py::test_profile_campaign_evaluation_rederives_for_checkpoint_runtime | campaign e2e fails with release identity drift (#68)
-tests/test_campaign_generation_panel.py | fixture: 'release changed within verification operation' (#68)
-tests/test_campaign_runtime_ids.py::test_campaign_logical_cpu_runtime_id | campaign e2e fails with release identity drift (#68)
-tests/test_campaign_snapshot_lifecycle.py::test_native_snapshot_baseline_continuation_width_collect_eval_panel | campaign e2e fails with release identity drift (#68)
-tests/test_operational_monitor_safety.py::test_requested_missing_sensor_is_explicit_null_and_violation | historical failure not reproduced; sensor/receipt evidence pending (#69)
-tests/test_staging_artifact_progress.py::test_same_inode_rewrite_with_restored_mtime_rejects_cached_sha | historical failure not reproduced; filesystem timestamp evidence pending (#69)

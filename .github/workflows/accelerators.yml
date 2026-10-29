@@ -1,6 +1,11 @@
 name: Accelerator images
 on:
   pull_request:
+    paths:
+      - "container/**"
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/accelerators.yml
   push:
     branches: [main]
   workflow_dispatch:
@@ -8,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: accelerator-images-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   plan:
     runs-on: ubuntu-24.04

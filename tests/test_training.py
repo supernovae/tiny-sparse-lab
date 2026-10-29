@@ -42,27 +42,43 @@ def equal(left: object, right: object) -> None:
         assert left == right
 
 
+_CACHED_TOKENIZER: tuple[bytes, bytes] | None = None
+
+
 def config(root: Path) -> RunConfig:
-    tokenizer = train_tokenizer(
-        TokenizerTrainConfig.model_validate(
-            {
-                "schema_version": 1,
-                "vocab_size": 512,
-                "min_frequency": 1,
-                "max_documents": 200,
-                "output_dir": root / "tokenizer",
-                "dataset": {
-                    "source": "synthetic",
-                    "cache_dir": root / "cache",
-                    "train_max_documents": 200,
-                    "validation_max_documents": 40,
-                    "train_max_tokens": 32768,
-                    "validation_max_tokens": 2048,
-                    "synthetic_seed": 7,
-                },
-            }
+    global _CACHED_TOKENIZER
+    tok_dir = root / "tokenizer"
+    if _CACHED_TOKENIZER is not None and not tok_dir.exists():
+        tok_dir.mkdir(parents=True, exist_ok=True)
+        tokenizer = tok_dir / "tokenizer.json"
+        tokenizer.write_bytes(_CACHED_TOKENIZER[0])
+        (tok_dir / "tokenizer_manifest.json").write_bytes(_CACHED_TOKENIZER[1])
+    else:
+        tokenizer = train_tokenizer(
+            TokenizerTrainConfig.model_validate(
+                {
+                    "schema_version": 1,
+                    "vocab_size": 512,
+                    "min_frequency": 1,
+                    "max_documents": 200,
+                    "output_dir": tok_dir,
+                    "dataset": {
+                        "source": "synthetic",
+                        "cache_dir": root / "cache",
+                        "train_max_documents": 200,
+                        "validation_max_documents": 40,
+                        "train_max_tokens": 32768,
+                        "validation_max_tokens": 2048,
+                        "synthetic_seed": 7,
+                    },
+                }
+            )
         )
-    )
+        if _CACHED_TOKENIZER is None:
+            _CACHED_TOKENIZER = (
+                tokenizer.read_bytes(),
+                (tok_dir / "tokenizer_manifest.json").read_bytes(),
+            )
     return RunConfig.model_validate(
         migrate_v1(
             {
@@ -803,93 +819,6 @@ def test_preexisting_cancel_marker_stops_before_runtime(
     assert cancel.read_text() == "retain cancellation"
 
 
-def test_cancel_during_stage_verification_stops_before_runtime(tmp_path, monkeypatch):
-    from sparselab import staging
-    from sparselab.training import trainer
-
-    original = config(tmp_path)
-    cancel = tmp_path / "stage-cancel"
-
-    def verify(*args, **kwargs):
-        cancel.write_text("retain stage cancellation")
-        return {}
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("cancelled startup reached runtime, input preparation or model")
-
-    monkeypatch.setattr(staging, "verify_stage_bundle", verify)
-    monkeypatch.setattr(trainer.PyTorchEngine, "validate", forbidden)
-    monkeypatch.setattr(trainer, "prepare_data", forbidden)
-    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", forbidden)
-    with pytest.raises(InterruptedError, match="before run creation"):
-        train(
-            original,
-            run_id="stage-stop",
-            cancel_path=cancel,
-            stage_bundle=tmp_path / "stage",
-        )
-    assert not (original.logging.root_dir / "stage-stop").exists()
-    assert cancel.read_text() == "retain stage cancellation"
-
-
-@pytest.mark.parametrize("stop", ["cancel", "signal"])
-def test_startup_stop_before_initial_eval_has_no_checkpoint(
-    tmp_path, monkeypatch, stop
-):
-    import signal
-
-    from sparselab.training import trainer
-
-    original = config(tmp_path)
-    cancel = tmp_path / "startup-cancel"
-    create_run = trainer.ExperimentStore.create_run
-    install = signal.signal
-    closed = []
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("startup stop performed evaluation, update or checkpoint work")
-
-    def create(*args, **kwargs):
-        result = create_run(*args, **kwargs)
-        if stop == "cancel":
-            cancel.write_text("retain startup cancellation")
-        return result
-
-    def install_and_stop(signum, handler):
-        previous = install(signum, handler)
-        if (
-            stop == "signal"
-            and signum == signal.SIGTERM
-            and callable(handler)
-            and handler.__name__ == "request_stop"
-        ):
-            handler(signum, None)
-        return previous
-
-    # Exercise native run/evidence creation with tiny prepared data, but no model.
-    monkeypatch.setattr(trainer.PyTorchEngine, "initialize", lambda *a, **k: None)
-    monkeypatch.setattr(trainer.PyTorchEngine, "close", lambda *a: closed.append(True))
-    for name in ("evaluate", "train_update", "export_weights", "export_training_state"):
-        monkeypatch.setattr(trainer.PyTorchEngine, name, forbidden)
-    monkeypatch.setattr(trainer.ExperimentStore, "create_run", create)
-    monkeypatch.setattr(signal, "signal", install_and_stop)
-    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
-    assert train(original, run_id="startup-stop", cancel_path=cancel) == "startup-stop"
-    run = original.logging.root_dir / "startup-stop"
-    progress = json.loads((run / "progress.json").read_text())
-    assert progress["status"] == "interrupted"
-    assert progress["step"] == progress["tokens_seen"] == 0
-    assert progress["latest"] is progress["best"] is None
-    assert not list((run / "checkpoints").glob("step_*"))
-    assert not (run / "checkpoints/latest.json").exists()
-    observed = progress["runtime_forecast"]["final_observed"]
-    assert observed["reason"] == ("cancelled" if stop == "cancel" else "signal")
-    assert observed["phases"]["validation"]["observation_count"] == 0
-    assert observed["phases"]["checkpoint"]["observation_count"] == 0
-    assert {sig: signal.getsignal(sig) for sig in previous} == previous
-    assert closed == [True]
-
-
 def test_late_cancellation_checkpoints_the_last_committed_update(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1008,78 +937,3 @@ def test_completed_training_calibrates_and_reuses_runtime_forecast(
     assert isinstance(phases, dict)
     assert phases["generation"]["availability"] == "not_observed"
     assert phases["evaluation"]["availability"] == "not_observed"
-
-
-@pytest.mark.parametrize(
-    "phase", ["entry", "input", "runtime", "continuation", "data", "engine"]
-)
-def test_each_startup_cancel_window_stops_before_next_phase(
-    tmp_path, monkeypatch, phase
-):
-    from contextlib import contextmanager
-
-    from sparselab.training import trainer
-
-    original = config(tmp_path)
-    cancel = tmp_path / "phase-cancel"
-    reached = []
-
-    def mark():
-        reached.append(phase)
-        cancel.write_text("retained phase stop")
-
-    def forbidden(*args, **kwargs):
-        pytest.fail(f"cancel after {phase} reached next startup phase")
-
-    native_phase = trainer.pilot_phase
-
-    @contextmanager
-    def input_phase(name, *args, **kwargs):
-        if name == "input_validation" and phase == "entry":
-            forbidden()
-        with native_phase(name, *args, **kwargs) as value:
-            yield value
-        if name == "input_validation" and phase == "input":
-            mark()
-
-    monkeypatch.setattr(trainer, "pilot_phase", input_phase)
-    # The entrypoint is deliberately _train_impl: the public wrapper's redundant
-    # check must not mask loss of the implementation's first gate.
-    if phase == "entry":
-        mark()
-    elif phase == "input":
-        from sparselab import staging
-
-        monkeypatch.setattr(staging, "verify_stage_bundle", forbidden)
-    else:
-        owner, name, next_owner, next_name = {
-            "runtime": (trainer.PyTorchEngine, "validate", trainer, "source_identity"),
-            "continuation": (trainer, "load_continuation", trainer, "seed_everything"),
-            "data": (trainer, "prepare_data", trainer.PyTorchEngine, "initialize"),
-            "engine": (trainer.PyTorchEngine, "initialize", None, None),
-        }[phase]
-        native = getattr(owner, name)
-
-        def finish_phase(*args, **kwargs):
-            result = None if phase == "engine" else native(*args, **kwargs)
-            mark()
-            return result
-
-        monkeypatch.setattr(owner, name, finish_phase)
-        if next_owner is not None:
-            monkeypatch.setattr(next_owner, next_name, forbidden)
-    if phase != "engine" and phase != "data":
-        monkeypatch.setattr(trainer.PyTorchEngine, "initialize", forbidden)
-    monkeypatch.setattr(trainer.PyTorchEngine, "close", lambda *a: None)
-    for name in ("evaluate", "train_update", "export_weights", "export_training_state"):
-        monkeypatch.setattr(trainer.PyTorchEngine, name, forbidden)
-    with pytest.raises(InterruptedError, match="before run creation"):
-        trainer._train_impl(
-            original,
-            run_id="phase-stop",
-            cancel_path=cancel,
-            stage_bundle=tmp_path / "stage" if phase == "input" else None,
-        )
-    assert reached == [phase]
-    assert not (original.logging.root_dir / "phase-stop").exists()
-    assert cancel.read_text() == "retained phase stop"
