@@ -105,6 +105,16 @@ def _successful(job, session, outer):
         )
 
 
+def execution_reference(root, reference, *, control=True):
+    """Validate a bounded work-root execution reference and its digest."""
+    return _reference(root, reference, control=control)
+
+
+def require_successful_execution(job, session, outer):
+    """Require the existing closed, successful executor and cleanup evidence."""
+    _successful(job, session, outer)
+
+
 @dataclass(frozen=True)
 class _AdoptedInventory:
     report: dict
