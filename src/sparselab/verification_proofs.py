@@ -400,6 +400,28 @@ class ProofStore:
             key = stream.read(33)
         return key if len(key) == 32 else None
 
+    def migration_signature(self, observation: dict[str, object]) -> str:
+        """Authenticate a relocation observation, not a native execution proof.
+
+        As with this store's other receipts, the service UID is trusted. This
+        does not protect against that UID fabricating its own observations.
+        """
+        if observation.get("kind") not in {
+            "source-release-migration-v1",
+            "target-release-migration-v1",
+            "source-release-migration-progress-v1",
+            "target-release-migration-progress-v1",
+        }:
+            raise ValueError("invalid migration observation kind")
+        key = self._key(create=False)
+        if key is None:
+            raise ValueError("existing private verification key unavailable")
+        return hmac.new(
+            key,
+            b"sparselab-release-migration-v1\0" + canonical_json(observation),
+            hashlib.sha256,
+        ).hexdigest()
+
     def lookup(self, binding: dict[str, object]) -> bool:
         authority: dict[str, object] | None = None
         reason = "unknown"
