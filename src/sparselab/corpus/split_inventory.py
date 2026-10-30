@@ -24,6 +24,7 @@ from sparselab.corpus.pipeline import _records_for_file
 from sparselab.corpus.project import Project
 from sparselab.corpus.rights import resolve_file_rights
 from sparselab.training.manifest import sha256_file
+from sparselab.verification_proofs import verification_options
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 _MAX_FILE_BYTES = 8 * 1024**2
@@ -267,7 +268,7 @@ def write_split_inventory_stored(
     destination = output.resolve()
     if not destination.is_relative_to(root) or destination.exists():
         raise ValueError("split inventory requires a new path within the work root")
-    lock = verify_acquisition(project, root)
+    lock = verify_acquisition(project, root, **verification_options(root))
     from sparselab.corpus.split_inventory_cache import InventoryCache, inventory_inputs
 
     # Completion caching is optional; a native producer can still run when

@@ -29,6 +29,7 @@ from sparselab.corpus.rights import (
     verify_record_admission,
 )
 from sparselab.training.manifest import sha256_file
+from sparselab.verification_proofs import verification_options
 
 _MAX_RECORD_BYTES = 8 * 1024**2
 
@@ -154,7 +155,7 @@ def _draft_admission_manifest(
     }:
         raise ValueError("admission policy template source mismatch")
 
-    lock = verify_acquisition(project, root)
+    lock = verify_acquisition(project, root, **verification_options(root))
     if "application_binding" in template:
         binding = template["application_binding"]
         sources = binding.get("sources") if isinstance(binding, dict) else None

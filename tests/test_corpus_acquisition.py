@@ -676,3 +676,90 @@ def test_bounded_git_rejects_ambiguous_declaration(tmp_path: Path) -> None:
     _yaml(source_file, source)
     with pytest.raises(ValueError, match="bounded Git requires exact blobs"):
         load_project(recipe)
+
+
+def test_admission_reuses_verified_snapshot_and_rejects_changed_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.corpus import acquisition
+    from sparselab.corpus.admission_draft import draft_admission_manifest
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.test")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "guide.md").write_text("A small source document.\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "source")
+    recipe = _fixture(
+        tmp_path,
+        kind="git",
+        acquisition={"include": ["guide.md"], "max_bytes": 1024},
+        revision=_git(repo, "rev-parse", "HEAD"),
+        uri=str(repo),
+    )
+    declaration_path = recipe.parent / "sources/one.yaml"
+    declaration = yaml.safe_load(declaration_path.read_text())
+    declaration["schema_version"] = 2
+    declaration.pop("redistribution")
+    declaration["license_url"] = "https://example.test/LICENSE"
+    declaration["rights"] = {
+        "training_eligibility": "eligible",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "MIT",
+        "license_references": ["https://example.test/LICENSE"],
+    }
+    _yaml(declaration_path, declaration)
+    release_path = recipe.parent / "release.yaml"
+    release = yaml.safe_load(release_path.read_text())
+    release.update(schema_version=2, publication_mode="metadata_reconstruction_only")
+    _yaml(release_path, release)
+    project = load_project(recipe)
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    lock = acquire(project, work)
+    document = tmp_path / "policy.md"
+    document.write_text("Use source terms.\n", encoding="utf-8")
+    template = tmp_path / "policy.json"
+    template.write_text(
+        json.dumps(
+            {
+                "policy_id": "fixture",
+                "policy_sha256": hashlib.sha256(document.read_bytes()).hexdigest(),
+                "sources": [
+                    {
+                        "source_id": "one",
+                        "license_label": "MIT",
+                        "rights": {
+                            "training_eligibility": "eligible",
+                            "redistribution_mode": "metadata_reconstruction_only",
+                            "spdx_expression": "MIT",
+                            "license_references": ["https://example.test/LICENSE"],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    first = draft_admission_manifest(
+        project, work, template, document, work / "first.json"
+    )
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            acquisition,
+            "_verify_snapshot_cold",
+            lambda *args, **kwargs: pytest.fail("verified snapshot was read again"),
+        )
+        second = draft_admission_manifest(
+            project, work, template, document, work / "second.json"
+        )
+    assert first["sha256"] == second["sha256"]
+    snapshot = Path(lock["sources"]["one"]["snapshot_path"])
+    (snapshot / "files/guide.md").write_text("Changed source.\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="mismatch"):
+        draft_admission_manifest(project, work, template, document, work / "third.json")

@@ -115,7 +115,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, family_count=10):
     monkeypatch.setattr(
         split_freeze,
         "verify_acquisition",
-        lambda *_: {"sources": snapshots},
+        lambda *_, **__: {"sources": snapshots},
     )
     monkeypatch.setattr(split_freeze, "source_declaration_payload", lambda _: {})
     monkeypatch.setattr(
