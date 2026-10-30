@@ -253,6 +253,9 @@ def test_retained_build_recovers_from_closed_execution(tmp_path, monkeypatch):
         json.loads((build / "release-publication.json").read_text())["method"]
         == "in_place_adopted_executor_build"
     )
+    publication = json.loads((build / "release-publication.json").read_text())
+    assert publication["declared_revision"] == rev
+    assert "producer_revision" not in publication
     scientific[0].write_text("changed\n")
     with pytest.raises(ValueError):
         verify_retained_release(build)

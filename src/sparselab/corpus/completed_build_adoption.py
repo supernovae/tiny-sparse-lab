@@ -240,7 +240,7 @@ def _adopt(root, path, build, scope, reference):
             "path": str(declaration),
             "sha256": reference["sha256"],
         },
-        "producer_revision": producer["revision"],
+        "declared_revision": producer["revision"],
         "job_report_sha256": refs["job_report"]["sha256"],
         "session_report_sha256": refs["session_report"]["sha256"],
     }
