@@ -1,7 +1,8 @@
 """Freeze an explicitly retained native payload without copying or relinking it.
 
-Historical completion remains historical: authenticate its original signature and
-unchanged producer, inputs and outputs. Never reseal it as current production.
+Historical completion remains historical: authenticate its original signature or
+explicit closed executor evidence, and unchanged producer, inputs and outputs.
+The executor handoff is recorded honestly; it does not mint a new signature.
 """
 
 import hashlib
@@ -85,26 +86,56 @@ def retained_payload(path):
     dependencies = capture(paths)
     binding = cache._binding(cache_path, raw, request, dependencies)
     receipt = cache.proofs._receipt(binding)
-    historical = _small(receipt, root, private=True)
-    saved = json.loads(historical)["proof"]["binding"]
-    if not cache.proofs.lookup_recorded_execution(saved):
-        raise ValueError("retained native build historical proof invalid or changed")
-    before, after = saved["upstream_identities"], binding["upstream_identities"]
-    if before["authority"]["streaming_producer"] != scope["request"]["producer"]:
-        raise ValueError("retained native build signed producer changed")
-    # Only verifier authority may differ. Mutable declaration fingerprints and
-    # every other signed binding field must still match exactly.
-    normalized = {
-        **binding,
-        "upstream_identities": {**after, "authority": before["authority"]},
-    }
-    if "mutable_dependencies" not in before:
-        normalized["upstream_identities"].pop("mutable_dependencies", None)
-    normalized["manifest_inventory_sha256"] = canonical_digest(
-        normalized["upstream_identities"]
-    )
-    if normalized != saved:
-        raise ValueError("retained native build semantic binding differs")
+    if receipt.exists() or receipt.is_symlink():
+        historical = _small(receipt, root, private=True)
+        saved = json.loads(historical)["proof"]["binding"]
+        if not cache.proofs.lookup_recorded_execution(saved):
+            raise ValueError(
+                "retained native build historical proof invalid or changed"
+            )
+        before, after = saved["upstream_identities"], binding["upstream_identities"]
+        if before["authority"]["streaming_producer"] != scope["request"]["producer"]:
+            raise ValueError("retained native build signed producer changed")
+        # Only verifier authority may differ; every other binding stays exact.
+        normalized = {
+            **binding,
+            "upstream_identities": {**after, "authority": before["authority"]},
+        }
+        if "mutable_dependencies" not in before:
+            normalized["upstream_identities"].pop("mutable_dependencies", None)
+        normalized["manifest_inventory_sha256"] = canonical_digest(
+            normalized["upstream_identities"]
+        )
+        if normalized != saved:
+            raise ValueError("retained native build semantic binding differs")
+        execution = {
+            "kind": "adopted_execution",
+            "method": "in_place_retained_native_build",
+            "build_id": build["build_id"],
+            "historical_proof_sha256": hashlib.sha256(historical).hexdigest(),
+            "historical_authority_sha256": canonical_digest(before["authority"]),
+        }
+    else:
+        # An explicit executor declaration is required; a cache miss alone is
+        # never accepted as proof of an earlier successful build.
+        from sparselab.corpus.completed_build_adoption import (
+            adopt_completed_build_execution,
+        )
+
+        declaration = path.parent.parent / "build-executions" / (path.name + ".json")
+        if (
+            not declaration.is_file()
+            or any(part.is_symlink() for part in (declaration, *declaration.parents))
+            or declaration.stat().st_size > 4 * 1024**2
+        ):
+            raise ValueError("retained native build execution evidence unavailable")
+        execution = adopt_completed_build_execution(
+            root,
+            path,
+            build,
+            scope,
+            {"path": str(declaration), "sha256": sha256_file(declaration)},
+        )
     inventory = {item["path"]: item for item in payload["files"]}
     expected = {str(path / name) for name in build["files"]} | {
         str(path / "build.json")
@@ -129,12 +160,8 @@ def retained_payload(path):
         raise ValueError("retained native build manifest changed")
     unchanged(dependencies)
     evidence = {
-        "kind": "adopted_execution",
-        "method": "in_place_retained_native_build",
-        "build_id": build["build_id"],
+        **execution,
         "completion_sha256": event["sha256"],
-        "historical_proof_sha256": hashlib.sha256(historical).hexdigest(),
-        "historical_authority_sha256": canonical_digest(before["authority"]),
         "build_manifest_sha256": sha256_file(path / "build.json"),
     }
     return build, evidence

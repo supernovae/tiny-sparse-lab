@@ -108,14 +108,32 @@ not copied, relinked, moved or modified, and the original build manifest and
 completion proofs remain intact. The ordinary freeze selection retains its
 independent-copy behavior.
 
-The native reader authenticates the original signed publication, the recorded signed
-producer identity, and unchanged input/output bindings. The publication record
-labels this as adopted execution, not a fresh build or source re-audit. Default
-build-cache refusal after verifier changes is unchanged. Missing, corrupt or
-changed evidence refuses reuse instead of triggering corpus processing.
+The native reader normally authenticates the original signed publication and
+producer identity, plus unchanged input/output bindings. If that signature is
+absent, an explicit local executor-evidence declaration can instead establish
+that the same build completed and its owner-private executor reports recorded
+successful cleanup. This unsigned evidence is not an HMAC proof or a fresh
+source re-audit. A cache miss by itself is never enough.
+
+Place the declaration at `WORK/corpora/PROJECT/build-executions/BUILD_ID.json`.
+It contains `kind: completed_local_build_execution`, `producer` (`revision`,
+`runtime_sha256`, `image`), `project` (`path`, `sha256`), `build` (`path`,
+`build_id`, `manifest_sha256`), and an `evidence` mapping. Evidence has exact
+`path` and `sha256` references for `job_spec`, `job_report`, `session_spec`,
+`session_report`, `container_report`, `stdout`, `stderr`, and `events`. Control
+records must be bounded owner-private files under the work root. The reader
+compares these with the checkpoint, the recorded producer-file hashes, the
+scientific inputs, and the output stamps. Its `declared_revision` field is the
+revision in the executor records; it is not an independent Git verification.
+
+The publication record labels either path as adopted execution, not a fresh
+build. Default build-cache refusal after verifier changes is unchanged. Missing,
+corrupt or changed evidence refuses reuse instead of triggering corpus processing.
 
 Retain the whole returned directory, original source dependencies and native
-completion storage for the release lifetime. Build and release share one local
+completion storage for the release lifetime. For executor-evidence adoption,
+also retain the original producer checkout and every declared evidence file;
+future verification needs their original bytes. Build and release share one local
 payload: later mutation or deletion is refused by native consumers. This is a
 local continuation path, not an independently portable archive or a change to
 source-rights and scientific split policy.
