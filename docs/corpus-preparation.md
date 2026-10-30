@@ -1338,3 +1338,18 @@ across compatible Lab updates. A changed target fingerprint, including a device
 identity change, requires recovery: these commands do not automatically replace
 an existing target receipt or regenerate a source observation for changed
 adoption code. Keep the original host and evidence for that recovery.
+
+
+### Reuse a tokenizer after relocation
+
+After the release has a verified migration receipt, make a new tokenizer
+configuration whose paths map the original work root to the verified target
+work root; retain the original tokenizer configuration and job receipts.
+In the mixture's existing `tokenizer_observation`, keep the original file paths
+and digests and add `relocation` with `source_receipts_root` and
+`target_receipts_root` for the separate job-receipt directory. The verifier
+obtains the corpus roots from the authenticated release migration receipt,
+maps the two roots only, checks the original evidence bytes, and requires the
+new configuration to match the original apart from that path mapping. It
+records this as a relocated post-run observation; it does not claim that the
+original job attested tokenizer output digests or repeat tokenizer fitting.

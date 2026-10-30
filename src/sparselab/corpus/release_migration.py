@@ -612,6 +612,16 @@ def verify_migrated_release(
     return manifest
 
 
+def migrated_roots(release: Path, manifest: dict) -> tuple[Path, Path]:
+    """Return the source and target roots bound by a verified migration."""
+    release = Path(release).resolve(strict=True)
+    root = corpus_work_root(release)
+    verify_migrated_release(release, manifest, expected_id=manifest["release_id"])
+    receipt = root / "release-migrations" / (manifest["release_id"] + ".target.json")
+    observation = _read_signed(ProofStore(root), receipt, _TARGET)
+    return Path(observation["source_observation"]["observation"]["source_root"]), root
+
+
 def migrated_dependencies(manifest: dict, work_root: Path) -> tuple[Path, ...] | None:
     """Return the target dependencies only for an authenticated migrated release."""
     receipt = (
