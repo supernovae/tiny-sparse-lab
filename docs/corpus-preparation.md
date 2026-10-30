@@ -1310,3 +1310,26 @@ ordered release identities and reads authenticated retained offsets instead of
 rebuilding an index from every old document body. Its existing cross-release
 split and rights checks still apply. Ranked reference checkpoints can be
 reused, but an interrupted token encoding spool is not yet resumable.
+
+
+### Relocate a retained release
+
+For a copied retained release, run `sparselab corpus attest-release-migration`
+on the original host with the release path, `--verifier-checkout` and the exact
+`--verifier-revision` of a clean checkout that can verify that release. Copy the
+resulting source observation to the corresponding private work root on the new
+host, then run `sparselab corpus adopt-release-migration` with the relocated
+release path and `--source-observation`. Both hosts must use the same existing
+private verification key; neither command creates a key or changes historical
+receipts. Preserve the original verifier checkout and execution evidence.
+
+The source observation records native release verification and the source to
+target relative-path mapping. It reuses digests bound to verified snapshot
+manifests and hashes remaining inputs; it does not claim to have reread the
+snapshot bytes. The target hashes the mapped input and output files once, checks
+them against those digests, and records new target fingerprints. Signed
+per-file progress supports retry without rereading unchanged files. Missing
+evidence, changed bytes, or a changed inventory are refused. This transfer can
+be large; its size depends on the release. The receipt uses the existing local
+key and trusts its service user, who can create or modify local evidence; it is
+not an independent third-party signature or a replacement historical proof.

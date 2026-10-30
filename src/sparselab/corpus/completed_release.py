@@ -215,6 +215,11 @@ def verify_retained_release(path, manifest=None, *, expected_id=None):
     path = Path(path).resolve(strict=True)
     root = corpus_work_root(path)
     manifest = manifest or json.loads(_small(path / "manifest.json", root))
+    migration = root / "release-migrations" / (manifest["release_id"] + ".target.json")
+    if migration.exists() or migration.is_symlink():
+        from sparselab.corpus.release_migration import verify_migrated_release
+
+        return verify_migrated_release(path, manifest, expected_id=expected_id)
     build, evidence = retained_payload(path)
     payload = _manifest_payload(build)
     release_id = canonical_digest(payload)

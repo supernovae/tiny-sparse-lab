@@ -1,6 +1,8 @@
 """Tiny real-file exercise of retained build recovery after a closed job."""
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,6 +20,12 @@ def test_retained_build_recovers_from_closed_execution(tmp_path, monkeypatch):
     root = tmp_path / "work"
     root.mkdir(mode=0o700)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    key_dir = tmp_path / "config" / "sparselab"
+    key_dir.mkdir(parents=True, mode=0o700)
+    (tmp_path / "config").chmod(0o700)
+    key = key_dir / "verification-key-v1"
+    key.write_bytes(bytes(range(32)))
+    key.chmod(0o600)
     source_checkout = Path(__file__).resolve().parents[1]
     (root / "sources").mkdir(mode=0o777)
     (root / "sources").chmod(0o777)
@@ -41,6 +49,7 @@ def test_retained_build_recovers_from_closed_execution(tmp_path, monkeypatch):
         "release": "release.yaml",
     }
     project.write_text(yaml.safe_dump(config_data))
+    project.chmod(0o600)
     config = ProjectConfig.model_validate(config_data).model_dump(mode="json")
     producer_names = (
         "completed_preparation.py",
@@ -256,6 +265,94 @@ def test_retained_build_recovers_from_closed_execution(tmp_path, monkeypatch):
     publication = json.loads((build / "release-publication.json").read_text())
     assert publication["declared_revision"] == rev
     assert "producer_revision" not in publication
+
+    # A migration is a new observation: preserve the original execution and
+    # exercise actual files, a clean verifier checkout, and changed inodes.
+    from sparselab.corpus.release import verify_release
+    from sparselab.corpus.release_migration import adopt_target, attest_source
+
+    (root / "sources").chmod(0o700)
+    (root / "transforms").chmod(0o700)
+    verifier = tmp_path / "verifier"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--no-hardlinks",
+            str(source_checkout),
+            str(verifier),
+        ],
+        check=True,
+    )
+    revision = subprocess.check_output(
+        ["git", "-C", str(verifier), "rev-parse", "HEAD"], text=True
+    ).strip()
+    attestation = attest_source(
+        build, verifier_checkout=verifier, verifier_revision=revision
+    )
+    source_progress = attestation.with_name(
+        publication["release_id"] + ".source-progress.json"
+    )
+
+    def progress_stamp(path):
+        info = path.stat()
+        return info.st_ino, info.st_mtime_ns, info.st_size
+
+    source_before = progress_stamp(source_progress)
+    attestation.unlink()  # Simulate interruption before final source publication.
+    assert (
+        attest_source(build, verifier_checkout=verifier, verifier_revision=revision)
+        == attestation
+    )
+    assert progress_stamp(source_progress) == source_before
+    moved = tmp_path / "moved"
+    shutil.copytree(root, moved)
+    moved_build = moved / build.relative_to(root)
+    moved_attestation = moved / attestation.relative_to(root)
+    from sparselab.verification_proofs import ProofStore
+
+    original_attestation = moved_attestation.read_bytes()
+    incomplete = json.loads(original_attestation)
+    incomplete["observation"]["inputs"].pop(
+        next(iter(incomplete["observation"]["inputs"]))
+    )
+    incomplete["hmac"] = ProofStore(moved).migration_signature(
+        incomplete["observation"]
+    )
+    moved_attestation.write_bytes(canonical_json(incomplete) + b"\n")
+    with pytest.raises(ValueError, match="input mapping differs"):
+        adopt_target(moved_build, moved_attestation)
+    moved_attestation.write_bytes(original_attestation)
+    target_receipt = adopt_target(moved_build, moved_attestation)
+    source_progress = attestation.with_name(
+        publication["release_id"] + ".source-progress.json"
+    )
+    target_progress = target_receipt.with_name(
+        publication["release_id"] + ".target-progress.json"
+    )
+    saved = (progress_stamp(source_progress), progress_stamp(target_progress))
+    target_receipt.unlink()  # Simulate interruption before final target publication.
+    assert (
+        attest_source(build, verifier_checkout=verifier, verifier_revision=revision)
+        == attestation
+    )
+    assert adopt_target(moved_build, moved_attestation) == target_receipt
+    assert (progress_stamp(source_progress), progress_stamp(target_progress)) == saved
+    assert verify_release(moved_build)["release_id"] == publication["release_id"]
+    assert (
+        verify_release(
+            moved_build,
+            proof_store=ProofStore(moved),
+            verification_mode="verified_reuse",
+        )["release_id"]
+        == publication["release_id"]
+    )
+    (moved_build / "documents.jsonl").write_text('{"text":"tampered"}\n')
+    with pytest.raises(ValueError):
+        verify_release(moved_build)
+    assert verify_retained_release(build)["release_id"] == publication["release_id"]
+
     scientific[0].write_text("changed\n")
     with pytest.raises(ValueError):
         verify_retained_release(build)

@@ -256,6 +256,22 @@ def _handle(args: argparse.Namespace) -> None:
             )
         )
         return
+    if command == "attest-release-migration":
+        from sparselab.corpus.release_migration import attest_source
+
+        path = attest_source(
+            Path(args.release),
+            verifier_checkout=Path(args.verifier_checkout),
+            verifier_revision=args.verifier_revision,
+        )
+        print(json.dumps({"source_observation": str(path)}, sort_keys=True))
+        return
+    if command == "adopt-release-migration":
+        from sparselab.corpus.release_migration import adopt_target
+
+        path = adopt_target(Path(args.release), Path(args.source_observation))
+        print(json.dumps({"target_observation": str(path)}, sort_keys=True))
+        return
     if command == "adopt-retained-renders":
         from sparselab.corpus.completed_preparation import _producer
         from sparselab.corpus.retained_render_adoption import write_adoption
@@ -648,6 +664,21 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     )
     command.add_argument("--output", required=True)
     command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "attest-release-migration",
+        help="Verify a retained source release and attest its migration inputs",
+    )
+    command.add_argument("release")
+    command.add_argument("--verifier-checkout", required=True)
+    command.add_argument("--verifier-revision", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "adopt-release-migration",
+        help="Verify relocated release bytes and record target-local fingerprints",
+    )
+    command.add_argument("release")
+    command.add_argument("--source-observation", required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "adopt-retained-renders",
