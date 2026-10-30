@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from sparselab.canonical import canonical_digest
 from sparselab.corpus.admission_inspection_cache import capture, unchanged
 from sparselab.corpus.bounded_metadata import read_metadata
 from sparselab.corpus.project import load_project, project_path
@@ -122,6 +125,104 @@ class _AdoptedInventory:
                 "adopted completion does not match this inventory invocation"
             )
         unchanged(self.dependencies)
+
+
+def _native_completion_without_lock_binding(
+    cache, project, inventory, report, lock, source
+):
+    """Authenticate an unchanged native producer without inventing a job-spec binding."""
+    if cache.proofs is None:
+        raise ValueError("native inventory completion proof store unavailable")
+    request = cache.request(project, inventory)
+    path = cache._path("inventory", request)
+    if (
+        not _trusted(cache.root, path, private=True)
+        or path.stat().st_size > 4 * 1024**2
+    ):
+        raise ValueError("native inventory completion unavailable")
+    raw = path.read_bytes()
+    value = json.loads(raw)
+    if set(value) != {"dependencies", "payload"}:
+        raise ValueError("invalid native inventory completion")
+    payload, names = value["payload"], value["dependencies"]
+    if (
+        not isinstance(names, list)
+        or any(
+            not isinstance(name, str)
+            or not Path(name).is_absolute()
+            or ".." in Path(name).parts
+            or not Path(name).is_relative_to(cache.root)
+            for name in names
+        )
+        or str(lock) not in names
+        or str(inventory) not in names
+        or not isinstance(payload, dict)
+        or set(payload) != {"report", "completion"}
+        or payload["report"] != report
+        or not isinstance(payload["completion"], dict)
+        or payload["completion"].get("mode") != "native_production"
+    ):
+        raise ValueError(
+            "native inventory completion does not bind the recorded execution"
+        )
+    dependencies = capture(names)
+    binding = cache._binding(path, raw, request, dependencies)
+    receipt = cache.proofs._receipt(binding)
+    if (
+        not _trusted(cache.root, receipt, private=True)
+        or receipt.stat().st_size > 16 * 1024**2
+    ):
+        raise ValueError("native inventory signature unavailable")
+    signed = json.loads(receipt.read_bytes())["proof"]["binding"]
+    if not cache.proofs.lookup_recorded_execution(signed):
+        raise ValueError("native inventory completion signature or inputs changed")
+    before, after = signed["upstream_identities"], binding["upstream_identities"]
+    old, new = before["authority"], after["authority"]
+    if payload["completion"].get("producer_authority") != old or set(old) != {
+        "corpus",
+        "inventory",
+    }:
+        raise ValueError("native inventory producer authority differs")
+    old_corpus, new_corpus = old["corpus"], new["corpus"]
+    if any(
+        old_corpus.get(k) != new_corpus.get(k) for k in ("schema", "kind", "version")
+    ):
+        raise ValueError("native inventory verifier domain changed")
+    old_modules, new_modules = dict(old_corpus["modules"]), dict(new_corpus["modules"])
+    old_module = old_modules.pop("corpus.split_inventory_adoption", None)
+    new_module = new_modules.pop("corpus.split_inventory_adoption", None)
+    old_inventory, new_inventory = dict(old["inventory"]), dict(new["inventory"])
+    old_adoption = old_inventory.pop("split_inventory_adoption.py", None)
+    new_adoption = new_inventory.pop("split_inventory_adoption.py", None)
+    producer_file = Path(source) / "src/sparselab/corpus/split_inventory_adoption.py"
+    if (
+        not old_module
+        or not new_module
+        or old_module != old_adoption
+        or new_module != new_adoption
+        or old_modules != new_modules
+        or old_inventory != new_inventory
+        or not producer_file.is_file()
+        or sha256_file(producer_file) != old_module
+    ):
+        raise ValueError("native inventory producer code changed")
+    normalized = {**binding, "upstream_identities": {**after, "authority": old}}
+    normalized["manifest_inventory_sha256"] = canonical_digest(
+        normalized["upstream_identities"]
+    )
+    if normalized != signed:
+        raise ValueError("native inventory signed binding differs")
+    dependencies.update(capture([path, receipt]))
+    unchanged(dependencies)
+    return dependencies, {
+        "mode": "historical_signed_native_completion",
+        "cache_path": str(path),
+        "cache_sha256": hashlib.sha256(raw).hexdigest(),
+        "proof_path": str(receipt),
+        "proof_sha256": sha256_file(receipt),
+        "producer_authority_sha256": canonical_digest(old),
+        "lock_path": str(lock),
+    }
 
 
 def adopt_completed_inventory(project, root, inventory, reference):
@@ -273,11 +374,17 @@ def _adopt_completed_inventory(project, root, inventory, reference):
     ):
         raise ValueError("completed inventory native output identity mismatch")
     required = spec.get("required_files", {})
+    cache = InventoryCache(root)
+    fresh = load_project(project_file, verify_inputs=False)
+    if cache.request(fresh, inventory) != cache.request(project, inventory):
+        raise ValueError(
+            "current project differs from the completed producer configuration"
+        )
     scientific = [
         project_file,
-        *(project_path(project.root, p) for p in project.config.sources),
-        project_path(project.root, project.config.splits),
-        project_path(project.root, project.config.release),
+        *(project_path(fresh.root, p) for p in fresh.config.sources),
+        project_path(fresh.root, fresh.config.splits),
+        project_path(fresh.root, fresh.config.release),
     ]
     for path in scientific:
         value = required.get(str(path))
@@ -291,12 +398,6 @@ def _adopt_completed_inventory(project, root, inventory, reference):
         dependencies.update(observed)
     if required.get(str(project_file)) != _digest(manifest["project"]["sha256"]):
         raise ValueError("completed inventory project identity mismatch")
-    cache = InventoryCache(root)
-    fresh = load_project(project_file, verify_inputs=False)
-    if cache.request(fresh, inventory) != cache.request(project, inventory):
-        raise ValueError(
-            "current project differs from the completed producer configuration"
-        )
     existing = cache.completed(project, inventory)
     if (
         existing is not None
@@ -318,14 +419,19 @@ def _adopt_completed_inventory(project, root, inventory, reference):
         )
     lock = root / "corpora" / project.config.id / "acquisition.json"
     lock_sha = required.get(str(lock))
+    native_completion = None
     if lock_sha is None:
-        raise ValueError("completed producer did not bind its acquisition identity")
-    _, observed = _reference(
-        root, {"path": str(lock), "sha256": lock_sha}, control=False
-    )
-    dependencies.update(observed)
-    _, observed = _reference(root, manifest["inventory"], control=False)
-    dependencies.update(observed)
+        observed, native_completion = _native_completion_without_lock_binding(
+            cache, project, inventory, report, lock, spec["source"]["path"]
+        )
+        dependencies.update(observed)
+    else:
+        _, observed = _reference(
+            root, {"path": str(lock), "sha256": lock_sha}, control=False
+        )
+        dependencies.update(observed)
+        _, observed = _reference(root, manifest["inventory"], control=False)
+        dependencies.update(observed)
     unchanged(dependencies)
     provenance = {
         "mode": "adopted_execution",
@@ -337,16 +443,24 @@ def _adopt_completed_inventory(project, root, inventory, reference):
         "image": producer["image"],
         "job_spec_sha256": refs["job_spec"]["sha256"],
         "evidence": refs,
-        "input_identities": {str(p): required[str(p)] for p in [*scientific, lock]},
+        "input_identities": {str(p): required[str(p)] for p in scientific},
         "source_validation": "native acquisition and admission checks remain required before split publication",
     }
+    if native_completion is None:
+        provenance["input_identities"][str(lock)] = lock_sha
+    else:
+        provenance["native_completion"] = native_completion
     # Configurations are checked against the recorded input hashes on every
     # adoption. Only owned, private evidence plus immutable large artifacts enter
     # the persistent cache; no existing permissions are changed for caching.
     persistent = {
         name: rows for name, rows in dependencies.items() if _trusted(root, Path(name))
     }
-    if str(lock) in persistent and str(inventory) in persistent:
+    if (
+        native_completion is None
+        and str(lock) in persistent
+        and str(inventory) in persistent
+    ):
         cache.record_completed(
             project, inventory, report, persistent, completion=provenance
         )

@@ -1743,3 +1743,44 @@ def test_split_preparation_reuses_verified_snapshots(
 
     assert inventory.is_file()
     assert frozen.is_file()
+
+
+def test_native_inventory_handoff_reuses_completed_proof_and_rejects_changed_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.corpus.split_inventory_adoption import (
+        _native_completion_without_lock_binding,
+    )
+    from sparselab.corpus.split_inventory_cache import InventoryCache
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
+    root = tmp_path / "work"
+    root.mkdir(mode=0o700)
+    recipe, _ = _sources(root, "fixture-native-inventory-handoff")
+    release = recipe / "release-quarantine.yaml"
+    release_data = yaml.safe_load(release.read_text())
+    release_data["normalizer"] = "normalizer-structure-v3"
+    _write_yaml(release, release_data)
+    producer = load_project(recipe / "acquire.yaml")
+    inventory = recipe / "inventory.jsonl"
+    report = write_split_inventory(producer, root, inventory)
+
+    admission = recipe / "admission.json"
+    admission.write_text("{}\n")
+    _reviewed_release(recipe, admission)
+    consumer = load_project(recipe / "pre-freeze.yaml")
+    lock = root / "corpora" / producer.config.id / "acquisition.json"
+    source = Path(__file__).resolve().parents[1]
+    cache = InventoryCache(root)
+    dependencies, proof = _native_completion_without_lock_binding(
+        cache, consumer, inventory, report, lock, source
+    )
+    assert str(lock) in dependencies
+    assert proof["mode"] == "historical_signed_native_completion"
+    assert report["documents"] > 0
+
+    lock.write_bytes(lock.read_bytes() + b" ")
+    with pytest.raises(ValueError, match="signature or inputs changed"):
+        _native_completion_without_lock_binding(
+            InventoryCache(root), consumer, inventory, report, lock, source
+        )
