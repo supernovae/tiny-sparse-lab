@@ -1769,6 +1769,27 @@ def test_native_inventory_handoff_reuses_completed_proof_and_rejects_changed_loc
     admission.write_text("{}\n")
     _reviewed_release(recipe, admission)
     consumer = load_project(recipe / "pre-freeze.yaml")
+    from sparselab.corpus.completed_preparation import _check_completed_producer
+
+    # Inventory-only production has no admission; the later frozen split binds
+    # the consumer's real reviewed admission. Existing admitted producers still
+    # must match that admission exactly.
+    assert producer.release.record_admission is None
+    assert _check_completed_producer(consumer, producer)
+    assert _check_completed_producer(consumer, consumer)
+    altered = consumer.model_copy(
+        update={
+            "release": consumer.release.model_copy(
+                update={
+                    "record_admission": consumer.release.record_admission.model_copy(
+                        update={"sha256": "0" * 64}
+                    )
+                }
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="source/admission differs"):
+        _check_completed_producer(consumer, altered)
     lock = root / "corpora" / producer.config.id / "acquisition.json"
     source = Path(__file__).resolve().parents[1]
     cache = InventoryCache(root)

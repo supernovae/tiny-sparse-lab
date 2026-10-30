@@ -189,22 +189,25 @@ def _native_completion_without_lock_binding(
     ):
         raise ValueError("native inventory verifier domain changed")
     old_modules, new_modules = dict(old_corpus["modules"]), dict(new_corpus["modules"])
-    old_module = old_modules.pop("corpus.split_inventory_adoption", None)
-    new_module = new_modules.pop("corpus.split_inventory_adoption", None)
     old_inventory, new_inventory = dict(old["inventory"]), dict(new["inventory"])
     old_adoption = old_inventory.pop("split_inventory_adoption.py", None)
     new_adoption = new_inventory.pop("split_inventory_adoption.py", None)
-    producer_file = Path(source) / "src/sparselab/corpus/split_inventory_adoption.py"
-    if (
-        not old_module
-        or not new_module
-        or old_module != old_adoption
-        or new_module != new_adoption
-        or old_modules != new_modules
-        or old_inventory != new_inventory
-        or not producer_file.is_file()
-        or sha256_file(producer_file) != old_module
-    ):
+    for module in ("split_inventory_adoption", "completed_preparation"):
+        old_hash = old_modules.pop("corpus." + module, None)
+        new_hash = new_modules.pop("corpus." + module, None)
+        producer_file = Path(source) / "src/sparselab/corpus" / (module + ".py")
+        if (
+            not old_hash
+            or not new_hash
+            or not producer_file.is_file()
+            or sha256_file(producer_file) != old_hash
+            or (
+                module == "split_inventory_adoption"
+                and (old_hash != old_adoption or new_hash != new_adoption)
+            )
+        ):
+            raise ValueError("native inventory producer code changed")
+    if old_modules != new_modules or old_inventory != new_inventory:
         raise ValueError("native inventory producer code changed")
     normalized = {**binding, "upstream_identities": {**after, "authority": old}}
     normalized["manifest_inventory_sha256"] = canonical_digest(

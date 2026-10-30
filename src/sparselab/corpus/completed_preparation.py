@@ -318,6 +318,33 @@ def _prepared_source(directory, source, header, path, build_id, progress, normal
     return {"files": outputs, "prepared": str(prepared), "counts": receipt["counts"]}
 
 
+def _check_completed_producer(project, producer):
+    """Keep producer source identity; inventory-only runs have no admission."""
+    declarations = {
+        source.id: source_declaration_payload(source) for source in project.sources
+    }
+    producer_declarations = {
+        source.id: source_declaration_payload(source) for source in producer.sources
+    }
+    current_admission = project.release.record_admission
+    producer_admission = producer.release.record_admission
+    if (
+        current_admission is None
+        or project.config.id != producer.config.id
+        or declarations != producer_declarations
+        or (
+            producer_admission is not None
+            and (
+                current_admission.sha256 != producer_admission.sha256
+                or project_path(project.root, current_admission.path)
+                != project_path(producer.root, producer_admission.path)
+            )
+        )
+    ):
+        raise ValueError("build source/admission differs from completed producer")
+    return declarations
+
+
 def build_completed(project, work_root):
     from sparselab.corpus.acquisition import declaration_sha256
     from sparselab.corpus.large_build import _emit_build
@@ -348,7 +375,8 @@ def build_completed(project, work_root):
     receipt_path = split.with_name(split.stem + ".receipt.json")
     frozen = _small(receipt_path)
     if (
-        frozen.get("split_sha256") != sha256_file(split)
+        project.release.record_admission is None
+        or frozen.get("split_sha256") != sha256_file(split)
         or frozen.get("admission_sha256") != project.release.record_admission.sha256
         or not frozen.get("preparation_reuse")
     ):
@@ -359,21 +387,7 @@ def build_completed(project, work_root):
     producer_project = _inside(root, inventory_evidence["project"]["path"])
     producer = load_project(producer_project, verify_inputs=False)
     inventory = _inside(root, inventory_evidence["inventory"]["path"])
-    declarations = {
-        source.id: source_declaration_payload(source) for source in project.sources
-    }
-    if (
-        project.config.id != producer.config.id
-        or declarations
-        != {
-            source.id: source_declaration_payload(source) for source in producer.sources
-        }
-        or project.release.record_admission.sha256
-        != producer.release.record_admission.sha256
-        or project_path(project.root, project.release.record_admission.path)
-        != project_path(producer.root, producer.release.record_admission.path)
-    ):
-        raise ValueError("build source/admission differs from completed producer")
+    declarations = _check_completed_producer(project, producer)
     admission_path = project_path(project.root, project.release.record_admission.path)
     candidates = split.with_name(split.stem + ".family-candidates.jsonl")
     family_reference = {
