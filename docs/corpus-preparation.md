@@ -1334,6 +1334,7 @@ be large; its size depends on the release. The receipt uses the existing local
 key and trusts its service user, who can create or modify local evidence; it is
 not an independent third-party signature or a replacement historical proof.
 The signed completed receipt records the adoption authority and remains usable
-across compatible Lab updates. If target fingerprints change, including after a
-device identity change, the release must be re-adopted from its source evidence.
-Keep the original host and evidence until that recovery is no longer needed.
+across compatible Lab updates. A changed target fingerprint, including a device
+identity change, requires recovery: these commands do not automatically replace
+an existing target receipt or regenerate a source observation for changed
+adoption code. Keep the original host and evidence for that recovery.
