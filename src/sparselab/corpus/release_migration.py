@@ -599,8 +599,10 @@ def verify_migrated_release(
             not Path(name).is_relative_to(root) or ".." in Path(name).parts
             for name in observation["target_fingerprints"]
         )
-        or observation["migration_authority"] != _authority()
-        or source.get("migration_authority") != _authority()
+        # A completed versioned receipt remains valid across compatible Lab
+        # updates. Authority was checked while the two observations were made;
+        # the signed evidence and target fingerprints remain the binding.
+        or source.get("migration_authority") != observation.get("migration_authority")
         or canonical_digest({k: v for k, v in manifest.items() if k != "release_id"})
         != release_id
         or (expected_id is not None and expected_id != release_id)

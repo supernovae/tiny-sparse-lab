@@ -340,6 +340,13 @@ def test_retained_build_recovers_from_closed_execution(tmp_path, monkeypatch):
     assert adopt_target(moved_build, moved_attestation) == target_receipt
     assert (progress_stamp(source_progress), progress_stamp(target_progress)) == saved
     assert verify_release(moved_build)["release_id"] == publication["release_id"]
+    # A later compatible Lab update must not force rereading the source host.
+    # The real files and signed receipt remain unchanged by this authority change.
+    import sparselab.corpus.release_migration as migration
+
+    with monkeypatch.context() as later_version:
+        later_version.setattr(migration, "_authority", lambda: "later-code-version")
+        assert verify_release(moved_build)["release_id"] == publication["release_id"]
     assert (
         verify_release(
             moved_build,
@@ -356,3 +363,40 @@ def test_retained_build_recovers_from_closed_execution(tmp_path, monkeypatch):
     scientific[0].write_text("changed\n")
     with pytest.raises(ValueError):
         verify_retained_release(build)
+
+
+def test_migration_uses_bound_snapshot_digest(tmp_path):
+    from sparselab.corpus.release_migration import _snapshot_digests
+
+    root = tmp_path / "work"
+    release = root / "corpora" / "tiny" / "builds" / "build"
+    release.mkdir(parents=True)
+    content = b"small retained snapshot\n"
+    import hashlib
+
+    digest = hashlib.sha256(content).hexdigest()
+    files = [{"path": "part.txt", "size": len(content), "sha256": digest}]
+    identity = {"declaration_sha256": "a" * 64, "adapter": "fixture", "files": files}
+    snapshot_id = canonical_digest(identity)
+    snapshot = root / "corpora" / "tiny" / "snapshots" / "source" / snapshot_id
+    (snapshot / "files").mkdir(parents=True)
+    (snapshot / "files" / "part.txt").write_bytes(content)
+    manifest = {
+        **identity,
+        "source_id": "source",
+        "snapshot_sha256": snapshot_id,
+        "declaration": {"kind": "local_files", "acquisition": {}},
+    }
+    (snapshot / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
+    manifest_name = (snapshot / "manifest.json").relative_to(root).as_posix()
+    data_name = (snapshot / "files" / "part.txt").relative_to(root).as_posix()
+    inputs = {
+        manifest_name: (snapshot / "manifest.json").stat().st_size,
+        data_name: len(content),
+    }
+    build = {"snapshots": [{"source_id": "source", "sha256": snapshot_id}]}
+    assert _snapshot_digests(build, release, inputs) == {data_name: digest}
+    manifest["files"][0]["sha256"] = "0" * 64
+    (snapshot / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
+    with pytest.raises(ValueError, match="snapshot manifest identity changed"):
+        _snapshot_digests(build, release, inputs)

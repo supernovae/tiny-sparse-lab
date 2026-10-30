@@ -1333,3 +1333,7 @@ evidence, changed bytes, or a changed inventory are refused. This transfer can
 be large; its size depends on the release. The receipt uses the existing local
 key and trusts its service user, who can create or modify local evidence; it is
 not an independent third-party signature or a replacement historical proof.
+The signed completed receipt records the adoption authority and remains usable
+across compatible Lab updates. If target fingerprints change, including after a
+device identity change, the release must be re-adopted from its source evidence.
+Keep the original host and evidence until that recovery is no longer needed.
