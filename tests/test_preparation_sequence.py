@@ -1790,6 +1790,12 @@ def test_native_inventory_handoff_reuses_completed_proof_and_rejects_changed_loc
     )
     with pytest.raises(ValueError, match="source/admission differs"):
         _check_completed_producer(consumer, altered)
+    changed_source = producer.sources[0].model_copy(update={"revision": "b" * 40})
+    changed_producer = producer.model_copy(
+        update={"sources": (changed_source, *producer.sources[1:])}
+    )
+    with pytest.raises(ValueError, match="source/admission differs"):
+        _check_completed_producer(consumer, changed_producer)
     lock = root / "corpora" / producer.config.id / "acquisition.json"
     source = Path(__file__).resolve().parents[1]
     cache = InventoryCache(root)
@@ -1799,6 +1805,45 @@ def test_native_inventory_handoff_reuses_completed_proof_and_rejects_changed_loc
     assert str(lock) in dependencies
     assert proof["mode"] == "historical_signed_native_completion"
     assert report["documents"] > 0
+
+    # The signed execution predates the two consumer-side handoff changes.
+    # Change only the current authority; the recorded proof and producer files
+    # stay real and unchanged, just as they do when continuing R53.
+    cache.authority = json.loads(json.dumps(cache.authority))
+    for module in ("split_inventory_adoption", "completed_preparation"):
+        cache.authority["corpus"]["modules"]["corpus." + module] = "f" * 64
+    cache.authority["inventory"]["split_inventory_adoption.py"] = "f" * 64
+    reused, transition = _native_completion_without_lock_binding(
+        cache, consumer, inventory, report, lock, source
+    )
+    assert str(lock) in reused
+    assert transition["mode"] == "historical_signed_native_completion"
+
+    # A different producer checkout or a modified signed proof cannot be used.
+    other_source = tmp_path / "changed-producer"
+    for module in ("split_inventory_adoption", "completed_preparation"):
+        relative = Path("src/sparselab/corpus") / (module + ".py")
+        destination = other_source / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / relative, destination)
+    with (other_source / "src/sparselab/corpus/completed_preparation.py").open(
+        "ab"
+    ) as stream:
+        stream.write(b"\n")
+    with pytest.raises(ValueError, match="producer code changed"):
+        _native_completion_without_lock_binding(
+            cache, consumer, inventory, report, lock, other_source
+        )
+    receipt = Path(proof["proof_path"])
+    receipt_bytes = receipt.read_bytes()
+    modified = json.loads(receipt_bytes)
+    modified["hmac"] = "0" * 64
+    receipt.write_bytes(canonical_json(modified) + b"\n")
+    with pytest.raises(ValueError, match="signature or inputs changed"):
+        _native_completion_without_lock_binding(
+            cache, consumer, inventory, report, lock, source
+        )
+    receipt.write_bytes(receipt_bytes)
 
     lock.write_bytes(lock.read_bytes() + b" ")
     with pytest.raises(ValueError, match="signature or inputs changed"):
