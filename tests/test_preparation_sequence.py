@@ -1709,3 +1709,37 @@ def test_real_lineage_audit_blocks_protected_family_moved_to_train(
     assert result["status"] == "BLOCKED"
     assert result["new_train_family_collisions"]
     assert output.exists()
+
+
+def test_split_preparation_reuses_verified_snapshots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.corpus import acquisition
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "settings"))
+    root = tmp_path / "work"
+    root.mkdir(mode=0o700)
+    recipe, strata = _sources(root, "fixture-split-proof-reuse")
+    template, policy = _policy(recipe, strata)
+    admission = recipe / "admission.json"
+    draft_admission_manifest(
+        load_project(recipe / "acquire.yaml"), root, template, policy, admission
+    )
+    _reviewed_release(recipe, admission)
+    project = load_project(recipe / "pre-freeze.yaml")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            acquisition,
+            "_verify_snapshot_cold",
+            lambda *args, **kwargs: pytest.fail("verified snapshot was read again"),
+        )
+        inventory = recipe / "inventory.jsonl"
+        write_split_inventory(project, root, inventory)
+        clusters = recipe / "clusters.json"
+        _clusters(clusters, inventory, strata)
+        frozen = recipe / "splits-reviewed.yaml"
+        freeze_splits(project, root, inventory, clusters, frozen)
+
+    assert inventory.is_file()
+    assert frozen.is_file()
