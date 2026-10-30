@@ -389,7 +389,7 @@ def _freeze_splits(
         work=inventory_work,
     )
     adopted = inventory_work["adopted"]
-    lock = verify_acquisition(project, root)
+    lock = verify_acquisition(project, root, **verification_options(root))
     reference = project.release.record_admission
     if reference is None:
         raise ValueError("frozen splits require a reviewed record admission")
