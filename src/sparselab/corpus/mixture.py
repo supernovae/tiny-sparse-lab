@@ -13,7 +13,7 @@ import os
 import shutil
 import tempfile
 from collections import Counter
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -35,6 +35,8 @@ from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.result_publication import sync_directory
 from sparselab.training.manifest import sha256_file
+
+MIXTURE_BATCH_SOURCE_BYTES = 8 * 1024**2
 
 
 class ObservationFile(BaseModel):
@@ -482,12 +484,14 @@ def _schedule(
 
     from sparselab.corpus.preparation_inputs import corpus_work_root
     from sparselab.corpus.token_cache import TokenCache
+    from sparselab.data.encoding import TOKENIZER_BATCH_DOCUMENTS, PreparationEncoder
 
     try:
         token_root = corpus_work_root(release) / "cache" / "source-tokens"
     except ValueError:
         token_root = staging.parent / ".source-tokens"
     with (
+        ExitStack() as encoders,
         (
             TokenCache(token_root, tokenizer_sha) if reuse_tokens else nullcontext(None)
         ) as tokens,
@@ -524,21 +528,32 @@ def _schedule(
                 unique[stratum] += take
             records += 1
 
+        batch_source_bytes = MIXTURE_BATCH_SOURCE_BYTES
+        encoder = None
+
+        def encode_missing(texts):
+            nonlocal encoder
+            if len(texts) < 2 or not callable(getattr(tokenizer, "to_str", None)):
+                return [
+                    tokenizer.encode(text, add_special_tokens=False).ids
+                    for text in texts
+                ]
+            if encoder is None:
+                encoder = encoders.enter_context(
+                    PreparationEncoder(tokenizer, staging, max_workers=None)
+                )
+            return encoder.encode(texts)
+
         for stratum, quota in sorted(spec.target_quotas.items()):
             available = 0
-            for doc, family in index.candidates(stratum):
-                digest = doc["content_sha256"]
-                if index.seen(digest):
-                    exclude(doc, "duplicate_train_content")
-                    continue
-                ids = (
-                    tokens.encode(tokenizer, doc["text"])
-                    if tokens is not None
-                    else tokenizer.encode(doc["text"], add_special_tokens=False).ids
-                )
+            pending = []
+            pending_bytes = 0
+
+            def process(doc, family, ids, *, stratum=stratum, quota=quota):
+                nonlocal available
                 if not ids:
                     exclude(doc, "zero_encoded_targets")
-                    continue
+                    return
                 encoded_doc = {
                     "document_id": doc["document_id"],
                     "source_id": doc["source_id"],
@@ -555,6 +570,75 @@ def _schedule(
                     index.append(encoded_doc)
                 available += len(ids) + 1
                 available_content[stratum] += len(ids)
+
+            def flush(pending=pending):
+                nonlocal pending_bytes
+                texts = [doc["text"] for doc, family in pending if family is not None]
+                ids = iter(
+                    tokens.encode_many(texts, encode_missing)
+                    if tokens is not None
+                    else encode_missing(texts)
+                )
+                for doc, family in pending:
+                    if family is None:
+                        exclude(doc, "duplicate_train_content")
+                    else:
+                        process(doc, family, next(ids))
+                pending.clear()
+                pending_bytes = 0
+
+            for doc, family in index.candidates(stratum):
+                marker = {"document_id": doc["document_id"]}
+                marker_bytes = len(doc["document_id"].encode("utf-8"))
+                if index.seen(doc["content_sha256"]):
+                    if marker_bytes > batch_source_bytes:
+                        flush()
+                        exclude(marker, "duplicate_train_content")
+                    else:
+                        if (
+                            pending
+                            and pending_bytes + marker_bytes > batch_source_bytes
+                        ):
+                            flush()
+                        pending.append((marker, None))
+                        pending_bytes += marker_bytes
+                        if len(pending) >= TOKENIZER_BATCH_DOCUMENTS:
+                            flush()
+                    continue
+                source_bytes = len(doc["text"].encode("utf-8"))
+                buffered_bytes = (
+                    source_bytes
+                    + marker_bytes
+                    + len(doc["source_id"].encode("utf-8"))
+                    + len(family.encode("utf-8"))
+                )
+                if buffered_bytes > batch_source_bytes:
+                    flush()
+                    ids = (
+                        tokens.encode(tokenizer, doc["text"])
+                        if tokens is not None
+                        else tokenizer.encode(doc["text"], add_special_tokens=False).ids
+                    )
+                    process(doc, family, ids)
+                    continue
+                if pending and (
+                    len(pending) >= TOKENIZER_BATCH_DOCUMENTS
+                    or pending_bytes + buffered_bytes > batch_source_bytes
+                ):
+                    flush()
+                pending.append(
+                    (
+                        {**marker, "source_id": doc["source_id"], "text": doc["text"]},
+                        family,
+                    )
+                )
+                pending_bytes += buffered_bytes
+                if (
+                    len(pending) >= TOKENIZER_BATCH_DOCUMENTS
+                    or pending_bytes == batch_source_bytes
+                ):
+                    flush()
+            flush()
             if (
                 spec.unique_train_content_floors is not None
                 and available_content[stratum]

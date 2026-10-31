@@ -34,12 +34,20 @@ class TokenCache:
         """)
         self.pending = 0
 
-    def encode(self, tokenizer, text):
-        content = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        row = self.db.execute(
-            "SELECT payload, digest FROM tokens WHERE content=?", (content,)
-        ).fetchone()
-        if row is not None:
+    def encode_many(self, texts, encode_missing):
+        """Return cached encodings in input order and batch only missing content."""
+        keys, cached, missing = [], {}, {}
+        for text in texts:
+            content = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            keys.append(content)
+            if content in cached or content in missing:
+                continue
+            row = self.db.execute(
+                "SELECT payload, digest FROM tokens WHERE content=?", (content,)
+            ).fetchone()
+            if row is None:
+                missing[content] = text
+                continue
             payload, digest = row
             if hashlib.sha256(payload).hexdigest() != digest:
                 raise ValueError("cached token payload digest mismatch")
@@ -48,20 +56,34 @@ class TokenCache:
                 type(i) is not int or i < 0 for i in ids
             ):
                 raise ValueError("invalid cached token IDs")
-            return ids
-        ids = tokenizer.encode(text, add_special_tokens=False).ids
-        payload = canonical_json(ids)
-        if len(payload) > MAX_ROW_BYTES:
-            raise ValueError("mixture encoded record-byte cap exceeded")
-        self.db.execute(
-            "INSERT INTO tokens VALUES(?,?,?)",
-            (content, payload, hashlib.sha256(payload).hexdigest()),
-        )
-        self.pending += 1
-        if self.pending >= 256:
-            self.db.commit()
-            self.pending = 0
-        return ids
+            cached[content] = ids
+
+        if missing:
+            results = encode_missing(list(missing.values()))
+            if len(results) != len(missing):
+                raise ValueError("tokenizer returned incorrect batch length")
+            for content, ids in zip(missing, results, strict=True):
+                payload = canonical_json(ids)
+                if len(payload) > MAX_ROW_BYTES:
+                    raise ValueError("mixture encoded record-byte cap exceeded")
+                self.db.execute(
+                    "INSERT INTO tokens VALUES(?,?,?)",
+                    (content, payload, hashlib.sha256(payload).hexdigest()),
+                )
+                self.pending += 1
+                if self.pending >= 256:
+                    self.db.commit()
+                    self.pending = 0
+                cached[content] = ids
+        return [cached[content] for content in keys]
+
+    def encode(self, tokenizer, text):
+        return self.encode_many(
+            [text],
+            lambda texts: [
+                tokenizer.encode(value, add_special_tokens=False).ids for value in texts
+            ],
+        )[0]
 
     def __enter__(self):
         return self

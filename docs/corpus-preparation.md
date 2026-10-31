@@ -1232,6 +1232,14 @@ TRAIN content IDs **excluding EOS**, during the same encoding pass. It does not
 change target quotas, ordering, exposure limits or the training stop. Supply
 counts and floors are recorded separately from scheduled supervised targets.
 
+Mixture encoding reuses cached token IDs by tokenizer digest and text. Cache
+misses are sent in order-preserving CPU batches of at most 256 documents and
+8 MiB of source text to the existing bounded encoder (up to four workers).
+Larger individual documents use the existing single-document encoder. Cache
+writes and mixture ordering remain in the coordinator; completed cache entries
+survive retry. The reference sort, duplicate checks and ordered output remain
+host-side work, so tokenizer batching does not parallelize the whole pipeline.
+
 A retained in-place release may explicitly set `tokenizer_observation` on its
 mixture declaration to reuse a tokenizer observed after a completed local job.
 Set `method: post_run_observation`, `observed_at_utc` to the actual UTC
