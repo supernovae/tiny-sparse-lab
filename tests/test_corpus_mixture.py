@@ -578,3 +578,227 @@ def test_mixture_dataset_binds_train_validation_and_tokenizer(
     wrong = dataset.model_copy(update={"validation_path": tmp_path / "other.jsonl"})
     with pytest.raises(ValueError, match="identity mismatch"):
         mixture.verify_mixture_dataset(wrong, fit_dir / "tokenizer.json", 260)
+
+
+def _byte_tokenizer():
+    from tokenizers import Tokenizer, models, pre_tokenizers
+
+    special = {"<unk>": 0, "<pad>": 1, "<bos>": 2, "<eos>": 3}
+    alphabet = sorted(pre_tokenizers.ByteLevel.alphabet())
+    tokenizer = Tokenizer(
+        models.BPE(
+            vocab={
+                **special,
+                **{item: index + 4 for index, item in enumerate(alphabet)},
+            },
+            merges=[],
+            unk_token="<unk>",
+        )
+    )
+    tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+    return tokenizer
+
+
+def test_real_batch_matches_single_document_output_and_warm_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import struct
+
+    from sparselab.corpus.retained_mixture import RetainedMixtureIndex
+    from sparselab.corpus.split_runs import write_rows
+    from sparselab.data import encoding
+    from sparselab.data.encoding import PreparationEncoder
+
+    root = tmp_path / "work"
+    root.mkdir(mode=0o700)
+    config_root = tmp_path / "private-config"
+    config_root.mkdir(mode=0o700)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_root))
+    workspace = root / "corpora" / "tiny"
+    release = workspace / "builds" / "build"
+    release.mkdir(parents=True)
+    (release / "manifest.json").write_text("{}\n")
+    source = workspace / "render.jsonl"
+    refs = workspace / "references.jsonl"
+    parents = workspace / "parents.bin"
+    origins = workspace / "origins.jsonl"
+    evidence = workspace / "evidence.json"
+    family_inventory = workspace / "family-inventory.jsonl"
+    evidence.write_text("{}\n")
+    origins.write_bytes(b"")
+    family_inventory.write_bytes(b"fixture\n")
+    refs_data = []
+    documents = [
+        ("one", "abcdefgh", "a" * 64),
+        ("two", "abcd", "b" * 64),
+        ("duplicate", "abcdefgh", "a" * 64),
+        ("empty1", "", "c" * 64),
+        ("large", "longer than eight", "d" * 64),
+        ("three", "efgh", "e" * 64),
+    ]
+    with source.open("wb") as stream:
+        for name, text, content in documents:
+            row = {
+                "document_id": name,
+                "source_id": "source",
+                "content_sha256": content,
+                "text": text,
+                "domains": ["general"],
+                "rights": {"training_eligibility": "eligible"},
+            }
+            raw = canonical_json(row) + b"\n"
+            offset = stream.tell()
+            stream.write(raw)
+            refs_data.append(
+                [
+                    name,
+                    0,
+                    offset,
+                    len(raw),
+                    "train",
+                    None,
+                    content,
+                    None,
+                    None,
+                    None,
+                    ["general"],
+                    "family-" + name,
+                    "general",
+                ]
+            )
+    write_rows(refs, refs_data)
+    parents.write_bytes(b"".join(struct.pack("<Q", i) for i in range(len(documents))))
+    proof = {"completion_path": str(evidence), "cache_path": str(evidence)}
+    cohort = {
+        "release_id": "a" * 64,
+        "manifest": {"corpus_id": "tiny"},
+        "documents": len(documents),
+        "references": str(refs),
+        "parents": str(parents),
+        "origins": str(origins),
+        "sources": [str(source)],
+        "source_ids": ["source"],
+        "evidence": {
+            "references": proof,
+            "deduplication": proof,
+            "origins": proof,
+            "sources": {"source": proof},
+        },
+    }
+    spec = SimpleNamespace(
+        target_quotas={"general": 10},
+        unique_train_content_floors={"general": 1},
+        max_exposures=1,
+        seed=42,
+        order_policy=None,
+        family_inventory=family_inventory,
+        additional_releases=[],
+    )
+    tokenizer = _byte_tokenizer()
+    calls = []
+    original_encode = PreparationEncoder.encode
+
+    def observe_batch(self, texts):
+        calls.append((len(texts), sum(len(text.encode("utf-8")) for text in texts)))
+        return original_encode(self, texts)
+
+    monkeypatch.setattr(PreparationEncoder, "encode", observe_batch)
+
+    def run(name, *, reuse_tokens=True):
+        staging = root / name
+        staging.mkdir()
+        scratch = staging / "index"
+        scratch.mkdir()
+        with RetainedMixtureIndex(
+            scratch, root, [cohort], 42, {"source": "general"}
+        ) as index:
+            result = mixture._schedule(
+                spec,
+                b"declaration",
+                release,
+                {"release_id": "a" * 64},
+                tokenizer,
+                "a" * 64,
+                3,
+                index,
+                staging,
+                reuse_tokens=reuse_tokens,
+            )
+        return result, (staging / "train.tokens.jsonl").read_bytes()
+
+    result, output = run("batched")
+    assert any(size > 1 for size, _ in calls)
+    assert [row["reason"] for row in result["excluded"]] == [
+        "zero_encoded_targets",
+        "duplicate_train_content",
+    ]
+    assert result["actual_target_tokens"] == {"general": 10}
+    calls.clear()
+    warm_result, warm_output = run("warm")
+    assert (warm_result, warm_output) == (result, output)
+    assert calls == []
+
+    # Small limits exercise the real batch boundaries with tiny files.
+    monkeypatch.setattr(encoding, "TOKENIZER_BATCH_DOCUMENTS", 2)
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 64)
+    calls.clear()
+    bounded_result, bounded_output = run("bounded", reuse_tokens=False)
+    assert (bounded_result, bounded_output) == (result, output)
+    assert calls and all(
+        size <= 2 and source_bytes <= 64 for size, source_bytes in calls
+    )
+
+    # A tiny limit exercises the same fallback used above the real 8 MiB bound.
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 1)
+    calls.clear()
+    serial_result, serial_output = run("serial", reuse_tokens=False)
+    assert (serial_result, serial_output) == (result, output)
+    assert calls == []
+
+    # Batched padding changes IDs, so padded tokenizers retain serial semantics.
+    tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
+    assert (
+        tokenizer.encode_batch(["abcdefgh", "abcd"], add_special_tokens=False)[1].ids
+        != tokenizer.encode("abcd", add_special_tokens=False).ids
+    )
+    monkeypatch.setattr(encoding, "TOKENIZER_BATCH_DOCUMENTS", 256)
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 8 * 1024**2)
+    calls.clear()
+    padded_result, padded_output = run("padded", reuse_tokens=False)
+    assert calls == []
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 1)
+    padded_serial, padded_serial_output = run("padded-serial", reuse_tokens=False)
+    assert (padded_result, padded_output) == (padded_serial, padded_serial_output)
+
+
+def test_real_batch_cache_survives_interrupted_caller(tmp_path: Path) -> None:
+    from sparselab.corpus.token_cache import TokenCache
+    from sparselab.data.encoding import PreparationEncoder
+
+    tokenizer = _byte_tokenizer()
+    texts = ["plain", "café", "plain", "other"]
+    expected = [tokenizer.encode(text, add_special_tokens=False).ids for text in texts]
+    with (
+        pytest.raises(RuntimeError, match="simulated interruption"),
+        PreparationEncoder(tokenizer, tmp_path, max_workers=4) as encoder,
+        TokenCache(tmp_path / "cache", "b" * 64) as cache,
+    ):
+        assert cache.encode_many(texts, encoder.encode) == expected
+        raise RuntimeError("simulated interruption")
+
+    def unexpected(_texts):
+        raise AssertionError("completed encodings must be reused")
+
+    with TokenCache(tmp_path / "cache", "b" * 64) as cache:
+        assert cache.encode_many(texts, unexpected) == expected
+        mixed = ["plain", "fresh", "other", "novel"]
+        with PreparationEncoder(tokenizer, tmp_path, max_workers=4) as encoder:
+            assert cache.encode_many(mixed, encoder.encode) == [
+                tokenizer.encode(text, add_special_tokens=False).ids for text in mixed
+            ]
+        digest = hashlib.sha256(b"plain").hexdigest()
+        cache.db.execute(
+            "UPDATE tokens SET digest=? WHERE content=?", ("0" * 64, digest)
+        )
+        with pytest.raises(ValueError, match="cached token payload digest mismatch"):
+            cache.encode_many(["plain"], unexpected)
