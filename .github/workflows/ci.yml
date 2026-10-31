@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
+    # Draft state changes do not change code; drafts already run every PR job.
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       suite:
@@ -99,7 +100,7 @@ jobs:
         run: |
           uv run --locked --no-sync pytest -q -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/lab-loop-pytest" \
-            -n auto --maxprocesses=4 --dist loadfile \
+            -n auto --maxprocesses=4 --dist worksteal --durations=25 \
             -m "not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network" \
             tests/test_language_model.py \
             tests/test_dense_sdpa.py \
