@@ -216,3 +216,12 @@ validation. These measured checks took minutes, not hours; review/orchestration
 waiting must be tracked separately. The parallel CPU image check took 3m25s
 ([run](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41227511540));
 its build and smoke coverage are unchanged.
+
+The first [work-stealing run](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41231881859)
+on `1b6dc16` (based on PR #284's merged tree, before PR #286 integration)
+passed the same 286 lab-loop tests with one skip in 290.65 seconds, versus
+543.29 seconds reported by pytest in PR #284: about 46% less in this single
+comparison. The lab-loop job took 5m04s versus 9m20s; fast stayed at 3m36s
+(1,674 passed), and safe took 31 seconds. The longest reported lab-loop call
+was 54.42 seconds. This supports reducing the scheduling tail without dropping
+coverage, but is not a repeated benchmark or a guaranteed latency bound.
