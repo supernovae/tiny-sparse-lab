@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -406,3 +409,77 @@ def test_manifest_reference_conflict_and_inline_digest_mismatch(tmp_path):
         target.materialize_manifest("run", digest, payload)
     with pytest.raises(ValueError, match="absent"):
         target.materialize_manifest("missing", digest, payload)
+
+
+def test_session_commits_each_write_and_recovers_from_outbox_failure(tmp_path) -> None:
+    store = ExperimentStore(tmp_path)
+    _run(store)
+    with store.session():
+        with store.session():
+            store.log_metrics("run", 1, 8, 0.1, {"train/loss": 1.0})
+        # An independent reader sees the commit before the session exits.
+        reader = ExperimentStore(tmp_path, read_only=True)
+        assert len(reader.export_records()["records"]) == 2
+        with pytest.raises(ValueError, match="envelope exceeds"):
+            store.log_event("run", 1, 8, 0.1, "oversized", {"text": "x" * 65536})
+        store.log_event("run", 1, 8, 0.1, "recovered", {})
+        with sqlite3.connect(store.path) as con:
+            assert con.execute("SELECT kind FROM events").fetchall() == [("recovered",)]
+        assert [r["sequence"] for r in reader.export_records()["records"]] == [1, 2, 3]
+    # A later call and a later session can both use the same store.
+    store.log_metrics("run", 2, 16, 0.2, {"train/loss": 0.9})
+    with store.session():
+        assert len(store.export_records()["records"]) == 4
+
+
+def test_session_allows_heartbeat_thread_writes(tmp_path) -> None:
+    store = ExperimentStore(tmp_path)
+    _run(store)
+    with store.session(), ThreadPoolExecutor(max_workers=1) as executor:
+        for step in range(3):
+            pending = executor.submit(
+                store.upsert_runtime_progress_snapshot,
+                "run",
+                step,
+                step * 8,
+                float(step),
+                {"state": "RUNNING"},
+            )
+            store.log_metrics("run", step, step * 8, float(step), {"train/loss": 1.0})
+            pending.result(timeout=5)
+        assert (
+            ExperimentStore.get_runtime_progress_records(tmp_path, "run")[0]["step"]
+            == 2
+        )
+        assert len(store.export_records()["records"]) == 4
+
+
+def test_session_commits_survive_process_exit_without_cleanup(tmp_path) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import os
+import sys
+from pathlib import Path
+from sparselab.training.metrics import ExperimentStore
+store = ExperimentStore(Path(sys.argv[1]))
+store.create_run("run", {}, {})
+with store.session():
+    store.log_metrics("run", 1, 8, 0.1, {"train/loss": 1.0})
+    store.log_event("run", 1, 8, 0.1, "runtime_final_observation", {"status": "failed"})
+    os._exit(0)
+""",
+            str(tmp_path),
+        ],
+        check=True,
+        timeout=15,
+    )
+    reopened = ExperimentStore(tmp_path)
+    records = reopened.export_records()["records"]
+    assert [r["kind"] for r in records] == ["run_created", "metrics", "event"]
+    assert records[-1]["payload"]["payload"] == {"status": "failed"}
+    with sqlite3.connect(reopened.path) as con:
+        assert con.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert con.execute("SELECT value FROM metrics").fetchall() == [(1.0,)]

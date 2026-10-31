@@ -1306,6 +1306,7 @@ def _train_impl(
         manifest_digest = write_manifest(run / "manifest.json", manifest)
         manager.manifest_sha256 = manifest_digest
         store = ExperimentStore(config.logging.root_dir)
+        resources.enter_context(store.session())
         store.create_run(
             run_id,
             config.model_dump(mode="json"),
