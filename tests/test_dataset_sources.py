@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from sparselab.config.models import DatasetConfig
-from sparselab.data import sources
+from sparselab.data import snapshot_writer, sources
 
 
 def test_published_source_schema_is_current():
@@ -60,7 +60,7 @@ def offline(monkeypatch):
     }
     monkeypatch.setattr(sources, "_hub_identity", inventory)
     monkeypatch.setattr(
-        sources, "_stream", lambda source, split, cache, **kw: iter(rows[split])
+        sources, "stream_source", lambda source, split, cache, **kw: iter(rows[split])
     )
     return rows
 
@@ -245,20 +245,22 @@ def test_document_target_does_not_claim_exhaustion(tmp_path, offline):
 
 @pytest.mark.parametrize("drift", [False, True])
 def test_interruption_replays_committed_prefix(tmp_path, offline, monkeypatch, drift):
-    monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_RECORDS", 1)
+    monkeypatch.setattr(snapshot_writer, "_SNAPSHOT_BATCH_RECORDS", 1)
 
     def interrupted(source, split, cache, **kw):
         yield offline[split][0]
         raise InterruptedError("fixture interruption")
 
-    monkeypatch.setattr(sources, "_stream", interrupted)
+    monkeypatch.setattr(sources, "stream_source", interrupted)
     with pytest.raises(InterruptedError):
         acquire(tmp_path)
     assert not (tmp_path / "snapshot").exists()
     if drift:
         offline["validation"][0] = {"text": "changed upstream"}
     monkeypatch.setattr(
-        sources, "_stream", lambda source, split, cache, **kw: iter(offline[split])
+        sources,
+        "stream_source",
+        lambda source, split, cache, **kw: iter(offline[split]),
     )
     if drift:
         with pytest.raises(ValueError, match="prefix mismatch"):
@@ -271,17 +273,17 @@ def test_interruption_replays_committed_prefix(tmp_path, offline, monkeypatch, d
 def test_interrupted_export_replays_without_duplicate_output(
     tmp_path, offline, monkeypatch
 ):
-    original = sources._rename_noreplace
+    original = snapshot_writer._rename_noreplace
 
     def fail_publication(source, destination):
         if destination.name == "snapshot":
             raise InterruptedError("export interrupted")
         return original(source, destination)
 
-    monkeypatch.setattr(sources, "_rename_noreplace", fail_publication)
+    monkeypatch.setattr(snapshot_writer, "_rename_noreplace", fail_publication)
     with pytest.raises(InterruptedError):
         acquire(tmp_path)
-    monkeypatch.setattr(sources, "_rename_noreplace", original)
+    monkeypatch.setattr(snapshot_writer, "_rename_noreplace", original)
     manifest = acquire(tmp_path, resume=True)
     assert sources.verify_snapshot(manifest)["splits"]["train"]["count"] == 2
 
@@ -348,9 +350,9 @@ def test_hub_lock_resolves_file_inventory_and_stream_uses_only_it(
     monkeypatch.setattr(
         "datasets.load_dataset", lambda *a, **kw: pytest.fail("threaded parquet loader")
     )
-    assert list(sources._stream(source, "train", tmp_path, inventory=identity)) == [
-        {"text": "locked data"}
-    ]
+    assert list(
+        sources.stream_source(source, "train", tmp_path, inventory=identity)
+    ) == [{"text": "locked data"}]
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -497,7 +499,7 @@ print('complete', flush=True)
 def test_forge_locations_do_not_change_scientific_lock(tmp_path, offline, monkeypatch):
     monkeypatch.setattr(
         sources,
-        "_forge_bindings",
+        "forge_bindings",
         lambda source: {split: "c" * 64 for split in source.splits},
     )
     payload = declaration(
@@ -522,7 +524,7 @@ def test_import_dispatch_preserves_distinct_verifier(tmp_path, monkeypatch):
     from sparselab.data import snapshot_import
 
     manifest = tmp_path / "manifest.json"
-    payload = sources._seal(
+    payload = sources.seal_snapshot_payload(
         {"format": "sparselab-dataset-import-v1"}, "manifest_sha256"
     )
     manifest.write_text(json.dumps(payload))
@@ -542,7 +544,7 @@ def test_existing_snapshot_work_requires_explicit_resume_without_rewriting(
         yield offline[split][0]
         raise InterruptedError("fixture interruption")
 
-    monkeypatch.setattr(sources, "_stream", interrupted)
+    monkeypatch.setattr(sources, "stream_source", interrupted)
     with pytest.raises(InterruptedError):
         acquire(tmp_path)
     work = tmp_path / ".snapshot.work"
@@ -580,7 +582,9 @@ def test_existing_snapshot_work_requires_explicit_resume_without_rewriting(
         p.relative_to(work): p.read_bytes() for p in work.rglob("*") if p.is_file()
     } == before
     monkeypatch.setattr(
-        sources, "_stream", lambda source, split, cache, **kw: iter(offline[split])
+        sources,
+        "stream_source",
+        lambda source, split, cache, **kw: iter(offline[split]),
     )
     manifest = acquire(tmp_path, resume=True)
     assert sources.verify_snapshot(manifest)["splits"]["train"]["count"] == 2
@@ -595,7 +599,7 @@ def test_guard_only_snapshot_work_does_not_promise_resume_or_cleanup(
     def refuse(*args, **kwargs):
         raise ValueError("fixture admission refusal")
 
-    monkeypatch.setattr(sources, "_admit", refuse)
+    monkeypatch.setattr(snapshot_writer, "_admit", refuse)
     with pytest.raises(ValueError, match="fixture admission refusal"):
         acquire(tmp_path)
     work = tmp_path / ".snapshot.work"
@@ -648,12 +652,12 @@ def test_batched_snapshot_recovery_matches_uninterrupted(
     ]
     expected = acquire(tmp_path / "expected")
     if bound == "records":
-        monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_RECORDS", 2)
+        monkeypatch.setattr(snapshot_writer, "_SNAPSHOT_BATCH_RECORDS", 2)
     elif bound == "bytes":
-        monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_BYTES", 70000)
+        monkeypatch.setattr(snapshot_writer, "_SNAPSHOT_BATCH_BYTES", 70000)
     else:
         ticks = itertools.count()
-        monkeypatch.setattr(sources, "monotonic", lambda: next(ticks) * 0.1)
+        monkeypatch.setattr(snapshot_writer, "monotonic", lambda: next(ticks) * 0.1)
     root = tmp_path / "resumed"
 
     def interrupted(source, split, cache, **kw):
@@ -662,7 +666,7 @@ def test_batched_snapshot_recovery_matches_uninterrupted(
             os._exit(17)
         raise InterruptedError("fixture interruption")
 
-    monkeypatch.setattr(sources, "_stream", interrupted)
+    monkeypatch.setattr(sources, "stream_source", interrupted)
     if crash:
         process = multiprocessing.get_context("fork").Process(
             target=acquire, args=(root,)
@@ -680,7 +684,9 @@ def test_batched_snapshot_recovery_matches_uninterrupted(
         assert 0 < len(saved) < 5
         assert saved == [(i,) for i in range(len(saved))]
     monkeypatch.setattr(
-        sources, "_stream", lambda source, split, cache, **kw: iter(offline[split])
+        sources,
+        "stream_source",
+        lambda source, split, cache, **kw: iter(offline[split]),
     )
     actual = acquire(root, resume=True)
     assert sources.verify_snapshot(actual) == sources.verify_snapshot(expected)
@@ -690,7 +696,7 @@ def test_batched_snapshot_recovery_matches_uninterrupted(
 
 
 def test_record_larger_than_batch_is_admitted_alone(tmp_path, offline, monkeypatch):
-    monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_BYTES", 1)
+    monkeypatch.setattr(snapshot_writer, "_SNAPSHOT_BATCH_BYTES", 1)
     offline["train"] = [{"text": "x" * 9000}]
     result = sources.verify_snapshot(acquire(tmp_path))
     assert result["splits"]["train"]["text_bytes"] == 9000
@@ -702,7 +708,7 @@ def test_capacity_loss_retains_recoverable_journal(
 ):
     import sqlite3
 
-    admit = sources._admit
+    admit = snapshot_writer._admit
 
     def lose_capacity(work, cache, source, *, growth=0):
         # A second connection can only observe committed events.
@@ -717,11 +723,11 @@ def test_capacity_loss_retains_recoverable_journal(
                 raise ValueError("resource bound: insufficient free bytes")
         return admit(work, cache, source, growth=growth)
 
-    monkeypatch.setattr(sources, "_admit", lose_capacity)
+    monkeypatch.setattr(snapshot_writer, "_admit", lose_capacity)
     with pytest.raises(ValueError, match="insufficient free bytes"):
         acquire(tmp_path)
     assert not (tmp_path / "snapshot").exists()
-    monkeypatch.setattr(sources, "_admit", admit)
+    monkeypatch.setattr(snapshot_writer, "_admit", admit)
     assert sources.verify_snapshot(acquire(tmp_path, resume=True))["source_exhausted"]
 
 
