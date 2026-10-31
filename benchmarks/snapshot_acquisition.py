@@ -18,7 +18,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 from test_dataset_sources import acquire, declaration, inventory
 
-from sparselab.data import sources
+from sparselab.data import snapshot_writer, sources
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
         max_work_bytes=128 * 1024**2,
     )
     metrics = {"commits": 0, "capacity_checks": 0}
-    connect, admit = sqlite3.connect, sources._admit
+    connect, admit = sqlite3.connect, snapshot_writer._admit
 
     def trace(sql):
         if sql == "COMMIT":
@@ -64,8 +64,8 @@ def main():
     with (
         tempfile.TemporaryDirectory() as directory,
         patch.object(sources, "_hub_identity", inventory),
-        patch.object(sources, "_stream", stream),
-        patch.object(sources, "_admit", observed_admit),
+        patch.object(sources, "stream_source", stream),
+        patch.object(snapshot_writer, "_admit", observed_admit),
         patch.object(sqlite3, "connect", traced_connect),
     ):
         started = perf_counter()

@@ -232,3 +232,44 @@ acknowledgement is explicit because old direct prefixes could truncate records,
 while new snapshot selection/deduplication and whole-document packing differ.
 Do not pool old/new results as if the inputs were unchanged. Snapshot imports
 retain the original evidence and produce a separately identified generic input.
+
+## Prepared content identity and replicas
+
+Ordinary `data prepare` caches bind the logical dataset declaration and verified
+input digests, complete tokenizer serialization, packing version and sidecar
+settings, plus a conservative preparation implementation fingerprint. Model
+width/depth and optimizer settings are not preparation inputs. Models of different
+sizes can share these arrays when their tokenizer, data and packing requirements
+match; a changed byte-memory layout still requires a different cache.
+
+The preparation fingerprint includes all top-level `data/*.py` modules and
+`config/models.py`, except `data/snapshot_writer.py`. That module only acquires and
+publishes snapshots; no prepared-data reader calls it. Selection rules, snapshot
+verification and iteration remain in fingerprinted `sources.py`. A writer change
+that changes published content changes the verified snapshot manifest and hence
+the prepared identity. Unknown new data modules remain included by default.
+Other acquisition code still co-located with readers is conservatively included;
+this is not a promise that every implementation-only change avoids invalidation.
+
+| Binding | Purpose |
+| --- | --- |
+| `cache_identity.source_identity_sha256` | Preparation implementation compatibility |
+| Top-level manifest `source_identity_sha256` | Producer package provenance, retained unchanged on reuse |
+| Dataset/snapshot and tokenizer digests, packing settings | Logical input and output requirements |
+| Batch sizes, worker limits, telemetry | Execution controls, outside cache identity |
+| Cache/input/tokenizer paths | Physical locations, excluded from ordinary logical identity |
+
+Copy an intact completed cache directory (including its manifest and all arrays)
+to another cache root to replicate storage. Point the current declaration at the
+replica and its verified input/tokenizer locations. Native loading still verifies
+identity, inventory, metadata and hashes; a directory name or filesystem copy is
+not proof. Interrupted staging binds physical paths separately and is not a
+portable completed cache. Sealed `stage --prepared-inputs` bundles keep their
+existing full-config binding; an ordinary array cache is not such a bundle.
+Allocation-backed artifacts retain their package-bound attestation requirements.
+
+This writer/reader separation intentionally creates a new preparation fingerprint
+once. Caches produced before the separation are not renamed, rewritten or
+implicitly accepted under the new identity. Prepare a new current cache once,
+retain historical evidence unchanged, then reuse/replicate that current cache.
+No historical compatibility adapter or automatic hash substitution is provided.

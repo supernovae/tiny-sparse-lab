@@ -15,7 +15,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -141,7 +140,7 @@ class DatasetSource(_Model):
         return self
 
 
-def _seal(value: dict, key: str) -> dict:
+def seal_snapshot_payload(value: dict, key: str) -> dict:
     return {**value, key: canonical_digest(value)}
 
 
@@ -169,7 +168,7 @@ def load_source(path: str | Path) -> DatasetSource:
     return source.model_copy(update={"forge_files": bindings})
 
 
-def _forge_bindings(source: DatasetSource) -> dict:
+def forge_bindings(source: DatasetSource) -> dict:
     result = {}
     for split, binding in source.forge_files.items():
         manifest = forge.verify_snapshot(binding.snapshot_path)
@@ -398,11 +397,11 @@ def lock_source(
     if output.exists() or output.is_symlink():
         raise FileExistsError(output)
     provenance = (
-        _forge_bindings(source)
+        forge_bindings(source)
         if source.kind == "forge_files"
         else _hub_identity(source, cache_dir=Path(cache_dir))
     )
-    value = _seal(
+    value = seal_snapshot_payload(
         {
             "format": "sparselab-dataset-lock-v1",
             "source": _source_payload(source),
@@ -442,7 +441,7 @@ def verify_lock(path: str | Path) -> dict:
     source = _verify_lock_payload(lock)
     if source.kind == "forge_files":
         source = _locked_source(lock, _lock_locations(Path(path), lock))
-        if _forge_bindings(source) != lock["provenance"]:
+        if forge_bindings(source) != lock["provenance"]:
             raise ValueError("lock provenance mismatch")
     return lock
 
@@ -544,7 +543,7 @@ def _stream_parquet(
                 batches.close()
 
 
-def _stream(
+def stream_source(
     source: DatasetSource, split: str, cache_dir: Path, *, inventory: dict | None = None
 ) -> Iterator[dict]:
     from sparselab.data.acquisition_scope import current_transport
@@ -600,30 +599,7 @@ def _stream(
         raise_for_hub_auth(error, credential_supplied=bool(auth))
 
 
-# Operational bounds, independent of dataset identity and selection.
-_SNAPSHOT_BATCH_RECORDS = 256
-_SNAPSHOT_BATCH_BYTES = 8 * 1024 * 1024
-_SNAPSHOT_BATCH_SECONDS = 0.25
-
-
-def _admit(work: Path, cache: Path, source: DatasetSource, *, growth: int = 0) -> int:
-    headroom = source.resources.max_work_bytes
-    for path in (work, cache):
-        usage = shutil.disk_usage(path)
-        headroom = min(headroom, usage.free - source.resources.min_free_bytes)
-        if usage.free < source.resources.min_free_bytes + growth:
-            raise ValueError("resource bound: insufficient free bytes")
-        if hasattr(os, "statvfs"):
-            stat = os.statvfs(path)
-            if stat.f_files and stat.f_favail < 16:
-                raise ValueError("resource bound: insufficient free inodes")
-    size = sum(p.stat().st_size for p in work.rglob("*") if p.is_file())
-    if size + growth > source.resources.max_work_bytes:
-        raise ValueError("resource bound: max_work_bytes")
-    return min(headroom, source.resources.max_work_bytes - size)
-
-
-def _decision(
+def snapshot_decision(
     db: sqlite3.Connection, source: DatasetSource, split: str, ordinal: int, row: dict
 ) -> dict:
     raw = canonical_json(row)
@@ -667,7 +643,7 @@ def _decision(
     }
 
 
-def _counts() -> dict:
+def snapshot_counts() -> dict:
     return {
         "source_records_consumed": 0,
         "count": 0,
@@ -679,7 +655,7 @@ def _counts() -> dict:
     }
 
 
-def _count(counts: dict, event: dict) -> None:
+def count_snapshot_event(counts: dict, event: dict) -> None:
     counts["source_records_consumed"] += 1
     if event["reason"] == "selected":
         counts["count"] += 1
@@ -701,6 +677,8 @@ def snapshot_source(
     pinned declaration; increasing limits requires a new declaration and lock.
     """
     import fcntl
+
+    from sparselab.data.snapshot_writer import write_snapshot
 
     lock = verify_lock(lock_path)
     if lock["format"] != "sparselab-dataset-lock-v1":
@@ -750,249 +728,7 @@ def snapshot_source(
         raise ValueError("unsafe journal guard")
     with guard.open("a+b") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return _snapshot_locked(lock, source, output, cache, work, resume)
-
-
-def _snapshot_locked(
-    lock: dict,
-    source: DatasetSource,
-    output: Path,
-    cache: Path,
-    work: Path,
-    resume: bool,
-) -> Path:
-    if source.kind == "forge_files" and _forge_bindings(source) != lock["provenance"]:
-        raise ValueError("Forge snapshot changed since lock")
-    publication = work / "publication"
-    if publication.exists():
-        # An interrupted export must be discarded before resource admission;
-        # otherwise its partial duplicate bytes could prevent any retry.
-        if publication.is_symlink() or not publication.is_dir():
-            raise ValueError("unsafe publication directory")
-        for child in publication.iterdir():
-            forge._regular(child)
-            if child.name not in {
-                "manifest.json",
-                "events.jsonl",
-                "excluded.jsonl",
-                *(s + ".jsonl" for s in source.splits),
-            }:
-                raise ValueError("unexpected publication file")
-        for child in publication.iterdir():
-            child.unlink()
-    _admit(work, cache, source)
-    journal = work / "journal.sqlite"
-    if resume:
-        forge._regular(journal)
-    elif journal.exists():
-        raise FileExistsError(journal)
-    db = sqlite3.connect(journal)
-    try:
-        db.execute("PRAGMA synchronous=FULL")
-        db.execute("PRAGMA temp_store=FILE")
-        if resume:
-            if db.execute("PRAGMA integrity_check").fetchone() != ("ok",):
-                raise ValueError("journal corruption")
-            if db.execute("SELECT identity FROM binding").fetchall() != [
-                (lock["lock_sha256"],)
-            ]:
-                raise ValueError("resume lock mismatch")
-        else:
-            db.execute("CREATE TABLE binding (identity TEXT NOT NULL)")
-            db.execute("INSERT INTO binding VALUES (?)", (lock["lock_sha256"],))
-            db.execute(
-                "CREATE TABLE events (id INTEGER PRIMARY KEY, payload BLOB NOT NULL)"
-            )
-            db.commit()
-        # Keep the index in the accounted work filesystem, not SQLite's system
-        # temporary directory. It is reconstructed from the authenticated prefix.
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS seen (digest TEXT, text TEXT, split TEXT, PRIMARY KEY(digest, split))"
-        )
-        db.execute("DELETE FROM seen")
-        db.commit()
-        saved = db.execute("SELECT count(*) FROM events").fetchone()[0]
-        index = total_bytes = 0
-        splits = {}
-        pending = pending_bytes = allowance = 0
-        started = monotonic()
-
-        def flush():
-            nonlocal pending, pending_bytes, allowance, started
-            # Observe the live rollback journal before committing, as well as
-            # the durable database afterwards. Never publish pending counters.
-            _admit(work, cache, source)
-            db.commit()
-            _admit(work, cache, source)
-            pending = pending_bytes = allowance = 0
-            started = monotonic()
-
-        for split in source.dedup.priority:
-            counts = _counts()
-            iterator = iter(_stream(source, split, cache, inventory=lock["provenance"]))
-            stop = "source_exhausted"
-            try:
-                while True:
-                    if (
-                        source.selection.mode == "bounded"
-                        and counts["count"] >= source.selection.documents[split]
-                    ):
-                        stop = "document_target"
-                        break
-                    try:
-                        row = next(iterator)
-                    except StopIteration:
-                        break
-                    if (
-                        counts["source_records_consumed"]
-                        >= source.resources.max_source_records
-                    ):
-                        raise ValueError(
-                            "resource bound: max_source_records; journal retained"
-                        )
-                    raw_size = len(canonical_json(row))
-                    if raw_size > source.resources.max_record_bytes:
-                        raise ValueError("resource bound: max_record_bytes")
-                    # Conservative existing per-row growth estimate includes
-                    # index and rollback pages. No Python list retains rows.
-                    growth = 4 * raw_size + 32768
-                    if pending and (
-                        pending >= _SNAPSHOT_BATCH_RECORDS
-                        or pending_bytes + growth > allowance
-                        or monotonic() - started >= _SNAPSHOT_BATCH_SECONDS
-                    ):
-                        flush()
-                    if not pending:
-                        headroom = _admit(work, cache, source, growth=growth)
-                        allowance = min(_SNAPSHOT_BATCH_BYTES, headroom)
-                        started = monotonic()
-                    event = _decision(
-                        db, source, split, counts["source_records_consumed"], row
-                    )
-                    event_bytes = (
-                        len(event["text"].encode())
-                        if event["reason"] == "selected"
-                        else 0
-                    )
-                    if total_bytes + event_bytes > source.resources.max_text_bytes:
-                        db.rollback()
-                        raise ValueError(
-                            "resource bound: max_text_bytes; journal retained"
-                        )
-                    payload = canonical_json(event)
-                    if index < saved:
-                        previous = db.execute(
-                            "SELECT payload FROM events WHERE id=?", (index,)
-                        ).fetchone()
-                        if previous != (payload,):
-                            raise ValueError("resume journal/source prefix mismatch")
-                    else:
-                        db.execute("INSERT INTO events VALUES (?, ?)", (index, payload))
-                    pending += 1
-                    pending_bytes += growth
-                    index += 1
-                    counts.setdefault("text_bytes_limit", 0)
-                    _count(counts, event)
-                    total_bytes += event_bytes if event["reason"] == "selected" else 0
-                    if (
-                        pending >= _SNAPSHOT_BATCH_RECORDS
-                        or pending_bytes >= allowance
-                        or monotonic() - started >= _SNAPSHOT_BATCH_SECONDS
-                    ):
-                        flush()
-                if pending:
-                    flush()
-            finally:
-                if hasattr(iterator, "close"):
-                    iterator.close()
-            splits[split] = {
-                **counts,
-                "stop_reason": stop,
-                "source_exhausted": stop == "source_exhausted",
-            }
-        if index < saved:
-            raise ValueError("resume source ended before committed journal")
-        publication.mkdir(exist_ok=True)
-
-        export_allowance = 0
-        export_checked = monotonic()
-
-        def write_record(handle, payload):
-            nonlocal export_allowance, export_checked
-            if (
-                len(payload) > export_allowance
-                or monotonic() - export_checked >= _SNAPSHOT_BATCH_SECONDS
-            ):
-                headroom = _admit(work, cache, source, growth=len(payload))
-                export_allowance = min(_SNAPSHOT_BATCH_BYTES, headroom)
-                export_checked = monotonic()
-            handle.write(payload)
-            export_allowance -= len(payload)
-
-        for split in source.splits:
-            with (publication / f"{split}.jsonl").open("xb", buffering=0) as handle:
-                for (payload,) in db.execute("SELECT payload FROM events ORDER BY id"):
-                    event = json.loads(payload)
-                    if event["split"] == split and event["reason"] == "selected":
-                        write_record(
-                            handle,
-                            canonical_json(
-                                {"ordinal": event["ordinal"], "text": event["text"]}
-                            )
-                            + b"\n",
-                        )
-                handle.flush()
-                os.fsync(handle.fileno())
-            splits[split].update(
-                path=f"{split}.jsonl",
-                sha256=sha256_file(publication / f"{split}.jsonl"),
-            )
-        with (publication / "events.jsonl").open("xb", buffering=0) as handle:
-            for (payload,) in db.execute("SELECT payload FROM events ORDER BY id"):
-                write_record(handle, payload + b"\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        with (publication / "excluded.jsonl").open("xb", buffering=0) as handle:
-            excluded_count = 0
-            for (payload,) in db.execute("SELECT payload FROM events ORDER BY id"):
-                event = json.loads(payload)
-                if event["reason"] != "selected":
-                    write_record(
-                        handle,
-                        canonical_json(
-                            {k: event[k] for k in ("split", "ordinal", "reason")}
-                        )
-                        + b"\n",
-                    )
-                    excluded_count += 1
-            handle.flush()
-            os.fsync(handle.fileno())
-        manifest = _seal(
-            {
-                "snapshot_source_sha256": canonical_digest(lock["source"]),
-                "excluded": {
-                    "path": "excluded.jsonl",
-                    "count": excluded_count,
-                    "sha256": sha256_file(publication / "excluded.jsonl"),
-                },
-                "format": "sparselab-dataset-snapshot-v1",
-                "lock": lock,
-                "splits": splits,
-                "events_sha256": sha256_file(publication / "events.jsonl"),
-                "source_exhausted": all(s["source_exhausted"] for s in splits.values()),
-            },
-            "manifest_sha256",
-        )
-        _admit(work, cache, source, growth=len(canonical_json(manifest)) + 1024)
-        forge._write_json(publication / "manifest.json", manifest)
-        _admit(work, cache, source)
-        verify_snapshot(publication / "manifest.json", verification_mode="cold")
-        sync_directory(publication)
-        _rename_noreplace(publication, output)
-        sync_directory(output.parent)
-        return output / "manifest.json"
-    finally:
-        db.close()
+        return write_snapshot(lock, source, output, cache, work, resume)
 
 
 def _manifest_path(config: Any) -> Path:
@@ -1229,7 +965,7 @@ def _verify_snapshot_cold(path: Path, manifest: dict, source: DatasetSource) -> 
         or sha256_file(path.parent / "excluded.jsonl") != excluded["sha256"]
     ):
         raise ValueError("snapshot exclusions digest mismatch")
-    counts = {split: _counts() for split in source.splits}
+    counts = {split: snapshot_counts() for split in source.splits}
     from sparselab.data.acquisition_scope import verification_transport
 
     transport = verification_transport(path.absolute())
@@ -1347,7 +1083,7 @@ def _verify_snapshot_cold(path: Path, manifest: dict, source: DatasetSource) -> 
                                 raise ValueError("excluded row mismatch")
                             excluded_count += 1
                         counts[split].setdefault("text_bytes_limit", 0)
-                        _count(counts[split], event)
+                        count_snapshot_event(counts[split], event)
                         if (
                             sum(item["text_bytes"] for item in counts.values())
                             > source.resources.max_text_bytes
