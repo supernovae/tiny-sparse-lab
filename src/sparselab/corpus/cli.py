@@ -256,6 +256,18 @@ def _handle(args: argparse.Namespace) -> None:
             )
         )
         return
+    if command == "attest-mixture-stages":
+        from sparselab.corpus.release_migration import attest_mixture_stages
+
+        path = attest_mixture_stages(Path(args.release))
+        print(json.dumps({"source_stage_observation": str(path)}, sort_keys=True))
+        return
+    if command == "adopt-mixture-stages":
+        from sparselab.corpus.release_migration import adopt_mixture_stages
+
+        path = adopt_mixture_stages(Path(args.release), Path(args.source_observation))
+        print(json.dumps({"target_stage_observation": str(path)}, sort_keys=True))
+        return
     if command == "attest-release-migration":
         from sparselab.corpus.release_migration import attest_source
 
@@ -664,6 +676,17 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     )
     command.add_argument("--output", required=True)
     command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "attest-mixture-stages", help="Record existing original mixture-stage evidence"
+    )
+    command.add_argument("release")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "adopt-mixture-stages", help="Verify relocated mixture-stage bytes once"
+    )
+    command.add_argument("release")
+    command.add_argument("--source-observation", required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "attest-release-migration",

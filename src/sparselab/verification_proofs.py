@@ -411,6 +411,9 @@ class ProofStore:
             "target-release-migration-v1",
             "source-release-migration-progress-v1",
             "target-release-migration-progress-v1",
+            "source-mixture-stage-migration-v1",
+            "target-mixture-stage-migration-v1",
+            "target-mixture-stage-migration-progress-v1",
         }:
             raise ValueError("invalid migration observation kind")
         key = self._key(create=False)
