@@ -533,7 +533,11 @@ def _schedule(
 
         def encode_missing(texts):
             nonlocal encoder
-            if len(texts) < 2 or not callable(getattr(tokenizer, "to_str", None)):
+            if (
+                len(texts) < 2
+                or getattr(tokenizer, "padding", None) is not None
+                or not callable(getattr(tokenizer, "to_str", None))
+            ):
                 return [
                     tokenizer.encode(text, add_special_tokens=False).ids
                     for text in texts

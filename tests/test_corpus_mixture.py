@@ -606,6 +606,7 @@ def test_real_batch_matches_single_document_output_and_warm_cache(
 
     from sparselab.corpus.retained_mixture import RetainedMixtureIndex
     from sparselab.corpus.split_runs import write_rows
+    from sparselab.data import encoding
     from sparselab.data.encoding import PreparationEncoder
 
     root = tmp_path / "work"
@@ -631,7 +632,7 @@ def test_real_batch_matches_single_document_output_and_warm_cache(
         ("one", "abcdefgh", "a" * 64),
         ("two", "abcd", "b" * 64),
         ("duplicate", "abcdefgh", "a" * 64),
-        ("empty", "", "c" * 64),
+        ("empty1", "", "c" * 64),
         ("large", "longer than eight", "d" * 64),
         ("three", "efgh", "e" * 64),
     ]
@@ -698,7 +699,7 @@ def test_real_batch_matches_single_document_output_and_warm_cache(
     original_encode = PreparationEncoder.encode
 
     def observe_batch(self, texts):
-        calls.append(len(texts))
+        calls.append((len(texts), sum(len(text.encode("utf-8")) for text in texts)))
         return original_encode(self, texts)
 
     monkeypatch.setattr(PreparationEncoder, "encode", observe_batch)
@@ -726,21 +727,48 @@ def test_real_batch_matches_single_document_output_and_warm_cache(
         return result, (staging / "train.tokens.jsonl").read_bytes()
 
     result, output = run("batched")
-    assert any(size > 1 for size in calls)
-    assert {row["reason"] for row in result["excluded"]} == {
-        "duplicate_train_content",
+    assert any(size > 1 for size, _ in calls)
+    assert [row["reason"] for row in result["excluded"]] == [
         "zero_encoded_targets",
-    }
+        "duplicate_train_content",
+    ]
     assert result["actual_target_tokens"] == {"general": 10}
     calls.clear()
     warm_result, warm_output = run("warm")
     assert (warm_result, warm_output) == (result, output)
     assert calls == []
 
+    # Small limits exercise the real batch boundaries with tiny files.
+    monkeypatch.setattr(encoding, "TOKENIZER_BATCH_DOCUMENTS", 2)
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 64)
+    calls.clear()
+    bounded_result, bounded_output = run("bounded", reuse_tokens=False)
+    assert (bounded_result, bounded_output) == (result, output)
+    assert calls and all(
+        size <= 2 and source_bytes <= 64 for size, source_bytes in calls
+    )
+
     # A tiny limit exercises the same fallback used above the real 8 MiB bound.
     monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 1)
+    calls.clear()
     serial_result, serial_output = run("serial", reuse_tokens=False)
     assert (serial_result, serial_output) == (result, output)
+    assert calls == []
+
+    # Batched padding changes IDs, so padded tokenizers retain serial semantics.
+    tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
+    assert (
+        tokenizer.encode_batch(["abcdefgh", "abcd"], add_special_tokens=False)[1].ids
+        != tokenizer.encode("abcd", add_special_tokens=False).ids
+    )
+    monkeypatch.setattr(encoding, "TOKENIZER_BATCH_DOCUMENTS", 256)
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 8 * 1024**2)
+    calls.clear()
+    padded_result, padded_output = run("padded", reuse_tokens=False)
+    assert calls == []
+    monkeypatch.setattr(mixture, "MIXTURE_BATCH_SOURCE_BYTES", 1)
+    padded_serial, padded_serial_output = run("padded-serial", reuse_tokens=False)
+    assert (padded_result, padded_output) == (padded_serial, padded_serial_output)
 
 
 def test_real_batch_cache_survives_interrupted_caller(tmp_path: Path) -> None:
