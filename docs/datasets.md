@@ -48,6 +48,20 @@ not permission to delete the work path or clear its guard.
 Its adjacent work journal is authenticated before reuse; immutable sources can
 be replayed to verify the completed prefix when seeking is unavailable. Atomic
 publication prevents a partial snapshot from masquerading as complete input.
+Snapshot events and the deduplication index commit together with SQLite FULL
+synchronization, in groups of at most 256 records or 8 MiB of estimated growth.
+A 250 ms cooperative check also ends a group between records; it cannot interrupt
+an upstream read or a filesystem operation. A permitted record larger than the
+group byte allowance is admitted separately and committed alone. Only committed
+events are recovery progress: interruption discards the pending group, which is
+re-read on resume. Split boundaries commit before export.
+Capacity scans admit conservative growth allowances and check live journal usage
+before and after commits. Export consumes byte allowances and retains file fsync,
+cold verification and atomic publication. These are observed safety stops, not
+filesystem quotas or reservations against other writers; concurrent disk usage
+can change between observations. SQLite readers may still briefly contend with
+commit or cache-spill locks. The batching does not change source/scan transport
+accounting, selection, deduplication, snapshot identity, or publication contents.
 Disk-backed indexes bound deduplication memory; resource limits and storage
 headroom still need admission on the actual filesystems. Hub caches may consume
 more than the selected text, so small document bounds are not a download-size
