@@ -27,7 +27,10 @@ See the [workflow](../.github/workflows/ci.yml) for exact nodes and budgets.
 
 Draft PRs receive the same checks. Opening, synchronizing (new commits), or
 reopening a PR runs CI; changing only draft/ready state does not rerun unchanged
-code. Pushes to `main` still validate the merged tree.
+code. Pushes to `main` still validate the merged tree. A draft/ready transition
+also does not retry a failed or cancelled run: inspect the failure or cancellation
+first, then explicitly rerun the applicable check if warranted, or push a fix.
+Do not use blind retries to mask a failure.
 
 The `lab-loop` job uses work stealing with the same four-worker cap so an
 expensive file does not hold one worker while others finish. Its 25 slowest
@@ -199,10 +202,11 @@ checks remain separate explicit opt-ins.
 ## October 2026 feedback baseline
 
 [PR #284 CI](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41164722398)
-spent 547 seconds in lab-loop tests (9m20s job) and 199 seconds in fast tests
-(3m37s job). [PR #286 CI](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41227511624)
-completed in 8m04s: lab-loop tests took 466.50 seconds (286 passed, one skipped),
-fast tests 199 seconds, and safe 32 seconds overall. Queue time was about two
+spent 547 seconds in the lab-loop GitHub test step (543.29 seconds reported
+by pytest; 9m20s job) and 199 seconds in the fast GitHub test step (3m37s job). [PR #286 CI](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41227511624)
+completed in 8m04s: lab-loop pytest time was 466.50 seconds (286 passed, one
+skipped; 467-second GitHub test step), the fast GitHub test step took 199 seconds,
+and safe took 32 seconds overall. Queue time was about two
 seconds and setup about ten seconds; cached installation was not the bottleneck.
 The lab-loop log reached 75% at 18:04:48Z but completed at 18:11:30Z. That tail
 motivates distributing individual tests instead of indivisible files; it alone
