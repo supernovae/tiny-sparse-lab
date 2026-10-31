@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import sqlite3
+import threading
 import uuid
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import closing, contextmanager
@@ -92,6 +93,7 @@ class ExperimentStore:
     def __init__(self, root_dir: Path, *, read_only: bool = False) -> None:
         self.path = root_dir / "experiments.sqlite3"
         self.read_only = read_only
+        self._session = threading.local()
         if read_only:
             if self.path.is_symlink() or not self.path.is_file():
                 raise ValueError(f"missing or symlinked experiment store: {self.path}")
@@ -102,7 +104,30 @@ class ExperimentStore:
             self._initialize()
 
     @contextmanager
+    def session(self) -> Iterator[None]:
+        """Reuse a connection on this thread; each operation still commits separately.
+
+        Nested sessions share the outer lifetime. Other threads (for example a
+        progress heartbeat) retain independent connections and transactions.
+        No writes are buffered, and leaving the session closes its connection.
+        """
+        if getattr(self._session, "connection", None) is not None:
+            yield
+            return
+        with self._connect() as con:
+            self._session.connection = con
+            try:
+                yield
+            finally:
+                del self._session.connection
+
+    @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
+        existing = getattr(self._session, "connection", None)
+        if existing is not None:
+            with existing:
+                yield existing
+            return
         con = (
             sqlite3.connect(
                 self.path.absolute().as_uri() + "?mode=ro", uri=True, timeout=5
