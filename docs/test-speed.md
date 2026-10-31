@@ -25,7 +25,19 @@ construction, training, checkpointing, resume, `try` + probe, explorer,
 references and generation), and `fast` (the remaining non-slow CPU suite).
 See the [workflow](../.github/workflows/ci.yml) for exact nodes and budgets.
 
-Manual `workflow_dispatch` with `safe` selects both jobs too. Additional
+Draft PRs receive the same checks. Opening, synchronizing (new commits), or
+reopening a PR runs CI; changing only draft/ready state does not rerun unchanged
+code. Pushes to `main` still validate the merged tree. A draft/ready transition
+also does not retry a failed or cancelled run: inspect the failure or cancellation
+first, then explicitly rerun the applicable check if warranted, or push a fix.
+Do not use blind retries to mask a failure.
+
+The `lab-loop` job uses work stealing with the same four-worker cap so an
+expensive file does not hold one worker while others finish. Its 25 slowest
+test phases are printed in the job log, as in `fast`. Module fixtures can run
+once per worker; their temporary directories remain worker-local.
+
+Manual `workflow_dispatch` with `safe` selects `safe` and `lab-loop`. Additional
 `integration-linux`, `platform-macos` and `release-candidate` choices need a
 separately reviewed allocation. Do not dispatch them for prose changes. For
 documentation, check links, anchors, parser arguments and configuration schemas
@@ -54,9 +66,9 @@ a push and what every PR runs in CI. The full suite runs nightly and is the
 release gate.
 
 ```sh
-# Fast: ~2,000 tests; ~35 s on a 48-core box, ~1-2 minutes with 4 workers
+# Fast: duration depends on the selected tests, revision, and CPU
 uv run --locked --extra cpu pytest -q -m 'not slow and not mps and not mlx and not cuda and not rocm and not xpu and not network'
-# Full: includes slow integration tests; ~4 minutes (bounded by the longest test)
+# Full: includes slow integration tests; leave routine full runs to nightly
 uv run --locked --extra cpu pytest -q -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
 # Only the slow tests
 uv run --locked --extra cpu pytest -q -m slow
@@ -186,3 +198,34 @@ measured 331 seconds for Linux's serial CPU step and 407 seconds for macOS's
 serial CPU step. Those measurements are not a bound for today's larger suite.
 Locked uv downloads are cached through `setup-uv`. Accelerator and network
 checks remain separate explicit opt-ins.
+
+## October 2026 feedback baseline
+
+[PR #284 CI](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41164722398)
+spent 547 seconds in the lab-loop GitHub test step (543.29 seconds reported
+by pytest; 9m20s job) and 199 seconds in the fast GitHub test step (3m37s job). [PR #286 CI](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41227511624)
+completed in 8m04s: lab-loop pytest time was 466.50 seconds (286 passed, one
+skipped; 467-second GitHub test step), the fast GitHub test step took 199 seconds,
+and safe took 32 seconds overall. Queue time was about two
+seconds and setup about ten seconds; cached installation was not the bottleneck.
+The lab-loop log reached 75% at 18:04:48Z but completed at 18:11:30Z. That tail
+motivates distributing individual tests instead of indivisible files; it alone
+does not establish a speedup. Compare successful runs with identical selection
+and inspect slow-test durations before changing fixture or correctness coverage.
+
+[PR #286 ready-for-review run](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41231147074)
+repeated CI on the identical head/base after draft CI had passed. Omitting the
+two draft lifecycle events avoids that redundant run without removing code-change
+validation. These measured checks took minutes, not hours; review/orchestration
+waiting must be tracked separately. The parallel CPU image check took 3m25s
+([run](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41227511540));
+its build and smoke coverage are unchanged.
+
+The first [work-stealing run](https://github.com/supernovae/tiny-sparse-lab/actions/runs/41231881859)
+on `1b6dc16` (based on PR #284's merged tree, before PR #286 integration)
+passed the same 286 lab-loop tests with one skip in 290.65 seconds, versus
+543.29 seconds reported by pytest in PR #284: about 46% less in this single
+comparison. The lab-loop job took 5m04s versus 9m20s; fast stayed at 3m36s
+(1,674 passed), and safe took 31 seconds. The longest reported lab-loop call
+was 54.42 seconds. This supports reducing the scheduling tail without dropping
+coverage, but is not a repeated benchmark or a guaranteed latency bound.
