@@ -1340,6 +1340,28 @@ an existing target receipt or regenerate a source observation for changed
 adoption code. Keep the original host and evidence for that recovery.
 
 
+### Reuse retained mixture stages after relocation
+
+The release migration above does not cover the separate stage files needed for
+retained-mixture indexing. With the original host and its evidence still intact,
+run `sparselab corpus attest-mixture-stages RELEASE` there. Copy the resulting
+`RELEASE_ID.stages.source.json` to the corresponding target work root, then run
+`sparselab corpus adopt-mixture-stages RELEASE --source-observation FILE` on the
+target. Both commands use the existing private verification key. The target also
+requires the previously completed release migration and its source observation.
+
+The source observation identifies whether each global stage used a historical
+proof or the existing owned native-completion fallback. Native completion is
+local executor evidence, not a historical HMAC proof. Render stages require their
+existing authenticated evidence. Preserve the original receipts, source files,
+producer checkout and key; neither command creates a historical proof. The source
+reuses recorded digests and unchanged source fingerprints instead of rereading
+stage bodies. The target hashes each distinct required stage file and records
+separate target fingerprints; signed per-file progress supports retry. Changed or
+missing bytes or evidence are refused. This is an owner-private local trust
+boundary, not an independent third-party attestation.
+
+
 ### Reuse a tokenizer after relocation
 
 After the release has a verified migration receipt, make a new tokenizer

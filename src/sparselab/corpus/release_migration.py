@@ -309,6 +309,7 @@ def _authority() -> str:
         "corpus/preparation_inputs.py",
         "corpus/release.py",
         "corpus/release_migration.py",
+        "corpus/retained_mixture.py",
     )
     return canonical_digest({name: sha256_file(package / name) for name in names})
 
@@ -635,3 +636,242 @@ def migrated_dependencies(manifest: dict, work_root: Path) -> tuple[Path, ...] |
     verify_migrated_release(release, manifest, expected_id=manifest["release_id"])
     record = _read_signed(ProofStore(work_root), receipt, _TARGET)
     return (receipt, *(Path(name) for name in record["target_fingerprints"]))
+
+
+_STAGE_SOURCE = "source-mixture-stage-migration-v1"
+_STAGE_TARGET = "target-mixture-stage-migration-v1"
+_STAGE_PROGRESS = "target-mixture-stage-migration-progress-v1"
+
+
+def attest_mixture_stages(release: Path) -> Path:
+    """Record source stage evidence without minting historical signatures."""
+    from sparselab.corpus.retained_mixture import collect_mixture_stage_evidence
+
+    release = Path(release).resolve(strict=True)
+    root = corpus_work_root(release)
+    store = ProofStore(root)
+    manifest = json.loads((release / "manifest.json").read_bytes())
+    build = json.loads((release / "build.json").read_bytes())
+    release_id = manifest["release_id"]
+    directory = _migration_dir(root)
+    source_release_path = directory / (release_id + ".source.json")
+    source_release = _read_signed(store, source_release_path, _SOURCE)
+    if (
+        source_release.get("release_id") != release_id
+        or source_release.get("source_root") != str(root)
+        or source_release.get("release_relative_path")
+        != release.relative_to(root).as_posix()
+        or source_release.get("build_sha256") != sha256_file(release / "build.json")
+        or source_release.get("manifest_sha256")
+        != sha256_file(release / "manifest.json")
+        or source_release.get("publication_sha256")
+        != sha256_file(release / "release-publication.json")
+        or canonical_digest({k: v for k, v in manifest.items() if k != "release_id"})
+        != release_id
+        or canonical_digest(build["identity"]) != build["build_id"]
+        or build["build_id"] != release.name
+    ):
+        raise ValueError("source release observation differs from current release")
+    scope = local_scope(build)
+    if scope is None:
+        raise ValueError("stage migration requires a retained local build")
+    roots, _ = _inputs(scope, root)
+    unchanged(roots)
+    source_before = capture(
+        [
+            source_release_path,
+            release / "build.json",
+            release / "manifest.json",
+            release / "release-publication.json",
+        ]
+    )
+    cohort = collect_mixture_stage_evidence(
+        root, release.parent.parent, build["identity"]
+    )
+    stage_before = capture([root / name for name in cohort["files"]])
+    unchanged(roots)
+    unchanged(source_before)
+    unchanged(stage_before)
+    observation = {
+        "kind": _STAGE_SOURCE,
+        "release_id": release_id,
+        "source_root": str(root),
+        "release_relative_path": release.relative_to(root).as_posix(),
+        "release_observation_sha256": sha256_file(source_release_path),
+        "migration_authority": _authority(),
+        "cohort": cohort,
+        "limitation": "global stages may use owner-private native completions, not historical signatures",
+    }
+    output = directory / (release_id + ".stages.source.json")
+    if output.exists() or output.is_symlink():
+        if _read_signed(store, output, _STAGE_SOURCE) != observation:
+            raise ValueError("existing source stage observation differs")
+        return output
+    _save(output, _sign(store, observation), exclusive=True)
+    return output
+
+
+def adopt_mixture_stages(release: Path, source_observation: Path) -> Path:
+    """Verify mapped target stage bytes once and record target fingerprints."""
+    release = Path(release).resolve(strict=True)
+    root = corpus_work_root(release)
+    store = ProofStore(root)
+    manifest = json.loads((release / "manifest.json").read_bytes())
+    source_root, target_root = migrated_roots(release, manifest)
+    if target_root != root:
+        raise ValueError("target release root differs")
+    source_path = Path(source_observation)
+    source = _read_signed(store, source_path, _STAGE_SOURCE)
+    envelope = json.loads(source_path.read_bytes())
+    if envelope.get("observation") != source or not hmac.compare_digest(
+        envelope.get("hmac", ""), store.migration_signature(source)
+    ):
+        raise ValueError("source stage observation changed during adoption")
+    release_id = manifest["release_id"]
+    source_release_path = root / "release-migrations" / (release_id + ".source.json")
+    if (
+        source.get("release_id") != release_id
+        or source.get("source_root") != str(source_root)
+        or source.get("release_relative_path") != release.relative_to(root).as_posix()
+        or source.get("release_observation_sha256") != sha256_file(source_release_path)
+        or source.get("migration_authority") != _authority()
+    ):
+        raise ValueError("source stage observation differs from migrated release")
+    source_release = _read_signed(store, source_release_path, _SOURCE)
+    target_release = _read_signed(
+        store, root / "release-migrations" / (release_id + ".target.json"), _TARGET
+    )
+    if source_release != target_release["source_observation"]["observation"]:
+        raise ValueError("source stage and release observations differ")
+    cohort = source["cohort"]
+    files = cohort["files"]
+    if (
+        not isinstance(files, dict)
+        or not files
+        or cohort["source_ids"] != sorted(manifest["build_identity"]["lock"])
+    ):
+        raise ValueError("source stage file mapping differs")
+    directory = _migration_dir(root)
+    output = directory / (release_id + ".stages.target.json")
+    if output.exists() or output.is_symlink():
+        verify_mixture_stage_migration(release, manifest)
+        return output
+    progress = directory / (release_id + ".stages.target-progress.json")
+    state = _progress(store, progress, _STAGE_PROGRESS, release_id, root)
+    for name, item in sorted(files.items()):
+        _hash_file(root, name, item["bytes"], item["sha256"], state, store, progress)
+    paths = [root / name for name in files]
+    fingerprints = capture(paths)
+    for name in files:
+        path = _under(root, str(root / name))
+        if (
+            not store.trusted(path)
+            or capture([path])[str(path)] != state["files"][name]["fingerprint"]
+        ):
+            raise ValueError(f"stage file changed after hashing: {path}")
+    observation = {
+        "kind": _STAGE_TARGET,
+        "release_id": release_id,
+        "target_root": str(root),
+        "release_relative_path": release.relative_to(root).as_posix(),
+        "source_observation": envelope,
+        "target_fingerprints": fingerprints,
+        "migration_authority": _authority(),
+    }
+    _save(output, _sign(store, observation), exclusive=True)
+    return output
+
+
+def verify_mixture_stage_migration(release: Path, manifest: dict) -> dict:
+    """Return a mapped cohort only after both migration observations verify."""
+    release = Path(release).resolve(strict=True)
+    root = corpus_work_root(release)
+    store = ProofStore(root)
+    source_root, _ = migrated_roots(release, manifest)
+    release_id = manifest["release_id"]
+    receipt = root / "release-migrations" / (release_id + ".stages.target.json")
+    target = _read_signed(store, receipt, _STAGE_TARGET)
+    envelope = target["source_observation"]
+    source = envelope["observation"]
+    source_release_path = root / "release-migrations" / (release_id + ".source.json")
+    source_release = _read_signed(store, source_release_path, _SOURCE)
+    target_release = _read_signed(
+        store, root / "release-migrations" / (release_id + ".target.json"), _TARGET
+    )
+    if (
+        source.get("release_observation_sha256") != sha256_file(source_release_path)
+        or source_release != target_release["source_observation"]["observation"]
+    ):
+        raise ValueError("source stage and release observations differ")
+    files = source["cohort"]["files"]
+    paths = {str(_under(root, str(root / name))) for name in files}
+    if (
+        source.get("kind") != _STAGE_SOURCE
+        or not hmac.compare_digest(envelope["hmac"], store.migration_signature(source))
+        or source.get("release_id") != release_id
+        or source.get("source_root") != str(source_root)
+        or source.get("release_relative_path") != release.relative_to(root).as_posix()
+        or target.get("release_id") != release_id
+        or target.get("target_root") != str(root)
+        or target.get("release_relative_path") != release.relative_to(root).as_posix()
+        or source.get("migration_authority") != target.get("migration_authority")
+        or set(target["target_fingerprints"]) != paths
+        or source["cohort"]["source_ids"] != sorted(manifest["build_identity"]["lock"])
+    ):
+        raise ValueError("target stage migration receipt differs")
+    unchanged(target["target_fingerprints"])
+
+    def mapped(name):
+        path = _under(source_root, name)
+        relative = path.relative_to(source_root).as_posix()
+        if relative not in files:
+            raise ValueError("stage path is not covered by migration evidence")
+        return str(root / relative)
+
+    source_cohort = source["cohort"]
+    evidence = source_cohort["evidence"]
+
+    def mapped_proof(value):
+        return {
+            k: mapped(v) if k in {"completion_path", "cache_path", "proof_path"} else v
+            for k, v in value.items()
+        }
+
+    return {
+        "release_id": release_id,
+        "release_path": str(release),
+        "manifest": manifest,
+        "documents": source_cohort["documents"],
+        "references": mapped(source_cohort["references"]),
+        "parents": mapped(source_cohort["parents"]),
+        "origins": mapped(source_cohort["origins"]),
+        "sources": [mapped(path) for path in source_cohort["sources"]],
+        "source_ids": source_cohort["source_ids"],
+        "evidence": {
+            "references": mapped_proof(evidence["references"]),
+            "deduplication": mapped_proof(evidence["deduplication"]),
+            "origins": mapped_proof(evidence["origins"]),
+            "sources": {
+                key: mapped_proof(value) for key, value in evidence["sources"].items()
+            },
+        },
+        "stage_migration_receipt": str(receipt),
+    }
+
+
+def migrated_bound_inputs(release: Path, manifest: dict) -> dict:
+    """Map the original inputs already checked by the release migration."""
+    release = Path(release).resolve(strict=True)
+    root = corpus_work_root(release)
+    old_root, _ = migrated_roots(release, manifest)
+    store = ProofStore(root)
+    source_path = (
+        root / "release-migrations" / (manifest["release_id"] + ".source.json")
+    )
+    source = _read_signed(store, source_path, _SOURCE)
+    if source.get("source_root") != str(old_root):
+        raise ValueError("source input root differs")
+    return {
+        str(old_root / name): {"path": str(_under(root, str(root / name))), **item}
+        for name, item in source["inputs"].items()
+    }

@@ -36,7 +36,15 @@ from sparselab.corpus.split_runs import (
 from sparselab.training.manifest import sha256_file
 
 
-def _phase(root, stage_root, name, *, expected_producer=None):
+def _phase(
+    root,
+    stage_root,
+    name,
+    *,
+    expected_producer=None,
+    allow_native=False,
+    include_cache_hash=False,
+):
     """Authenticate the latest live phase and its original signed binding."""
     expected_producer = _producer() if expected_producer is None else expected_producer
     root, stage_root = Path(root), Path(stage_root)
@@ -84,7 +92,29 @@ def _phase(root, stage_root, name, *, expected_producer=None):
         raise ValueError("unsafe retained mixture dependencies")
     dependencies = capture(paths)
     binding = cache._binding(cache_path, raw, request, dependencies)
-    old_raw = _small(cache.proofs._receipt(binding), root, private=True)
+    proof_path = cache.proofs._receipt(binding)
+    if allow_native and not proof_path.exists() and not proof_path.is_symlink():
+        # Use the already-supported owned native completion only when the
+        # optional receipt is truly absent. A present but rejected proof never
+        # falls back to this path.
+        cache.authority = {**cache.authority, "streaming_producer": expected_producer}
+        completed = cache.load("split-phase", request, limit=4 * 1024**2)
+        events = cache.proofs.diagnostics()["events"]
+        if (
+            completed is None
+            or completed[0] != payload
+            or not events
+            or events[-1]["reason"] != "owned_native_completion"
+        ):
+            raise ValueError("retained mixture native completion unavailable")
+        return payload, {
+            "method": "owned_native_completion",
+            "completion_sha256": event["sha256"],
+            "completion_path": str(completion_path),
+            "cache_path": str(cache_path),
+            "cache_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+    old_raw = _small(proof_path, root, private=True)
     saved = json.loads(old_raw)["proof"]["binding"]
     if not cache.proofs.lookup_recorded_execution(saved):
         raise ValueError("retained mixture historical proof invalid")
@@ -111,12 +141,168 @@ def _phase(root, stage_root, name, *, expected_producer=None):
         if not path.is_relative_to(stage_root) or _stamp(path) != item["stamp"]:
             raise ValueError("retained mixture stage output changed")
     unchanged(dependencies)
-    return payload, {
+    evidence = {
         "completion_sha256": event["sha256"],
         "historical_proof_sha256": hashlib.sha256(old_raw).hexdigest(),
         "completion_path": str(completion_path),
         "cache_path": str(cache_path),
         "proof_path": str(cache.proofs._receipt(binding)),
+    }
+    if include_cache_hash:
+        evidence["cache_sha256"] = hashlib.sha256(raw).hexdigest()
+    return payload, evidence
+
+
+def collect_mixture_stage_evidence(root, workspace, identity):
+    """Inspect original stage evidence after the caller verifies its release.
+
+    Global phases may use the existing owner-private native fallback; source
+    renders still require their original historical proofs. No proof is minted.
+    """
+    root, workspace = Path(root), Path(workspace)
+    request = identity["completed_preparation"]["request"]
+    stage_root = workspace / "build-stages" / canonical_digest(request)
+    refs, refs_proof = _phase(
+        root,
+        stage_root,
+        "build-frozen-family-bindings",
+        expected_producer=request["producer"],
+        allow_native=True,
+        include_cache_hash=True,
+    )
+    dedupe, dedupe_proof = _phase(
+        root,
+        stage_root,
+        "build-deduplicate",
+        expected_producer=request["producer"],
+        allow_native=True,
+        include_cache_hash=True,
+    )
+    origins, origins_proof = _phase(
+        root,
+        stage_root,
+        "build-duplicate-keys",
+        expected_producer=request["producer"],
+        allow_native=True,
+        include_cache_hash=True,
+    )
+    files = {}
+
+    def bind_file(path, records):
+        path = Path(path)
+        if (
+            not path.is_absolute()
+            or ".." in path.parts
+            or not path.is_relative_to(root)
+        ):
+            raise ValueError("unsafe retained mixture stage file")
+        matches = [item for item in records if item.get("path") == str(path)]
+        if len(matches) != 1:
+            raise ValueError("retained mixture stage file not uniquely recorded")
+        item = matches[0]
+        if (
+            not isinstance(item.get("sha256"), str)
+            or len(item["sha256"]) != 64
+            or item.get("bytes") != path.stat().st_size
+        ):
+            raise ValueError("invalid retained mixture stage file identity")
+        relative = path.relative_to(root).as_posix()
+        value = {"sha256": item["sha256"], "bytes": item["bytes"]}
+        if relative in files and files[relative] != value:
+            raise ValueError("conflicting retained mixture stage file identities")
+        files[relative] = value
+
+    def bind_evidence(evidence):
+        for key in ("completion_path", "cache_path", "proof_path"):
+            if not evidence.get(key):
+                continue
+            path = Path(evidence[key])
+            if (
+                not path.is_absolute()
+                or not path.is_relative_to(root)
+                or path.is_symlink()
+            ):
+                raise ValueError("unsafe retained mixture evidence path")
+            digest = sha256_file(path)
+            if key == "cache_path" and digest != evidence["cache_sha256"]:
+                raise ValueError("retained mixture stage cache changed")
+            if key == "proof_path" and digest != evidence["historical_proof_sha256"]:
+                raise ValueError("retained mixture stage proof changed")
+            if key == "completion_path":
+                event = json.loads(_small(path, root))
+                if (
+                    event.get("sha256") != evidence["completion_sha256"]
+                    or canonical_digest(event["record"]) != event["sha256"]
+                ):
+                    raise ValueError("retained mixture stage completion changed")
+            files[path.relative_to(root).as_posix()] = {
+                "sha256": digest,
+                "bytes": path.stat().st_size,
+            }
+
+    for value, field in (
+        (refs, "references"),
+        (dedupe, "parents"),
+        (origins, "origins"),
+    ):
+        bind_file(value[field], value["files"])
+    for evidence in (refs_proof, dedupe_proof, origins_proof):
+        bind_evidence(evidence)
+    sources, source_proofs = [], {}
+    stage_ids = identity["completed_preparation"].get("source_stage_ids")
+    for source_id in sorted(identity["lock"]):
+        source_root = workspace / "source-build-stages" / source_id
+        events = (
+            list(source_root.glob("*/completion-*.json"))
+            if stage_ids is None
+            else list((source_root / stage_ids[source_id]).glob("completion-*.json"))
+        )
+        if len(events) != 1:
+            raise ValueError("retained source render is missing or ambiguous")
+        payload, proof = _phase(
+            root,
+            events[0].parent,
+            "native-shard-render",
+            expected_producer=request["producer"],
+            include_cache_hash=True,
+        )
+        prepared = Path(payload["prepared"])
+        receipt_path = prepared / "receipt.json"
+        receipt = json.loads(_small(receipt_path, root))
+        row = receipt["identity"]
+        provenance = row if stage_ids is None else receipt["provenance"]
+        if (
+            stage_ids is None
+            and row["admission_sha256"]
+            != identity["release"]["record_admission"]["sha256"]
+        ):
+            raise ValueError("retained source admission identity differs")
+        if (
+            row["source_id"] != source_id
+            or provenance["build_id"] != events[0].parent.name
+            or row["snapshot_sha256"] != identity["lock"][source_id]["snapshot_sha256"]
+        ):
+            raise ValueError("retained source render identity differs")
+        docs = prepared / "docs.jsonl"
+        bind_file(docs, payload["files"])
+        bind_file(receipt_path, payload["files"])
+        bind_evidence(proof)
+        sources.append(str(docs))
+        source_proofs[source_id] = proof
+    return {
+        "documents": refs["documents"],
+        "references": refs["references"],
+        "parents": dedupe["parents"],
+        "origins": origins["origins"],
+        "sources": sources,
+        "source_ids": sorted(identity["lock"]),
+        "evidence": {
+            "references": refs_proof,
+            "deduplication": dedupe_proof,
+            "origins": origins_proof,
+            "sources": source_proofs,
+        },
+        "files": files,
     }
 
 
@@ -126,6 +312,11 @@ def prepared_release(root, release):
     if not release.is_relative_to(root):
         raise ValueError("retained mixture release escapes work root")
     manifest = verify_retained_release(release)
+    migration = root / "release-migrations" / (manifest["release_id"] + ".target.json")
+    if migration.exists() or migration.is_symlink():
+        from sparselab.corpus.release_migration import verify_mixture_stage_migration
+
+        return verify_mixture_stage_migration(release, manifest)
     identity = manifest["build_identity"]
     request = identity["completed_preparation"]["request"]
     workspace = release.parent.parent
@@ -210,18 +401,27 @@ def verify_additive_anchor(base, delta):
         "inputs"
     ]
     matches = []
+    migrated = None
+    if delta.get("stage_migration_receipt"):
+        from sparselab.corpus.release_migration import migrated_bound_inputs
+
+        migrated = migrated_bound_inputs(Path(delta["release_path"]), delta["manifest"])
     for name in inputs:
-        path = Path(name)
-        if (
-            name.endswith(".receipt.json")
-            and path.is_file()
-            and path.stat().st_size <= 4 * 1024**2
-        ):
-            if capture([path]).get(name) != inputs[name]:
+        if not name.endswith(".receipt.json"):
+            continue
+        entry = migrated.get(name) if migrated is not None else None
+        if migrated is not None and entry is None:
+            raise ValueError("additive split receipt missing from migration evidence")
+        path = Path(entry["path"] if entry is not None else name)
+        if path.is_file() and path.stat().st_size <= 4 * 1024**2:
+            before = capture([path])
+            if entry is None and before.get(name) != inputs[name]:
                 raise ValueError("additive split receipt fingerprint differs")
-            receipt = json.loads(path.read_bytes())
-            if capture([path]).get(name) != inputs[name]:
-                raise ValueError("additive split receipt changed during read")
+            raw = path.read_bytes()
+            if entry is not None and hashlib.sha256(raw).hexdigest() != entry["sha256"]:
+                raise ValueError("additive split receipt digest differs")
+            receipt = json.loads(raw)
+            unchanged(before)
             if receipt.get("prior_family_inventory"):
                 matches.append((path, receipt["prior_family_inventory"]))
     if len(matches) != 1:
@@ -366,6 +566,8 @@ class RetainedMixtureIndex(MixtureIndex):
         self.handle_limit = min(total_sources, available)
         paths = []
         for cohort in cohorts:
+            if cohort.get("stage_migration_receipt"):
+                paths.append(cohort["stage_migration_receipt"])
             paths.extend(
                 [
                     cohort["references"],
@@ -393,9 +595,9 @@ class RetainedMixtureIndex(MixtureIndex):
                 proofs["origins"],
                 *proofs["sources"].values(),
             ]:
-                paths.extend(
-                    [proof["completion_path"], proof["cache_path"], proof["proof_path"]]
-                )
+                paths.extend([proof["completion_path"], proof["cache_path"]])
+                if proof.get("proof_path"):
+                    paths.append(proof["proof_path"])
         self.dependencies = capture(paths)
         request = {
             "producer": {
