@@ -600,9 +600,17 @@ def _stream(
         raise_for_hub_auth(error, credential_supplied=bool(auth))
 
 
-def _admit(work: Path, cache: Path, source: DatasetSource, *, growth: int = 0) -> None:
+# Operational bounds, independent of dataset identity and selection.
+_SNAPSHOT_BATCH_RECORDS = 256
+_SNAPSHOT_BATCH_BYTES = 8 * 1024 * 1024
+_SNAPSHOT_BATCH_SECONDS = 0.25
+
+
+def _admit(work: Path, cache: Path, source: DatasetSource, *, growth: int = 0) -> int:
+    headroom = source.resources.max_work_bytes
     for path in (work, cache):
         usage = shutil.disk_usage(path)
+        headroom = min(headroom, usage.free - source.resources.min_free_bytes)
         if usage.free < source.resources.min_free_bytes + growth:
             raise ValueError("resource bound: insufficient free bytes")
         if hasattr(os, "statvfs"):
@@ -612,6 +620,7 @@ def _admit(work: Path, cache: Path, source: DatasetSource, *, growth: int = 0) -
     size = sum(p.stat().st_size for p in work.rglob("*") if p.is_file())
     if size + growth > source.resources.max_work_bytes:
         raise ValueError("resource bound: max_work_bytes")
+    return min(headroom, source.resources.max_work_bytes - size)
 
 
 def _decision(
@@ -805,6 +814,19 @@ def _snapshot_locked(
         saved = db.execute("SELECT count(*) FROM events").fetchone()[0]
         index = total_bytes = 0
         splits = {}
+        pending = pending_bytes = allowance = 0
+        started = monotonic()
+
+        def flush():
+            nonlocal pending, pending_bytes, allowance, started
+            # Observe the live rollback journal before committing, as well as
+            # the durable database afterwards. Never publish pending counters.
+            _admit(work, cache, source)
+            db.commit()
+            _admit(work, cache, source)
+            pending = pending_bytes = allowance = 0
+            started = monotonic()
+
         for split in source.dedup.priority:
             counts = _counts()
             iterator = iter(_stream(source, split, cache, inventory=lock["provenance"]))
@@ -828,9 +850,22 @@ def _snapshot_locked(
                         raise ValueError(
                             "resource bound: max_source_records; journal retained"
                         )
-                    _admit(
-                        work, cache, source, growth=4 * len(canonical_json(row)) + 32768
-                    )
+                    raw_size = len(canonical_json(row))
+                    if raw_size > source.resources.max_record_bytes:
+                        raise ValueError("resource bound: max_record_bytes")
+                    # Conservative existing per-row growth estimate includes
+                    # index and rollback pages. No Python list retains rows.
+                    growth = 4 * raw_size + 32768
+                    if pending and (
+                        pending >= _SNAPSHOT_BATCH_RECORDS
+                        or pending_bytes + growth > allowance
+                        or monotonic() - started >= _SNAPSHOT_BATCH_SECONDS
+                    ):
+                        flush()
+                    if not pending:
+                        headroom = _admit(work, cache, source, growth=growth)
+                        allowance = min(_SNAPSHOT_BATCH_BYTES, headroom)
+                        started = monotonic()
                     event = _decision(
                         db, source, split, counts["source_records_consumed"], row
                     )
@@ -853,12 +888,20 @@ def _snapshot_locked(
                             raise ValueError("resume journal/source prefix mismatch")
                     else:
                         db.execute("INSERT INTO events VALUES (?, ?)", (index, payload))
-                    db.commit()
+                    pending += 1
+                    pending_bytes += growth
                     index += 1
                     counts.setdefault("text_bytes_limit", 0)
                     _count(counts, event)
                     total_bytes += event_bytes if event["reason"] == "selected" else 0
-                    _admit(work, cache, source)
+                    if (
+                        pending >= _SNAPSHOT_BATCH_RECORDS
+                        or pending_bytes >= allowance
+                        or monotonic() - started >= _SNAPSHOT_BATCH_SECONDS
+                    ):
+                        flush()
+                if pending:
+                    flush()
             finally:
                 if hasattr(iterator, "close"):
                     iterator.close()
@@ -871,9 +914,20 @@ def _snapshot_locked(
             raise ValueError("resume source ended before committed journal")
         publication.mkdir(exist_ok=True)
 
+        export_allowance = 0
+        export_checked = monotonic()
+
         def write_record(handle, payload):
-            _admit(work, cache, source, growth=len(payload))
+            nonlocal export_allowance, export_checked
+            if (
+                len(payload) > export_allowance
+                or monotonic() - export_checked >= _SNAPSHOT_BATCH_SECONDS
+            ):
+                headroom = _admit(work, cache, source, growth=len(payload))
+                export_allowance = min(_SNAPSHOT_BATCH_BYTES, headroom)
+                export_checked = monotonic()
             handle.write(payload)
+            export_allowance -= len(payload)
 
         for split in source.splits:
             with (publication / f"{split}.jsonl").open("xb", buffering=0) as handle:

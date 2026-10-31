@@ -245,6 +245,8 @@ def test_document_target_does_not_claim_exhaustion(tmp_path, offline):
 
 @pytest.mark.parametrize("drift", [False, True])
 def test_interruption_replays_committed_prefix(tmp_path, offline, monkeypatch, drift):
+    monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_RECORDS", 1)
+
     def interrupted(source, split, cache, **kw):
         yield offline[split][0]
         raise InterruptedError("fixture interruption")
@@ -624,3 +626,115 @@ def test_guard_only_snapshot_work_does_not_promise_resume_or_cleanup(
             )
     assert {p.name: (p.stat().st_ino, p.read_bytes()) for p in work.iterdir()} == before
     assert not (tmp_path / "snapshot").exists()
+
+
+@pytest.mark.parametrize("crash", [False, True])
+@pytest.mark.parametrize("bound", ["records", "bytes", "time"])
+def test_batched_snapshot_recovery_matches_uninterrupted(
+    tmp_path, offline, monkeypatch, crash, bound
+):
+    import itertools
+    import multiprocessing
+    import os
+    import sqlite3
+
+    offline["validation"] = [{"text": f"heldout {i}"} for i in range(8)]
+    offline["train"] = [
+        {"text": "heldout 0"},
+        {"text": "unique"},
+        {"text": "unique"},
+        {"text": None},
+        {"text": ""},
+    ]
+    expected = acquire(tmp_path / "expected")
+    if bound == "records":
+        monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_RECORDS", 2)
+    elif bound == "bytes":
+        monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_BYTES", 70000)
+    else:
+        ticks = itertools.count()
+        monkeypatch.setattr(sources, "monotonic", lambda: next(ticks) * 0.1)
+    root = tmp_path / "resumed"
+
+    def interrupted(source, split, cache, **kw):
+        yield from offline[split][:5]
+        if crash:
+            os._exit(17)
+        raise InterruptedError("fixture interruption")
+
+    monkeypatch.setattr(sources, "_stream", interrupted)
+    if crash:
+        process = multiprocessing.get_context("fork").Process(
+            target=acquire, args=(root,)
+        )
+        process.start()
+        process.join(20)
+        assert process.exitcode == 17
+    else:
+        with pytest.raises(InterruptedError):
+            acquire(root)
+    assert not (root / "snapshot").exists()
+    with sqlite3.connect(root / ".snapshot.work/journal.sqlite") as db:
+        assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        saved = db.execute("SELECT id FROM events ORDER BY id").fetchall()
+        assert 0 < len(saved) < 5
+        assert saved == [(i,) for i in range(len(saved))]
+    monkeypatch.setattr(
+        sources, "_stream", lambda source, split, cache, **kw: iter(offline[split])
+    )
+    actual = acquire(root, resume=True)
+    assert sources.verify_snapshot(actual) == sources.verify_snapshot(expected)
+    assert {p.name: p.read_bytes() for p in actual.parent.iterdir()} == {
+        p.name: p.read_bytes() for p in expected.parent.iterdir()
+    }
+
+
+def test_record_larger_than_batch_is_admitted_alone(tmp_path, offline, monkeypatch):
+    monkeypatch.setattr(sources, "_SNAPSHOT_BATCH_BYTES", 1)
+    offline["train"] = [{"text": "x" * 9000}]
+    result = sources.verify_snapshot(acquire(tmp_path))
+    assert result["splits"]["train"]["text_bytes"] == 9000
+
+
+@pytest.mark.parametrize("phase", ["commit", "export"])
+def test_capacity_loss_retains_recoverable_journal(
+    tmp_path, offline, monkeypatch, phase
+):
+    import sqlite3
+
+    admit = sources._admit
+
+    def lose_capacity(work, cache, source, *, growth=0):
+        # A second connection can only observe committed events.
+        journal = work / "journal.sqlite"
+        if journal.exists():
+            with sqlite3.connect(journal) as db:
+                saved = db.execute("SELECT count(*) FROM events").fetchone()[0]
+            if (phase == "commit" and growth == 0) or (
+                phase == "export" and (work / "publication").exists()
+            ):
+                assert saved == (0 if phase == "commit" else 3)
+                raise ValueError("resource bound: insufficient free bytes")
+        return admit(work, cache, source, growth=growth)
+
+    monkeypatch.setattr(sources, "_admit", lose_capacity)
+    with pytest.raises(ValueError, match="insufficient free bytes"):
+        acquire(tmp_path)
+    assert not (tmp_path / "snapshot").exists()
+    monkeypatch.setattr(sources, "_admit", admit)
+    assert sources.verify_snapshot(acquire(tmp_path, resume=True))["source_exhausted"]
+
+
+def test_batch_allowance_shrinks_to_available_work_budget(tmp_path, offline):
+    payload = declaration()
+    payload["resources"]["max_work_bytes"] = 65536
+    result = sources.verify_snapshot(acquire(tmp_path, payload))
+    assert result["splits"]["train"]["count"] == 2
+    assert (
+        sum(
+            p.stat().st_size
+            for p in (tmp_path / ".snapshot.work").rglob("*")
+            if p.is_file()
+        )
+        <= 65536
+    )
