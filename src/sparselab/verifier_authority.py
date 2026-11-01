@@ -258,7 +258,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.preparation_workers",
-    ): "73de00d91e92ed54a94c50e9c1abdc2433711bcdf031b51434989664ed9e52bc",
+    ): "4fa040e8a03c41d4938c306e2fe6bba3799f0e5e6b48ef08f8b681a31831cafb",
     (
         "experiments.artifacts",
         "data.sources",
@@ -266,7 +266,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "corpus.mixture",
-    ): "d029207e60e6489f842452bd4125d7248d12b8ba70219b5c16594b405fcdf3e7",
+    ): "a6ea2b0defaf40bcc165169e042b384febe776c907922d6a51d12c854aa40617",
     (
         "workers",
         "workers.transport",
@@ -274,11 +274,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.tokenizer",
-    ): "9c95ec7b587cd71cf53c154bb4b3c9a9da802535748520c471bc58b2f921a45f",
+    ): "56d70d021458c2bf5eeac0b0713054447e16bb39cc8064b6110270c52176ed6f",
     (
         "data.packing",
         "data.sources",
-    ): "a88f1ab52e550bd3f4c3d7e03dc3e82b32196b43656ff9754a485aaa9152516d",
+    ): "14c60ab6de34770c6ba88c1e43b4632c5efe03306d2774267f8e1fc9af6180a7",
     (
         "data",
         "data.tokenizer",
@@ -298,11 +298,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "corpus.export",
-    ): "d8f03340f9ccbf93335c943e8f6838de695f8a3ae99a50a19986cf1cbd854ec6",
+    ): "703ad792d314ea02ee0d8e1ed52483c802405ed67c916500001de0ec106722f0",
     (
         "data.packing",
         "data.allocation",
-    ): "10d72398cf7d3f4e4f296bbc5a0ba4304c0dc747506757d4b358a34fa5f9bcc0",
+    ): "ece8a66f2d83755978b92407b330caacf7b350e919baa3d86cc49d706dfd52a5",
     (
         "data.packing",
         "data.byte_hash",
@@ -318,31 +318,31 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.encoding",
-    ): "4cc509272357384b1a7b5fdd4b0dc76522c18cd2357141524b06c5b30b009260",
+    ): "1457b1ab8973332c9f9608bf66878f767bdff4f4f2d74af1f9f21408adf2710c",
     (
         "data.packing",
         "data.local_stories",
-    ): "27bef7e4030e2e55a258455ab188b9043787ce180be100dc8e79814714216e60",
+    ): "be972f1dfaff8b42e223115343f88bccf69ecb8c6c58423d330e444d6d469aeb",
     (
         "data.packing",
         "data.preparation_chunks",
-    ): "23dfbc56e3aa41198852cdbf5c8842432bf3628d24e2e57ea9707a6dfa6ce622",
+    ): "f9089bb58cd927c8b0f7928505c9ccdeeb90b593fcff80fdd64c7cf9d017e6d0",
     (
         "data.packing",
         "data.preparation_telemetry",
-    ): "10eecfa24798c97c2b59f07cb28cb19fe616b359b32979e3cfc380eb3d33fb7f",
+    ): "57e8c4f0515acb0cbf4bb34576394755f943d529b09a7bda15ee63a25f80a661",
     (
         "data.packing",
         "experiments.source_compatibility",
-    ): "edcb04aa99f9cfb95b3d06bf364727f160d5e808003ab029619fde4e38262c1e",
+    ): "7b6a0c42202da4d0e7a7d17b018688820a00ddb06626a0d7fe52a73168f4d57c",
     (
         "data.packing",
         "progress",
-    ): "e24a78cb54babf2ff54d5ec46354bb30042b8e5c230a26891676cccb42828291",
+    ): "d431bc7d6067b71a5bed94dbd0104bdd97ffbcd58e6614bf3bf985186852e78c",
     (
         "data.packing",
         "resource_envelope",
-    ): "ed6d8f8318fc23b09fb3a8a4f3fa3d3612d289a7ca10255363769c00cb12c216",
+    ): "ba06e85038854041212c89aaddab9e5ae5123da6dd69ccb8b9855f174cc12238",
     (
         "data.packing",
         "workdir",
@@ -354,7 +354,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "workspace_preflight",
-    ): "3120726d26e195ec96e29958264ad2b3e466573b1b2fc52fed70ce3f6a5ab147",
+    ): "4251e7df9076354737ac4ca2d13bc44baac0089383bb994fe52b2a88b5d76084",
     (
         "corpus.tokenizer_bakeoff",
         "corpus.cli",

@@ -30,7 +30,7 @@ class PreparationWorkers:
         )
         if not parallel_supported:
             self.count = 1
-            self.fallback = "tokenizer_has_no_utf8_output_bound"
+            self.fallback = "tokenizer_not_parallel_eligible"
         self.threads = [
             self.plan.workers // self.count + (i < self.plan.workers % self.count)
             for i in range(self.count)

@@ -765,8 +765,8 @@ uses pools of two and one. Receipts disclose requested/effective counts, actual
 per-child threads, capacity and fallback reasons. Native CPU tokenization uses
 the existing Rust-backed `tokenizers` package; no CUDA or NVIDIA dependency is added.
 
-Parallel dispatch requires an unnormalized ByteLevel BPE tokenizer without
-padding or prefix-space insertion. Other tokenizers retain the serial path,
+Parallel dispatch requires deterministic, unnormalized ByteLevel BPE without
+padding, prefix-space insertion, dropout, byte fallback or model word affixes. Other tokenizers retain the serial path,
 with the fallback recorded. UTF-8 bytes plus EOS reserve a conservative token
 bound before reading ahead. Near a token cap, outstanding work is drained before
 acquiring more records; a document whose conservative bound exceeds the remaining

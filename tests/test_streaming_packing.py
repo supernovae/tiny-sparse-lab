@@ -870,3 +870,52 @@ def test_worker_adoption_refuses_changed_raw_bytes(tmp_path: Path):
             destination.adopt(work, first_acquired_index=1)
         assert destination.state["acquired_documents"] == 0
         assert not list(owner.root.glob("*.receipt.json"))
+
+
+@pytest.mark.parametrize("model_change", [{"dropout": 0.1}, {"byte_fallback": True}])
+def test_unsafe_parallel_tokenizer_uses_reported_serial_fallback(
+    tmp_path: Path, monkeypatch, model_change
+):
+    from tokenizers import Tokenizer
+
+    from sparselab.resource_envelope import ResourceEnvelope
+
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    run = config(tmp_path)
+    spec = json.loads(load_tokenizer(run.tokenizer.path).to_str())
+    spec["model"].update(model_change)
+    tokenizer = Tokenizer.from_str(json.dumps(spec))
+    paths = {}
+    for split in ("train", "validation"):
+        path = tmp_path / f"{split}.jsonl"
+        path.write_text(json.dumps({"text": f"{split} fox café"}) + "\n")
+        paths[f"{split}_path"] = path
+    run = run.model_copy(
+        update={
+            "dataset": run.dataset.model_copy(
+                update={
+                    "source": "local_text",
+                    "license": "fixture",
+                    **paths,
+                    "train_max_documents": 1,
+                    "validation_max_documents": 1,
+                    "train_max_tokens": 1000,
+                    "validation_max_tokens": 1000,
+                }
+            )
+        }
+    )
+    prepared = prepare_data(
+        run,
+        tokenizer,
+        resource_envelope=ResourceEnvelope(
+            resource_envelope_version=1, max_workers=2, preparation_shard_workers=2
+        ),
+    )
+    receipt = json.loads(
+        prepared.root.with_name(prepared.root.name + ".preparation.json").read_text()
+    )
+    assert receipt["worker_pool"]["requested_workers"] == 2
+    assert receipt["worker_pool"]["effective_workers"] == 1
+    assert receipt["worker_pool"]["fallback"] == "tokenizer_not_parallel_eligible"
+    assert prepared.manifest["train"]["retained_documents"] == 1

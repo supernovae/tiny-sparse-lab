@@ -1690,8 +1690,13 @@ def _prepare_data(
             assert local_stories is not None
         assert chunks_owner is not None
         tokenizer_spec = json.loads(tokenizer.to_str())
+        bpe = tokenizer_spec.get("model", {})
         parallel_supported = (
-            tokenizer_spec.get("model", {}).get("type") == "BPE"
+            bpe.get("type") == "BPE"
+            and bpe.get("dropout") in (None, 0.0)
+            and not bpe.get("byte_fallback", False)
+            and bpe.get("continuing_subword_prefix") in (None, "")
+            and bpe.get("end_of_word_suffix") in (None, "")
             and tokenizer_spec.get("pre_tokenizer", {}).get("type") == "ByteLevel"
             and tokenizer_spec.get("normalizer") is None
             and tokenizer_spec.get("pre_tokenizer", {}).get("add_prefix_space") is False
