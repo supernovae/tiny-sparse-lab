@@ -501,6 +501,7 @@ class PreparationChunks:
 class SplitChunks:
     def __init__(self, owner: PreparationChunks, split: str) -> None:
         self.owner = owner
+        self.telemetry = owner.telemetry
         self.split = split
         self.root = owner.root
         self._sealed: list[
@@ -640,10 +641,8 @@ class SplitChunks:
                     _after_unsealed_chunk_write(
                         self.split, len(self._sealed), Path(self._streams[name].name)
                     )
-            if self.owner.telemetry is not None:
-                self.owner.telemetry.add(
-                    "spool_write_seconds", time.monotonic() - started
-                )
+            if self.telemetry is not None:
+                self.telemetry.add("spool_write_seconds", time.monotonic() - started)
 
     def seal(self) -> None:
         if not self._pending["acquired_documents"]:
@@ -684,10 +683,8 @@ class SplitChunks:
         self._streams = {}
         self._hashes = {}
         self._sizes = {name: 0 for name in self.owner.arrays}
-        if self.owner.telemetry is not None:
-            self.owner.telemetry.add(
-                "finalize_fsync_seconds", time.monotonic() - started
-            )
+        if self.telemetry is not None:
+            self.telemetry.add("finalize_fsync_seconds", time.monotonic() - started)
         if _after_sealed_chunk is not None:
             _after_sealed_chunk(self.split, index, receipt)
 
@@ -735,8 +732,8 @@ class SplitChunks:
                         raise ValueError(
                             f"sealed staging chunk changed during finalization: {source_path}"
                         )
-                if self.owner.telemetry is not None:
-                    self.owner.telemetry.add(
+                if self.telemetry is not None:
+                    self.telemetry.add(
                         "spool_write_seconds", time.monotonic() - copy_started
                     )
                 sync_started = time.monotonic()
@@ -744,8 +741,8 @@ class SplitChunks:
                 os.fsync(output.fileno())
             temporary.replace(path)
             sync_directory(self.root)
-            if self.owner.telemetry is not None:
-                self.owner.telemetry.add(
+            if self.telemetry is not None:
+                self.telemetry.add(
                     "finalize_fsync_seconds", time.monotonic() - sync_started
                 )
             proofs[basename] = _written_file(
@@ -756,6 +753,6 @@ class SplitChunks:
             "artifact_bytes": sum(proof.size_bytes for proof in proofs.values()),
             "artifact_files": len(proofs),
         }
-        if self.owner.telemetry is not None:
-            self.owner.telemetry.logical_output_bytes += stats["artifact_bytes"]
+        if self.telemetry is not None:
+            self.telemetry.logical_output_bytes += stats["artifact_bytes"]
         return proofs, stats

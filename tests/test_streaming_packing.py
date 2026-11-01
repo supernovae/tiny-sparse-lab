@@ -122,7 +122,8 @@ prepared = prepare_data(
     tokenizer_batch_documents=int(sys.argv[3]),
     tokenizer_batch_source_bytes=int(sys.argv[4]),
     resource_envelope=ResourceEnvelope(
-        resource_envelope_version=1, max_workers=int(sys.argv[5])
+        resource_envelope_version=1, max_workers=int(sys.argv[5]),
+        preparation_shard_workers=int(sys.argv[6])
     ),
 )
 print(json.dumps({
@@ -132,8 +133,13 @@ print(json.dumps({
 }))
 """
     reference = None
-    for workers, documents in [(1, 1), *product((1, 2, 4), (16, 64, 256))]:
-        cache_dir = tmp_path / f"cache-{workers}-{documents}"
+    coordinates = [
+        (workers, documents, 1)
+        for workers, documents in [(1, 1), *product((1, 2, 4), (16, 64, 256))]
+    ]
+    coordinates += [(2, 16, 2), (4, 256, 2)]
+    for workers, documents, shards in coordinates:
+        cache_dir = tmp_path / f"cache-{workers}-{documents}-{shards}"
         cache_dir.mkdir()
         environment = os.environ.copy()
         environment.update(
@@ -153,6 +159,7 @@ print(json.dumps({
                 str(documents),
                 "3000",
                 str(workers),
+                str(shards),
             ],
             capture_output=True,
             text=True,
@@ -629,3 +636,102 @@ def test_empty_records_resume_in_order_without_encoding_or_overconsuming(
     assert acquired == texts[:7] * 2
     assert encoded == expected_texts
     assert np.load(root / "train.npy").tolist() == expected_ids
+
+
+def test_parallel_shards_join_on_failure_and_resume_verified_chunks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+    from threading import Barrier
+
+    from sparselab.data import encoding, preparation_chunks
+    from sparselab.resource_envelope import ResourceEnvelope
+
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+
+    run = config(tmp_path)
+    paths = {}
+    for split in ("train", "validation"):
+        path = tmp_path / f"{split}.jsonl"
+        path.write_text(
+            "".join(
+                json.dumps({"text": f"{split} fox {n} café"}) + "\n" for n in range(8)
+            )
+        )
+        paths[f"{split}_path"] = path
+    run = run.model_copy(
+        update={
+            "dataset": run.dataset.model_copy(
+                update={
+                    "source": "local_text",
+                    "license": "fixture",
+                    **paths,
+                    "train_max_documents": 8,
+                    "validation_max_documents": 8,
+                    "train_max_tokens": 1000,
+                    "validation_max_tokens": 1000,
+                }
+            )
+        }
+    )
+    tokenizer = load_tokenizer(run.tokenizer.path)
+    # Pin a tiny two-worker capacity so this also tests concurrency on CI hosts.
+    plan = encoding.tokenizer_work_plan(1)
+    monkeypatch.setattr(
+        "sparselab.data.packing.tokenizer_work_plan", lambda _: replace(plan, workers=2)
+    )
+    barrier = Barrier(2)
+    real_seal = preparation_chunks._after_sealed_chunk
+
+    def interrupt(split, index, receipt):
+        if index == 0:
+            barrier.wait(timeout=10)
+            if split == "train":
+                raise ValueError("fixture interrupt after committed shard")
+
+    monkeypatch.setattr(preparation_chunks, "_after_sealed_chunk", interrupt)
+    with pytest.raises(
+        (ValueError, RuntimeError), match="fixture interrupt|sibling shard"
+    ):
+        prepare_data(
+            run,
+            tokenizer,
+            resource_envelope=ResourceEnvelope(
+                resource_envelope_version=1, max_workers=2, preparation_shard_workers=2
+            ),
+        )
+    staged = list(run.dataset.cache_dir.rglob("staging.json"))
+    assert len(staged) == 1
+    assert not (staged[0].parent / "manifest.json").exists()
+    assert len(list(staged[0].parent.glob("*.receipt.json"))) == 2
+    monkeypatch.setattr(preparation_chunks, "_after_sealed_chunk", real_seal)
+
+    def no_reencode(self, texts):
+        pytest.fail("sealed documents must resume without re-encoding")
+
+    monkeypatch.setattr(PreparationEncoder, "encode", no_reencode)
+    prepared = prepare_data(
+        run,
+        tokenizer,
+        resource_envelope=ResourceEnvelope(
+            resource_envelope_version=1, max_workers=2, preparation_shard_workers=2
+        ),
+    )
+    for split in ("train", "validation"):
+        expected = [
+            token
+            for n in range(8)
+            for token in [
+                *tokenizer.encode(
+                    f"{split} fox {n} café", add_special_tokens=False
+                ).ids,
+                tokenizer.token_to_id("<eos>"),
+            ]
+        ]
+        assert np.load(prepared.root / f"{split}.npy").tolist() == expected
+    receipt = json.loads(
+        prepared.root.with_name(prepared.root.name + ".preparation.json").read_text()
+    )
+    assert receipt["shard_workers"] == 2
+    assert set(receipt["shards"]) == {"train", "validation"}
+    assert all(row["encoder"]["batches"] == 0 for row in receipt["shards"].values())

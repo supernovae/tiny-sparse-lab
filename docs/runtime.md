@@ -742,6 +742,65 @@ validation after its first sealed chunk encoded only the remaining 3 validation
 records, not the completed train split. Tests also reject changed sealed bytes,
 source/tokenizer/owner identity, unexpected entries, and replacement publication.
 
+### Concurrent preparation shards
+
+Streaming `local_text`, `local_stories` and generic `snapshot` preparation can
+run train and validation as two independently owned output shards. Opt in through
+the existing `data prepare --resource-envelope envelope.yaml` option:
+
+```yaml
+resource_envelope_version: 1
+max_workers: 4
+preparation_shard_workers: 2
+max_queue_depth: 2
+spill_to_disk: true
+```
+
+`preparation_shard_workers` defaults to 1. The capacity planner bounds the total
+native worker budget to at most four; two shards divide that budget, rather than
+each creating a full Rayon pool. The measured capacity and `max_queue_depth` can
+reduce concurrency. One synchronous, byte/document-bounded tokenizer batch is
+in flight per shard; there is no unbounded submission queue. The serial setting
+retains one tokenizer child shared across both splits. Rust-backed batch encoding
+uses the existing `tokenizers` library, with no new CUDA or NVIDIA dependency.
+
+Each shard owns its source iterator, tokenizer, chunk receipts and output files.
+Document order, EOS boundaries, quotas and causal byte addresses stay unchanged.
+Receipt verification precedes scheduling; manifest publication follows successful
+completion of both shards. Failure signals the sibling to stop at a record/batch
+boundary and joins it before returning. Committed chunks remain recoverable;
+uncommitted bytes never authorize reuse. This does not interrupt a tokenizer
+call mid-batch, or change the existing bounded reply timeout.
+
+The operational `.preparation.json` receipt adds `shard_workers` and per-split
+`shards` measurements. Stage durations are summed worker wall time and can overlap;
+they are not an additive decomposition of elapsed wall time. Per-shard `encoder`
+reports batches, request/reply bytes, synchronous result-wait backpressure,
+child CPU seconds and CPU utilization divided by allocated native threads and
+shard wall time. Parallel child CPU includes startup; serial samples start after
+shared child initialization. This is not whole-pipeline utilization.
+RSS remains parent-process RSS; the benchmark separately samples the process tree.
+Counts include restored source records, while resumed output counts include sealed
+tokens: those rates describe the operation, not new encoding throughput.
+
+This is two-way split concurrency, not arbitrary subdivision of the training
+split. Train-heavy inputs may lose throughput when the same budget is divided
+between unequal shards. JSON IPC, Python bookkeeping, source replay on recovery,
+verification scans and final contiguous copying remain costs. Acquisition dedup,
+mixture indexing and token-cache commits are unchanged. The pattern is informed by
+[HF batched tokenization](https://huggingface.co/learn/llm-course/chapter6/3) and
+[NVIDIA's worker-based preparation](https://github.com/NVIDIA/Model-Optimizer/blob/main/examples/dataset/MEGATRON_DATA_PREP.md);
+no source or dependency chain was copied from NVIDIA.
+
+For host acceptance, use the native offline benchmark below with `threads:
+[1, 2, 4]`, `batch_documents: [256]`, `sizes_bytes: [1048576]` and
+`shard_workers: 1`, then a separate absent workspace with `shard_workers: 2`.
+Compare array digests, total wall time, per-stage times and process-tree RSS before
+trying a larger bounded size. Keep cache state and other host activity comparable;
+repeat on HDD and NVMe independently. These synthetic checks do not establish
+production throughput, storage causality, or a Gen4/Gen5 recommendation. Active
+experiments and their pinned checkouts must not be changed for this check.
+
 ### Offline performance evidence
 
 The retained [preparation benchmark](https://github.com/supernovae/tiny-sparse-lab/blob/9d4c840ef1f102becf27532c2548c505c2ed35a6/artifacts/benchmarks/runtime-prep-v1.json)
