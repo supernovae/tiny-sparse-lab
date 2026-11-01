@@ -888,7 +888,7 @@ def test_unsafe_parallel_tokenizer_uses_reported_serial_fallback(
     paths = {}
     for split in ("train", "validation"):
         path = tmp_path / f"{split}.jsonl"
-        path.write_text(json.dumps({"text": f"{split} fox café"}) + "\n")
+        path.write_text(json.dumps({"text": f"{split} fox café " * 32}) + "\n")
         paths[f"{split}_path"] = path
     run = run.model_copy(
         update={
