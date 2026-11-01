@@ -43,7 +43,7 @@ class BenchmarkDeclaration(StrictModel):
     batch_documents: list[int] = Field(default_factory=lambda: [1, 16])
     batch_source_bytes: int = Field(default=MIB, strict=True, ge=1, le=8 * MIB)
     threads: list[int] = Field(default_factory=lambda: [1])
-    shard_workers: int = Field(default=1, strict=True, ge=1, le=2)
+    shard_workers: int = Field(default=1, strict=True, ge=1, le=32)
     worker_timeout_seconds: float = Field(default=120, strict=True, gt=0, le=3600)
 
     @field_validator("sizes_bytes", "batch_documents", "threads", mode="before")

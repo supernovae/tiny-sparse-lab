@@ -177,6 +177,7 @@ _ARRAY_EXCLUDED_EDGES = frozenset(
         ("data.packing", "data.tokenizer"),
         ("data.packing", "data.preparation_chunks"),
         ("data.packing", "data.preparation_telemetry"),
+        ("data.packing", "data.preparation_workers"),
         ("data.packing", "experiments.source_compatibility"),
         ("data.packing", "progress"),
         ("data.packing", "resource_envelope"),
@@ -231,7 +232,9 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # imported names. A new use in a verifier, or any change to an existing user,
 # makes authority unavailable until the exclusion is explicitly re-audited.
 # data.packing re-audited 2026-11-01: AST owner comparison against 903ad2f
-# changes only _collect_streaming and _prepare_data. New shard scheduling,
+# changes only _collect_streaming and _prepare_data, adding the producer-only
+# _streaming_values helper. preparation_workers is only used by _prepare_data;
+# it cannot authorize loading already packed bytes. New chunk scheduling,
 # cancellation and telemetry are producer-only; load_prepared_data and
 # _verified_receipt remain byte-for-byte unchanged. No excluded producer
 # operation is reachable from those verifier entry points.
@@ -253,13 +256,17 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # chains; prepared-data inventory proofs remain independent of preparation.
 _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
+        "data.packing",
+        "data.preparation_workers",
+    ): "73de00d91e92ed54a94c50e9c1abdc2433711bcdf031b51434989664ed9e52bc",
+    (
         "experiments.artifacts",
         "data.sources",
     ): "59400a133cadd8c521204da9dd44d4ad36716e9cd359f0a6b8637987540510f0",
     (
         "data.packing",
         "corpus.mixture",
-    ): "7a2939ce4bf654a7f643d20a3ea3993a70a9e32d92b63bc40aa7cc6f5b003f22",
+    ): "d029207e60e6489f842452bd4125d7248d12b8ba70219b5c16594b405fcdf3e7",
     (
         "workers",
         "workers.transport",
@@ -267,11 +274,11 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.tokenizer",
-    ): "ee0b5feda3b1e99acc351429644aebe990ec56a0c8c2e0dc897eac75fa0917d0",
+    ): "9c95ec7b587cd71cf53c154bb4b3c9a9da802535748520c471bc58b2f921a45f",
     (
         "data.packing",
         "data.sources",
-    ): "801354784e70d446fe8d9ebd5d77aa2040dacc993e0115c862d545c7df856fad",
+    ): "a88f1ab52e550bd3f4c3d7e03dc3e82b32196b43656ff9754a485aaa9152516d",
     (
         "data",
         "data.tokenizer",
@@ -291,19 +298,19 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "corpus.export",
-    ): "708091fd2e335cbb2647b981bf1a3f62efbcc6d5abcf3fdcd4dfe6ae0bd2a002",
+    ): "d8f03340f9ccbf93335c943e8f6838de695f8a3ae99a50a19986cf1cbd854ec6",
     (
         "data.packing",
         "data.allocation",
-    ): "bfb4d8245ac727b40811193e5c5d5930c0245c3642972ef90cdcb51f793cc60a",
+    ): "10d72398cf7d3f4e4f296bbc5a0ba4304c0dc747506757d4b358a34fa5f9bcc0",
     (
         "data.packing",
         "data.byte_hash",
-    ): "66940a53d4332ad67525e70012b736cdedcc9ffc9fd2ae1092ef710d3dcc09e7",
+    ): "1c41efaf18a6619eeee832d47d1e2604d72b305226153635270ae902395d709a",
     (
         "data.packing",
         "data.conversations",
-    ): "677992049cdd5762651cbf73c4ddbf7bafaf6c65d116083faee54d2dcce3120d",
+    ): "6c6e354ed411f7adef4c22d76333563546c6cb75dd54356e0a57ed8b4d254c12",
     (
         "data.packing",
         "data.datasets",
@@ -311,31 +318,31 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "data.encoding",
-    ): "c73d6eb41f40b15cb5df059e81bf3f984a2e50c48aecbb45f5af5c715d175887",
+    ): "4cc509272357384b1a7b5fdd4b0dc76522c18cd2357141524b06c5b30b009260",
     (
         "data.packing",
         "data.local_stories",
-    ): "4863ed83284f8792874e7100e99757e57906102a47a097f8dcfaee9bc46a2df9",
+    ): "27bef7e4030e2e55a258455ab188b9043787ce180be100dc8e79814714216e60",
     (
         "data.packing",
         "data.preparation_chunks",
-    ): "2e89829260f0d7cc3e39a13092d241529e978ead8ee9eee17c68b09e4ecc1e2a",
+    ): "23dfbc56e3aa41198852cdbf5c8842432bf3628d24e2e57ea9707a6dfa6ce622",
     (
         "data.packing",
         "data.preparation_telemetry",
-    ): "acb6ce1173ceef86d93292c9e9bbdf318d014f85f226756ae94a3597d3060401",
+    ): "10eecfa24798c97c2b59f07cb28cb19fe616b359b32979e3cfc380eb3d33fb7f",
     (
         "data.packing",
         "experiments.source_compatibility",
-    ): "7726f8d320ba08fd28ddd7d822651ae723970287b082c3b1db4a5c4005751205",
+    ): "edcb04aa99f9cfb95b3d06bf364727f160d5e808003ab029619fde4e38262c1e",
     (
         "data.packing",
         "progress",
-    ): "480c110c8279dfc69f40bf08dab31d2c9ccd0fc8cbccb8c3f817667a52502a18",
+    ): "e24a78cb54babf2ff54d5ec46354bb30042b8e5c230a26891676cccb42828291",
     (
         "data.packing",
         "resource_envelope",
-    ): "aa24372d2652a070cdbdaea509cc58ee52e0200e023e014f876d8c0e4a4a0d3b",
+    ): "ed6d8f8318fc23b09fb3a8a4f3fa3d3612d289a7ca10255363769c00cb12c216",
     (
         "data.packing",
         "workdir",
@@ -347,7 +354,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "data.packing",
         "workspace_preflight",
-    ): "9f87333316f8f1bfc58160338a9f4e2ce100ed447ece694200aa26a4c612ac3d",
+    ): "3120726d26e195ec96e29958264ad2b3e466573b1b2fc52fed70ce3f6a5ab147",
     (
         "corpus.tokenizer_bakeoff",
         "corpus.cli",

@@ -742,64 +742,77 @@ validation after its first sealed chunk encoded only the remaining 3 validation
 records, not the completed train split. Tests also reject changed sealed bytes,
 source/tokenizer/owner identity, unexpected entries, and replacement publication.
 
-### Concurrent preparation shards
+### Concurrent preparation chunks
 
 Streaming `local_text`, `local_stories` and generic `snapshot` preparation can
-run train and validation as two independently owned output shards. Opt in through
-the existing `data prepare --resource-envelope envelope.yaml` option:
+use independent chunk workers **within each split**. Train and validation share
+one operation-scoped pool; validation does not reserve capacity while train runs.
+Opt in through `data prepare --resource-envelope envelope.yaml`:
 
 ```yaml
 resource_envelope_version: 1
 max_workers: 4
-preparation_shard_workers: 2
-max_queue_depth: 2
+preparation_shard_workers: 4
+max_queue_depth: 4
 spill_to_disk: true
 ```
 
-`preparation_shard_workers` defaults to 1. The capacity planner bounds the total
-native worker budget to at most four; two shards divide that budget, rather than
-each creating a full Rayon pool. The measured capacity and `max_queue_depth` can
-reduce concurrency. One synchronous, byte/document-bounded tokenizer batch is
-in flight per shard; there is no unbounded submission queue. The serial setting
-retains one tokenizer child shared across both splits. Rust-backed batch encoding
-uses the existing `tokenizers` library, with no new CUDA or NVIDIA dependency.
+`preparation_shard_workers` defaults to 1, retaining one tokenizer child shared
+across sequential splits. The capacity planner bounds total native threads to
+at most four. Requested chunk workers (1–32) are reduced by that budget and the
+queue cap. An odd native budget is fully assigned: three threads with two workers
+uses pools of two and one. Receipts disclose requested/effective counts, actual
+per-child threads, capacity and fallback reasons. Native CPU tokenization uses
+the existing Rust-backed `tokenizers` package; no CUDA or NVIDIA dependency is added.
 
-Each shard owns its source iterator, tokenizer, chunk receipts and output files.
-Document order, EOS boundaries, quotas and causal byte addresses stay unchanged.
-Receipt verification precedes scheduling; manifest publication follows successful
-completion of both shards. Failure signals the sibling to stop at a record/batch
-boundary and joins it before returning. Committed chunks remain recoverable;
-uncommitted bytes never authorize reuse. This does not interrupt a tokenizer
-call mid-batch, or change the existing bounded reply timeout.
+Parallel dispatch requires an unnormalized ByteLevel BPE tokenizer without
+padding or prefix-space insertion. Other tokenizers retain the serial path,
+with the fallback recorded. UTF-8 bytes plus EOS reserve a conservative token
+bound before reading ahead. Near a token cap, outstanding work is drained before
+acquiring more records; a document whose conservative bound exceeds the remaining
+budget is resolved alone. Actual token counts still enforce the exact cap.
+The coordinator alone selects source records and advances the ordered frontier;
+worker settings do not change document order, quotas, EOS or causal byte addresses.
 
-The operational `.preparation.json` receipt adds `shard_workers` and per-split
-`shards` measurements. Stage durations are summed worker wall time and can overlap;
-they are not an additive decomposition of elapsed wall time. Per-shard `encoder`
-reports batches, request/reply bytes, synchronous result-wait backpressure,
-child CPU seconds and CPU utilization divided by allocated native threads and
-shard wall time. Parallel child CPU includes startup; serial samples start after
-shared child initialization. This is not whole-pipeline utilization.
-RSS remains parent-process RSS; the benchmark separately samples the process tree.
-Counts include restored source records, while resumed output counts include sealed
-tokens: those rates describe the operation, not new encoding throughput.
+At most one bounded work item per worker is outstanding, including finished work
+waiting for an earlier item; the coordinator may buffer one additional item. Work
+items use the existing chunk record bound and at most 8 MiB of source text, with
+actual limits reported. Each worker encodes small byte/document-bounded batches
+into its chunks, amortizing receipts and fsync across those calls. It writes exclusive raw
+chunks and receipts in an owned `work-SPLIT-SEQUENCE` directory. The coordinator
+checks receipt contents and writer fingerprints, renames raw files without copying
+their bytes, and commits receipts in source order. Worker receipts alone are never
+resume authority. On interruption, the verified committed prefix survives;
+uncommitted worker directories are discarded on resume, with unexpected files or
+symlinks rejected rather than deleted. A sibling failure stops work at record/batch
+boundaries and joins workers before returning. A tokenizer call retains its existing
+bounded reply timeout. Final NPY assembly and atomic verified bundle publication
+remain the existing path.
 
-This is two-way split concurrency, not arbitrary subdivision of the training
-split. Train-heavy inputs may lose throughput when the same budget is divided
-between unequal shards. JSON IPC, Python bookkeeping, source replay on recovery,
-verification scans and final contiguous copying remain costs. Acquisition dedup,
-mixture indexing and token-cache commits are unchanged. The pattern is informed by
-[HF batched tokenization](https://huggingface.co/learn/llm-course/chapter6/3) and
-[NVIDIA's worker-based preparation](https://github.com/NVIDIA/Model-Optimizer/blob/main/examples/dataset/MEGATRON_DATA_PREP.md);
-no source or dependency chain was copied from NVIDIA.
+The operational `.preparation.json` receipt contains split measurements under
+`shards` and cumulative worker measurements under `worker_pool`: stage times,
+throughput, queue peak, coordinator queue wait, IPC bytes/wait, worker busy time,
+and child CPU utilization over the pool lifetime and allocated native threads.
+Worker job busy time is null on the serial path, which does not dispatch jobs.
+Summed worker stage times overlap and are not an additive wall-time decomposition.
+RSS there remains parent RSS; the benchmark separately samples the process tree.
+Restored records/tokens count toward operation rates, not new encoding throughput.
+JSON IPC, Python bookkeeping, source replay and final contiguous copying remain
+costs. Acquisition/mixture deduplication and cache commits are unchanged. The design
+uses ideas from [HF batched tokenization](https://huggingface.co/learn/llm-course/chapter6/3)
+and [NVIDIA's worker-based preparation](https://github.com/NVIDIA/Model-Optimizer/blob/main/examples/dataset/MEGATRON_DATA_PREP.md);
+no NVIDIA source or dependency chain was copied.
 
-For host acceptance, use the native offline benchmark below with `threads:
-[1, 2, 4]`, `batch_documents: [256]`, `sizes_bytes: [1048576]` and
-`shard_workers: 1`, then a separate absent workspace with `shard_workers: 2`.
-Compare array digests, total wall time, per-stage times and process-tree RSS before
-trying a larger bounded size. Keep cache state and other host activity comparable;
-repeat on HDD and NVMe independently. These synthetic checks do not establish
-production throughput, storage causality, or a Gen4/Gen5 recommendation. Active
-experiments and their pinned checkouts must not be changed for this check.
+For later host acceptance, use the native offline benchmark below with `threads:
+[1, 2, 3, 4]`, `batch_documents: [256]`, `sizes_bytes: [1048576]` and
+`shard_workers: 1`, then separate absent workspaces with `shard_workers: 2`, `4`
+and `8` (the over-capacity case). Compare actual counts, array/manifest digests,
+wall time, stage times, queue bounds and process-tree RSS. Repeat with the same
+bounded inputs and comparable cache/host activity before increasing size. Measure
+HDD and NVMe separately; planned hardware is not installed capacity or evidence.
+Keep active experiments and their pinned checkouts untouched. These synthetic
+checks do not establish production throughput, storage causality or a Gen4/Gen5
+recommendation.
 
 ### Offline performance evidence
 
