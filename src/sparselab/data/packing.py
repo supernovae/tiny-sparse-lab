@@ -1726,6 +1726,7 @@ def _prepare_data(
             measured = shard_telemetry[split]
             measured.started = time.monotonic()
             shard_proofs = {}
+            encoder = None
             before = (
                 (0, 0, 0, 0.0, 0.0)
                 if shared_encoder is None
@@ -1773,7 +1774,7 @@ def _prepare_data(
                 raise
             finally:
                 snapshot = measured.snapshot()
-                if "encoder" in locals():
+                if encoder is not None:
                     snapshot["encoder"] = {
                         "batches": encoder.batch_count - before[0],
                         "request_bytes": encoder.request_bytes - before[1],
